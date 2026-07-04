@@ -42,7 +42,7 @@ cargo test --workspace -- --ignored` (sqlx suites) · `cargo run -p api --bin op
 (regen contract) · web: `pnpm --filter web lint|typecheck|test`, `pnpm e2e`
 
 ## Start the loop
-`./agents/run-loop.sh [effort] [model]` — defaults to max via env var (the only persistent path for max); guards branches; 5s Ctrl-C gap between iterations.
+`./agents/run-loop.sh [effort] [model]` — defaults: max effort + --dangerously-skip-permissions (GOVFOLIO_SKIP_PERMS=0 to prompt). Run isolated: dedicated VM, repo-token-only credentials, protected main.
 
 ## Definition of done (any task)
 All acceptance commands in the goal file pass locally AND the full command block above is

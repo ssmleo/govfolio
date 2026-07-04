@@ -1,22 +1,26 @@
 #!/usr/bin/env sh
 # govfolio loop runner — start the Ralph loop with one command.
 # Usage: ./agents/run-loop.sh [effort] [model]
-#   effort: low|medium|high|xhigh|max   (default: max — founder decision, 2026-07-04)
+#   effort: low|medium|high|xhigh|max     (default: max — founder decision, 2026-07-04)
 #   model : optional Claude Code model name/alias passed to --model
-#           (not hardcoded: verify Fable 5's alias in your CLI via /model first)
+# Env toggles:
+#   GOVFOLIO_SKIP_PERMS=0  -> re-enable permission prompts (default 1: skip, per
+#                             founder requirement 2026-07-04; -p sessions stall on
+#                             prompts, so skipping is load-bearing for unattended loops)
 #
-# Why each line exists:
-# - env var is THE only way max persists across the loop's fresh sessions
-#   (settings files reject max; /effort max dies with its session).
-# - branch guard: governance says agents never commit to main directly.
-# - sleep 5: your Ctrl-C window between iterations.
-# - max warning: uncapped token spend must be visible, never silent.
+# Safety model with permissions skipped (enforcement moves OFF the harness):
+#  1. ISOLATION: run on a dedicated VM/devcontainer, never a daily-use machine.
+#  2. CREDENTIALS: this environment holds ONLY a repo-scoped git token + Claude login.
+#     No GCP / Stripe / prod secrets — human-only lanes keep those elsewhere by design.
+#  3. REMOTE ENFORCEMENT: protect main on the git host (server rejects force/direct pushes).
+#  Note: recent Claude Code versions refuse --dangerously-skip-permissions under root/sudo.
 
 set -eu
-cd "$(dirname "$0")/.."   # anchor at repo root so PROMPT.md resolves from anywhere
+cd "$(dirname "$0")/.."
 
 EFFORT="${1:-max}"
 MODEL="${2:-}"
+SKIP="${GOVFOLIO_SKIP_PERMS:-1}"
 export CLAUDE_CODE_EFFORT_LEVEL="$EFFORT"
 
 command -v claude >/dev/null 2>&1 || { echo "ERROR: claude CLI not found (npm i -g @anthropic-ai/claude-code)"; exit 1; }
@@ -28,9 +32,19 @@ if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
   git checkout -B loop/main
 fi
 
+PERM_FLAG=""
+[ "$SKIP" = "1" ] && PERM_FLAG="--dangerously-skip-permissions"
+
 echo "=============================================================="
 echo " govfolio loop | effort=$EFFORT (env var: survives every fresh session)"
 [ -n "$MODEL" ] && echo " model=$MODEL (passed via --model)"
+if [ "$SKIP" = "1" ]; then
+  echo " PERMISSIONS: SKIPPED (autonomous). Harness backstop is OFF —"
+  echo "   isolation + credential hygiene + protected main are your enforcement."
+  echo "   Human-only lanes remain PROMPT-enforced (agents stop and ask in-goal)."
+else
+  echo " PERMISSIONS: prompting (GOVFOLIO_SKIP_PERMS=0)"
+fi
 [ "$EFFORT" = "max" ] && echo " WARNING: max = no token ceiling. Unattended = fastest possible spend."
 echo " Stop: Ctrl-C during the 5s gap. State/memory: the repo (JOURNAL.md, goals)."
 echo "=============================================================="
@@ -41,9 +55,9 @@ while :; do
   echo ""
   echo "---- iteration $i | $(date -u +%FT%TZ) | effort=$EFFORT ----"
   if [ -n "$MODEL" ]; then
-    cat agents/PROMPT.md | claude -p --model "$MODEL"
+    cat agents/PROMPT.md | claude -p $PERM_FLAG --model "$MODEL"
   else
-    cat agents/PROMPT.md | claude -p
+    cat agents/PROMPT.md | claude -p $PERM_FLAG
   fi
   sleep 5
 done
