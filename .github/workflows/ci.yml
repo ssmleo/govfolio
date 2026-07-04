@@ -48,3 +48,24 @@ jobs:
     steps:
       # Placeholder — real lint/typecheck/test wiring lands in goal 040.
       - run: echo "web job placeholder (activates in goal 040)"
+
+  # Enforces docs/decisions/automation-policy.md: destructive migrations and
+  # over-budget terraform destroys must fail closed, not merge.
+  guardrails:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: migrations expand-only
+        run: sh scripts/check-migration-safety.sh crates/core/migrations
+      - name: terraform destroy-budget
+        env:
+          DESTROY_BUDGET: "2"
+        run: |
+          if [ ! -d infra ]; then
+            echo "no infra/ yet (goal 020) — tf-plan guardrail inactive"
+            exit 0
+          fi
+          # infra/ landed: add hashicorp/setup-terraform + backend config above, then:
+          terraform -chdir=infra plan -out=tfplan
+          terraform -chdir=infra show -json tfplan > tfplan.json
+          sh scripts/check-tf-plan.sh tfplan.json
