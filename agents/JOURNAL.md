@@ -1,1 +1,13 @@
 # Orchestrator journal (one line per iteration)
+2026-07-04 | env | claude 2.1.201 (>=2.1.198 floor OK); host: no admin/Docker/WSL, no gcc; portable PG 16.14 @localhost:5433 (zonky) substitutes docker-compose locally; CI covers postgres:16 service | blockers: none
+2026-07-04 | 001/T1 | workspace+lint law+smoke green, commit 4011472 (rust-builder, verified by orchestrator) | deviation: adapters glob deferred to first adapter crate (cargo empty-glob error)
+2026-07-04 | 001/T2 | ci.yml 3 jobs, run 28718998677 success, commit 98a5147 | none
+2026-07-04 | 001/T3 | migrator+compose+env, ignored-test convention, commit f642922, CI green | agent stalled on own CI watcher; orchestrator verified directly
+2026-07-04 | 001/T4 | domain primitives + GoldCandidate schema snapshot, commits 4bff22b+d9a5b94, CI green ×2 | first attempt killed by founder mid-red; resumed from partial state. Skills incident: builders missed agents/skills/ (dispatch prompts now carry explicit SKILL.md paths)
+2026-07-04 | skills | founder-side install detected 18:10-18:12: .agents/skills/{rust-async-patterns,rust-best-practices,tdd-rust} + skills-lock.json (wshobson/agents, apollographql/skills, rtk-ai/rtk) — bypasses 019 gateway (A3 vendored-pin+audit); left untracked/inactive, agents instructed to ignore; recommend routing through goal 019 | awaiting founder confirm
+2026-07-04 | 001/T5 | 0001_core.sql §4.2 verbatim + support tables, 23514 tests, sqlx 0.8→0.9 align, commit ad481d4, CI green | deviation: build.rs rerun-if-changed added (embedded migrator staleness)
+2026-07-04 | 001/T6 | fingerprint canonical-JSON sha256, cross-process determinism probed, commit 2a182d1, CI green | none
+2026-07-04 | 001/T7 | adapter trait+RunCtx+conformance harness+fixture_fake (pass+broken case), commit 93c8991, CI green (incl. founder's 659310f guardrail gates) | none
+2026-07-04 | policy | root CLAUDE.md + docs/decisions/automation-policy.md: ALL human gates lifted → expected.*.json auto (2nd-model cross-check), goal 001 BLOCKED(human) superseded | note: single-model fleet → cross-check = independent blind agent, flagged as approximation
+2026-07-04 | 001/T8a | us-house regime doc, evidence-pinned, 4 fixtures sha256'd, commit 1c62dcd (spec-writer) | KEY: PTR amendment=FilingType P new DocID (not A); supersession link impossible → review_task. Open: blank-owner=self assumption flagged; statute text unarchived
+2026-07-04 | HALT | founder steering: stop after T8a for PC restart. Next: T8b fixture capture + independent expected.*.json (test-designer), T8c adapter impl, T8d auditor cross-check, then T9-T11 | resume: restart PG (see goal 001 env note), re-run loop
