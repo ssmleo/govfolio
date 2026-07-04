@@ -1,0 +1,38 @@
+[
+  {
+    "filing_id": "0HSEFNG0000000000020020055",
+    "politician_id": "0HSEMBR0000000000000000001",
+    "regime_id": "0HSEREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Listen Ventures IV, LP [HN]",
+    "record_type": "transaction",
+    "asset_class": "fund",
+    "side": "buy",
+    "transaction_date": "2026-05-13",
+    "as_of_date": null,
+    "notified_date": "2026-05-13",
+    "value": { "low": "250001.00", "high": "500000.00", "currency": "USD" },
+    "owner": "self",
+    "extraction_confidence": 0.9800000190734863,
+    "extracted_by": "us_house_ptr/text@1",
+    "fingerprint": null,
+    "details": {
+      "doc_id": "20020055",
+      "row_ordinal": 1,
+      "row_id": null,
+      "asset_type_code": "HN",
+      "amount_band_raw": "$250,001 - $500,000",
+      "transaction_type_raw": "P",
+      "partial_sale": false,
+      "cap_gains_over_200": null,
+      "filing_status_raw": "New",
+      "owner_source": "default_self",
+      "subholding_of": null,
+      "vehicle_owner_code": null,
+      "vehicle_location": null,
+      "description": null,
+      "comments": null,
+      "signed_date": "2026-06-12"
+    }
+  }
+]

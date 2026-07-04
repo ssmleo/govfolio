@@ -25,7 +25,16 @@ docker compose up -d && cargo test --workspace -- --ignored
     20033759 (amendment), 20034836 (SP/options)
   - KEY CORRECTION vs plan: PTR amendments = FilingType P w/ new DocID (A = annual FD);
     no deterministic supersession link → NULL + review_task ptr_amendment_unlinked
-- [ ] T8b fixture capture + independent expected.*.json (test-designer; NOT from parser output)
+- [x] T8b fixture capture + independent expected.*.json (test-designer; NOT from parser output)
+  - 4 cases under crates/adapters/us_house/fixtures/ (typical_single_row, multi_row_sp_vehicle,
+    amendment_unlinked, sp_owner_options); all sha256 pins re-verified, zero drift (index zip
+    byte-identical to E1). 12 rows transcribed from PDFs via two independent passes (text layer
+    + visual render), then mechanically cross-checked silver→gold against §3 tables.
+  - Conformance conventions the builder must hit are in fixtures/MANIFEST.json: fixed ULID id
+    constants (PDF carries no ids; pool=None in conformance), confidence JSON literal
+    0.9800000190734863 (f64 image of f32 0.98 under serde_json's raw cast), silver payload =
+    §4 fields minus confidence (wrapper-level), details optional fields as explicit nulls.
+  - Index slice + retrieval metadata archived: docs/regimes/us-house/evidence/
 - [ ] T8c adapter implementation to conformance ×3 green (rust-builder)
 - [ ] T8d adversarial cross-check pass (auditor; policy's second-model check)
 

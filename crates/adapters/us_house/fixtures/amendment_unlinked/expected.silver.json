@@ -1,0 +1,29 @@
+[
+  {
+    "payload": {
+      "doc_id": "20033759",
+      "row_ordinal": 1,
+      "filer_name_raw": "Hon. David Rouzer",
+      "filer_status_raw": "Member",
+      "state_district_raw": "NC07",
+      "row_id_raw": "2000152831",
+      "owner_code_raw": null,
+      "asset_raw": "Boeing Company (BA) [ST]",
+      "asset_type_code_raw": "ST",
+      "transaction_type_raw": "S",
+      "transaction_date_raw": "12/09/2025",
+      "notification_date_raw": "12/09/2025",
+      "amount_raw": "$1,001 - $15,000",
+      "cap_gains_over_200": null,
+      "filing_status_raw": "Amended",
+      "subholding_of_raw": "Interactive Brokers LLC",
+      "description_raw": null,
+      "comments_raw": "Sold at a $1,440 loss.",
+      "vehicle_owner_code_raw": null,
+      "vehicle_location_raw": null,
+      "signed_date_raw": "01/07/2026",
+      "extractor": "us_house_ptr/text@1"
+    },
+    "confidence": 0.9800000190734863
+  }
+]

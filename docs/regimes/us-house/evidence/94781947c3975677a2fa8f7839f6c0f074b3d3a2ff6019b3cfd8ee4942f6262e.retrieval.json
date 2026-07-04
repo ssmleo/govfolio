@@ -1,0 +1,35 @@
+{
+  "evidence_for": "docs/regimes/us-house.md §7 fixture selection + §2 discovery claims (E1); goal 001 T8b fixture capture",
+  "slice_file": "94781947c3975677a2fa8f7839f6c0f074b3d3a2ff6019b3cfd8ee4942f6262e.2026FD-slice.xml",
+  "slice_sha256": "94781947c3975677a2fa8f7839f6c0f074b3d3a2ff6019b3cfd8ee4942f6262e",
+  "slice_contents": "the four 2026FD.xml <Member> elements for fixture DocIDs 20020055, 20019182, 20033759, 20034836 (verbatim; source BOM not reproduced)",
+  "source": {
+    "url": "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2026FD.zip",
+    "method": "GET (full zip retrieved once; only the slice is archived — full zip is regenerated server-side at least daily and is re-fetchable)",
+    "retrieved_at_utc": "2026-07-04T23:04:39Z",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "zip_sha256": "e5419282df7a96daa8aed108b72072a57bf909bb2a6c6333c938144f6898ba0d",
+    "etag": "\"3e8597f0ebadd1:0\"",
+    "last_modified": "Fri, 03 Jul 2026 13:00:36 GMT",
+    "content_length": 48167,
+    "content_type": "application/x-zip-compressed",
+    "cache_control": "max-age=8221"
+  },
+  "verification": {
+    "regime_doc_pin": "E1 sha256 e5419282df7a96daa8aed108b72072a57bf909bb2a6c6333c938144f6898ba0d",
+    "result": "MATCH — zip byte-identical to the 2026-07-04 spec-writer retrieval; ETag and Last-Modified unchanged; no drift",
+    "fixture_pdf_pins": {
+      "20020055.pdf": "MATCH 4a12b888c2c89ebbfad5c280fa8a6af52489218dbec402ca2abc803436d8fa3f",
+      "20019182.pdf": "MATCH 5b1b60bea609310f4288adce9557702231cd1f23eb5ceabf1c0babc3fe867b37",
+      "20033759.pdf": "MATCH 0a5861a182db417541f62a0179dfbba025d06cf1aa990c4d1931a2076760af1e",
+      "20034836.pdf": "MATCH 90bf98e6a2a3685f429964bb0e154ae05cc99423227b94666012332b81dc821e"
+    },
+    "pdf_bytes_archived_at": "crates/adapters/us_house/fixtures/<case>/input.pdf (fixture inputs double as evidence per us-house.md §8 note)"
+  },
+  "politeness": {
+    "requests_to_host_this_task": 5,
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — all 200"
+  }
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "filing_id": "0HSEFNG0000000000020033759",
+    "politician_id": "0HSEMBR0000000000000000003",
+    "regime_id": "0HSEREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Boeing Company (BA) [ST]",
+    "record_type": "transaction",
+    "asset_class": "equity",
+    "side": "sell",
+    "transaction_date": "2025-12-09",
+    "as_of_date": null,
+    "notified_date": "2025-12-09",
+    "value": { "low": "1001.00", "high": "15000.00", "currency": "USD" },
+    "owner": "self",
+    "extraction_confidence": 0.9800000190734863,
+    "extracted_by": "us_house_ptr/text@1",
+    "fingerprint": null,
+    "details": {
+      "doc_id": "20033759",
+      "row_ordinal": 1,
+      "row_id": "2000152831",
+      "asset_type_code": "ST",
+      "amount_band_raw": "$1,001 - $15,000",
+      "transaction_type_raw": "S",
+      "partial_sale": false,
+      "cap_gains_over_200": null,
+      "filing_status_raw": "Amended",
+      "owner_source": "default_self",
+      "subholding_of": "Interactive Brokers LLC",
+      "vehicle_owner_code": null,
+      "vehicle_location": null,
+      "description": null,
+      "comments": "Sold at a $1,440 loss.",
+      "signed_date": "2026-01-07"
+    }
+  }
+]

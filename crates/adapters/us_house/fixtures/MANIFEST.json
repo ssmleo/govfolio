@@ -1,0 +1,74 @@
+{
+  "adapter": "us_house",
+  "captured_by": "test-designer (goal 001 T8b) — expected.*.json derived INDEPENDENTLY of any parser, per docs/decisions/automation-policy.md (auto-resolved expected outputs; auditor cross-check follows in T8d)",
+  "captured_at_utc": "2026-07-04T23:04:30Z",
+  "spec": "docs/regimes/us-house.md (silver §4, details §5, mapping tables §3, fixture selection §7)",
+  "politeness": {
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "requests_this_capture": 5
+  },
+  "cases": {
+    "typical_single_row": {
+      "doc_id": "20020055",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20020055.pdf",
+      "sha256": "4a12b888c2c89ebbfad5c280fa8a6af52489218dbec402ca2abc803436d8fa3f",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "Hon. Nicholas Begich III (AK00)",
+      "index_entry": { "FilingType": "P", "StateDst": "AK00", "Year": "2026", "FilingDate": "6/12/2026" },
+      "rows": 1
+    },
+    "multi_row_sp_vehicle": {
+      "doc_id": "20019182",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20019182.pdf",
+      "sha256": "5b1b60bea609310f4288adce9557702231cd1f23eb5ceabf1c0babc3fe867b37",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "Hon. Lloyd K. Smucker (PA11)",
+      "index_entry": { "FilingType": "P", "StateDst": "PA11", "Year": "2026", "FilingDate": "4/30/2026" },
+      "rows": 8,
+      "notes": "2 pages; page break falls between rows 6 and 7 — no asset cell joins across it, so no page-break confidence penalty applies"
+    },
+    "amendment_unlinked": {
+      "doc_id": "20033759",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20033759.pdf",
+      "sha256": "0a5861a182db417541f62a0179dfbba025d06cf1aa990c4d1931a2076760af1e",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "Hon. David Rouzer (NC07)",
+      "index_entry": { "FilingType": "P", "StateDst": "NC07", "Year": "2026", "FilingDate": "1/7/2026" },
+      "rows": 1,
+      "notes": "amended row: row_id 2000152831, FILING STATUS Amended, prior-year transaction date; supersession stays NULL and promotion (Task 11) opens review_task ptr_amendment_unlinked — outside GoldCandidate, so not asserted here"
+    },
+    "sp_owner_options": {
+      "doc_id": "20034836",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20034836.pdf",
+      "sha256": "90bf98e6a2a3685f429964bb0e154ae05cc99423227b94666012332b81dc821e",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "Hon. Nancy Pelosi (CA11)",
+      "index_entry": { "FilingType": "P", "StateDst": "CA11", "Year": "2026", "FilingDate": "6/23/2026" },
+      "rows": 2
+    }
+  },
+  "conformance_conventions": {
+    "silver_shape": "expected.silver.json is the serialization of Vec<pipeline StagingRow>: [{payload, confidence}]. payload carries every docs/regimes/us-house.md §4 field EXCEPT confidence, which lives at the wrapper's top-level `confidence` (f32) — no duplication inside payload.",
+    "confidence_literal": "All rows score 1.00 - 0.02 (cap_gains_over_200 null, §6 v1 constant) = 0.98 as f32. serde_json 1.0.150 Value-serializes f32 via `N::Float(f as f64)` (raw cast), so the JSON literal is 0.9800000190734863 — the exact f64 image of 0.98f32. Do NOT 'fix' the literals to 0.98; fix nothing unless serde_json changes its f32 cast behavior.",
+    "details_nulls": "Optional details fields are serialized as explicit nulls (no skip_serializing_if) so the (regime, record_type) contract surface is fully visible in every candidate.",
+    "conformance_ids": {
+      "rationale": "The PDF carries no ULIDs and conformance runs with pool: None, so filing/politician/regime ids cannot be resolved from a roster. These fixed Crockford-valid ULID constants are the contract the adapter must emit in conformance mode (production resolves real ids from Postgres). Filing ids embed the DocID digits for auditability.",
+      "regime_id": "0HSEREG0000000000000000001",
+      "politician_ids": {
+        "Hon. Nicholas Begich III|AK00": "0HSEMBR0000000000000000001",
+        "Hon. Lloyd K. Smucker|PA11": "0HSEMBR0000000000000000002",
+        "Hon. David Rouzer|NC07": "0HSEMBR0000000000000000003",
+        "Hon. Nancy Pelosi|CA11": "0HSEMBR0000000000000000004"
+      },
+      "filing_ids": {
+        "20020055": "0HSEFNG0000000000020020055",
+        "20019182": "0HSEFNG0000000000020019182",
+        "20033759": "0HSEFNG0000000000020033759",
+        "20034836": "0HSEFNG0000000000020034836"
+      }
+    }
+  },
+  "evidence": "index slice + retrieval metadata: docs/regimes/us-house/evidence/ (2026FD.zip sha256 e5419282df7a96daa8aed108b72072a57bf909bb2a6c6333c938144f6898ba0d re-verified against the E1 pin at capture time; ETag \"3e8597f0ebadd1:0\" unchanged)"
+}

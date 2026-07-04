@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  govfolio evidence: slice of 2026FD.xml (US House financial-disclosure index)
+  source_zip_url: https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2026FD.zip
+  source_zip_sha256: e5419282df7a96daa8aed108b72072a57bf909bb2a6c6333c938144f6898ba0d
+  source_zip_etag: "3e8597f0ebadd1:0"
+  source_zip_last_modified: Fri, 03 Jul 2026 13:00:36 GMT
+  retrieved_at_utc: 2026-07-04T23:04:39Z
+  retrieved_by_ua: govfolio.io research (contact: ssm.leo@outlook.com)
+  matches_regime_doc_pin: E1 (docs/regimes/us-house.md) — sha256 identical, no drift
+  selection: the four <Member> elements whose DocID is a goal-001 T8 conformance
+  fixture (20020055, 20019182, 20033759, 20034836), reproduced verbatim from the
+  zip's 2026FD.xml (UTF-8 with BOM in source; BOM not reproduced in this slice).
+-->
+<FinancialDisclosureSlice>
+  <Member>
+    <Prefix>Hon.</Prefix>
+    <Last>Begich</Last>
+    <First>Nicholas</First>
+    <Suffix>III</Suffix>
+    <FilingType>P</FilingType>
+    <StateDst>AK00</StateDst>
+    <Year>2026</Year>
+    <FilingDate>6/12/2026</FilingDate>
+    <DocID>20020055</DocID>
+  </Member>
+  <Member>
+    <Prefix>Hon.</Prefix>
+    <Last>Smucker</Last>
+    <First>Lloyd K.</First>
+    <Suffix />
+    <FilingType>P</FilingType>
+    <StateDst>PA11</StateDst>
+    <Year>2026</Year>
+    <FilingDate>4/30/2026</FilingDate>
+    <DocID>20019182</DocID>
+  </Member>
+  <Member>
+    <Prefix>Hon.</Prefix>
+    <Last>Rouzer</Last>
+    <First>David</First>
+    <Suffix />
+    <FilingType>P</FilingType>
+    <StateDst>NC07</StateDst>
+    <Year>2026</Year>
+    <FilingDate>1/7/2026</FilingDate>
+    <DocID>20033759</DocID>
+  </Member>
+  <Member>
+    <Prefix>Hon.</Prefix>
+    <Last>Pelosi</Last>
+    <First>Nancy</First>
+    <Suffix />
+    <FilingType>P</FilingType>
+    <StateDst>CA11</StateDst>
+    <Year>2026</Year>
+    <FilingDate>6/23/2026</FilingDate>
+    <DocID>20034836</DocID>
+  </Member>
+</FinancialDisclosureSlice>

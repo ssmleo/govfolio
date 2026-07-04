@@ -1,0 +1,56 @@
+[
+  {
+    "payload": {
+      "doc_id": "20034836",
+      "row_ordinal": 1,
+      "filer_name_raw": "Hon. Nancy Pelosi",
+      "filer_status_raw": "Member",
+      "state_district_raw": "CA11",
+      "row_id_raw": null,
+      "owner_code_raw": "SP",
+      "asset_raw": "Intel Corporation - Common Stock (INTC) [OP]",
+      "asset_type_code_raw": "OP",
+      "transaction_type_raw": "P",
+      "transaction_date_raw": "05/29/2026",
+      "notification_date_raw": "05/29/2026",
+      "amount_raw": "$1,000,001 - $5,000,000",
+      "cap_gains_over_200": null,
+      "filing_status_raw": "New",
+      "subholding_of_raw": null,
+      "description_raw": "Purchased 200 call options with a strike price of $50 and an expiration date of 3/19/27.",
+      "comments_raw": null,
+      "vehicle_owner_code_raw": null,
+      "vehicle_location_raw": null,
+      "signed_date_raw": "06/23/2026",
+      "extractor": "us_house_ptr/text@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "doc_id": "20034836",
+      "row_ordinal": 2,
+      "filer_name_raw": "Hon. Nancy Pelosi",
+      "filer_status_raw": "Member",
+      "state_district_raw": "CA11",
+      "row_id_raw": null,
+      "owner_code_raw": "SP",
+      "asset_raw": "Uber Technologies, Inc. Common Stock (UBER) [OP]",
+      "asset_type_code_raw": "OP",
+      "transaction_type_raw": "P",
+      "transaction_date_raw": "05/29/2026",
+      "notification_date_raw": "05/29/2026",
+      "amount_raw": "$500,001 - $1,000,000",
+      "cap_gains_over_200": null,
+      "filing_status_raw": "New",
+      "subholding_of_raw": null,
+      "description_raw": "Purchased 200 call options with a strike price of $50 and an expiration date of 3/19/27.",
+      "comments_raw": null,
+      "vehicle_owner_code_raw": null,
+      "vehicle_location_raw": null,
+      "signed_date_raw": "06/23/2026",
+      "extractor": "us_house_ptr/text@1"
+    },
+    "confidence": 0.9800000190734863
+  }
+]
