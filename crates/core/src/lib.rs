@@ -1,4 +1,7 @@
 pub mod db;
+pub mod domain;
+pub mod ids;
+pub mod schemas;
 
 #[must_use]
 pub fn hello() -> &'static str {

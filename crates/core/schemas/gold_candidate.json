@@ -1,0 +1,236 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GoldCandidate",
+  "description": "A `disclosure_record` candidate ready for Gold promotion (design §4.2).\nOmits what Postgres owns: `id`, `event_date` (generated), `verification_state`\n(defaults `unverified`), `supersedes_record_id`, `created_at`.",
+  "type": "object",
+  "properties": {
+    "as_of_date": {
+      "description": "Snapshot date; required when `record_type == holding`.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "asset_class": {
+      "description": "Asset class vocabulary.",
+      "$ref": "#/$defs/AssetClass"
+    },
+    "asset_description_raw": {
+      "description": "Asset description exactly as filed, always kept (invariant 2).",
+      "type": "string"
+    },
+    "details": {
+      "description": "Contract-typed payload, validated per (regime, `record_type`) schema (invariant 5)."
+    },
+    "extracted_by": {
+      "description": "Parser id / model+prompt version that produced this candidate.",
+      "type": "string"
+    },
+    "extraction_confidence": {
+      "description": "Extractor confidence in `[0, 1]` (`real` in DDL; not money).",
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float"
+    },
+    "filing_id": {
+      "description": "Source filing this record came from.",
+      "$ref": "#/$defs/FilingId"
+    },
+    "fingerprint": {
+      "description": "Idempotency fingerprint; computed at promotion (plan Task 6), hence optional here.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "instrument_id": {
+      "description": "Resolved instrument — `None` below threshold, never guessed (invariant 3).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/InstrumentId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "notified_date": {
+      "description": "Date the interest/change was notified.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "owner": {
+      "description": "Whose asset (self/spouse/...).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Owner"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "politician_id": {
+      "description": "Denormalized politician (hot path).",
+      "$ref": "#/$defs/PoliticianId"
+    },
+    "record_type": {
+      "description": "One of the four observation types.",
+      "$ref": "#/$defs/RecordType"
+    },
+    "regime_id": {
+      "description": "Denormalized disclosure regime.",
+      "$ref": "#/$defs/RegimeId"
+    },
+    "side": {
+      "description": "Transaction direction; required when `record_type == transaction`.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Side"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "transaction_date": {
+      "description": "Date the transaction happened; required when `record_type == transaction`.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "value": {
+      "description": "Declared value band; bounds are decimal strings on the wire (invariant 7).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ValueInterval"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "filing_id",
+    "politician_id",
+    "regime_id",
+    "asset_description_raw",
+    "record_type",
+    "asset_class",
+    "extracted_by",
+    "details"
+  ],
+  "$defs": {
+    "AssetClass": {
+      "description": "`asset_class` vocabulary (design §4.2 column comment).",
+      "type": "string",
+      "enum": [
+        "equity",
+        "bond",
+        "fund",
+        "option",
+        "crypto",
+        "commodity",
+        "real_estate",
+        "private",
+        "other"
+      ]
+    },
+    "Currency": {
+      "description": "ISO 4217 currency code (`char(3)` in DDL), uppercase on the wire — `snake_case`\nwould mangle codes. Closed set for now; extend as regimes land (visible in the\nschema snapshot).",
+      "type": "string",
+      "enum": [
+        "EUR",
+        "GBP",
+        "USD"
+      ]
+    },
+    "FilingId": {
+      "description": "ULID (26-char Crockford base32, time-sortable)",
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "InstrumentId": {
+      "description": "ULID (26-char Crockford base32, time-sortable)",
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "Owner": {
+      "description": "`owner` CHECK: whose asset the record concerns. `self` is a Rust keyword,\nhence the `Self_` variant with an explicit wire rename.",
+      "type": "string",
+      "enum": [
+        "self",
+        "spouse",
+        "dependent",
+        "joint",
+        "unknown"
+      ]
+    },
+    "PoliticianId": {
+      "description": "ULID (26-char Crockford base32, time-sortable)",
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "RecordType": {
+      "description": "`record_type` CHECK: the four observation types, one table (design D1).",
+      "type": "string",
+      "enum": [
+        "transaction",
+        "holding",
+        "interest",
+        "change_notification"
+      ]
+    },
+    "RegimeId": {
+      "description": "ULID (26-char Crockford base32, time-sortable)",
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "Side": {
+      "description": "`side` CHECK: direction of a transaction.",
+      "type": "string",
+      "enum": [
+        "buy",
+        "sell",
+        "exchange"
+      ]
+    },
+    "ValueInterval": {
+      "description": "A money interval `low ..= high` in `currency`. Exact figures are `low == high`;\n`high == None` is an open-ended threshold (UK \"over £70,000\"). Construction is\nthe only door: `high < low` never exists — in memory or on the wire, because\nthe manual `Deserialize` impl funnels back through [`ValueInterval::new`].",
+      "type": "object",
+      "properties": {
+        "currency": {
+          "$ref": "#/$defs/Currency"
+        },
+        "high": {
+          "type": [
+            "string",
+            "number",
+            "null"
+          ],
+          "pattern": "^-?\\d+(\\.\\d+)?([eE]\\d+)?$"
+        },
+        "low": {
+          "type": [
+            "string",
+            "number"
+          ],
+          "pattern": "^-?\\d+(\\.\\d+)?([eE]\\d+)?$"
+        }
+      },
+      "required": [
+        "low",
+        "currency"
+      ]
+    }
+  }
+}
