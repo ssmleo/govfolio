@@ -1,3 +1,5 @@
+pub mod db;
+
 #[must_use]
 pub fn hello() -> &'static str {
     "govfolio"

@@ -3,5 +3,17 @@ name = "core"
 version = "0.1.0"
 edition = "2024"
 
+# Lib target must NOT be named `core`: an --extern named `core` shadows the sysroot
+# core crate inside this package's tests/bins, breaking every proc macro that emits
+# `::core::...` paths (#[tokio::main], #[sqlx::test], ...). Package name (and all
+# `-p core` commands) unchanged.
+[lib]
+name = "govfolio_core"
+
 [lints]
 workspace = true
+
+[dependencies]
+anyhow = "1.0.103"
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
