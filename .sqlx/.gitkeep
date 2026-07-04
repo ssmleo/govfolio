@@ -1,0 +1,3 @@
+# sqlx offline metadata (`cargo sqlx prepare --workspace`). Empty as of Task 5:
+# no compile-time query! macros exist yet, so prepare emits "no queries found".
+# query-*.json files land here once sqlx macros appear (api/pipeline crates).
