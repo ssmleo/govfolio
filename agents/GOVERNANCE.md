@@ -45,3 +45,8 @@ verdicts in docs/decisions/skill-imports.md. Live plugin/marketplace installs ar
 forbidden: an auto-update is an unreviewed prompt change. Some imports merge into
 bespoke skills or chassis text after audit instead of occupying slots
 (verification-before-completion -> chassis DoD; test-driven-development -> rust-tdd).
+
+## Effort policy
+agents/EFFORT.md and .claude/agents shim frontmatter are prompt-changing artifacts:
+edits are founder-gated like role edits. Shims must remain thin (no behavior beyond
+loading the governed role file).

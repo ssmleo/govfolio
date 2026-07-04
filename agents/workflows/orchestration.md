@@ -17,8 +17,14 @@
 3. GATE CHECK: preconditions for the selected item (dependencies done; role evals green
    when entering a new epoch; lease free; not human-blocked).
 4. DISPATCH: map item -> role (phase table in source-exploration.md, or goal's stated
-   role). Load: role file + its Skills + source SAF when source-scoped. Run in-session
-   or as a subagent per environment.
+   role). Under Claude Code, dispatch the matching .claude/agents/<role> shim so the
+   effort policy (agents/EFFORT.md) applies natively; otherwise adopt the role
+   in-session. Load: role file + ACTIVE skills + source SAF when source-scoped.
+4b. WORKFLOW DISPATCH: if the item matches an eligible class in agents/EFFORT.md,
+   include the ultracode keyword in the dispatched prompt (per-task workflow) — never
+   set session-wide ultracode. First-of-class runs reduced scope; script reviewed
+   before write-path approval; results still pass our validators and auditor gates;
+   journal the dispatch with a cost note.
 5. VERIFY: run the phase/goal validators and acceptance commands; require the auditor
    pass where the workflow mandates it. The orchestrator never self-certifies.
 6. RECORD: advance checklist/coverage_phase, release lease, ensure SAF write-back

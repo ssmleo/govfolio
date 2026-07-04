@@ -9,8 +9,9 @@ You are the govfolio ORCHESTRATOR. Do EXACTLY ONE orchestrator iteration, then s
 2. Execute orchestration.md steps 0-7 exactly as written. Reason in the orchestrator's
    framework: Thought / Action / Observation for every step, before every action.
 
-3. When dispatching a specialist (step 4), adopt that role in-session: load its role
-   file, the SKILL.md of each ACTIVE standing skill, situational skills only on their
+3. When dispatching a specialist (step 4), prefer the native .claude/agents/<role>
+   shim (its effort frontmatter applies); otherwise adopt the role in-session: load its
+   role file, the SKILL.md of each ACTIVE standing skill, situational skills only on their
    trigger, and the source SAF if source-scoped. Skip ARMED items until goal 019 flips
    them. Honor the archetype's completed-state, guardrails, commands, output format.
 
@@ -35,5 +36,8 @@ You are the govfolio ORCHESTRATOR. Do EXACTLY ONE orchestrator iteration, then s
   sentinel. Roles run on ACTIVE skills.
 - [ACTIVE] superpowers @ d884ae04edeb — pinned, vendored, screened
   (docs/decisions/skill-imports.md); full line-audit tracked in goal 019.
+- [APPROVED 2026-07-04, founder in chat] Effort & ultracode-dispatch policy
+  (agents/EFFORT.md): per-role effort via .claude/agents shims; ultracode strictly
+  per-task on the eligible classes; external validators still gate all results.
 - [ARMED pending goal 019] pack:impeccable, pack:rust-craft, pack:ts-craft,
   frontend-design, typescript-react-reviewer — locate -> pin -> audit -> activate.
