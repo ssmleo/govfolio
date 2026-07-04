@@ -20,3 +20,17 @@ paths; (3) workflow results do NOT self-certify — they still pass our validato
 conformance suites, and auditor gates (model-verifies-model never replaces
 world-verifies-model); (4) log each workflow dispatch in JOURNAL.md with a cost note.
 Changes to this file are founder-gated like role edits.
+
+## Model resolution & version floor
+Shims deliberately omit `model`: omitted = inherit the main session's model (official
+default). Resolution order: CLAUDE_CODE_SUBAGENT_MODEL env var -> per-invocation model
+parameter -> frontmatter -> parent model. Ultracode workflow agents likewise use the
+session's model unless the script routes a stage elsewhere. Rationale: swap the fleet
+model once via /model; per-role differentiation is carried by effort, and pinning small
+models would silently clamp xhigh.
+VERSION FLOOR: Claude Code >= 2.1.198 (subagents inherit extended-thinking config; older
+versions ran subagents with thinking OFF) and >= 2.1.154 (Dynamic Workflows). The
+orchestrator should verify `claude --version` on first run and record it in JOURNAL.md.
+If cost-tiering models per role later: prefer the env var or per-invocation parameter
+(an Apr-2026 bug report says frontmatter `model` was ignored on some versions — verify
+before trusting it). Org availableModels exclusions are skipped silently -> inherited.
