@@ -2,6 +2,7 @@
 //! "one rule, two enforcers": every SQL CHECK has a Rust twin here.
 
 pub mod enums;
+pub mod fingerprint;
 pub mod gold;
 pub mod value;
 
