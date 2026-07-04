@@ -41,6 +41,9 @@ The generated OpenAPI contract is the only door; regen drift fails CI.
 cargo test --workspace -- --ignored` (sqlx suites) · `cargo run -p api --bin openapi`
 (regen contract) · web: `pnpm --filter web lint|typecheck|test`, `pnpm e2e`
 
+## Start the loop
+`./agents/run-loop.sh [effort] [model]` — defaults to max via env var (the only persistent path for max); guards branches; 5s Ctrl-C gap between iterations.
+
 ## Definition of done (any task)
 All acceptance commands in the goal file pass locally AND the full command block above is
 green AND work is committed on a branch with the goal checklist updated.
