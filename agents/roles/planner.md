@@ -4,7 +4,10 @@ Archetype: planner (agents/archetypes/planner.md; chassis: agents/archetypes/_CH
 2 Reasoning framework: Thought->Action->Observation.
 3 Dos and Don'ts: Do: <=1h tasks; exact paths; TDD steps. Don't: invent repo state; vibes acceptance.
 4 Commands: /plan [goal] /proceed /pivot [feedback] /scope
-5 Skills/Tools (PROPOSED — pending founder verdict per GOVERNANCE.md): plan-decomposition
+5 Skills/Tools (APPROVED by founder 2026-07-04; ARMED items activate via goal 019):
+   ACTIVE: plan-decomposition, imported/superpowers@d884ae04edeb/writing-plans
+   SITUATIONAL: imported/superpowers@d884ae04edeb/brainstorming (trigger: novel feature without spec); imported/superpowers@d884ae04edeb/writing-skills (trigger: authoring/restructuring a skill)
 6 Output format: Implementation-plan task format.
 Required context: /CLAUDE.md, this file's archetype, the goal file, the source SAF when source-scoped.
+Skill load rule: load ACTIVE standing skills; load a SITUATIONAL skill only when its trigger fires; skip ARMED items until goal 019 flips them.
 Eval: scored against the E1 us_house reference per goal 016; archetype-specific rubric.

@@ -26,3 +26,22 @@ archetype. New archetypes and archetype changes are founder-gated like skill cha
 The orchestrator (agents/roles/orchestrator.md) selects, dispatches, verifies, records.
 It never writes production code, never self-certifies, never approves proposals, never
 unblocks human lanes. Its full workflow: agents/workflows/orchestration.md.
+
+## A1 — Standing vs situational skills; packs (approved 2026-07-04)
+Standing skills load every iteration; ceiling 6 slots. Situational skills are
+founder-gated allocations loaded ONLY when their role-file trigger fires; they never
+co-load by default and do not count against the ceiling. A pack (<=3 same-source,
+same-domain skills) occupies one slot and is gated as a unit.
+
+## A2 — Doer split along the language boundary (approved 2026-07-04)
+The doer archetype instantiates per language boundary: rust-builder (data plane) and
+web-builder (presentation edge). extraction-strategy is held exclusively by spec-writer;
+builders read the decided strategy from the SAF.
+
+## A3 — Imports (approved 2026-07-04)
+Bespoke skills outrank imported ones on any conflict. Imports enter ONLY by vendor-copy
+at a pinned sha into agents/skills/imported/<lib>@<shortsha>/ with license and per-file
+verdicts in docs/decisions/skill-imports.md. Live plugin/marketplace installs are
+forbidden: an auto-update is an unreviewed prompt change. Some imports merge into
+bespoke skills or chassis text after audit instead of occupying slots
+(verification-before-completion -> chassis DoD; test-driven-development -> rust-tdd).

@@ -4,7 +4,10 @@ Archetype: researcher (agents/archetypes/researcher.md; chassis: agents/archetyp
 2 Reasoning framework: Question->Search->Evidence->Claim.
 3 Dos and Don'ts: Do: primary domains first. Don't: aggregators-as-official; unarchived claims; two zero-result searches without asking.
 4 Commands: /coverage /evidence [field] /widen
-5 Skills/Tools (PROPOSED — pending founder verdict per GOVERNANCE.md): regime-research, polite-fetching, evidence-archiving
+5 Skills/Tools (APPROVED by founder 2026-07-04; ARMED items activate via goal 019):
+   ACTIVE: regime-research, polite-fetching, evidence-archiving
+   SITUATIONAL: none
 6 Output format: sources.yaml (validated).
 Required context: /CLAUDE.md, this file's archetype, the goal file, the source SAF when source-scoped.
+Skill load rule: load ACTIVE standing skills; load a SITUATIONAL skill only when its trigger fires; skip ARMED items until goal 019 flips them.
 Eval: scored against the E1 us_house reference per goal 016; archetype-specific rubric.

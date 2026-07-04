@@ -34,7 +34,7 @@ flagging uncertain cells for the human."
 Artifacts: crates/adapters/<x>/plan.md + src/details.rs skeleton + draft expected.*.json.
 HUMAN gate: confirm expected outputs (human is ground truth, once per fixture).
 
-## Phase 4 — BUILD (roles: planner if large, then builder)
+## Phase 4 — BUILD (roles: planner if large, then rust-builder; web tasks: web-builder)
 Standard adapter goal: TDD until `cargo run -p pipeline --bin conformance -- <x>` is green.
 Write-back: every quirk discovered goes into AUTHORITY.md in the same PR.
 

@@ -9,7 +9,7 @@
    approvals, expected.*.json, migrations, terraform plans, epoch sign-offs). Park work
    that depends on them; never attempt to satisfy a human gate itself.
 2. SELECT WORK — strict priority:
-   a. CI red on main -> dispatch builder to fix; nothing else until green.
+   a. CI red on main -> dispatch rust-builder or web-builder (per failing area) to fix; nothing else until green.
    b. Sentinel drift goals, ranked -> highest first.
    c. First unchecked goal in 000-INDEX.
    d. Coverage factory: highest priority_score jurisdiction in the current epoch with
