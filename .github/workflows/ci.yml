@@ -1,0 +1,50 @@
+name: ci
+
+on:
+  push:
+    branches: [main, "loop/**"]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test --workspace
+
+  db:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: govfolio
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/govfolio
+    steps:
+      - uses: actions/checkout@v5
+      - uses: Swatinem/rust-cache@v2
+      # #[ignore] sqlx suites arrive in Task 3+; with zero ignored tests this passes trivially.
+      - run: cargo test --workspace -- --ignored
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      # Placeholder — real lint/typecheck/test wiring lands in goal 040.
+      - run: echo "web job placeholder (activates in goal 040)"
