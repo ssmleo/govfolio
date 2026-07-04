@@ -2,7 +2,8 @@
 
 Run shape: `while :; do cat agents/LOOP.md | claude ; done` (or /goal <file>).
 
-Each iteration:
+Each iteration: run the orchestrator workflow (agents/workflows/orchestration.md).
+Legacy simple mode below applies only if orchestration.md is absent.
 1. Read `/CLAUDE.md`, then `agents/goals/000-INDEX.md`; pick the FIRST unchecked goal.
 2. Read that goal file + every context pointer it lists.
 3. If the goal is too big for one session: expand it into `docs/plans/<date>-<slug>.md`

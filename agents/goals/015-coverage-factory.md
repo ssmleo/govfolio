@@ -8,7 +8,7 @@ Continuously advance jurisdictions through the source-exploration phases per age
 - Implement validators: cargo run -p pipeline --bin validate-survey -- <x> ; validate-sources ; validate-manifest.
 
 ## Loop body
-1. Pick highest priority_score jurisdiction in current epoch (agents/EPOCHS.md) with phase<live, unclaimed. 2. Claim. 3. Run its phase with the mapped role file. 4. Validate artifact; auditor pass where required. 5. Advance phase, release claim, commit.
+Selection and dispatch are the orchestrator's job (agents/workflows/orchestration.md, step 2d). Per item: claim. 3. Run its phase with the mapped role file. 4. Validate artifact; auditor pass where required. 5. Advance phase, release claim, commit.
 
 ## Acceptance criteria (per iteration)
 ```bash

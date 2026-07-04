@@ -43,5 +43,6 @@ All acceptance commands in the goal file pass locally AND the full command block
 green AND work is committed on a branch with the goal checklist updated.
 
 ## Human-only lanes (stop and ask)
+Creating a new agent role or changing any role's skill set (founder opines per agents/GOVERNANCE.md)
 Applying migrations to prod · `terraform apply` · pricing/legal/methodology public copy
 · completing `expected.*.json` for new fixtures (human is ground truth) · mass reprocess diffs.
