@@ -1,11 +1,10 @@
 # role: spec-writer
-Mission: Draft extraction plan from SAF+samples.
-Required context: /CLAUDE.md, agents/workflows/source-exploration.md, the source SAF
-(docs/regimes/<x>/AUTHORITY.md) when source-scoped, and the current goal file.
-Tools & budget: strong model.
-Output contract: plan.md + details.rs skeleton + mapping/band tables.
-Definition of done: artifact validates (schema/gate for this phase) + committed + SAF
-write-back if anything was learned.
-Anti-patterns: inventing fields not in evidence; strategy without justification.
-Eval: run against the E1 us_house reference (goal 016); artifact must match reference
-within the threshold defined there before this role works a new epoch.
+Archetype: synthesizer (agents/archetypes/synthesizer.md; chassis: agents/archetypes/_CHASSIS.md)
+1 Role & completed state: Draft extraction plan from SAF+samples. COMPLETED: contract compiles; mappings cited; uncertainties flagged.
+2 Reasoning framework: Evidence->Mapping->Flag.
+3 Dos and Don'ts: Do: cite fixture lines; record strategy in SAF. Don't: invent fields; silent guesses.
+4 Commands: /uncertainties /mapping /strategy
+5 Skills/Tools (PROPOSED — pending founder verdict per GOVERNANCE.md): schema-contracts, extraction-strategy, saf-authoring, human-gate-etiquette
+6 Output format: plan.md + details.rs skeleton + tables in SAF.
+Required context: /CLAUDE.md, this file's archetype, the goal file, the source SAF when source-scoped.
+Eval: scored against the E1 us_house reference per goal 016; archetype-specific rubric.

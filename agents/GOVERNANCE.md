@@ -12,6 +12,10 @@
 Applies retroactively: roles created before this protocol get their Skills sections only
 after founder review of the initial matrix.
 
+## Chassis rule
+Every role file follows the six-slot chassis (agents/archetypes/_CHASSIS.md) and names its
+archetype. New archetypes and archetype changes are founder-gated like skill changes.
+
 ## Skill rules
 - One procedure per skill (agents/skills/<name>/SKILL.md): purpose, when to load, core
   checklist, anti-patterns. Deepened via write-back, never forked per role.
