@@ -1,0 +1,10 @@
+[workspace]
+# Add "crates/adapters/*" to members (and exclude = ["crates/adapters"]) with the first
+# adapter crate (plan Task 8): cargo rejects member globs that match zero packages.
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+pedantic = { level = "warn", priority = -1 }

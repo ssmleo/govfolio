@@ -11,7 +11,7 @@ docker compose up -d && cargo test --workspace -- --ignored
 ```
 
 ## Checklist
-- [ ] T1 workspace  - [ ] T2 CI  - [ ] T3 migrations  - [ ] T4 domain  - [ ] T5 DDL  - [ ] T6 fingerprint  - [ ] T7 conformance  - [ ] T8 us_house  - [ ] T9 pipeline  - [ ] T10 /v1  - [ ] T11 promote
+- [x] T1 workspace  - [ ] T2 CI  - [ ] T3 migrations  - [ ] T4 domain  - [ ] T5 DDL  - [ ] T6 fingerprint  - [ ] T7 conformance  - [ ] T8 us_house  - [ ] T9 pipeline  - [ ] T10 /v1  - [ ] T11 promote
 
 ## BLOCKED (human)
 - fixture expected.*.json completion is human ground truth (plan Task 8)

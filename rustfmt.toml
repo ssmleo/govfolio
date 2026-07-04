@@ -1,0 +1,2 @@
+# Default rustfmt style. Presence pins the workspace root for `cargo fmt`.
+edition = "2024"
