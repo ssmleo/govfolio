@@ -4,7 +4,7 @@
 Next.js SSR consuming /v1 only: politician profile + timeline, record page with provenance (official link + archived copy + verification badge + supersession history), jurisdiction scorecard pages, search, sitemap.xml, CDN/ETag caching.
 
 ## Context (read first)
-- design §6.4, §7.3 · packages/contracts client
+- design §6.4, §7.3 · generated TS client from packages/contracts/openapi.json (openapi-typescript); bootstrap pnpm workspace in this goal; add contract drift check to CI web job
 
 ## Acceptance criteria
 ```bash

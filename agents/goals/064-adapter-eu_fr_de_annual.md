@@ -11,7 +11,7 @@ Ship the EU Parliament DPI + France HATVP + Germany Bundestag (annual declaratio
 
 ## Acceptance criteria
 ```bash
-pnpm conformance --filter adapters/eu_fr_de_annual
+cargo run -p pipeline --bin conformance -- eu_fr_de_annual
 ```
 
 ## Checklist

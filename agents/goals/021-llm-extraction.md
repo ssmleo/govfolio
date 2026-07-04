@@ -4,12 +4,12 @@
 Implement the extractor interface stubbed in plan Task 8: schema-constrained LLM extraction for low-confidence/scanned PDFs, sha-cached, confidence-scored, second-model cross-check for high-impact rows.
 
 ## Context (read first)
-- design §5.3, §4.3 · packages/pipeline/src/adapter.ts
+- design §5.3, §4.3 · crates/pipeline/src/adapter.rs
 
 ## Acceptance criteria
 ```bash
-pnpm --filter pipeline test -- extraction
-pnpm conformance --filter adapters/us_house   # scanned fixture case goes green
+cargo test -p pipeline extraction
+cargo run -p pipeline --bin conformance -- us_house   # scanned fixture case goes green
 ```
 
 ## Checklist

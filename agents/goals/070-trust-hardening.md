@@ -8,7 +8,7 @@ Monthly sampling-audit job + precision report, public corrections log page, per-
 
 ## Acceptance criteria
 ```bash
-pnpm --filter pipeline test -- redaction drift && pnpm --filter web test -- corrections
+cargo test -p pipeline redaction drift && pnpm --filter web test -- corrections
 ```
 
 ## Checklist

@@ -1,7 +1,7 @@
 # Govfolio.io — System Design
 
 - **Date:** 2026-07-04
-- **Status:** Approved (all 5 sections reviewed and approved by founder)
+- **Status:** Approved (all 5 sections reviewed and approved by founder). **Amended same day: D7 stack → Rust data plane + TypeScript web (founder decision after stack discussion; see D7).**
 - **Scope:** Worldwide politician financial-disclosure tracking; transparency tool + trading-signal product
 - **Builder/operator:** Solo founder, AI-agent-driven development (goal-file / Ralph-loop execution)
 
@@ -36,7 +36,7 @@ This resolves the apparent conflict the same way successful incumbents (Quiver Q
 | D4 | Team | **Solo + AI agents** | Drives: ops minimalism (managed services, few moving parts) and agent legibility (monorepo, one language, executable done-criteria). |
 | D5 | Architecture | **Modular monolith + queue-driven workers** (Approach A) | Volume reality: canonical data is low-millions rows/yr — Postgres territory for a decade. Microservices/lakehouse (Approach C) solves team-coordination problems a solo founder doesn't have at a $500–2000/mo cost floor. BaaS-first (Approach B) fights the product's pipeline-centric core (long-running OCR/LLM jobs vs edge-function limits). |
 | D6 | Cloud | **GCP** (Cloud Run + Cloud SQL + GCS + Cloud Tasks), Cloudflare in front | Scale-to-zero containers fit bursty parsing + solo cost profile. AWS equivalents (Fargate/App Runner, RDS, S3, SQS) noted; nothing GCP-exotic is used. |
-| D7 | Language | **TypeScript end-to-end** | One toolchain for agent loops. Zod schemas emit both TS types and the JSON Schemas that validate `details` — one definition enforced in two places. Heavy extraction is LLM-API work, weakening the Python-libs argument. |
+| D7 | Language *(amended)* | **Hybrid: Rust data plane + TypeScript web.** Rust: `core`, `pipeline`, `adapters`, `worker`, `api`. TS: `apps/web` only. | Boundary = workload boundary. Rust where correctness is existential and the compiler strengthens agent loops (exhaustive enums, no-null, `unwrap` banned), plus static binaries / ~ms cold starts on scale-to-zero, no-GC tails on the *paid* API, and a home for the v2 analytics engine. TS where ecosystem velocity dominates (Next.js SSR, reviewer UI). `serde`+`schemars` replaces Zod as the one-definition source: Rust types → JSON Schemas (`details` validation) → OpenAPI (`utoipa`) → generated TS client. API sits Rust-side so (a) domain types are defined exactly once, (b) the shared filter grammar has one implementation for `/records` *and* alert matching, (c) customers measure the paid API's tail latency. Honest cost: two toolchains — mitigated by generated-contract drift checks and per-side agent context. Perf caveat kept on record: the workload is I/O/data-bound; the biggest perf levers remain Postgres indexes, keyset pagination, and CDN discipline (explicit budgets in §10). Original TS-end-to-end rationale superseded by founder conviction + the above. |
 | D8 | Homogeneity question (challenged & resolved) | **Stratified, not homogeneous** | Heterogeneity preserved in Bronze (raw docs) and Silver (per-regime staging tables). Gold unifies only the genuinely-common queryable core; regime specifics live in `details` JSONB **typed-by-contract** (versioned JSON Schema per (regime, record_type), validated at promotion). Semantics never laundered: API/UI always type-scope counts and analytics. |
 
 ## 3. Architecture overview
@@ -69,6 +69,8 @@ This resolves the apparent conflict the same way successful incumbents (Quiver Q
 ```
 
 Three Cloud Run services (`api`, `web`, `worker`), all scale-to-zero. Postgres is the single source of truth for refined data; GCS holds unbounded raw growth; Cloud Tasks connects stages; the transactional outbox connects data to alerts.
+
+**Language boundary (invariant):** `api` and `worker` are Rust; `web` is TypeScript. If it touches Bronze/Silver/Gold or defines domain semantics → Rust; if it renders pixels → TypeScript. The generated OpenAPI contract is the only door between the two; regeneration drift fails CI.
 
 ## 4. Data model
 
@@ -242,7 +244,7 @@ Supporting tables (full DDL written during implementation, shapes fixed here):
 
 ### 4.3 The `details` contract system
 
-- Each `(regime, record_type)` pair has a **versioned Zod schema** in `packages/core/schemas/`, exported both as TS types and JSON Schema.
+- Each `(regime, record_type)` pair has a **versioned Rust type** in `crates/core/src/schemas/` deriving `serde::{Serialize,Deserialize}` + `schemars::JsonSchema`; emitted JSON Schemas are snapshot-committed so contract changes are visible in git diffs.
 - Silver→Gold promotion **validates and rejects on mismatch** — JSONB is schema-on-write by contract, not a swamp.
 - These schemas double as adapter conformance fixtures for agent loops.
 - **Escape hatch:** if a `details` key becomes query-hot, promote it to a real (generated or backfilled) column without rewriting history.
@@ -258,15 +260,16 @@ Supporting tables (full DDL written during implementation, shapes fixed here):
 
 ### 5.1 Adapter contract (the agent task template)
 
-```ts
-export interface JurisdictionAdapter {
-  readonly regime: RegimeRef;          // binds adapter → disclosure_regime row
-  readonly politeness: PolitenessCfg;  // min interval, concurrency (default 1), UA contact
+```rust
+#[async_trait]
+pub trait JurisdictionAdapter: Send + Sync {
+    fn regime(&self) -> RegimeRef;           // binds adapter → disclosure_regime row
+    fn politeness(&self) -> PolitenessCfg;   // min interval, concurrency (default 1), UA contact
 
-  discover(ctx: RunCtx): AsyncIterable<FilingRef>;          // find new/changed filings
-  fetch(ref: FilingRef, ctx: RunCtx): Promise<RawDocRef>;   // download → Bronze
-  parse(doc: RawDocRef, ctx: RunCtx): Promise<StagingRow[]>;// Bronze → Silver (+confidence)
-  normalize(rows: StagingRow[], ctx: RunCtx): Promise<GoldCandidate[]>; // Silver → Gold
+    async fn discover(&self, ctx: &RunCtx) -> Result<Vec<FilingRef>>;      // new/changed filings
+    async fn fetch(&self, r: &FilingRef, ctx: &RunCtx) -> Result<RawDocRef>;   // download → Bronze
+    async fn parse(&self, d: &RawDocRef, ctx: &RunCtx) -> Result<Vec<StagingRow>>; // Bronze → Silver (+confidence)
+    async fn normalize(&self, rows: &[StagingRow], ctx: &RunCtx) -> Result<Vec<GoldCandidate>>; // Silver → Gold
 }
 ```
 
@@ -315,7 +318,7 @@ US House, US Senate (Tier 1); UK, Canada, Australia (Tier 2); EU Parliament, Fra
 
 ### 6.1 API
 
-- OpenAPI contract in `packages/contracts` is the source of truth; handlers and clients generated; everything under `/v1`.
+- Rust domain types are the source of truth: `utoipa` emits `packages/contracts/openapi.json` from the axum handlers; the TypeScript web client is generated from it; regeneration drift fails CI (generated files are committed, never hand-edited). Everything under `/v1`.
 - Resources mirror Gold ~1:1: `/politicians`, `/politicians/{id}/records`, `/records` (filters: jurisdiction, type, asset_class, instrument, politician, date range, value bounds, verification_state), `/instruments/{id}/records`, `/filings/{id}` (+ raw-doc link), `/jurisdictions`, `/regimes` (= the transparency scorecard endpoint), `/search`.
 - Cursor pagination on ULIDs; ETags everywhere; consistent error envelope.
 - The website consumes this same API. No private endpoints for core data.
@@ -383,7 +386,7 @@ Every record page: official-source link + our archived copy, verification badge 
 - **Services:** Cloud Run `api`, `web`, `worker` — scale-to-zero. AWS equivalents: App Runner/Fargate, SQS, RDS, S3.
 - **Data:** Cloud SQL Postgres (small, PITR on), GCS (versioned buckets: bronze, exports), Cloud Tasks, Cloud Scheduler, Secret Manager.
 - **Edge:** Cloudflare DNS/CDN/WAF + coarse rate limits.
-- **IaC/CI:** Terraform in `infra/`; GitHub Actions: lint → typecheck → tests → fixtures → deploy on main. No staging (tagged zero-traffic Cloud Run revisions + feature flags instead) — a second production is a luxury a solo op shouldn't babysit.
+- **IaC/CI:** Terraform in `infra/`; GitHub Actions: `cargo fmt --check` → `cargo clippy --all-targets -- -D warnings` (pedantic set; `unwrap_used`/`expect_used` denied outside tests) → `cargo test --workspace` → conformance fixtures → web lint/typecheck/test → contract drift check (`regen && git diff --exit-code`) → deploy on main. Rust builds cached with cargo-chef layers + sccache. No staging (tagged zero-traffic Cloud Run revisions + feature flags instead) — a second production is a luxury a solo op shouldn't babysit.
 - **Security:** least-privilege service accounts, private DB, signed URLs for Bronze, budget alerts.
 - **Cost:** < ~$150/mo idle-ish; dominant variable cost is LLM extraction, which scales with success and is SHA-cached.
 
@@ -391,18 +394,20 @@ Every record page: official-source link + our archived copy, verification badge 
 
 ```
 govfolio/
-  apps/api          # /v1 product (Fastify + OpenAPI)
-  apps/web          # Next.js SSR site + reviewer UI
-  apps/worker       # pipeline stage consumers
-  packages/core     # domain types, Zod schemas, DB client, query grammar
-  packages/adapters/<jurisdiction>/   # adapter.ts, config, schemas/, fixtures/
-  packages/pipeline # stage runners, queue + idempotency helpers
-  packages/contracts# openapi.yaml + generated clients
-  infra/            # terraform
-  docs/plans/       # this doc + implementation plan
-  docs/regimes/     # per-country methodology (public page + agent context, dual use)
-  agents/           # CLAUDE.md tree, goals/, task templates
+  crates/core        # domain types (serde+schemars), value math, fingerprint, sqlx migrations
+  crates/pipeline    # adapter trait, conformance harness, stage runners, idempotency
+  crates/adapters/<jurisdiction>/  # one crate each: adapter.rs, schemas/, fixtures/
+  crates/api         # /v1 (axum + sqlx + utoipa → emits openapi.json)
+  crates/worker      # queue consumers; backfill/reprocess binaries
+  apps/web           # Next.js SSR site + reviewer UI (TypeScript, consumes generated client)
+  packages/contracts # GENERATED: openapi.json + TS client (drift-checked, never hand-edited)
+  infra/             # terraform
+  docs/plans/        # this doc + implementation plan
+  docs/regimes/      # per-country methodology (public page + agent context, dual use)
+  agents/            # CLAUDE.md tree, goals/, task templates
 ```
+
+Language boundary as stated in §3: domain/data → `crates/*` (Rust); pixels → `apps/web` (TS); `packages/contracts` is the generated door between them.
 
 **Agent-execution artifacts:**
 
@@ -414,10 +419,10 @@ govfolio/
 
 ## 10. Testing strategy
 
-- Unit: `packages/core` (schemas, query grammar, value-interval math).
-- Conformance: every adapter vs golden fixtures (Silver + Gold expected outputs).
-- Contract: API responses validated against OpenAPI; generated client must compile.
-- Integration: docker-compose Postgres; full pipeline run over fixtures (Bronze→Gold→outbox→delivery).
+- Unit: `crates/core` via `cargo test` (schemas, fingerprint, query grammar, value-interval math on `rust_decimal` — money is decimal end-to-end, never floats).
+- Conformance: every adapter vs golden fixtures (Silver + Gold expected outputs); runner `cargo run -p pipeline --bin conformance -- <adapter>`.
+- Contract: axum responses validated against the emitted OpenAPI (`jsonschema` crate); generated TS client must compile; contract regen drift blocks merge.
+- Integration: `#[sqlx::test]` against docker-compose Postgres; full pipeline run over fixtures (Bronze→Gold→outbox→delivery), rerun-idempotency asserted.
 - E2E smoke: Playwright over critical web paths (profile page, search, record provenance, signup→alert).
 - All CI-blocking. A parser change that breaks a historical fixture cannot merge.
 
@@ -431,6 +436,7 @@ govfolio/
 | Defamation claim | As-filed language, provenance, corrections SLA, right-of-reply. |
 | GDPR complaint | Per-regime redaction pass; DSAR runbook; public-interest basis documented. |
 | Solo bus factor | Boring managed infra, everything in Terraform + git, runbooks in docs/. |
+| Polyglot boundary drift (Rust ↔ TS) | Contract artifacts are generated-and-committed; CI regenerates and fails on diff; hand-editing `packages/contracts` forbidden. |
 | SEO dependence | Email list + API customers as owned channels. |
 
 ## 12. Out of scope for v1 (deliberate YAGNI)

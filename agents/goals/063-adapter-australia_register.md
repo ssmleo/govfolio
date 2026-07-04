@@ -11,7 +11,7 @@ Ship the Australia Register of Members' Interests (28-day change notifications) 
 
 ## Acceptance criteria
 ```bash
-pnpm conformance --filter adapters/australia_register
+cargo run -p pipeline --bin conformance -- australia_register
 ```
 
 ## Checklist

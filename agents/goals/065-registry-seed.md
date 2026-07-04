@@ -5,7 +5,7 @@ Seed jurisdiction table with all countries + disclosure_regime stubs (regime_typ
 
 ## Acceptance criteria
 ```bash
-pnpm --filter core test -- registry   # >=190 jurisdictions, every one has a regime row (possibly type=none)
+cargo test -p core registry   # >=190 jurisdictions, every one has a regime row (possibly type=none)
 ```
 
 ## Checklist

@@ -5,9 +5,9 @@ Execute Tasks 1–11 of docs/plans/2026-07-04-govfolio-implementation.md exactly
 
 ## Acceptance criteria
 ```bash
-pnpm -r lint && pnpm -r typecheck && pnpm -r test
-pnpm conformance --filter adapters/us_house
-docker compose up -d && pnpm test:db
+cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --workspace
+cargo run -p pipeline --bin conformance -- us_house
+docker compose up -d && cargo test --workspace -- --ignored
 ```
 
 ## Checklist

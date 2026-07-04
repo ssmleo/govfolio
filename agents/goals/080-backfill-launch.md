@@ -5,7 +5,7 @@ Run the same pipeline over US archives back to 2012; human-gated diff review; co
 
 ## Acceptance criteria
 ```bash
-pnpm backfill --adapter us_house --from 2012 --dry-run   # human reviews diff, then real run
+cargo run -p worker --bin backfill -- --adapter us_house --from 2012 --dry-run   # human reviews diff, then real run
 ```
 
 ## Checklist

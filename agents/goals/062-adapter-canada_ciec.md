@@ -11,7 +11,7 @@ Ship the Canada CIEC public registry (change notifications) adapter to conforman
 
 ## Acceptance criteria
 ```bash
-pnpm conformance --filter adapters/canada_ciec
+cargo run -p pipeline --bin conformance -- canada_ciec
 ```
 
 ## Checklist

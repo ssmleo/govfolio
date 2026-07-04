@@ -8,7 +8,7 @@ Auth, hashed API keys, per-tier quotas via usage_event → Stripe metered billin
 
 ## Acceptance criteria
 ```bash
-pnpm --filter api test -- tiers   # free sees nothing < 24h old; pro sees realtime; quotas metered
+cargo test -p api tiers   # free sees nothing < 24h old; pro sees realtime; quotas metered
 ```
 
 ## Checklist

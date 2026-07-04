@@ -3,35 +3,45 @@
 You are building govfolio.io: worldwide politician financial-disclosure tracking.
 Free transparency layer + paid real-time alerts/API. Read these before anything else:
 
-- Design (authoritative): `docs/plans/2026-07-04-govfolio-design.md`
+- Design (authoritative, amended D7): `docs/plans/2026-07-04-govfolio-design.md`
 - Plan (M0–M1 tasks + milestone map): `docs/plans/2026-07-04-govfolio-implementation.md`
 - Loop protocol: `agents/LOOP.md` · Goal queue: `agents/goals/000-INDEX.md`
 
-## Project map
-- `apps/api` /v1 (Fastify, OpenAPI-first) · `apps/web` Next.js SSR + reviewer UI · `apps/worker` pipeline consumers
-- `packages/core` domain types, Zod schemas (→ TS types AND JSON Schemas), SQL migrations, generated DB types
-- `packages/adapters/<jurisdiction>` one adapter per regime: code + config + `fixtures/` + `docs/regimes/<x>.md`
-- `packages/pipeline` stage runners, conformance harness, idempotency helpers
-- `packages/contracts` openapi.yaml + generated clients · `infra/` terraform · `agents/` goals + context
+## Project map (hybrid stack)
+- Rust data plane: `crates/core` (domain, serde+schemars, sqlx migrations) · `crates/pipeline`
+  (adapter trait, conformance, stages) · `crates/adapters/<x>` (one crate each + fixtures)
+  · `crates/api` (axum + sqlx + utoipa) · `crates/worker` (consumers, backfill bins)
+- TypeScript edge: `apps/web` (Next.js SSR + reviewer UI; consumes generated client only)
+- `packages/contracts` GENERATED (openapi.json + TS client) — never hand-edited
+- `infra/` terraform · `agents/` goals + context · `docs/regimes/` methodology-as-context
+
+## Language boundary (invariant)
+Touches Bronze/Silver/Gold or defines domain semantics → Rust.
+Renders pixels → TypeScript.
+The generated OpenAPI contract is the only door; regen drift fails CI.
 
 ## Invariants (never violate)
-1. **Supersede, never update.** Facts in Gold are immutable; corrections/amendments insert superseding rows.
-2. **Raw is sacred.** Bronze documents are immutable, sha256-addressed; `asset_description_raw` is always stored.
+1. **Supersede, never update.** Gold facts are immutable; corrections insert superseding rows.
+2. **Raw is sacred.** Bronze immutable, sha256-addressed; `asset_description_raw` always stored.
 3. **Never guess entities.** Below-threshold instrument matches stay NULL + open a review_task.
-4. **Idempotent writes only** into Silver/Gold (`ON CONFLICT DO NOTHING`, fingerprints).
-5. **`details` is contract-typed.** Every (regime, recordType) payload validates against its Zod/JSON Schema at promotion.
-6. **Fail closed.** Zero-row parses or drift freeze the adapter's publication and open a review_task.
-7. **Money = decimal strings** end-to-end (`numeric(16,2)` ↔ string). No floats.
-8. **Politeness:** conditional GETs, per-source min-interval, concurrency 1 default, identified user-agent.
+4. **Idempotent writes only** into Silver/Gold (ON CONFLICT DO NOTHING, fingerprints).
+5. **`details` is contract-typed:** every (regime, recordType) validates against its schemars
+   JSON Schema at promotion; schemas are snapshot-committed.
+6. **Fail closed.** Zero-row parses or drift freeze the adapter and open a review_task.
+7. **Money = rust_decimal ↔ numeric(16,2), serialized as decimal strings.** No floats, ever.
+8. **No `unwrap()`/`expect()` outside tests** (clippy-denied). No `any` in web TS.
+9. **Politeness:** conditional GETs, per-source min-interval, concurrency 1 default, identified UA.
 
-## Conventions
-- Strict TS, no `any` (CI-enforced). Sentence-case UI copy. ULIDs as ids.
-- SQL-first migrations in `packages/core/migrations`; DB types are generated (kysely-codegen), never hand-edited.
-- One filter grammar shared by `/v1/records`, the UI, and `alert_rule.filter`.
-- TDD: failing test → minimal code → green → commit. Small commits, conventional messages.
+## Commands
+`cargo fmt --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test --workspace`
+· `cargo run -p pipeline --bin conformance -- <adapter>` · `docker compose up -d &&
+cargo test --workspace -- --ignored` (sqlx suites) · `cargo run -p api --bin openapi`
+(regen contract) · web: `pnpm --filter web lint|typecheck|test`, `pnpm e2e`
 
 ## Definition of done (any task)
-All acceptance commands in the goal file pass locally AND `pnpm -r lint && pnpm -r typecheck && pnpm -r test` is green AND work is committed on a branch with the goal checklist updated.
+All acceptance commands in the goal file pass locally AND the full command block above is
+green AND work is committed on a branch with the goal checklist updated.
 
 ## Human-only lanes (stop and ask)
-Applying migrations to prod · `terraform apply` · pricing/legal/methodology public copy · completing `expected.*.json` for new fixtures (human is ground truth) · mass reprocess diffs.
+Applying migrations to prod · `terraform apply` · pricing/legal/methodology public copy
+· completing `expected.*.json` for new fixtures (human is ground truth) · mass reprocess diffs.

@@ -1,14 +1,14 @@
-# Govfolio v1 Implementation Plan
+# Govfolio v1 Implementation Plan (Rust data plane + TS web)
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 > Work on a branch. Human-only lanes: applying DB migrations to prod, `terraform apply`, public claim-making copy.
 > Read `/CLAUDE.md` and the relevant `agents/goals/NNN-*.md` before each task. Repo is memory: update the goal's checklist and commit every iteration.
 
-**Goal:** Ship govfolio v1 — worldwide politician-disclosure tracking with a free transparency layer and paid real-time alerts + API — per `docs/plans/2026-07-04-govfolio-design.md`.
+**Goal:** Ship govfolio v1 — worldwide politician-disclosure tracking with a free transparency layer and paid real-time alerts + API — per `docs/plans/2026-07-04-govfolio-design.md` (as amended: D7 hybrid stack).
 
-**Architecture:** Modular monolith (Cloud Run `api`/`web`/`worker`, scale-to-zero) + queue-driven ingestion (Bronze GCS → Silver staging → Gold Postgres), two-stage publication (`unverified → verified`), transactional-outbox alerts, OpenAPI-first `/v1` consumed by the website itself.
+**Architecture:** Rust data plane (`crates/*`: pipeline, adapters, worker, axum `/v1`) + TypeScript presentation edge (`apps/web`, Next.js). Bronze GCS → Silver staging → Gold Postgres; two-stage publication (`unverified → verified`); transactional-outbox alerts. The generated OpenAPI contract is the only door between the languages.
 
-**Tech Stack:** TypeScript end-to-end (pnpm workspaces, strict TS), Fastify + OpenAPI, Next.js, Postgres (SQL-first migrations + kysely-codegen types), Zod (types + JSON Schemas from one source), Vitest, Playwright, GCP (Cloud Run, Cloud SQL, GCS, Cloud Tasks, Scheduler), Cloudflare, Terraform, GitHub Actions, Stripe.
+**Tech Stack:** Rust stable (tokio, axum, sqlx raw SQL, serde + schemars, utoipa, reqwest, rust_decimal, sha2, jsonschema, pdf-extract → pdfium-render if fidelity demands), TypeScript (Next.js, generated client via openapi-typescript), Postgres 16, Vitest/Playwright (web), GCP + Cloudflare + Terraform, GitHub Actions (cargo-chef + sccache), Stripe.
 
 ---
 
@@ -16,216 +16,197 @@
 
 | M | Name | Detail lives in |
 |---|---|---|
-| M0 | Repo bootstrap (workspace, CI, local Postgres, migration runner) | **This doc — Tasks 1–3** |
-| M1 | Walking skeleton (core schemas → DDL → fingerprint → adapter contract + conformance → `us_house` adapter → local pipeline run → minimal `/v1/records`) | **This doc — Tasks 4–11** |
-| M2 | Cloud substrate (Terraform: SQL, GCS, Cloud Run ×3, Tasks, Scheduler; deploy skeleton) | `agents/goals/020` |
-| M3 | Alerts (outbox dispatcher, email + HMAC webhooks, alert-rule CRUD on the shared filter grammar) | `agents/goals/030` |
-| M4 | Website (SSR politician/record/jurisdiction pages, search, sitemap) + reviewer UI | `agents/goals/040–041` |
-| M5 | Productization (auth, API keys, quotas/usage → Stripe, free-tier 24h delay) | `agents/goals/050` |
-| M6 | Coverage wave 1 (`us_senate`, `uk`, `canada`, `australia`) + worldwide regime registry seed + coverage dashboard | `agents/goals/060–065` |
-| M7 | Trust hardening (review queue UI, sampling audits, corrections log, per-regime redaction, drift detection) | `agents/goals/070` |
-| M8 | US historical backfill (→2012) + launch checklist | `agents/goals/080` |
+| M0 | Repo bootstrap (cargo workspace, lint gates, CI, local Postgres, sqlx migrator) | **This doc — Tasks 1–3** |
+| M1 | Walking skeleton (domain → DDL → fingerprint → adapter trait + conformance → `us_house` → local pipeline → `/v1/records`) | **This doc — Tasks 4–11** |
+| M2 | Cloud substrate (Terraform; deploy skeleton) | `agents/goals/020` |
+| M3 | Alerts (outbox dispatcher, email + HMAC webhooks, rules CRUD on shared grammar) | `agents/goals/030` |
+| M4 | Website (pnpm bootstrap + generated client; SSR pages; sitemap) + reviewer UI | `agents/goals/040–041` |
+| M5 | Productization (auth, keys, quotas → Stripe, 24h free-tier delay) | `agents/goals/050` |
+| M6 | Coverage wave 1 + worldwide registry seed + coverage dashboard | `agents/goals/060–065` |
+| M7 | Trust hardening (audits, corrections log, redaction, drift detection) | `agents/goals/070` |
+| M8 | US backfill (→2012) + launch checklist | `agents/goals/080` |
 
-Rule: when a goal file is too big for one loop-session, the loop's first action is to expand it into `docs/plans/<date>-<goal>.md` **using this same task format**, then execute that.
+Rule: a goal too big for one loop-session gets expanded into `docs/plans/<date>-<slug>.md` in this same task format first.
 
 ---
 
 ## M0 — Repo bootstrap
 
-### Task 1: pnpm workspace + strict TS + Vitest
+### Task 1: Cargo workspace + lint regime + smoke test
 
 **Files:**
-- Create: `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.gitignore`, `.nvmrc`
-- Create: `packages/core/package.json`, `packages/core/tsconfig.json`
-- Create: `packages/core/src/index.ts`
-- Test: `packages/core/src/index.test.ts`
+- Create: `Cargo.toml` (workspace), `rust-toolchain.toml` (pin stable), `rustfmt.toml`, `.gitignore`
+- Create: `crates/core/Cargo.toml`, `crates/core/src/lib.rs`
 
-**Step 1: Write the failing test**
+**Step 1: Write the failing test** — in `crates/core/src/lib.rs`:
 
-```ts
-// packages/core/src/index.test.ts
-import { describe, expect, it } from "vitest";
-import { hello } from "./index";
+```rust
+pub fn hello() -> &'static str { "govfolio" }
 
-describe("workspace smoke", () => {
-  it("compiles and runs", () => {
-    expect(hello()).toBe("govfolio");
-  });
-});
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn workspace_smoke() { assert_eq!(super::hello(), "govfolio"); }
+}
 ```
+Start with the test referencing a not-yet-written `hello` to see red first, then add the fn.
 
-**Step 2: Run test to verify it fails**
+**Step 2:** `cargo test -p core` → FAIL (unresolved `hello`).
+**Step 3:** add the fn (above). Workspace `Cargo.toml` sets the lint law once:
 
-Run: `pnpm i && pnpm -r test`
-Expected: FAIL — `hello` is not exported / module not found.
+```toml
+[workspace]
+members = ["crates/*", "crates/adapters/*"]
+resolver = "2"
 
-**Step 3: Write minimal implementation**
-
-```ts
-// packages/core/src/index.ts
-export const hello = (): string => "govfolio";
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+pedantic = { level = "warn", priority = -1 }
 ```
+(Tests opt out with `#[allow(clippy::unwrap_used)]` at module level — panics belong in tests only.)
 
-`tsconfig.base.json` must set: `"strict": true, "noUncheckedIndexedAccess": true, "exactOptionalPropertyTypes": true, "module": "NodeNext"`. No `any` anywhere in the repo — CI greps for it (Task 2).
-
-**Step 4: Run test to verify it passes**
-
-Run: `pnpm -r test` → Expected: 1 passed.
-Run: `pnpm -r typecheck` (script = `tsc --noEmit`) → Expected: clean.
-
-**Step 5: Commit**
-
-```bash
-git add -A && git commit -m "chore: pnpm workspace, strict TS, vitest smoke"
-```
+**Step 4:** `cargo test -p core` → 1 passed; `cargo clippy --all-targets -- -D warnings` → clean; `cargo fmt --check` → clean.
+**Step 5:** `git add -A && git commit -m "chore: cargo workspace, lint law (no unwrap), smoke test"`
 
 ### Task 2: CI gate
 
-**Files:**
-- Create: `.github/workflows/ci.yml`
-- Create: `scripts/no-any.sh` (`! grep -rn ": any" --include="*.ts" packages apps || (echo "no any allowed" && exit 1)`)
+**Files:** `.github/workflows/ci.yml`
 
-Steps: write workflow running `pnpm i --frozen-lockfile`, `pnpm -r lint`, `pnpm -r typecheck`, `pnpm -r test`, `scripts/no-any.sh`; push branch; verify the workflow runs green; commit. (Add eslint+prettier configs in this task; keep rules default+strict.)
+Jobs: (a) rust — fmt check, clippy `-D warnings`, `cargo test --workspace`, cached with `Swatinem/rust-cache` (cargo-chef in the deploy image later); (b) db — services: postgres:16, runs `cargo test --workspace -- --ignored` for `#[sqlx::test]` suites with `DATABASE_URL` set; (c) placeholder web job (activates in goal 040). Push branch → verify green → commit `chore: ci gates`.
 
-### Task 3: Local Postgres + SQL-first migration runner
+### Task 3: Local Postgres + sqlx migrator
 
-**Rationale:** the design doc's DDL is authoritative; migrations are plain `.sql` files so the schema in git is exactly the schema in prod. Types are *generated* from the live DB (kysely-codegen), never hand-written — they can't drift.
+**Rationale:** design DDL stays authoritative as plain `.sql`; `sqlx::migrate!` gives ordering + checksums + embedding for free — boring and standard.
 
 **Files:**
-- Create: `docker-compose.yml` (postgres:16, port 5433, healthcheck)
-- Create: `packages/core/migrations/0000_init.sql` (empty marker table `schema_migrations`)
-- Create: `packages/core/src/db/migrate.ts` (~30 lines: read `migrations/*.sql` in order, skip applied, apply in a transaction, record filename)
-- Test: `packages/core/src/db/migrate.test.ts` (integration, tagged `@db`)
+- Create: `docker-compose.yml` (postgres:16 on 5433, healthcheck), `.env.example` (`DATABASE_URL=postgres://postgres:postgres@localhost:5433/govfolio`)
+- Create: `crates/core/migrations/0000_init.sql` (`select 1;` marker)
+- Create: `crates/core/src/db.rs` (`pub async fn migrate(pool) -> …` wrapping `sqlx::migrate!("./migrations")`), `crates/core/src/bin/migrate.rs` (CLI)
+- Test: `crates/core/tests/migrate.rs`
 
-**Step 1: failing test** — spins nothing itself; requires `docker compose up -d`; asserts `migrate()` applies `0000` once and is idempotent on second run (row count in `schema_migrations` unchanged).
-**Step 2:** `docker compose up -d && pnpm --filter core test:db` → FAIL (migrate.ts missing).
-**Step 3:** implement runner with `pg` client; `DATABASE_URL` from env, default `postgres://postgres:postgres@localhost:5433/govfolio`.
-**Step 4:** test passes; running twice is a no-op.
-**Step 5:** `git commit -m "feat(core): sql-first migration runner + local pg"`
+**Step 1: failing test:**
+
+```rust
+#[sqlx::test(migrations = false)]
+async fn migrator_is_idempotent(pool: sqlx::PgPool) {
+    core::db::migrate(&pool).await.unwrap();
+    core::db::migrate(&pool).await.unwrap(); // second run: no-op, no error
+    let n: i64 = sqlx::query_scalar("select count(*) from _sqlx_migrations")
+        .fetch_one(&pool).await.unwrap();
+    assert_eq!(n, 1);
+}
+```
+**Step 2:** `docker compose up -d && cargo test -p core --test migrate` → FAIL (`db` module missing).
+**Step 3:** implement `db.rs` + bin.
+**Step 4:** test passes.
+**Step 5:** `git commit -m "feat(core): sqlx sql-first migrator + local pg"`
 
 ---
 
 ## M1 — Walking skeleton
 
-### Task 4: Domain primitives (ULID, value interval, enums, GoldCandidate)
+### Task 4: Domain primitives (ULID, ValueInterval, enums, GoldCandidate)
 
 **Files:**
-- Create: `packages/core/src/ids.ts`, `packages/core/src/domain/value.ts`, `packages/core/src/domain/enums.ts`, `packages/core/src/domain/gold.ts`
-- Test: `packages/core/src/domain/value.test.ts`, `gold.test.ts`
+- Create: `crates/core/src/{ids.rs, domain/value.rs, domain/enums.rs, domain/gold.rs, schemas/mod.rs}`
+- Test: inline `#[cfg(test)]` + `crates/core/tests/schema_snapshot.rs`
 
-**Step 1: failing tests (complete):**
+**Step 1: failing tests (pivotal ones, complete):**
 
-```ts
-// value.test.ts
-import { describe, expect, it } from "vitest";
-import { ValueInterval, midpoint } from "./value";
-
-describe("ValueInterval", () => {
-  it("accepts exact values as low==high", () => {
-    expect(ValueInterval.parse({ low: "5000.00", high: "5000.00", currency: "EUR" }).low)
-      .toBe("5000.00");
-  });
-  it("accepts open-ended thresholds (high null)", () => {
-    const v = ValueInterval.parse({ low: "70000.00", high: null, currency: "GBP" });
-    expect(v.high).toBeNull();
-  });
-  it("rejects high < low", () => {
-    expect(() => ValueInterval.parse({ low: "10.00", high: "5.00", currency: "USD" }))
-      .toThrow();
-  });
-  it("midpoint of a US band", () => {
-    expect(midpoint({ low: "1001.00", high: "15000.00", currency: "USD" })).toBe("8000.50");
-  });
-});
+```rust
+// domain/value.rs tests — money is rust_decimal, serialized as strings. Never floats.
+#[test]
+fn exact_value_is_low_eq_high() {
+    let v = ValueInterval::new(dec!(5000.00), Some(dec!(5000.00)), Currency::EUR).unwrap();
+    assert_eq!(v.low(), v.high().unwrap());
+}
+#[test]
+fn open_ended_threshold_high_is_none() {
+    assert!(ValueInterval::new(dec!(70000.00), None, Currency::GBP).is_ok());
+}
+#[test]
+fn rejects_high_below_low() {
+    assert!(ValueInterval::new(dec!(10.00), Some(dec!(5.00)), Currency::USD).is_err());
+}
+#[test]
+fn midpoint_of_us_band() {
+    let v = ValueInterval::new(dec!(1001.00), Some(dec!(15000.00)), Currency::USD).unwrap();
+    assert_eq!(v.midpoint().unwrap(), dec!(8000.50));
+}
 ```
 
-```ts
-// gold.test.ts — the cross-regime pair from the design doc, verbatim as fixtures
-import { GoldCandidate } from "./gold";
-it("accepts a US PTR transaction", () => {
-  GoldCandidate.parse({
-    recordType: "transaction", side: "buy", transactionDate: "2026-03-02",
-    assetDescriptionRaw: "NVIDIA Corporation - Common Stock", assetClass: "equity",
-    value: { low: "1001.00", high: "15000.00", currency: "USD" }, owner: "spouse",
-    details: { ptr_row: 3 },
-  });
-});
-it("accepts a UK categorical interest and rejects a transaction without side", () => {
-  GoldCandidate.parse({
-    recordType: "interest", notifiedDate: "2026-04-10",
-    assetDescriptionRaw: "Shareholding in X Ltd (Category 7(i))", assetClass: "equity",
-    value: { low: "70000.00", high: null, currency: "GBP" }, owner: "self",
-    details: { category: "7(i)" },
-  });
-  expect(() => GoldCandidate.parse({ recordType: "transaction",
-    assetDescriptionRaw: "x", assetClass: "equity", owner: "self", details: {} }))
-    .toThrow();
-});
+```rust
+// domain/gold.rs tests — the cross-regime pair from the design doc, verbatim.
+#[test]
+fn accepts_us_ptr_transaction_and_uk_interest_rejects_sideless_transaction() {
+    us_ptr_fixture().validate().unwrap();          // transaction: buy, 2026-03-02, 1001–15000 USD, spouse
+    uk_interest_fixture().validate().unwrap();     // interest: notified 2026-04-10, 70000–open GBP
+    let mut bad = us_ptr_fixture(); bad.side = None;
+    assert!(matches!(bad.validate(), Err(DomainError::TypeRequires { .. })));
+}
 ```
 
-**Step 2:** run → FAIL. **Step 3:** implement with Zod: money as **decimal strings** (never floats — rationale: numeric fidelity end-to-end to `numeric(16,2)`), `superRefine` for per-type requirements mirroring the SQL CHECKs (one rule, two enforcers). Export `zodToJsonSchema(GoldCandidate)` from `packages/core/src/schemas/`. **Step 4:** pass. **Step 5:** commit `feat(core): domain primitives + GoldCandidate contract`.
+**Step 2:** `cargo test -p core` → FAIL. **Step 3:** implement: enums with `#[serde(rename_all = "snake_case")]`, `GoldCandidate` deriving `Serialize/Deserialize/JsonSchema`, `validate()` mirroring the SQL CHECKs (one rule, two enforcers — Rust and Postgres). Snapshot test writes `schemars::schema_for!(GoldCandidate)` to `crates/core/schemas/gold_candidate.json` and fails on diff (contract changes must be visible in git).
+**Step 4:** green. **Step 5:** `git commit -m "feat(core): domain primitives + GoldCandidate contract (schema snapshot)"`
 
 ### Task 5: Migration 0001 — the design DDL
 
-**Files:**
-- Create: `packages/core/migrations/0001_core.sql` — **copy the DDL verbatim from `docs/plans/2026-07-04-govfolio-design.md §4.2`**, plus `outbox_event`, `pipeline_run`, `review_task` shapes from §4.2's supporting list.
-- Test: extend `migrate.test.ts`: after migrate, `insert` the two GoldCandidate examples (via raw SQL) and assert the CHECK constraints reject a transaction missing `side` and a `value_high < value_low`.
-- Create: `packages/core/src/db/types.ts` via `pnpm --filter core db:codegen` (kysely-codegen against local DB) — committed, regenerated in CI to detect drift.
+**Files:** `crates/core/migrations/0001_core.sql` — **copy verbatim from design §4.2** + `outbox_event`, `pipeline_run`, `review_task` shapes; test `crates/core/tests/ddl.rs`.
 
-Steps: failing test → apply → verify CHECKs fire (expected SQLSTATE 23514) → codegen → commit `feat(core): canonical gold DDL + generated db types`.
+Failing `#[sqlx::test]`: insert both GoldCandidate examples via raw SQL; assert a transaction missing `side` and a `value_high < value_low` are rejected with SQLSTATE **23514**; then `cargo sqlx prepare --workspace` (offline query metadata, committed). Commit `feat(core): canonical gold DDL + sqlx offline metadata`.
 
-### Task 6: Deterministic record fingerprint
+### Task 6: Deterministic fingerprint
 
-**Files:** `packages/core/src/domain/fingerprint.ts` + test.
+**Files:** `crates/core/src/domain/fingerprint.rs` + tests.
 
-Failing test asserts: same `(filingId, ordinal, canonicalized content)` → same 64-hex sha256; key-order and whitespace changes in `details` do **not** change it; changing `value.low` does. Implement with stable-stringify (sorted keys) + `crypto`. Commit `feat(core): idempotency fingerprint`.
+Failing tests assert: same `(filing_id, ordinal, canonical content)` → same 64-hex sha256; JSON key order / whitespace changes do **not** alter it; changing `value.low` does. Implement: canonicalize via `serde_json::Value` → recursive BTreeMap sort → `sha2`. Commit `feat(core): idempotency fingerprint`.
 
-### Task 7: Adapter contract + conformance harness
+### Task 7: Adapter trait + conformance harness
 
 **Files:**
-- Create: `packages/pipeline/src/adapter.ts` (the `JurisdictionAdapter` interface from design §5.1, plus `RunCtx` carrying: bronze store, db, clock, http with politeness wrapper)
-- Create: `packages/pipeline/src/conformance.ts`
-- Create: `packages/adapters/_fixture_fake/` (fake adapter reading local fixture files — exists to test the harness itself)
-- Test: `packages/pipeline/src/conformance.test.ts`
+- Create: `crates/pipeline/src/{adapter.rs, conformance.rs, bin/conformance.rs}` (`RunCtx` carries bronze store, pool, clock, politeness-wrapped `reqwest` client)
+- Create: `crates/adapters/fixture_fake/` (reads local fixtures — exists to test the harness)
+- Test: `crates/pipeline/tests/conformance.rs`
 
-**Harness spec (complete behavior):** given `packages/adapters/<x>/fixtures/<case>/{input.*, expected.silver.json, expected.gold.json}` — run `parse` on input, deep-compare to `expected.silver.json`; run `normalize`, validate every candidate against `GoldCandidate` **and** the `(regime, recordType)` JSON Schema for `details`, deep-compare to `expected.gold.json`. Any mismatch prints a unified diff. Exposed as `pnpm conformance --filter adapters/<x>`.
-
-TDD it against `_fixture_fake` (one passing case, one deliberately-broken case asserting the diff output). Commit `feat(pipeline): adapter contract + conformance harness`.
+**Harness spec:** for each `crates/adapters/<x>/fixtures/<case>/{input.*, expected.silver.json, expected.gold.json}` — run `parse`, deep-compare Silver; run `normalize`, `validate()` every candidate **and** check `details` against that (regime, record_type) JSON Schema (`jsonschema` crate), deep-compare Gold; mismatches print a unified diff (`similar` crate). TDD against `fixture_fake` with one passing and one deliberately-broken case asserting diff output. Runner: `cargo run -p pipeline --bin conformance -- <adapter>`. Commit `feat(pipeline): adapter trait + conformance harness`.
 
 ### Task 8: First real adapter — `us_house`
 
-**Why House first:** the Clerk publishes a machine-readable annual index (XML/ZIP) of PTR filings → deterministic `discover`; documents are PDFs with text layers → exercises Bronze + PDF parse + LLM-fallback paths. (Senate eFD needs a session dance; it's goal 060.)
+**Why House first:** the Clerk publishes a machine-readable annual index (XML/ZIP) of PTR filings → deterministic `discover`; PDFs with text layers exercise Bronze + parse + the LLM-fallback seam. (Senate eFD's session dance is goal 060.)
 
-**Files:**
-- Create: `docs/regimes/us-house.md` (methodology: source URLs, cadence, bands table, quirks — written FIRST; it is the adapter's context)
-- Create: `packages/adapters/us_house/{adapter.ts, config.ts, schemas/transaction.details.ts, fixtures/…}`
-- Create: `tools/capture-fixture.ts` (fetch one real filing → write `input.pdf` + skeleton expected files for human completion)
-- Test: conformance fixtures ×3 minimum (typical PTR, an amendment, a multi-row filing)
+**Files:** `docs/regimes/us-house.md` (written FIRST — it is the adapter's context), `crates/adapters/us_house/{src/adapter.rs, src/details.rs, fixtures/…}`, `crates/pipeline/src/bin/capture_fixture.rs`.
 
-Steps: write `us-house.md` → capture 3 fixtures → hand-complete `expected.*.json` (**human step — you are the ground truth once per fixture**) → failing conformance → implement `discover` (index XML), `fetch` (store Bronze via `sha256`), `parse` (pdf text-layer via `pdfjs-dist`; if extraction confidence < threshold, route to LLM extractor stub interface — real LLM wiring is goal 021), `normalize` (band strings → `ValueInterval`, owner codes, `details` per schema) → green ×3 → commit `feat(adapters): us_house PTR adapter (conformance ×3)`.
+Steps: regime doc → capture ≥3 real fixtures (typical PTR, amendment, multi-row) → **HUMAN completes `expected.*.json` (you are ground truth, once per fixture)** → failing conformance → implement `discover` (index XML), `fetch` (Bronze by sha256), `parse` (`pdf-extract` text layer; below-threshold confidence routes to the `Extractor` trait stub — real LLM wiring is goal 021; if text-layer fidelity fails on fixtures, upgrade to `pdfium-render` and record why in the regime doc), `normalize` (band strings → `ValueInterval`, owner codes, `details` per schema) → conformance green ×3 → commit `feat(adapters): us_house PTR adapter (conformance x3)`.
 
-### Task 9: Local pipeline runner (in-process queue)
+### Task 9: Local pipeline runner (in-process)
 
-**Files:** `packages/pipeline/src/{run.ts, stages/*.ts}`, `apps/worker/src/local.ts`; integration test `packages/pipeline/src/e2e.local.test.ts` (`@db`).
+**Files:** `crates/pipeline/src/{run.rs, stages/*.rs}`, `crates/worker/src/bin/local.rs`; test `crates/pipeline/tests/e2e_local.rs`.
 
-Failing test: run full pipeline over `us_house` fixtures against dockerized PG → asserts Bronze rows, Silver rows, Gold rows `verification_state='unverified'`, one `outbox_event` per record, `pipeline_run` rows with idempotency keys; **running twice inserts nothing new**. Implement stages calling the adapter + `ON CONFLICT DO NOTHING` writes. Commit `feat(pipeline): end-to-end local run, idempotent`.
+Failing `#[sqlx::test]`: full run over `us_house` fixtures → Bronze rows exist, Silver rows exist, Gold rows have `verification_state='unverified'`, one `outbox_event` per record (same txn), `pipeline_run` rows carry idempotency keys — and **a second run inserts nothing** (`ON CONFLICT DO NOTHING` everywhere). Commit `feat(pipeline): end-to-end local run, idempotent`.
 
-### Task 10: Minimal `/v1` (records + politician timeline)
+### Task 10: Minimal `/v1` (axum + utoipa)
 
-**Files:** `packages/contracts/openapi.yaml` (only `/v1/records`, `/v1/politicians/{id}/records`, error envelope, cursor params), `apps/api/src/{server.ts, routes/records.ts}`, contract test `apps/api/src/contract.test.ts`.
+**Files:** `crates/api/src/{main.rs, routes/records.rs, routes/politicians.rs}`, `crates/api/src/bin/openapi.rs` (emits `packages/contracts/openapi.json`); test `crates/api/tests/contract.rs`.
 
-Failing contract test: boots Fastify against test DB seeded by Task 9, fetches both endpoints, validates responses **against the OpenAPI schema** (ajv), checks ULID cursor pagination (page 2 starts after page 1's last id) and `verification_state` present on every record. Implement thin handlers over kysely. Commit `feat(api): /v1 records + timeline, contract-tested`.
+Failing contract test: boot axum on a test pool seeded by Task 9; GET `/v1/records` and `/v1/politicians/{id}/records`; validate response bodies against the emitted OpenAPI schema (`jsonschema`); assert ULID cursor pagination (page 2 begins after page 1's last id) and `verification_state` present on every record. Implement thin sqlx handlers, `#[utoipa::path]` annotations. CI drift step: `cargo run -p api --bin openapi && git diff --exit-code packages/contracts/`. Commit `feat(api): /v1 records + timeline, contract-tested + drift-gated`.
 
 ### Task 11: Two-stage publication smoke
 
-**Files:** `packages/pipeline/src/promote.ts` + test.
+**Files:** `crates/pipeline/src/promote.rs` + test.
 
-Failing test: resolve a `review_task` → record flips to `verified`; an "edit" resolution inserts a superseding record (`corrected`, `supersedes_record_id` set) and never UPDATEs the original row's facts. This locks the supersede-never-update invariant behind a test before any UI exists. Commit `feat(pipeline): verification promotion + supersession`.
+Failing test: resolving a `review_task` flips the record to `verified`; an "edit" resolution inserts a superseding record (`corrected`, `supersedes_record_id` set) and the original row's facts are **never UPDATEd** — the supersede-never-update invariant locked behind a test before any UI exists. Commit `feat(pipeline): verification promotion + supersession`.
 
-**M1 exit criteria (all must be green):** `pnpm -r lint && pnpm -r typecheck && pnpm -r test && pnpm conformance && pnpm test:db` — and a human can run `pnpm skeleton:demo` to see real House records served at `localhost:8080/v1/records`.
+**M1 exit criteria (all green):**
+```bash
+cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --workspace
+cargo run -p pipeline --bin conformance -- us_house
+docker compose up -d && cargo test --workspace -- --ignored   # sqlx integration suites
+cargo run -p api   # human sees real House records at localhost:8080/v1/records
+```
 
 ---
 
 ## M2+ — executed via goal files
 
-Every remaining unit of work is an `agents/goals/NNN-*.md` file (objective, scope in/out, context pointers, **acceptance criteria as commands**). The loop protocol is `agents/LOOP.md`; the ordered queue is `agents/goals/000-INDEX.md`. Adapter goals (060+) are the repeatable template: *write `docs/regimes/<x>.md` → capture fixtures → human completes expected outputs → conformance green.*
+Every remaining unit of work is an `agents/goals/NNN-*.md` file (objective, scope, context pointers, **acceptance criteria as commands**). Loop protocol: `agents/LOOP.md`; queue: `agents/goals/000-INDEX.md`. Adapter goals (060+) are the repeatable template: *regime doc → fixtures → human expected outputs → conformance green.* Web work (040+) bootstraps pnpm + the generated TS client (`openapi-typescript` against `packages/contracts/openapi.json`).

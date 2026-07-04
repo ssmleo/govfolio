@@ -11,7 +11,7 @@ Ship the US Senate eFD PTRs (session dance, HTML tables) adapter to conformance-
 
 ## Acceptance criteria
 ```bash
-pnpm conformance --filter adapters/us_senate
+cargo run -p pipeline --bin conformance -- us_senate
 ```
 
 ## Checklist

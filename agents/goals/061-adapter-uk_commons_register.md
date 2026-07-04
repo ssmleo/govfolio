@@ -11,7 +11,7 @@ Ship the UK Register of Members' Financial Interests (categorical interests) ada
 
 ## Acceptance criteria
 ```bash
-pnpm conformance --filter adapters/uk_commons_register
+cargo run -p pipeline --bin conformance -- uk_commons_register
 ```
 
 ## Checklist
