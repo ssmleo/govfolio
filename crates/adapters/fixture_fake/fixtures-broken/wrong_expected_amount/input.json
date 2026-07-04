@@ -1,0 +1,22 @@
+{
+  "external_id": "FF-2026-0001",
+  "filing_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+  "politician_id": "01BX5ZZKBKACTAV9WEVGEMMVRZ",
+  "regime_id": "01BX5ZZKBKACTAV9WEVGEMMVS0",
+  "rows": [
+    {
+      "asset": "Microsoft Corporation - Common Stock (MSFT)",
+      "type": "P",
+      "date": "03/02/2026",
+      "amount": "$1,001 - $15,000",
+      "owner": "SP"
+    },
+    {
+      "asset": "Apple Inc. (AAPL)",
+      "type": "S",
+      "date": "03/05/2026",
+      "amount": "$15,001 - $50,000",
+      "owner": "JT"
+    }
+  ]
+}

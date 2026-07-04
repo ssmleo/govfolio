@@ -4,4 +4,21 @@ Load when: verifying adapters, bouncing builds
 Core checklist:
 - run conformance bin -> read unified diff -> classify: parser bug vs fixture wrong vs regime change -> route accordingly
 Anti-patterns: editing expected.json to make red green without human
+Learnings (dated):
+- 2026-07-04: the commanded runner (`cargo run -p pipeline --bin conformance -- <x>`)
+  cannot link adapter crates — they depend on pipeline for the trait and cargo rejects
+  normal-dep cycles. Pattern: every adapter ships a 3-line `conformance_entry` bin
+  calling `pipeline::conformance::adapter_entry`; the pipeline bin re-execs it via
+  `$CARGO`. Dev-dep cycles ARE legal, so pipeline's integration tests link
+  fixture_fake directly. Name adapter entry bins uniquely (`conformance_entry`, never
+  `conformance`): same-named bins across workspace packages clobber one
+  target/debug artifact, and Windows cannot overwrite the outer exe while it runs.
+- 2026-07-04: deliberately-broken fixtures live OUTSIDE the default dir
+  (`fixtures-broken/` beside `fixtures/`, with a README saying "do not fix"): the bin
+  only reads `fixtures/`; the harness test points at `fixtures-broken/` explicitly and
+  asserts the FAIL + unified diff — a harness that cannot fail proves nothing.
+- 2026-07-04: deep-compare parsed `serde_json::Value` (key-order-insensitive), then
+  diff pretty-printed strings via `similar`; assert on `-`/`+` lines and `@@`, not
+  whole-diff string equality. Missing (regime, record_type) details schema is a case
+  FAILURE (fail closed), not a skip.
 Write-back: deepen this file when the procedure teaches you something; same PR.

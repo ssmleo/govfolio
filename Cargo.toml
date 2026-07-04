@@ -1,7 +1,8 @@
 [workspace]
-# Add "crates/adapters/*" to members (and exclude = ["crates/adapters"]) with the first
-# adapter crate (plan Task 8): cargo rejects member globs that match zero packages.
-members = ["crates/*"]
+# Top-level crates are listed explicitly: a bare "crates/*" glob would try to load
+# the package-less `crates/adapters/` directory itself and fail, while excluding it
+# would also exclude every adapter beneath it. Adapters scale via their own glob.
+members = ["crates/core", "crates/pipeline", "crates/adapters/*"]
 resolver = "2"
 
 [workspace.lints.clippy]

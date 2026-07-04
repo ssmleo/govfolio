@@ -1,0 +1,40 @@
+[
+  {
+    "filing_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "politician_id": "01BX5ZZKBKACTAV9WEVGEMMVRZ",
+    "regime_id": "01BX5ZZKBKACTAV9WEVGEMMVS0",
+    "instrument_id": null,
+    "asset_description_raw": "Microsoft Corporation - Common Stock (MSFT)",
+    "record_type": "transaction",
+    "asset_class": "equity",
+    "side": "buy",
+    "transaction_date": "2026-03-02",
+    "as_of_date": null,
+    "notified_date": null,
+    "value": { "low": "1001.00", "high": "15000.00", "currency": "USD" },
+    "owner": "spouse",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fixture_fake:parser@1",
+    "fingerprint": null,
+    "details": { "amount_band_raw": "$1,001 - $15,000", "source_ordinal": 0 }
+  },
+  {
+    "filing_id": "01ARZ3NDEKTSV4RRFFQ69G5FAV",
+    "politician_id": "01BX5ZZKBKACTAV9WEVGEMMVRZ",
+    "regime_id": "01BX5ZZKBKACTAV9WEVGEMMVS0",
+    "instrument_id": null,
+    "asset_description_raw": "Apple Inc. (AAPL)",
+    "record_type": "transaction",
+    "asset_class": "equity",
+    "side": "sell",
+    "transaction_date": "2026-03-05",
+    "as_of_date": null,
+    "notified_date": null,
+    "value": { "low": "15001.00", "high": "50000.00", "currency": "USD" },
+    "owner": "joint",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fixture_fake:parser@1",
+    "fingerprint": null,
+    "details": { "amount_band_raw": "$15,001 - $50,000", "source_ordinal": 1 }
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "fixture_fake transaction details v1",
+  "type": "object",
+  "properties": {
+    "amount_band_raw": { "type": "string", "minLength": 1 },
+    "source_ordinal": { "type": "integer", "minimum": 0 }
+  },
+  "required": ["amount_band_raw", "source_ordinal"],
+  "additionalProperties": false
+}
