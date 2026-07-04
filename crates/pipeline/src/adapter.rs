@@ -212,8 +212,7 @@ impl Throttle {
 
 /// A `reqwest` client that cannot forget its manners: every request passes the
 /// per-source throttle and carries an identified User-Agent (invariant 10).
-/// Conditional-GET plumbing (`ETag`/`Last-Modified`) arrives with the first
-/// real adapter (plan Task 8).
+/// Conditional GETs go through [`PoliteClient::get_conditional`].
 #[derive(Debug)]
 pub struct PoliteClient {
     inner: reqwest::Client,
@@ -247,12 +246,30 @@ impl PoliteClient {
     /// # Errors
     /// Transport failure (non-2xx statuses are returned, not errors).
     pub async fn get(&self, url: &str) -> anyhow::Result<reqwest::Response> {
+        self.get_conditional(url, None, None).await
+    }
+
+    /// Polite conditional GET: sends `If-None-Match` / `If-Modified-Since`
+    /// when validators are known (invariant 10 — 304s are cheap for the
+    /// source). A 304 comes back as a normal response, not an error.
+    ///
+    /// # Errors
+    /// Transport failure (non-2xx statuses, including 304, are returned).
+    pub async fn get_conditional(
+        &self,
+        url: &str,
+        if_none_match: Option<&str>,
+        if_modified_since: Option<&str>,
+    ) -> anyhow::Result<reqwest::Response> {
         let _slot = self.throttle.ready().await?;
-        self.inner
-            .get(url)
-            .send()
-            .await
-            .with_context(|| format!("GET {url}"))
+        let mut request = self.inner.get(url);
+        if let Some(etag) = if_none_match {
+            request = request.header(reqwest::header::IF_NONE_MATCH, etag);
+        }
+        if let Some(stamp) = if_modified_since {
+            request = request.header(reqwest::header::IF_MODIFIED_SINCE, stamp);
+        }
+        request.send().await.with_context(|| format!("GET {url}"))
     }
 }
 

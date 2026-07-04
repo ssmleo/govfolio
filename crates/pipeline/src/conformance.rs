@@ -67,6 +67,9 @@ pub fn details_schema(regime: &str, record_type: RecordType) -> anyhow::Result<O
         ("fixture_fake", RecordType::Transaction) => {
             include_str!("../schemas/details/fixture_fake.transaction.json")
         }
+        ("us_house", RecordType::Transaction) => {
+            include_str!("../schemas/details/us_house.transaction.json")
+        }
         _ => return Ok(None),
     };
     serde_json::from_str(doc)
@@ -303,6 +306,20 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(schema["type"], json!("object"));
+        assert!(
+            schema["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("amount_band_raw")),
+            "raw band must be contractually required: {schema}"
+        );
+    }
+
+    #[test]
+    fn registry_has_us_house_transaction_schema() {
+        let schema = details_schema("us_house", RecordType::Transaction)
+            .unwrap()
+            .unwrap();
         assert!(
             schema["required"]
                 .as_array()

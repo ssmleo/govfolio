@@ -21,4 +21,10 @@ Learnings (dated):
   diff pretty-printed strings via `similar`; assert on `-`/`+` lines and `@@`, not
   whole-diff string equality. Missing (regime, record_type) details schema is a case
   FAILURE (fail closed), not a skip.
+- 2026-07-04: expected.*.json floats — serde_json's DEFAULT float parsing is
+  best-effort and can land 1 ulp off (`0.9800000190734863` parsed as `…864`), so a
+  fixture that pins the exact f64 image of an f32 confidence deep-compares UNEQUAL
+  against a bit-identical actual. Harness-side fix, not a fixture edit: enable
+  serde_json's `float_roundtrip` feature in pipeline (serialize side was already
+  exact). Diff smell: expected/actual differ only in a float's last digit.
 Write-back: deepen this file when the procedure teaches you something; same PR.

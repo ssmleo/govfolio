@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UsHousePtrTransactionDetailsV1",
+  "description": "`details` payload of one US House PTR transaction record (regime doc §5).\nOptional fields serialize as explicit nulls so the contract surface is\nfully visible in every candidate (fixtures `MANIFEST.json` convention).",
+  "type": "object",
+  "properties": {
+    "amount_band_raw": {
+      "description": "Amount band string verbatim as filed.",
+      "type": "string"
+    },
+    "asset_type_code": {
+      "description": "Trailing `[XX]` asset-type code from the asset cell (legend E2).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cap_gains_over_200": {
+      "description": "Cap. Gains > $200 checkbox; null = indeterminate from the text layer.",
+      "type": [
+        "boolean",
+        "null"
+      ]
+    },
+    "comments": {
+      "description": "`COMMENTS:` sub-line verbatim.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "description": {
+      "description": "`DESCRIPTION:` sub-line verbatim.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "doc_id": {
+      "description": "Clerk `DocID` of the filing (opaque string; also on the PDF as `Filing ID #`).",
+      "type": "string"
+    },
+    "filing_status_raw": {
+      "description": "Per-row filing status verbatim (`New`/`Amended`, regime doc §3.7).",
+      "type": "string"
+    },
+    "owner_source": {
+      "description": "Provenance of the Gold `owner` mapping.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OwnerSource"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "partial_sale": {
+      "description": "True only for the `S (partial)` token (regime doc §3.4).",
+      "type": "boolean"
+    },
+    "row_id": {
+      "description": "eFD transaction id — printed only on amended rows (amendment linkage key).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "row_ordinal": {
+      "description": "1-based row position across the whole document.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    },
+    "signed_date": {
+      "description": "Date from the `Digitally Signed:` line (ISO).",
+      "type": "string",
+      "format": "date"
+    },
+    "subholding_of": {
+      "description": "`SUBHOLDING OF:` sub-line verbatim.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "transaction_type_raw": {
+      "description": "Transaction type token verbatim (`P`/`S`/`S (partial)`/`E`).",
+      "type": "string"
+    },
+    "vehicle_location": {
+      "description": "`LOCATION:` sub-line of the matching Investment Vehicle bullet.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "vehicle_owner_code": {
+      "description": "`(Owner: XX)` code of the matching Investment Vehicle bullet.",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "doc_id",
+    "row_ordinal",
+    "amount_band_raw",
+    "transaction_type_raw",
+    "partial_sale",
+    "filing_status_raw",
+    "signed_date"
+  ],
+  "$defs": {
+    "OwnerSource": {
+      "description": "Provenance of the Gold `owner` mapping (regime doc §3.3 auditability).",
+      "oneOf": [
+        {
+          "description": "Owner code printed in the row's own Owner column.",
+          "type": "string",
+          "const": "row"
+        },
+        {
+          "description": "Inherited from the matching Investment Vehicle bullet's `(Owner: XX)`.",
+          "type": "string",
+          "const": "vehicle"
+        },
+        {
+          "description": "Blank owner column and no vehicle owner: filer's own asset (flagged\nassumption, regime doc §3.3 — raw stays null in Silver).",
+          "type": "string",
+          "const": "default_self"
+        }
+      ]
+    }
+  }
+}

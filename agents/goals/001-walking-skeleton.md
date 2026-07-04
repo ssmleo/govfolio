@@ -35,7 +35,17 @@ docker compose up -d && cargo test --workspace -- --ignored
     0.9800000190734863 (f64 image of f32 0.98 under serde_json's raw cast), silver payload =
     §4 fields minus confidence (wrapper-level), details optional fields as explicit nulls.
   - Index slice + retrieval metadata archived: docs/regimes/us-house/evidence/
-- [ ] T8c adapter implementation to conformance ×3 green (rust-builder)
+- [x] T8c adapter implementation to conformance ×4 green (rust-builder)
+  - crates/adapters/us_house: details contract (schemars, snapshot at
+    crates/pipeline/schemas/details/us_house.transaction.json), text-layer state
+    machine (NUL-stripped small-caps labels, date-pair row anchor, band-wrap join,
+    page-2 header skip, vehicle-owner inheritance), §6 confidence scoring, LLM seam
+    stub (Extractor trait, fail-closed), conformance ULID constants per MANIFEST.
+  - pipeline: PoliteClient::get_conditional (ETag/Last-Modified), capture_fixture
+    bin, details-schema registry arm; serde_json float_roundtrip (expected-float
+    parse must be exact — see conformance-diffing skill learning).
+  - Evidence: cargo run -p pipeline --bin conformance -- us_house → 4/4 green;
+    fixture_fake still 1/1; fmt/clippy -D warnings/test --workspace green.
 - [ ] T8d adversarial cross-check pass (auditor; policy's second-model check)
 
 ## Environment note (2026-07-04)

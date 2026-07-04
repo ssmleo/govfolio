@@ -463,6 +463,14 @@ sha256 pins below make every snapshot re-verifiable.
   XML reader must tolerate them.
 - 2026-07-04 · `Digitally Signed:` line has a stray space before the comma
   (`Hon. Steve Cohen , 06/17/2026`) — trim when parsing `signed_date_raw`.
+- 2026-07-04 · `pdf-extract 0.12` renders the lost small-caps glyphs of §3.1 as
+  NUL characters (U+0000), e.g. `F\0\0\0\0\0 S\0\0\0\0\0: New` — strip NULs
+  first, then anchor on the surviving capitals (`F S:`, `S O:`, `D:`, `C:`,
+  `L:`); data cells carry no NULs and pass through verbatim. Page-2 content
+  order confirmed on E6: page-1 `Filing ID #` footer + repeated 5-line table
+  header block land BETWEEN row 6's sub-lines and row 7's asset cell; rows stay
+  contiguous, so the §6.4 escalation criteria were NOT met and `pdf-extract`
+  remains the extractor (adapter built against it, conformance ×4 green).
 
 ## Operational notes (politeness incidents, outages)
 

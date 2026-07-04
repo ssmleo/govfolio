@@ -15,7 +15,10 @@ jsonschema = { version = "0.46.9", default-features = false }
 reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no-provider"] }
 rustls = { version = "0.23.41", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.150"
+# float_roundtrip: expected.*.json fixtures pin exact f64 images of f32
+# confidences (MANIFEST convention); default best-effort float parsing lands
+# 1 ulp off and breaks the deep-compare. Exact parsing is contract here.
+serde_json = { version = "1.0.150", features = ["float_roundtrip"] }
 sha2 = "0.11.0"
 similar = "3.1.1"
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres"] }
