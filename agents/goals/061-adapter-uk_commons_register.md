@@ -15,7 +15,9 @@ cargo run -p pipeline --bin conformance -- uk_commons_register
 ```
 
 ## Checklist
-- [ ] regime doc  - [ ] fixtures  - [ ] expected (human)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
+- [x] regime doc (2026-07-05, docs/regimes/uk_commons_register.md + evidence, spec leg)  - [ ] fixtures  - [ ] expected (test-designer, see below)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
 
-## BLOCKED (human)
-- expected.*.json completion
+## BLOCKED (human) — SUPERSEDED 2026-07-05 per docs/decisions/automation-policy.md
+- ~~expected.*.json completion~~ → test-designer authors expecteds (high-confidence
+  extraction + second-model cross-check); records publish `unverified` and flow to the
+  sampling-audit queue. No human gate (same ruling as goals 001/060).

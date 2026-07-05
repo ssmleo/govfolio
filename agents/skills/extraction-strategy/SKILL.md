@@ -12,4 +12,10 @@ Learnings (dated):
   and surviving label capitals, never on full label text. Verify with TWO independent
   extractors before blaming the crate; check content-stream order vs layout order —
   layout mode can interleave wrapped cells that content order keeps contiguous.
+- 2026-07-05 (uk_commons_register): documented-JSON-API sources invert the drift
+  problem — deserialize with deny_unknown_fields on the response ENVELOPE so contract
+  drift freezes loudly, while data-carrying vocabularies (per-category field names)
+  stay open and land verbatim in Silver. Type money by machine markers
+  (typeInfo.currencyCode present), never by field name/number-ness alone: the same
+  source ships currencyless Decimals (HoursWorked) beside money Decimals.
 Write-back: deepen this file when the procedure teaches you something; same PR.

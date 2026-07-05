@@ -1,0 +1,6 @@
+# sha256-pinned raw artifacts must stay byte-exact through git (invariant 2: raw is
+# sacred). Never eol-convert them in either direction — a CRLF-bearing capture would
+# be silently normalized at commit, and LF-bearing evidence would be smudged to CRLF
+# on Windows checkouts; both break pin re-verification.
+docs/regimes/*/evidence/** -text
+crates/adapters/*/fixtures/** -text

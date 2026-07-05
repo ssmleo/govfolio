@@ -13,4 +13,9 @@ Learnings (dated):
   strings → real browser → real browser + custom UA → real browser + From header),
   changing ONE variable per request, never blind-retrying a 403. If the documented
   client gets blocked later: freeze + work item — no fingerprint-evasion arms race.
+- 2026-07-05 (uk_commons_register): bot posture is PER-HOST, not per-organization —
+  interests-api.parliament.uk served the identified UA 24/24 while
+  publications.parliament.uk Cloudflare-403'd the same client the same hour. Run the
+  probe ladder per host; prefer a documented public API host (published OpenAPI +
+  contact address = designed-for-reuse signal) over any HTML route of the same org.
 Write-back: deepen this file when the procedure teaches you something; same PR.
