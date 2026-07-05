@@ -15,7 +15,7 @@ cargo run -p pipeline --bin conformance -- canada_ciec
 ```
 
 ## Checklist
-- [x] regime doc (2026-07-05, spec leg: docs/regimes/canada_ciec.md + evidence archived same commit under docs/regimes/canada_ciec/evidence/ — 45 pages + retrieval log; fixture pins ×7 + pinning rule in its §7; v1 scope = 10 financial-substance declaration types × 3 politician roles, record_type interest + change_notification, value NULL always)  - [ ] fixtures  - [ ] expected (human)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
+- [x] regime doc (2026-07-05, spec leg: docs/regimes/canada_ciec.md + evidence archived same commit under docs/regimes/canada_ciec/evidence/ — 45 pages + retrieval log; fixture pins ×7 + pinning rule in its §7; v1 scope = 10 financial-substance declaration types × 3 politician roles, record_type interest + change_notification, value NULL always)  - [x] fixtures (2026-07-05, leg B: 7 conformance cases under crates/adapters/canada_ciec/fixtures/, byte-pinned input.html + MANIFEST; scaffold crate keeps `cargo test --workspace` green)  - [x] expected (2026-07-05, leg B: expected.silver/gold.json authored independently — deterministic re-derivation + fresh-context second-model cross-check, zero divergences, per automation-policy; publishes `unverified`)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
 
 ## BLOCKED (human)
 - ~~expected.*.json completion~~ SUPERSEDED 2026-07-05 by docs/decisions/automation-policy.md

@@ -1,0 +1,170 @@
+[
+  {
+    "payload": {
+      "declaration_id": "877aeea7-e1b1-4348-bd5d-808c7758fb22",
+      "row_ordinal": 1,
+      "item_id_raw": "B3BF62DA-1E40-4956-8FCF-1032911DCF65",
+      "section_label_raw": "Assets",
+      "h1_title_raw": "Disclosure Summary",
+      "declaration_type_raw": "Disclosure Summaries (Code)",
+      "law_raw": "Conflict of Interest Code for Members of the House of Commons",
+      "client_id": "f0f4e0ff-7b2a-f011-8195-001dd8b72449",
+      "client_name_raw": "Jason Groleau",
+      "client_title_raw": "Member of Parliament",
+      "disclosure_date_raw": "2026-06-26",
+      "no_longer_applicable": false,
+      "ociec_translation": true,
+      "description_raw": "Joint owner with three other individuals of two residential rental units located in Quebec, Quebec",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "declaration_id": "877aeea7-e1b1-4348-bd5d-808c7758fb22",
+      "row_ordinal": 2,
+      "item_id_raw": "6DEE0E4A-607E-4E46-B848-8198BB85DC5E",
+      "section_label_raw": "Other Sources of Income",
+      "h1_title_raw": "Disclosure Summary",
+      "declaration_type_raw": "Disclosure Summaries (Code)",
+      "law_raw": "Conflict of Interest Code for Members of the House of Commons",
+      "client_id": "f0f4e0ff-7b2a-f011-8195-001dd8b72449",
+      "client_name_raw": "Jason Groleau",
+      "client_title_raw": "Member of Parliament",
+      "disclosure_date_raw": "2026-06-26",
+      "no_longer_applicable": false,
+      "ociec_translation": true,
+      "description_raw": "Last and next 12 months: - Employment income from IGA Famille Groleau - Business income from Tradition Famille - Rental income",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "declaration_id": "877aeea7-e1b1-4348-bd5d-808c7758fb22",
+      "row_ordinal": 3,
+      "item_id_raw": "E2743204-0D6C-495C-97E8-A2BB59F32D9A",
+      "section_label_raw": "Liabilities",
+      "h1_title_raw": "Disclosure Summary",
+      "declaration_type_raw": "Disclosure Summaries (Code)",
+      "law_raw": "Conflict of Interest Code for Members of the House of Commons",
+      "client_id": "f0f4e0ff-7b2a-f011-8195-001dd8b72449",
+      "client_name_raw": "Jason Groleau",
+      "client_title_raw": "Member of Parliament",
+      "disclosure_date_raw": "2026-06-26",
+      "no_longer_applicable": false,
+      "ociec_translation": true,
+      "description_raw": "Mortgage with Desjardins, with spouse",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "declaration_id": "877aeea7-e1b1-4348-bd5d-808c7758fb22",
+      "row_ordinal": 4,
+      "item_id_raw": "D0CD7DAE-963D-41A2-B48E-0EC8FEF1FD13",
+      "section_label_raw": "Investment in Private Corporations",
+      "h1_title_raw": "Disclosure Summary",
+      "declaration_type_raw": "Disclosure Summaries (Code)",
+      "law_raw": "Conflict of Interest Code for Members of the House of Commons",
+      "client_id": "f0f4e0ff-7b2a-f011-8195-001dd8b72449",
+      "client_name_raw": "Jason Groleau",
+      "client_title_raw": "Member of Parliament",
+      "disclosure_date_raw": "2026-06-26",
+      "no_longer_applicable": false,
+      "ociec_translation": true,
+      "description_raw": "Controlling interest in: - 9264-2529 Quebec Inc., operating as IGA Famille Groleau, a supermarket located in St-Georges, Quebec - 9488-7437 Quebec Inc., operating as Tradition Famille Groleau, a supermarket located in St-Ephrem, Quebec - 9353-3453 Quebec Inc., operating as Gestion Groleau et filles, a portfolio management company located in St-Georges, Quebec Significant interest in: - Les Immeubles L4, a property management company located in St-Georges, Quebec",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "declaration_id": "877aeea7-e1b1-4348-bd5d-808c7758fb22",
+      "row_ordinal": 5,
+      "item_id_raw": "E135B868-9C70-F111-81AB-001DD8B72449",
+      "section_label_raw": "Affiliated corporations",
+      "h1_title_raw": "Disclosure Summary",
+      "declaration_type_raw": "Disclosure Summaries (Code)",
+      "law_raw": "Conflict of Interest Code for Members of the House of Commons",
+      "client_id": "f0f4e0ff-7b2a-f011-8195-001dd8b72449",
+      "client_name_raw": "Jason Groleau",
+      "client_title_raw": "Member of Parliament",
+      "disclosure_date_raw": "2026-06-26",
+      "no_longer_applicable": false,
+      "ociec_translation": true,
+      "description_raw": "Corporation affiliated with 9488-7437 Quebec Inc., operating as Tradition Famille Groleau: - 9546-0796 Quebec Inc., Saint-Georges, Quebec",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "declaration_id": "877aeea7-e1b1-4348-bd5d-808c7758fb22",
+      "row_ordinal": 6,
+      "item_id_raw": "D5DB16BF-BE3B-4DFA-8097-FFFD888717E8",
+      "section_label_raw": "Activities",
+      "h1_title_raw": "Disclosure Summary",
+      "declaration_type_raw": "Disclosure Summaries (Code)",
+      "law_raw": "Conflict of Interest Code for Members of the House of Commons",
+      "client_id": "f0f4e0ff-7b2a-f011-8195-001dd8b72449",
+      "client_name_raw": "Jason Groleau",
+      "client_title_raw": "Member of Parliament",
+      "disclosure_date_raw": "2026-06-26",
+      "no_longer_applicable": false,
+      "ociec_translation": true,
+      "description_raw": "President and Secretary of: - 9264-2529 Quebec Inc., operating as IGA Famille Groleau, St-Georges, Quebec - 9488-7437 Quebec Inc., operating as Tradition Famille Groleau, St-Ephrem, Quebec - 9353-3453 Quebec Inc., operating as Gestion Groleau et filles, St-Georges, Quebec - 9546-0796 Quebec Inc., St-Georges, Quebec Vice-president of: - Les Immeubles L4, St-Georges, Quebec - Les Bâtiments L4, St-Georges, Quebec - Dooly's St-Georges, St-Georges, Quebec",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "declaration_id": "877aeea7-e1b1-4348-bd5d-808c7758fb22",
+      "row_ordinal": 7,
+      "item_id_raw": "483FE09F-8732-46A3-9ECA-0C60BBBFB267",
+      "section_label_raw": "Spouse's/Common-Law Partner's assets",
+      "h1_title_raw": "Disclosure Summary",
+      "declaration_type_raw": "Disclosure Summaries (Code)",
+      "law_raw": "Conflict of Interest Code for Members of the House of Commons",
+      "client_id": "f0f4e0ff-7b2a-f011-8195-001dd8b72449",
+      "client_name_raw": "Jason Groleau",
+      "client_title_raw": "Member of Parliament",
+      "disclosure_date_raw": "2026-06-26",
+      "no_longer_applicable": false,
+      "ociec_translation": true,
+      "description_raw": "Joint owner with three other individuals of two residential rental units located in Quebec, Quebec",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "declaration_id": "877aeea7-e1b1-4348-bd5d-808c7758fb22",
+      "row_ordinal": 8,
+      "item_id_raw": "ED5F3A92-87F8-48A9-8F9B-D19D7AF58C56",
+      "section_label_raw": "Spouse's/Common-Law Partner's source(s) of income",
+      "h1_title_raw": "Disclosure Summary",
+      "declaration_type_raw": "Disclosure Summaries (Code)",
+      "law_raw": "Conflict of Interest Code for Members of the House of Commons",
+      "client_id": "f0f4e0ff-7b2a-f011-8195-001dd8b72449",
+      "client_name_raw": "Jason Groleau",
+      "client_title_raw": "Member of Parliament",
+      "disclosure_date_raw": "2026-06-26",
+      "no_longer_applicable": false,
+      "ociec_translation": true,
+      "description_raw": "Last and next 12 months: - Employment income from IGA Famille Groleau and Tradition Famille Groleau",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 0.9800000190734863
+  }
+]

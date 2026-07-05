@@ -1,0 +1,43 @@
+[
+  {
+    "filing_id": "0CACFNG00000000000E882485D",
+    "politician_id": "0CACMBR0000000000000000002",
+    "regime_id": "0CACREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Obligation to provide a confidential report has been met and all initial reporting and compliance measures have been taken to comply with the Conflict of Interest Act. Divestment of: - Publicly Traded Securities by the establishment of blind trust(s) - Publicly Traded Securities by sale",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-05-04",
+    "value": null,
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "canada_ciec/html@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_id": "e882485d-719d-f011-819d-001dd8b72449",
+      "row_ordinal": 1,
+      "item_id": null,
+      "section_label": null,
+      "declaration_type_raw": "Summary Statements (Act)",
+      "law": "act",
+      "h1_title": "Summary Statement",
+      "client_id": "1c26de25-482b-f011-8195-001dd8b72449",
+      "client_title": "Secretary of State (Defence Procurement)",
+      "no_longer_applicable": false,
+      "ociec_translation": false,
+      "language": "en",
+      "gift_received_date": null,
+      "gift_source": null,
+      "gift_circumstance": null,
+      "travel_destination": null,
+      "travel_sponsor": null,
+      "travel_dates_raw": null,
+      "travel_start": null,
+      "travel_end": null,
+      "fields": {}
+    }
+  }
+]

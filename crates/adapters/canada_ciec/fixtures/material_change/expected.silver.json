@@ -1,0 +1,44 @@
+[
+  {
+    "payload": {
+      "declaration_id": "c7bf3da3-9669-f111-81a9-001dd8b72449",
+      "row_ordinal": 1,
+      "item_id_raw": "C3BBBA6D-9D70-F111-81AB-001DD8B72449",
+      "section_label_raw": "Activities",
+      "h1_title_raw": "Notice of Material Change",
+      "declaration_type_raw": "Material Changes",
+      "law_raw": "Conflict of Interest Code for Members of the House of Commons",
+      "client_id": "f0f4e0ff-7b2a-f011-8195-001dd8b72449",
+      "client_name_raw": "Jason Groleau",
+      "client_title_raw": "Member of Parliament",
+      "disclosure_date_raw": "2026-06-26",
+      "no_longer_applicable": false,
+      "ociec_translation": false,
+      "description_raw": "Date of change: 2025/07/22 I am now President and Secretary of 9546-0796 Quebec Inc., St-Georges, Quebec",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_id": "c7bf3da3-9669-f111-81a9-001dd8b72449",
+      "row_ordinal": 2,
+      "item_id_raw": "A26A4EA0-9D70-F111-81AB-001DD8B72449",
+      "section_label_raw": "INVESTMENT IN PRIVATE CORPORATIONS [Paragraph 24(1)(a)]",
+      "h1_title_raw": "Notice of Material Change",
+      "declaration_type_raw": "Material Changes",
+      "law_raw": "Conflict of Interest Code for Members of the House of Commons",
+      "client_id": "f0f4e0ff-7b2a-f011-8195-001dd8b72449",
+      "client_name_raw": "Jason Groleau",
+      "client_title_raw": "Member of Parliament",
+      "disclosure_date_raw": "2026-06-26",
+      "no_longer_applicable": false,
+      "ociec_translation": false,
+      "description_raw": "Date of change: 2025/07/22 Corporation affiliated with 9488-7437 Quebec Inc., operating as Tradition Famille Groleau: - 9546-0796 Quebec Inc., Saint-Georges, Quebec",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 1.0
+  }
+]

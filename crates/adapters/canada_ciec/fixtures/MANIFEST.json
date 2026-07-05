@@ -1,0 +1,147 @@
+{
+  "adapter": "canada_ciec",
+  "captured_by": "test-designer (goal 062 leg B) — expected.*.json derived INDEPENDENTLY of any parser (no canada_ciec adapter logic exists at capture time; this crate is a scaffold-only workspace member), per docs/decisions/automation-policy.md. Two independent derivations, reconciled cell-by-cell with ZERO value divergences: (Pass A) a deterministic Node re-derivation that reads the raw input.html bytes and applies the SAF §3-§5 mapping rules to emit every Silver/Gold cell (byte-exact free text, GUIDs, dates — no hand transcription); (Pass B) a fresh-context second model given only docs/regimes/canada_ciec.md + the raw input.html files (blind to Pass A output) that re-derived h1/client/law/type/dates/badges/record_type + per-row owner/item_id/section_label/asset_description_raw/confidence. Both passes independently reached the same <br>-whitespace rendering and the same client_title middot-strip. Records publish `unverified` → sampling-audit queue.",
+  "captured_at_utc": "2026-07-05T19:35:45Z",
+  "spec": "docs/regimes/canada_ciec.md (silver §4, details §5, mapping §5.1, families §3.4, record_type + owner §3.5, value §3.6, dates §3.7, bilingual §3.9, integrity §3.10, extraction + confidence §6, fixture selection + raw-byte pins §7)",
+  "politeness": {
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "from_header": "ssm.leo@outlook.com",
+    "concurrency": 1,
+    "min_interval_seconds": 2.2,
+    "requests_this_capture": 7,
+    "breakdown": "1 standalone connectivity-probe GET + a 6-URL batch at curl --rate 20/m (3.0 s spacing); all 7 details pages HTTP 200; zero 429s, zero challenges. No conditional GET possible (source serves no ETag/Last-Modified, sets no cookies — E44).",
+    "full_log": "docs/regimes/canada_ciec/evidence/2026-07-05-ciec-fixture-capture-062b.retrieval.json"
+  },
+  "pin_verification": {
+    "rule": "SAF §7 raw-byte pinning: sha256 of the raw GET response bytes.",
+    "result": "7/7 fixture input.html shas match BOTH the SAF §7 pins AND the fresh live cross-session re-fetch (this leg). Raw-byte pinning held cross-session — the SAF §7 normalized-content-hash fallback was NOT needed. Closes the SAF §7 open question 'Cross-session byte stability of details pages' (spec leg had within-session 2/2 only; this is the cross-session confirmation, us_senate leg-B precedent).",
+    "input_bytes": "each fixtures/<case>/input.html is a byte-identical copy of docs/regimes/canada_ciec/evidence/{sha}.html (sha-equal at copy time). Parse from raw bytes as UTF-8; no re-serialization."
+  },
+  "cases": {
+    "flat_asset": {
+      "declaration_id": "30c94327-3108-f111-81a2-001dd8b72449",
+      "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=30c94327-3108-f111-81a2-001dd8b72449",
+      "sha256": "4531a973b004a2cbcaf68ebca9df849991614a15fe7fedf2270391bf6ff2a408",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "Rebecca Chartrand (clientId 5b99c2bd-7b2a-f011-8195-001dd8b72449), Minister of Northern and Arctic Affairs",
+      "type_law": "Declarable Assets / Act 25(2)",
+      "family": "B",
+      "rows": 1,
+      "notes": "SAF §3.4 family B flat description; owner self; value NULL; record_type interest; asset_description_raw = the title-div text 'Sole ownership of a residential rental unit in Winnipeg, Manitoba.'; confidence 1.0."
+    },
+    "flat_liability": {
+      "declaration_id": "a4542986-719d-f011-819d-001dd8b72449",
+      "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=a4542986-719d-f011-819d-001dd8b72449",
+      "sha256": "c3e9df01f2d1e5c3aa68f5096005ab3853c876e80ac4b31adfe8105be392b61a",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "Stephen Fuhr (clientId 1c26de25-482b-f011-8195-001dd8b72449), Secretary of State (Defence Procurement)",
+      "type_law": "Liabilities / Act 25(3)",
+      "family": "B",
+      "rows": 1,
+      "notes": "THE value-NULL test: h1 carries '($10,000 or more)' and the statutory box says '...but not the amount' (E23) — both are RULES-template boilerplate, never parsed into value (SAF §3.6, uk R4 precedent). value NULL. asset_description_raw 'Line of credit with CIBC'; owner self; confidence 1.0."
+    },
+    "flat_outside_activity": {
+      "declaration_id": "39e5bbfe-5a8e-f011-819c-001dd8b72449",
+      "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=39e5bbfe-5a8e-f011-819c-001dd8b72449",
+      "sha256": "03061e491fc555f323cb8d928fc9de18a1a0b38a7750fba2f1ae82ee854dcd7a",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "Randeep Sarai (clientId f30de0ad-2778-e511-bec6-002655368060), Secretary of State (International Development)",
+      "type_law": "Outside Activities / Act 25(4)",
+      "family": "B",
+      "rows": 1,
+      "notes": "family B; owner self; value NULL; record_type interest; asset_description_raw is the board-membership sentence verbatim; confidence 1.0."
+    },
+    "summary_statement_divestment": {
+      "declaration_id": "e882485d-719d-f011-819d-001dd8b72449",
+      "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=e882485d-719d-f011-819d-001dd8b72449",
+      "sha256": "e631c24d51957d11b9bf2b03806c7771e7c793ea133f3c68b0493fe1c74b1cb4",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "Stephen Fuhr (clientId 1c26de25-482b-f011-8195-001dd8b72449), Secretary of State (Defence Procurement)",
+      "type_law": "Summary Statements (Act) / Act 26(1)",
+      "family": "B (+ divestment strong-block)",
+      "rows": 1,
+      "notes": "the only public controlled-asset trace. Grammar quirk (E26 class): the title-div <div title=\"Summary Statement\"></div> is EMPTY; the text lives in sibling divs + a <strong>Divestment of:</strong> block. asset_description_raw is the dd's full collapsed text = boilerplate sentence + 'Divestment of: - Publicly Traded Securities by the establishment of blind trust(s) - Publicly Traded Securities by sale'. The inline <i>Conflict of Interest Act</i> concatenates WITHOUT an added space ('...the Conflict of Interest Act. Divestment...'). The card-header 'View attachment' <a> is NOT a badge and is ignored. owner self; value NULL; confidence 1.0."
+    },
+    "disclosure_summary_itemized": {
+      "declaration_id": "877aeea7-e1b1-4348-bd5d-808c7758fb22",
+      "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=877aeea7-e1b1-4348-bd5d-808c7758fb22",
+      "sha256": "c95a66fa36c59ee06390c5ea0e45fc231bd54136f1fc3eb1c1c67115f2681485",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "Jason Groleau (clientId f0f4e0ff-7b2a-f011-8195-001dd8b72449), Member of Parliament (Beauce)",
+      "type_law": "Disclosure Summaries (Code) / Code 23(1)",
+      "family": "C (itemized)",
+      "rows": 8,
+      "notes": "family C: 8 sections, one ciec-declaration-disclosureitem each → 8 rows (row_ordinal 1..8, document order). Wrapper <div id=877AEEA7-...> equals the requested declarationId (§3.10 check 4, MATCH). item_id_raw = the per-item GUID UPPERCASE as printed; section_label_raw verbatim. owner: rows 1-6 self (Assets / Other Sources of Income / Liabilities / Investment in Private Corporations / Affiliated corporations / Activities — all §3.5 KNOWN labels); rows 7-8 spouse (section label starts \"Spouse's/Common-Law Partner's\"). Free-text 'with spouse' (row 3) and 'Joint owner...' (rows 1/7) are NEVER parsed into owner (SAF §3.5, invariant 3). Numbered Quebec corporations stay free text, instrument_id NULL. Straight apostrophes in \"Spouse's\"/\"Dooly's\" (0x27) vs curly in the gift case; â in \"Les Bâtiments\" (U+00E2) — all verbatim UTF-8. bg-info 'OCIEC Translation' badge → ociec_translation true → EVERY row scores 0.98 (SAF §6: 1.00 - 0.02). value NULL; record_type interest."
+    },
+    "material_change": {
+      "declaration_id": "c7bf3da3-9669-f111-81a9-001dd8b72449",
+      "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=c7bf3da3-9669-f111-81a9-001dd8b72449",
+      "sha256": "9eb65e0e239169232e4bef76a924c5d731183af499895d7630c869cbbfa60df2",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "Jason Groleau (clientId f0f4e0ff-7b2a-f011-8195-001dd8b72449), Member of Parliament (Beauce)",
+      "type_law": "Material Changes / Code 21(3)",
+      "family": "C (itemized) -> record_type change_notification",
+      "rows": 2,
+      "notes": "the ONLY change_notification record_type (SAF §3.5). 2 sections → 2 rows. Wrapper <div id=C7BF3DA3-...> = declarationId (MATCH). section_label row 2 is the UPPERCASE + statute-ref variant 'INVESTMENT IN PRIVATE CORPORATIONS [Paragraph 24(1)(a)]' → owner self (case-insensitive match on 'Investment in Private Corporations' with the trailing [..] stripped). Each item opens 'Date of change: 2025/07/22' (SLASH format) → details.date_of_change '2025-07-22' (ISO); the raw line survives verbatim inside asset_description_raw. Both items carry a parseable Date of change → no -0.05; confidence 1.0. value NULL. details validates against the (canada_ciec, change_notification) schema, NOT the interest one."
+    },
+    "gift_code": {
+      "declaration_id": "3f544e69-d268-f111-81a9-001dd8b72449",
+      "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=3f544e69-d268-f111-81a9-001dd8b72449",
+      "sha256": "2b95fa9a9e1f133446317ff8c53ffe02543af539e47239e45935beaa2be2e762",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "Jennifer McKelvie (clientId 9afbf0c2-172c-f011-8195-001dd8b72449), Member of Parliament (Ajax)",
+      "type_law": "Gifts (Code) / Code 14(1)",
+      "family": "A (typed fields)",
+      "rows": 1,
+      "notes": "family A typed fields → fields_raw {Nature, Source, Circumstance, Gift received date}; description_raw NULL. asset_description_raw = the Nature dd verbatim. owner NULL (Gifts — acceptor not structurally identified, SAF §3.5). Code h1 variant 'Public Statement of Gifts or Other Benefits' (differs from the Act gift h1). NO client_title (no text-muted span) → client_title NULL. 'Gift received date' 2026-06-06 → details.gift_received_date, NEVER promoted to transaction_date (record_type interest). Curly apostrophe U+2019 in 'Mayor’s' (Nature + Source) kept verbatim. confidence 1.0."
+    }
+  },
+  "conformance_conventions": {
+    "silver_shape": "expected.silver.json is the serialization of Vec<pipeline StagingRow>: [{payload, confidence}] — same wrapper as us_house/us_senate/uk. payload carries every docs/regimes/canada_ciec.md §4 field INCLUDING `extractor`, EXCEPT `confidence`, which lives at the wrapper top-level `confidence` (f32). One StagingRow per §3.5 row (families A/A'/B: exactly 1; family C: one per disclosureitem).",
+    "gold_shape": "expected.gold.json is the serialization of Vec<GoldCandidate> (crates/core/src/domain/gold.rs). record_type interest|change_notification → validate() requires nothing extra (side/transaction_date/as_of_date all NULL). asset_class 'other' always. value NULL always (§3.6). notified_date = disclosure date. instrument_id NULL, fingerprint NULL (computed at promotion, Task 6). extracted_by 'canada_ciec/html@1'.",
+    "br_whitespace_rule": "LOAD-BEARING, the single most likely builder mismatch. In family-C item text (and the family-B divestment block) the extractor MUST treat <br>/<br/> as a WHITESPACE boundary (replace with a space) BEFORE the \\s+->single-space collapse. Rationale: several family-C <br> tags have NO surrounding whitespace in the source (e.g. 'Last and next 12 months:<br>- Employment income...'); a naive scraper .text() concatenation would emit 'months:- Employment...' (no separator, corrupted). With <br>->space you get 'Last and next 12 months: - Employment income from IGA Famille Groleau - Business income from Tradition Famille - Rental income'. Inline elements (<i>, <a>, <strong>) DO NOT add a separator (so '...Conflict of Interest Act.' stays correct in summary_statement_divestment). <br><br> collapses to a single space. BOTH independent derivation passes chose this rule; the expected.*.json encode it. If the builder's parser diverges here, conformance fails on disclosure_summary_itemized rows 2/4/5/6/8 and material_change rows 1/2 — align the parser to <br>->space, do not weaken the expecteds.",
+    "text_extraction": "for every collapsed text join: replace <br> with a space, strip remaining tags with NO separator, decode HTML entities, replace NBSP+\\s+ with a single space, trim. UTF-8 end to end (curly ’ U+2019 in gift_code; straight ' 0x27 in disclosure_summary section labels and 'Dooly's'; â U+00E2 in 'Les Bâtiments'). No entities appear inside the data regions of these 7 fixtures; the only decoded entity is &middot; in the client-title span.",
+    "client_title_rule": "client_title_raw = the card-header <span class=\"text-muted\"> text with the leading '·' (&middot;) separator and surrounding whitespace STRIPPED, so 'Member of Parliament', 'Secretary of State (Defence Procurement)', etc. NULL when the span is absent (gift_code). The footer <div class=\"card-footer text-muted small\"> is NOT this span (div vs span) and is not a title source.",
+    "confidence_literals": "f32 scored per SAF §6, serialized via serde_json's f32->f64 cast + ryu-shortest. Rows with the OCIEC-Translation deduction (disclosure_summary_itemized, all 8 rows) score 1.00 - 0.02 = 0.98f32 whose exact f64 image is the JSON literal 0.9800000190734863 (verified: 1.0f32-0.02f32 and 0.98f32 share bits; same convention as us_house/us_senate 0.98 — do NOT 'fix' the literal). All other rows score 1.00 and MUST be the JSON float literal 1.0 — never integer 1, which serde_json parses as a PosInt Number that deep-compares UNEQUAL to Float 1.0. No NLA (-0.02), Dependent-label (-0.05), or unparseable-date-of-change (-0.05) deduction fires in any of the 7 fixtures, so 0.98 and 1.0 are the only two images present. If a future case stacks deductions, pin the exact f64 image of the resulting f32.",
+    "details_nulls": "Optional details fields are serialized as EXPLICIT nulls (no skip_serializing_if) so the full (canada_ciec, interest) / (canada_ciec, change_notification) contract surface is visible on every candidate — item_id, section_label, client_title, gift_received_date, gift_source, gift_circumstance, travel_destination, travel_sponsor, travel_dates_raw, travel_start, travel_end are null when absent; fields is {} for families B/C. change_notification additionally carries date_of_change (null only if a material-change item lacks a parseable Date-of-change line — not the case here).",
+    "owner_map": "family B/A' (Act assets/liabilities/activities/summary/travel) → self; family A gifts/forfeited → NULL; family C item → self for KNOWN labels {Assets, Liabilities, Activities, Other Sources of Income, Investment in Private Corporations, Affiliated corporations} (case-insensitive, optional trailing [..] statute-ref stripped), spouse for labels starting \"Spouse's/Common-Law Partner's\", dependent for \"Dependent...\" (unobserved here). An UNKNOWN family-C label is a REJECT->review_task at parse time, never a low-confidence Gold row (SAF §3.5/§6, invariant 6).",
+    "law_derivation": "details.law enum = 'act' when the Regime dd is 'Conflict of Interest Act', 'code' when 'Conflict of Interest Code for Members of the House of Commons' (SAF §3.10 check 2 guarantees the binary). Silver law_raw keeps the full dd string verbatim.",
+    "extractor": "canada_ciec/html@1 (deterministic scraper path; no LLM seam on this adapter's green path, SAF §6).",
+    "conformance_ids": {
+      "rationale": "Details pages carry no ULIDs and conformance runs with pool: None, so filing/politician/regime ids cannot be resolved from a roster. These fixed Crockford-valid ULID constants are the contract the adapter MUST emit in conformance mode (production resolves real ids from Postgres via the clientId roster join, SAF §2.4). Prefix 0CAC* (Canada CIEC) — C/A are Crockford-valid; 'U' would not be. All start with 0 (128 bits fit 26 base32 chars only when the top char is <= 7). Filing ids embed the declarationId's first hex group (uppercased — hex A-F are Crockford-valid), right-aligned in the 19 trailing chars, for auditability (mirrors us_house DocID / us_senate UUID-group embedding). The two fixtures that share a filer (Fuhr flat_liability+summary; Groleau disclosure_summary+material_change) have DISTINCT declarationIds → distinct filing ids; the shared clientId maps to ONE politician id.",
+      "regime_id": "0CACREG0000000000000000001",
+      "politician_ids": {
+        "5b99c2bd-7b2a-f011-8195-001dd8b72449": "0CACMBR0000000000000000001",
+        "1c26de25-482b-f011-8195-001dd8b72449": "0CACMBR0000000000000000002",
+        "f30de0ad-2778-e511-bec6-002655368060": "0CACMBR0000000000000000003",
+        "f0f4e0ff-7b2a-f011-8195-001dd8b72449": "0CACMBR0000000000000000004",
+        "9afbf0c2-172c-f011-8195-001dd8b72449": "0CACMBR0000000000000000005"
+      },
+      "politician_key_note": "keys are the source clientId GUID (lowercase) — the SAF §2.4 resolution input (name + constituency/office join against roster, keyed by clientId); pool-backed runs resolve the real politician_id via that roster.",
+      "filing_ids": {
+        "30c94327-3108-f111-81a2-001dd8b72449": "0CACFNG0000000000030C94327",
+        "a4542986-719d-f011-819d-001dd8b72449": "0CACFNG00000000000A4542986",
+        "39e5bbfe-5a8e-f011-819c-001dd8b72449": "0CACFNG0000000000039E5BBFE",
+        "e882485d-719d-f011-819d-001dd8b72449": "0CACFNG00000000000E882485D",
+        "877aeea7-e1b1-4348-bd5d-808c7758fb22": "0CACFNG00000000000877AEEA7",
+        "c7bf3da3-9669-f111-81a9-001dd8b72449": "0CACFNG00000000000C7BF3DA3",
+        "3f544e69-d268-f111-81a9-001dd8b72449": "0CACFNG000000000003F544E69"
+      }
+    }
+  },
+  "details_contracts": {
+    "interest": "(canada_ciec, interest) — every in-scope type except Material Changes. Fields: declaration_id, row_ordinal, item_id, section_label, declaration_type_raw, law (act|code), h1_title, client_id, client_title, no_longer_applicable, ociec_translation, language (const 'en'), gift_received_date, gift_source, gift_circumstance, travel_destination, travel_sponsor, travel_dates_raw, travel_start, travel_end, fields (object). SAF §5.",
+    "change_notification": "(canada_ciec, change_notification) — Material Changes only. Every interest field PLUS date_of_change (string date | null). SAF §5.",
+    "schema_placement": "builder snapshot-commits crates/pipeline/schemas/details/canada_ciec.interest.json and canada_ciec.change_notification.json from the schemars types in crates/adapters/canada_ciec/src/details.rs (adapter-local, per the T8d ruling in us-house.md §5; schema-contracts skill: doc comments are contract surface)."
+  },
+  "builder_notes": {
+    "scaffold": "crates/adapters/canada_ciec/{Cargo.toml, src/lib.rs} is a scaffold-only crate committed in THIS leg so the crates/adapters/* workspace glob stays valid and `cargo test --workspace` is green BEFORE the builder starts (us_house CI-red lesson, commit c6dceb7). It has no dependencies and no logic; the builder replaces src/lib.rs with the real adapter/parse/normalize/details/seed modules.",
+    "conformance_registry": "crates/pipeline/src/conformance.rs details_schema() has NO (canada_ciec, interest) NOR (canada_ciec, change_notification) arm yet — the harness fails closed on both (Ok(None) -> 'no details schema registered'). Builder leg: add BOTH arms + snapshot-commit both schema files, and ship a `conformance_entry` bin (unique constant name — Windows exe-clobber lesson) so `cargo run -p pipeline --bin conformance -- canada_ciec` dispatches. Until then conformance for canada_ciec is intentionally red; do NOT hack the harness.",
+    "harness_blast_radius": "verified at capture time: no test globs across crates/adapters/*/fixtures. e2e_local / promote / api::contract are scoped to fixtures_dir(\"us_house\"); role_evals hardcodes us_house paths; the fixture_fake harness reads fixtures_dir(\"fixture_fake\"). So the new canada_ciec fixtures + scaffold crate are inert to every existing test — `cargo test --workspace` compiles the scaffold and runs zero canada_ciec cases. Confirmed green this leg.",
+    "id_threading": "families A/B never print the declarationId in-page — the pipeline threads it from the fetch URL (FilingRef.external_id) into StagingRow.declaration_id. Family C DOES print it as the wrapper <div id> (UPPERCASE); §3.10 check 4 requires the pipeline to lowercase-compare it to the requested id and reject a mismatch (both fixtures MATCH). item GUIDs are per-row, threaded as item_id_raw verbatim (UPPERCASE).",
+    "eol_pinning": ".gitattributes already covers these paths (crates/adapters/*/fixtures/** -text, docs/regimes/*/evidence/** -text) — verified via `git check-attr`: input.html and expected.*.json report text:unset. The raw input.html bytes must survive checkout byte-exact for the sha pins to hold; `git ls-files --eol` should show i/w agreement on any future push touching these paths (evidence-archiving skill learning).",
+    "cross_session_confirmation": "all 7 fixture pins re-verified against a fresh live polite fetch this leg (7/7 HTTP 200, 7/7 sha match) — cross-session byte stability confirmed; raw-byte pinning held, the SAF §7 normalized-content-hash fallback was not exercised. Log: docs/regimes/canada_ciec/evidence/2026-07-05-ciec-fixture-capture-062b.retrieval.json.",
+    "coverage": "the 7 cases span every §3.4 grammar family (A gift, B flat x3 incl. the divestment strong-block, C itemized x2) across both laws (act x4, code x3) and all three in-scope politician roles (Minister, Secretary of State, MP), and every §3.5 owner branch observed in evidence (self, spouse, NULL). Not covered (single-variant extensions of already-fixtured grammars, evidence-only per SAF §7): family A' Sponsored Travel (Destination/Sponsor/Purpose/Dates + travel_start/end parsing), a family-C Dependent section (-0.05 owner=dependent), the No-Longer-Applicable badge (-0.02), and a material-change item with an unparseable Date-of-change (-0.05). Builder/future-leg may add these."
+  },
+  "evidence": "docs/regimes/canada_ciec/evidence/ — the 7 fixture bytes archived sha-named in the spec-leg commit (E21/E22/E23/E24/E25/E27/E28); this capture's retrieval/politeness record: 2026-07-05-ciec-fixture-capture-062b.retrieval.json"
+}

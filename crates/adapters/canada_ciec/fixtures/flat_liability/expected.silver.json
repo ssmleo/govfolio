@@ -1,0 +1,23 @@
+[
+  {
+    "payload": {
+      "declaration_id": "a4542986-719d-f011-819d-001dd8b72449",
+      "row_ordinal": 1,
+      "item_id_raw": null,
+      "section_label_raw": null,
+      "h1_title_raw": "Public Declaration of Liabilities ($10,000 or more)",
+      "declaration_type_raw": "Liabilities",
+      "law_raw": "Conflict of Interest Act",
+      "client_id": "1c26de25-482b-f011-8195-001dd8b72449",
+      "client_name_raw": "Stephen Fuhr",
+      "client_title_raw": "Secretary of State (Defence Procurement)",
+      "disclosure_date_raw": "2026-05-04",
+      "no_longer_applicable": false,
+      "ociec_translation": false,
+      "description_raw": "Line of credit with CIBC",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 1.0
+  }
+]

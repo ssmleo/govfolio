@@ -1,0 +1,28 @@
+[
+  {
+    "payload": {
+      "declaration_id": "3f544e69-d268-f111-81a9-001dd8b72449",
+      "row_ordinal": 1,
+      "item_id_raw": null,
+      "section_label_raw": null,
+      "h1_title_raw": "Public Statement of Gifts or Other Benefits",
+      "declaration_type_raw": "Gifts (Code)",
+      "law_raw": "Conflict of Interest Code for Members of the House of Commons",
+      "client_id": "9afbf0c2-172c-f011-8195-001dd8b72449",
+      "client_name_raw": "Jennifer McKelvie",
+      "client_title_raw": null,
+      "disclosure_date_raw": "2026-06-15",
+      "no_longer_applicable": false,
+      "ociec_translation": false,
+      "description_raw": null,
+      "fields_raw": {
+        "Nature": "One ticket The Ajax Mayor’s Gala, Where the Stars Meet the Sea.",
+        "Source": "Invitation from the Gala Chair, The Ajax Mayor’s Gala.",
+        "Circumstance": "In my capacity as Member of Parliament for Ajax.",
+        "Gift received date": "2026-06-06"
+      },
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 1.0
+  }
+]

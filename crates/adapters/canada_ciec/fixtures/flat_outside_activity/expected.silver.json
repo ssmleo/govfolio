@@ -1,0 +1,23 @@
+[
+  {
+    "payload": {
+      "declaration_id": "39e5bbfe-5a8e-f011-819c-001dd8b72449",
+      "row_ordinal": 1,
+      "item_id_raw": null,
+      "section_label_raw": null,
+      "h1_title_raw": "Public Declaration of Outside Activities",
+      "declaration_type_raw": "Outside Activities",
+      "law_raw": "Conflict of Interest Act",
+      "client_id": "f30de0ad-2778-e511-bec6-002655368060",
+      "client_name_raw": "Randeep Sarai",
+      "client_title_raw": "Secretary of State (International Development)",
+      "disclosure_date_raw": "2025-10-07",
+      "no_longer_applicable": false,
+      "ociec_translation": false,
+      "description_raw": "Member of the Board of Directors of 3H0 Foundation Society, a non-profit organization located in Vancouver, British Columbia",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 1.0
+  }
+]

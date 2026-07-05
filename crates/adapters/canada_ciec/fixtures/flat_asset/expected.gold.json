@@ -1,0 +1,43 @@
+[
+  {
+    "filing_id": "0CACFNG0000000000030C94327",
+    "politician_id": "0CACMBR0000000000000000001",
+    "regime_id": "0CACREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Sole ownership of a residential rental unit in Winnipeg, Manitoba.",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-04-14",
+    "value": null,
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "canada_ciec/html@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_id": "30c94327-3108-f111-81a2-001dd8b72449",
+      "row_ordinal": 1,
+      "item_id": null,
+      "section_label": null,
+      "declaration_type_raw": "Declarable Assets",
+      "law": "act",
+      "h1_title": "Public Declaration of Assets",
+      "client_id": "5b99c2bd-7b2a-f011-8195-001dd8b72449",
+      "client_title": "Minister of Northern and Arctic Affairs and Minister responsible for the Canadian Northern Economic Development Agency",
+      "no_longer_applicable": false,
+      "ociec_translation": false,
+      "language": "en",
+      "gift_received_date": null,
+      "gift_source": null,
+      "gift_circumstance": null,
+      "travel_destination": null,
+      "travel_sponsor": null,
+      "travel_dates_raw": null,
+      "travel_start": null,
+      "travel_end": null,
+      "fields": {}
+    }
+  }
+]

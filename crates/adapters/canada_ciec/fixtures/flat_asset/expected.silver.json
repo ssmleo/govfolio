@@ -1,0 +1,23 @@
+[
+  {
+    "payload": {
+      "declaration_id": "30c94327-3108-f111-81a2-001dd8b72449",
+      "row_ordinal": 1,
+      "item_id_raw": null,
+      "section_label_raw": null,
+      "h1_title_raw": "Public Declaration of Assets",
+      "declaration_type_raw": "Declarable Assets",
+      "law_raw": "Conflict of Interest Act",
+      "client_id": "5b99c2bd-7b2a-f011-8195-001dd8b72449",
+      "client_name_raw": "Rebecca Chartrand",
+      "client_title_raw": "Minister of Northern and Arctic Affairs and Minister responsible for the Canadian Northern Economic Development Agency",
+      "disclosure_date_raw": "2026-04-14",
+      "no_longer_applicable": false,
+      "ociec_translation": false,
+      "description_raw": "Sole ownership of a residential rental unit in Winnipeg, Manitoba.",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 1.0
+  }
+]

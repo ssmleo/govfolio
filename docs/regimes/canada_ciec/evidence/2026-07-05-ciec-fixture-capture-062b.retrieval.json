@@ -1,0 +1,29 @@
+{
+  "leg": "goal 062 leg B — test-designer fixture capture + independent expected outputs",
+  "captured_at_utc": "2026-07-05T19:35:45Z",
+  "purpose": "Re-verify the seven docs/regimes/canada_ciec.md §7 fixture pins against a fresh polite fetch (cross-session), and confirm the archived evidence bytes are byte-identical to the pinned shas. Closes the SAF §7 open question 'Cross-session byte stability of details pages' (spec leg had within-session 2/2 only; this leg is the cross-session confirmation, us_senate leg-B precedent).",
+  "source": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId={guid} (EN)",
+  "client": {
+    "tool": "curl (Git Bash, Windows) — plain HTTPS GET, no browser, no cookies/session (source sets none, E44)",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "from_header": "ssm.leo@outlook.com",
+    "concurrency": 1,
+    "rate_limit": "curl --rate 20/m on the 6-URL batch = one transfer per 3.0 s (>= the SAF's 2.2 s floor, invariant 10); the connectivity probe was a single standalone GET",
+    "conditional_get": "not possible — the source serves no ETag/Last-Modified and sets no cookies (SAF §2.1, E44); the date window is the only incremental primitive"
+  },
+  "requests": [
+    {"n": 1, "case": "flat_asset",                   "declaration_id": "30c94327-3108-f111-81a2-001dd8b72449", "http": 200, "sha256": "4531a973b004a2cbcaf68ebca9df849991614a15fe7fedf2270391bf6ff2a408", "matches_pin": true},
+    {"n": 2, "case": "flat_liability",               "declaration_id": "a4542986-719d-f011-819d-001dd8b72449", "http": 200, "sha256": "c3e9df01f2d1e5c3aa68f5096005ab3853c876e80ac4b31adfe8105be392b61a", "matches_pin": true},
+    {"n": 3, "case": "flat_outside_activity",         "declaration_id": "39e5bbfe-5a8e-f011-819c-001dd8b72449", "http": 200, "sha256": "03061e491fc555f323cb8d928fc9de18a1a0b38a7750fba2f1ae82ee854dcd7a", "matches_pin": true},
+    {"n": 4, "case": "summary_statement_divestment",  "declaration_id": "e882485d-719d-f011-819d-001dd8b72449", "http": 200, "sha256": "e631c24d51957d11b9bf2b03806c7771e7c793ea133f3c68b0493fe1c74b1cb4", "matches_pin": true},
+    {"n": 5, "case": "disclosure_summary_itemized",   "declaration_id": "877aeea7-e1b1-4348-bd5d-808c7758fb22", "http": 200, "sha256": "c95a66fa36c59ee06390c5ea0e45fc231bd54136f1fc3eb1c1c67115f2681485", "matches_pin": true},
+    {"n": 6, "case": "material_change",               "declaration_id": "c7bf3da3-9669-f111-81a9-001dd8b72449", "http": 200, "sha256": "9eb65e0e239169232e4bef76a924c5d731183af499895d7630c869cbbfa60df2", "matches_pin": true},
+    {"n": 7, "case": "gift_code",                     "declaration_id": "3f544e69-d268-f111-81a9-001dd8b72449", "http": 200, "sha256": "2b95fa9a9e1f133446317ff8c53ffe02543af539e47239e45935beaa2be2e762", "matches_pin": true}
+  ],
+  "totals": {"requests": 7, "http_200": 7, "http_4xx_5xx": 0, "429s": 0, "challenges": 0},
+  "result": {
+    "all_pins_match": true,
+    "drift_procedure_needed": false,
+    "note": "7/7 raw-byte shas match the SAF §7 pins AND the docs/regimes/canada_ciec/evidence/{sha}.html archives (spec-leg E22/E23/E24/E25/E27/E28/E21). Raw-byte pinning held cross-session — no fallback to the normalized-content-hash was required. The fixture input.html files under crates/adapters/canada_ciec/fixtures/<case>/ are byte-identical copies of these archives (verified sha-equal at copy time)."
+  }
+}

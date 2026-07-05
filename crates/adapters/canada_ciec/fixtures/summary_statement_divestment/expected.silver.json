@@ -1,0 +1,23 @@
+[
+  {
+    "payload": {
+      "declaration_id": "e882485d-719d-f011-819d-001dd8b72449",
+      "row_ordinal": 1,
+      "item_id_raw": null,
+      "section_label_raw": null,
+      "h1_title_raw": "Summary Statement",
+      "declaration_type_raw": "Summary Statements (Act)",
+      "law_raw": "Conflict of Interest Act",
+      "client_id": "1c26de25-482b-f011-8195-001dd8b72449",
+      "client_name_raw": "Stephen Fuhr",
+      "client_title_raw": "Secretary of State (Defence Procurement)",
+      "disclosure_date_raw": "2026-05-04",
+      "no_longer_applicable": false,
+      "ociec_translation": false,
+      "description_raw": "Obligation to provide a confidential report has been met and all initial reporting and compliance measures have been taken to comply with the Conflict of Interest Act. Divestment of: - Publicly Traded Securities by the establishment of blind trust(s) - Publicly Traded Securities by sale",
+      "fields_raw": {},
+      "extractor": "canada_ciec/html@1"
+    },
+    "confidence": 1.0
+  }
+]

@@ -1,0 +1,48 @@
+[
+  {
+    "filing_id": "0CACFNG000000000003F544E69",
+    "politician_id": "0CACMBR0000000000000000005",
+    "regime_id": "0CACREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "One ticket The Ajax Mayor’s Gala, Where the Stars Meet the Sea.",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-06-15",
+    "value": null,
+    "owner": null,
+    "extraction_confidence": 1.0,
+    "extracted_by": "canada_ciec/html@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_id": "3f544e69-d268-f111-81a9-001dd8b72449",
+      "row_ordinal": 1,
+      "item_id": null,
+      "section_label": null,
+      "declaration_type_raw": "Gifts (Code)",
+      "law": "code",
+      "h1_title": "Public Statement of Gifts or Other Benefits",
+      "client_id": "9afbf0c2-172c-f011-8195-001dd8b72449",
+      "client_title": null,
+      "no_longer_applicable": false,
+      "ociec_translation": false,
+      "language": "en",
+      "gift_received_date": "2026-06-06",
+      "gift_source": "Invitation from the Gala Chair, The Ajax Mayor’s Gala.",
+      "gift_circumstance": "In my capacity as Member of Parliament for Ajax.",
+      "travel_destination": null,
+      "travel_sponsor": null,
+      "travel_dates_raw": null,
+      "travel_start": null,
+      "travel_end": null,
+      "fields": {
+        "Nature": "One ticket The Ajax Mayor’s Gala, Where the Stars Meet the Sea.",
+        "Source": "Invitation from the Gala Chair, The Ajax Mayor’s Gala.",
+        "Circumstance": "In my capacity as Member of Parliament for Ajax.",
+        "Gift received date": "2026-06-06"
+      }
+    }
+  }
+]
