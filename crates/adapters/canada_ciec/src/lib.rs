@@ -1,12 +1,26 @@
-//! Canada CIEC public-registry adapter (regime code `canada_ciec`).
+//! Canada CIEC public-registry adapter (regime code `canada_ciec`, goal 062).
 //!
-//! SCAFFOLD ONLY (goal 062 leg B, test-designer). This crate is an empty, valid
-//! workspace member so the `crates/adapters/*` glob stays green while the
-//! conformance fixtures + independent expected outputs land ahead of the adapter
-//! logic (`us_house` CI-red lesson, commit c6dceb7). The builder leg (062) fills in
-//! `adapter`/`parse`/`normalize`/`details`/`seed` per the methodology:
+//! Scope: the ten financial-substance declaration types filed by the three
+//! politician roles (MPs, Ministers, Parliamentary Secretaries) on the Office
+//! of the Conflict of Interest and Ethics Commissioner public registry — one
+//! govfolio regime covering both the Conflict of Interest Act and the Members'
+//! Code (the instrument is per-record metadata, `details.law`). Two record
+//! types: `interest` for asset/liability/activity/summary/gift/travel
+//! declarations, `change_notification` for Material Changes. No record ever
+//! carries a monetary value (`value` NULL always, by statute — regime doc
+//! §3.6).
 //!
-//! - Spec: `docs/regimes/canada_ciec.md` — §2 discovery, §3 record anatomy,
-//!   §4 Silver shape, §5 `details` contracts, §6 extraction strategy, §7 fixtures.
-//! - Fixtures + conformance conventions:
-//!   `crates/adapters/canada_ciec/fixtures/MANIFEST.json`.
+//! The canonical methodology lives in `docs/regimes/canada_ciec.md` — §2
+//! discovery + politeness, §3 record anatomy + grammar families A/B/C, §4
+//! Silver shape, §5 the two `details` contracts, §6 extraction strategy +
+//! confidence scoring. Fixtures + conformance conventions (the LOAD-BEARING
+//! `<br>`→space rule, ULID constants, confidence literals):
+//! `crates/adapters/canada_ciec/fixtures/MANIFEST.json`.
+
+pub mod adapter;
+pub mod details;
+pub(crate) mod normalize;
+pub(crate) mod parse;
+pub(crate) mod tables;
+
+pub use adapter::CanadaCiecAdapter;

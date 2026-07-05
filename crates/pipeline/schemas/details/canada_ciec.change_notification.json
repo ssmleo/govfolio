@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CanadaCiecChangeNotificationDetailsV1",
+  "description": "`details` payload of one Material Change record (regime doc §5): every\ninterest field PLUS the notice's change date.",
+  "type": "object",
+  "properties": {
+    "client_id": {
+      "description": "Source person GUID from the client link — the §2.4 resolution audit\ntrail (real politician id resolves from the roster in pool-backed runs).",
+      "type": "string"
+    },
+    "client_title": {
+      "description": "Card-header `· {title}` suffix, middot-stripped; null when absent.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "date_of_change": {
+      "description": "`Date of change: YYYY/MM/DD` from the item text, normalized to ISO\n`YYYY-MM-DD`; null when the line is missing/unparseable (fail-soft —\nthe raw line survives in `asset_description_raw`, regime doc §3.7).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "declaration_id": {
+      "description": "Source declaration GUID (lowercase) — threaded from the fetch URL;\nfamilies A/B never print it in-page (regime doc §4).",
+      "type": "string"
+    },
+    "declaration_type_raw": {
+      "description": "`Declaration type` cell verbatim (`Gifts (Code)`, `Disclosure\nSummaries (Code)`, …) — the §3.1 census key.",
+      "type": "string"
+    },
+    "fields": {
+      "description": "Family-A/A′ payload `<dl>` pairs verbatim (`{dt: dd-text}`), an open\nvocabulary; `{}` for families B/C (regime doc §4).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "gift_circumstance": {
+      "description": "Family-A `Circumstance` cell verbatim.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "gift_received_date": {
+      "description": "Family-A `Gift received date` verbatim (`YYYY-MM-DD`); null when absent\n(nullable, regime doc §3.4/§3.7). Never promoted to `transaction_date`.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "gift_source": {
+      "description": "Family-A `Source` cell verbatim (query-hot copy; also in `fields`).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "h1_title": {
+      "description": "`<h1>` declaration-type title verbatim (regime doc §3.3 vocabulary).",
+      "type": "string"
+    },
+    "item_id": {
+      "description": "Family-C per-item GUID verbatim (UPPERCASE as printed); null for the\nflat families A/A′/B.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "language": {
+      "description": "Ingestion language: always `en` in v1 (regime doc §3.9).",
+      "type": "string"
+    },
+    "law": {
+      "description": "Legal instrument, derived from the `Regime` cell: `act` for the\nConflict of Interest Act, `code` for the Members' Code (regime doc\n§3.10 check 2 guarantees the binary).",
+      "type": "string"
+    },
+    "no_longer_applicable": {
+      "description": "`No Longer Applicable` (`bg-warning`) badge present at fetch time\n(regime doc §3.8 — status flips mutate the same URL's bytes).",
+      "type": "boolean"
+    },
+    "ociec_translation": {
+      "description": "`OCIEC Translation` (`bg-info`) badge present — the displayed text is\noffice-translated (regime doc §3.9 provenance).",
+      "type": "boolean"
+    },
+    "row_ordinal": {
+      "description": "1-based row position in document order (always 1 for families A/A′/B;\none per `ciec-declaration-disclosureitem` for family C).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    },
+    "section_label": {
+      "description": "Family-C section label verbatim (case + any `[…]` statute-ref suffix\nintact); null otherwise.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "travel_dates_raw": {
+      "description": "Family-A′ `Dates` cell verbatim (range + day count).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "travel_destination": {
+      "description": "Family-A′ `Destination` cell verbatim (Sponsored Travel).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "travel_end": {
+      "description": "Travel range end parsed from `Dates`; null on parse failure.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "travel_sponsor": {
+      "description": "Family-A′ `Sponsor` cell verbatim.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "travel_start": {
+      "description": "Travel range start parsed from `Dates` (`YYYY-MM-DD`); null when the\nrange does not parse (fail-soft — raw survives in `travel_dates_raw`).",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "declaration_id",
+    "row_ordinal",
+    "declaration_type_raw",
+    "law",
+    "h1_title",
+    "client_id",
+    "no_longer_applicable",
+    "ociec_translation",
+    "language",
+    "fields"
+  ]
+}

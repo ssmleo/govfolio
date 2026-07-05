@@ -76,6 +76,12 @@ pub fn details_schema(regime: &str, record_type: RecordType) -> anyhow::Result<O
         ("uk_commons_register", RecordType::Interest) => {
             include_str!("../schemas/details/uk_commons_register.interest.json")
         }
+        ("canada_ciec", RecordType::Interest) => {
+            include_str!("../schemas/details/canada_ciec.interest.json")
+        }
+        ("canada_ciec", RecordType::ChangeNotification) => {
+            include_str!("../schemas/details/canada_ciec.change_notification.json")
+        }
         _ => return Ok(None),
     };
     serde_json::from_str(doc)
