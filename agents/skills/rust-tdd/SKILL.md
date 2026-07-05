@@ -113,4 +113,12 @@ Learnings (dated):
   `node.ancestors().any(|a| a.id() == excluded.id())`; entities decode for free in
   html5ever text nodes. `Selector::parse` errors don't convert to anyhow — map with
   `anyhow!("{e}")`.
+- 2026-07-05: raw-is-sacred JSON parsing (uk_commons_register, first pure-JSON adapter):
+  keep the polymorphic array as `Vec<serde_json::Value>` VERBATIM for Silver, then re-parse
+  each entry into a strict typed view (`deny_unknown_fields`) for grammar work — verbatim
+  storage and drift-freeze coexist without a lossy round-trip (a typed struct re-serialized
+  can't reproduce absent-vs-null keys). Related: schemars 1.x handles self-recursive types
+  (`values: Option<Vec<Vec<Field>>>`) via `$defs`/`$ref` out of the box, and a struct field
+  named `field_type` inside `struct Field` trips clippy pedantic `struct_field_names` —
+  scope an allow saying the token mirrors the source key `type` (a Rust keyword).
 Write-back: deepen this file when the procedure teaches you something; same PR.

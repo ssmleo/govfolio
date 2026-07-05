@@ -73,6 +73,9 @@ pub fn details_schema(regime: &str, record_type: RecordType) -> anyhow::Result<O
         ("us_senate", RecordType::Transaction) => {
             include_str!("../schemas/details/us_senate.transaction.json")
         }
+        ("uk_commons_register", RecordType::Interest) => {
+            include_str!("../schemas/details/uk_commons_register.interest.json")
+        }
         _ => return Ok(None),
     };
     serde_json::from_str(doc)
@@ -343,6 +346,20 @@ mod tests {
                 .unwrap()
                 .contains(&json!("amount_band_raw")),
             "raw band must be contractually required: {schema}"
+        );
+    }
+
+    #[test]
+    fn registry_has_uk_commons_register_interest_schema() {
+        let schema = details_schema("uk_commons_register", RecordType::Interest)
+            .unwrap()
+            .unwrap();
+        assert!(
+            schema["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("value_source")),
+            "value provenance must be contractually required: {schema}"
         );
     }
 

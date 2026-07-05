@@ -1,0 +1,185 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UkCommonsRegisterInterestDetailsV1",
+  "description": "`details` payload of one UK Commons Register interest record (regime doc\n§5). Optional fields serialize as explicit nulls so the contract surface\nis fully visible in every candidate (fixtures `MANIFEST.json` convention).",
+  "type": "object",
+  "properties": {
+    "category_id": {
+      "description": "API category id (§3.1 — NOT the printed category number).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "category_name": {
+      "description": "`category.name` verbatim.",
+      "type": "string"
+    },
+    "category_number": {
+      "description": "`category.number` verbatim (a STRING, e.g. `\"1.1\"`).",
+      "type": "string"
+    },
+    "fields": {
+      "description": "The source `fields` array, flattened per [`DetailsField`].",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/DetailsField"
+      }
+    },
+    "interest_id": {
+      "description": "Source-native interest id, stable across in-place updates (§2.5).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    },
+    "member_id": {
+      "description": "Numeric MNIS member id — the §2.4 resolution audit trail.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "parent_interest_id": {
+      "description": "Payment (child) → payer (parent) link, category 1.x; null otherwise.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0
+    },
+    "published_date": {
+      "description": "`publishedDate` verbatim (`YYYY-MM-DD`); a null is rejected at\npromotion (unobserved).",
+      "type": "string"
+    },
+    "rectified": {
+      "description": "Rectification flag (e.g. late registration); `true` unobserved.",
+      "type": "boolean"
+    },
+    "rectified_details": {
+      "description": "Rectification reason verbatim; null unless rectified.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "registration_date": {
+      "description": "`registrationDate` verbatim (`YYYY-MM-DD`); null on migrated legacy\nrows (§3.6).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "shareholding_threshold_raw": {
+      "description": "Category 7 only: the `ShareholdingThreshold` value verbatim\n(query-hot copy; also inside `fields`).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "updated_dates": {
+      "description": "`updatedDates` verbatim (may be empty).",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "value_source": {
+      "description": "§3.4 provenance of the Gold `value`.",
+      "$ref": "#/$defs/ValueSource"
+    },
+    "version": {
+      "description": "`updatedDates.length` at fetch time (0 = original) — the filing\nversion key (§2.5).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "interest_id",
+    "version",
+    "category_id",
+    "category_number",
+    "category_name",
+    "member_id",
+    "published_date",
+    "updated_dates",
+    "rectified",
+    "value_source",
+    "fields"
+  ],
+  "$defs": {
+    "DetailsField": {
+      "description": "One `fields[]` entry, flattened per regime doc §5: `typeInfo.currencyCode`\nis hoisted to `currency_code` (money ⇔ `currency_code` present — never the\nfield name or type alone, §3.2); `value` is deliberately schema-`any`\n(the payload is source-shaped and category-specific); `values` carries the\nnested rows of complex fields (`Donor[]`, `VisitLocation[]`) and is null\non flat fields.",
+      "type": "object",
+      "properties": {
+        "currency_code": {
+          "description": "`typeInfo.currencyCode` verbatim; null when `typeInfo` is null.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "description": "Source field description verbatim; null when the source omits it.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "description": "Source field name verbatim (open vocabulary, §3.2).",
+          "type": "string"
+        },
+        "type": {
+          "description": "Source type token verbatim (`String`, `Decimal`, `Boolean`, `Int`,\n`DateOnly`, `Donor[]`, …).",
+          "type": "string"
+        },
+        "value": {
+          "description": "Field value verbatim in its source JSON type (§3.2 table)."
+        },
+        "values": {
+          "description": "Nested rows (array of array-of-field) for complex fields; null when\nthe source carries no `values` key.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/DetailsField"
+            }
+          }
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "value"
+      ]
+    },
+    "ValueSource": {
+      "description": "§3.4 value-rule provenance: which rule produced the Gold `value`.",
+      "oneOf": [
+        {
+          "description": "R1: top-level typed `Value` field (`Decimal` + `currencyCode`).",
+          "type": "string",
+          "const": "value_field"
+        },
+        {
+          "description": "R2a: category 7 `ShareholdingThreshold` monetary threshold string —\nopen-ended interval, low = stated threshold.",
+          "type": "string",
+          "const": "shareholding_threshold"
+        },
+        {
+          "description": "R3: category 4 visits — deterministic sum of the declared exact\nper-donor amounts (single donor = that exact value).",
+          "type": "string",
+          "const": "sum_of_donors"
+        },
+        {
+          "description": "R2b/R4: no monetary value in the record — Gold `value` is null,\nnever inferred.",
+          "type": "string",
+          "const": "none"
+        }
+      ]
+    }
+  }
+}
