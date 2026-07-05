@@ -15,7 +15,7 @@ cargo run -p pipeline --bin conformance -- australia_register
 ```
 
 ## Checklist
-- [x] regime doc  - [ ] fixtures  - [ ] expected (human)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
+- [x] regime doc  - [x] fixtures  - [x] expected (test-designer, 063b)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
 
 regime doc: `docs/regimes/australia_register.md` (063 leg A, spec-writer, 2026-07-05).
 Scoped to the House of Representatives register (per-member scanned PDFs); Senate register

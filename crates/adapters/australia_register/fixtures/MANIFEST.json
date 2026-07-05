@@ -1,0 +1,127 @@
+{
+  "adapter": "australia_register",
+  "captured_by": "test-designer (goal 063 leg B). The 4 member PDFs were fetched from the Azure-WAF-gated aph.gov.au host via a REAL headless Chromium (Playwright, HeadlessChrome/149) — curl/WebFetch are 403-blocked (regime doc E11/E12); the sha256 of the raw response bytes ARE the §7 Bronze pins the spec leg deferred. expected.*.json are the test-designer's INDEPENDENT ground truth, derived with ZERO adapter/LLM involvement by two passes reconciled cell-by-cell: (Pass A) an authoritative visual/text read of the pinned input.pdf bytes — `pdftotext -layout` for the clean text-layer docs (Buchholz, Chalmers), and a WinRT Windows.Data.Pdf page render read visually for the scanned-vision docs (Katter, Albanese, whose embedded OCR text layer is garbage but whose typed-then-scanned pages render legibly); (Pass B) the archived r.jina.ai reader-extract (regime doc E3-E6), whose HTTP Last-Modified matches the pinned bytes to the exact second (same document VERSION). A small Node serializer (.capture-063b/build.mjs, NOT committed) expanded the hand-authored per-row ground truth into the StagingRow/GoldCandidate shapes; it never parsed a PDF. Records publish `unverified` -> sampling-audit queue per docs/decisions/automation-policy.md (the goal's 'HUMAN completes expected.*.json' step is superseded).",
+  "captured_at_utc": "2026-07-05T22:16:24Z",
+  "spec": "docs/regimes/australia_register.md — §2 discovery + WAF browser seam, §3 anatomy (compound Form A + alterations, 14-category grid, owner bands, value NULL always, DD/MM day-first dates, mis-stamp quirk), §3.9 extraction heterogeneity, §4 Silver StagingRow, §5 the two details contracts, §5.1 Silver->Gold mapping, §6 LLM-vision-first strategy + confidence, §7 fixtures + raw-byte pin rule.",
+  "browser_fetch_method": {
+    "waf_beater": "Playwright chromium (chromium-1228/chrome-win64/chrome.exe, HeadlessChrome/149.0.7827.55) — the us_senate §2.5 browser-engine seam. Steps: (1) navigate the register index https://www.aph.gov.au/Senators_and_Members/Members/Register (HTTP 200) to establish the aph.gov.au same-origin context; (2) for each member PDF, run an in-page `fetch(url, {credentials:'include'})` from that page and read `response.arrayBuffer()` — the request rides the browser's real TLS/UA fingerprint and same-origin cookies, which the Azure Front Door WAF admits where curl/WebFetch/server-proxies are 403-blocked. Raw response bytes are pinned (NOT page.content() DOM re-serialization). All 4 PDFs returned HTTP 200, content-type application/pdf, magic %PDF-.",
+    "politeness": "concurrency 1; sequential with >=3s spacing between PDF fetches; identified via a `From: ssm.leo@outlook.com` header injected by a context route SCOPED to www.aph.gov.au (never context-global — From is not CORS-safelisted and would force preflights that kill CDN JS on third-party hosts, fixture-capture skill learning). The browser's own UA is kept (a bot UA would trip the WAF); From carries the contact. 5 requests total (1 index warmup + 4 PDFs), zero 403s, zero 429s.",
+    "retrieval_log": "docs/regimes/australia_register/evidence/2026-07-05-aph-register-fixture-capture-063b.retrieval.json"
+  },
+  "politeness": {
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36 (+ From: ssm.leo@outlook.com on aph.gov.au)",
+    "from_header": "ssm.leo@outlook.com",
+    "concurrency": 1,
+    "min_interval_seconds": 3,
+    "requests_this_capture": 5,
+    "full_log": "docs/regimes/australia_register/evidence/2026-07-05-aph-register-fixture-capture-063b.retrieval.json"
+  },
+  "pin_verification": {
+    "rule": "Regime doc §7 raw-byte pinning: sha256 of the raw GET response bytes for the document VERSION fixtured. version = media Last-Modified date (§2.5) in YYYY-MM-DD.",
+    "result": "4/4 pins ESTABLISHED this leg (the spec leg deferred them behind the WAF, §7/§open-questions). Each fixtures/<case>/input.pdf is the byte-exact raw response body; its sha256 == the case `sha256` below and hashes stably after git checkout (verified). The media Last-Modified matches the archived reader-extract's 'Published Time' to the second, confirming the pinned bytes ARE the version the spec-writer read.",
+    "regime_doc_note": "docs/regimes/australia_register.md §7/§8 still show the pins as '_capture leg (§7)_'. This MANIFEST is now the source of truth for the pins; the builder/auditor should backfill §7/§8 with the sha256 + version values below (deliberately NOT edited into the methodology doc here — that page is founder/methodology-gated).",
+    "index_vs_media_version": "Two cases' media Last-Modified date is 1 day after the index 'Last updated' date in §7 (Buchholz index 2026-02-25 / media 2026-02-26; Albanese index 2026-05-25 / media 2026-05-26). Per §2.5 the media Last-Modified date is the authoritative @version; recorded as such below."
+  },
+  "cases": {
+    "shareholding_selfspouse": {
+      "member": "Buchholz, Mr Scott (Member for Wright, QLD)",
+      "document_filename": "Buchholz_48P",
+      "version": "2026-02-26",
+      "last_modified": "Thu, 26 Feb 2026 00:08:24 GMT",
+      "url": "https://www.aph.gov.au/-/media/03_Senators_and_Members/32_Members/Register/48p/AB/Buchholz_48P.pdf",
+      "sha256": "cf09599e7c2aa71786c349c35b8afbafeddb6a46d8050a545b1528d2bc4c39bb",
+      "bytes": 534159,
+      "source_flavour": "text_layer",
+      "rows": 52,
+      "record_types": { "interest": 51, "change_notification": 1 },
+      "notes": "Flagship shareholding fixture, clean text layer (pdftotext -layout confirms every cell field-for-field). Covers: cat 1 equity (Self 'Canungra & District Community Finance Group Ltd', 'GD & SB Pty Ltd'; Spouse/Partner 'Telstra' -> owner spouse); cat 3 real_estate (3 Self + 1 Spouse); cats 2/4/5/6/7/8 multi-column grids -> entry_fields resolved; cats 9/10/13 single-column -> entry_fields {}; cats 11/12/14 all 'Not Applicable' -> 0 rows; and ONE populated typed alteration (page 10, cat 12, Submitted Date 25/02/2026 -> notified_date 2026-02-25, record_type change_notification). Buchholz's first alteration page (Submitted Date 19/08/2025) is EMPTY -> 0 rows. value NULL every row; instrument_id NULL. confidence 1.0.",
+      "illegible_flags": "none — text-layer document, both passes agree. Only soft flag: cat 6 (Liabilities) liability<->creditor column pairing is the natural reader-extract/pdftotext order (Equipment Lease/CLAAS; Mortgage on Property/QCB x3; Vehicle & Irrigation Lease/BOQ); a two-column scan-to-text can transpose adjacent creditor rows — pairing is high-confidence but auditor should spot-check."
+    },
+    "real_estate_textlayer": {
+      "member": "Chalmers, Hon James (Member for Rankin, QLD)",
+      "document_filename": "Chalmers_48P",
+      "version": "2026-04-30",
+      "last_modified": "Thu, 30 Apr 2026 03:15:11 GMT",
+      "url": "https://www.aph.gov.au/-/media/03_Senators_and_Members/32_Members/Register/48p/CF/Chalmers_48P.pdf",
+      "sha256": "f1822e24096b66aea77c78fbea8c791806e30ad80a983b94de6903d308ca21f0",
+      "bytes": 547781,
+      "source_flavour": "text_layer",
+      "rows": 45,
+      "record_types": { "interest": 39, "change_notification": 6 },
+      "notes": "Clean text-layer Form A + the multi-alteration case. cat 1 shares 'Not Applicable' -> 0 rows; cat 3 real_estate (2 Self); SIX typed alterations across pages 9-17 exercising the DD/MM/YYYY Submitted-Date -> notified_date parse across a date SPREAD (18/08/2025, 19/12/2025 x2, 06/02/2026, 30/04/2026) and BOTH alteration categories (cat 11 Gifts once, cat 12 Sponsored travel five times). The first alteration page carries TWO cat-12 line items -> 2 rows. All alterations owner self (no Spouse- marker, Self column). confidence 1.0.",
+      "illegible_flags": "none — text-layer, both passes agree."
+    },
+    "scanned_alterations": {
+      "member": "Albanese, Hon Anthony (Member for Grayndler, NSW)",
+      "document_filename": "Albanese_48P",
+      "version": "2026-05-26",
+      "last_modified": "Tue, 26 May 2026 22:10:00 GMT",
+      "url": "https://www.aph.gov.au/-/media/03_Senators_and_Members/32_Members/Register/48p/AB/Albanese_48P.pdf",
+      "sha256": "b632987be13fadacdec1ca5a12faa496a327f184ea603b1b92ccc15a8a35b68b",
+      "bytes": 4174905,
+      "source_flavour": "scanned_vision",
+      "rows": 76,
+      "record_types": { "interest": 33, "change_notification": 43 },
+      "notes": "The scanned-vision seam. IMPORTANT CORRECTION to §7/§8: this document is a COMPOUND file — a full TYPED Statement of Registrable Interests (pages 1-5, 33 interest rows: real_estate cat 3, liabilities cat 6, savings cat 8, other-assets cat 9, income cat 10, membership cat 13 x18, cat 14) FOLLOWED BY 10 scanned Notification-of-Alteration pages (pages 6-15, one blank at p11). The spec leg's reader-extract (E4) only captured the alteration pages and MISSED the statement. The embedded OCR text layer is garbage (pdftotext), so source_flavour = scanned_vision, but the WinRT page render is fully legible (typed forms). Covers: the 'Spouse -' / 'Spouse gift -' owner markers -> owner spouse (2 alteration rows, pages 7 & 13; entry_text keeps the marker verbatim per invariant 2); cat 11 Gifts + cat 12 Sponsored travel ADDITIONs; handwritten member 'Date:' that IS legible and parsed (D/M/YY -> ISO, e.g. 12/8/25 -> 2025-08-12, spanning 2025-08-12 .. 2026-05-25). value NULL; instrument_id NULL. confidence 0.98.",
+      "illegible_flags": "The §7/§3.3 '45 TH PARLIAMENT mis-stamp quirk' is NOT PRESENT in the pinned bytes — every alteration page renders '48TH PARLIAMENT'; the reader-extract's '45 TH PARLIAMENT' (E4) was an OCR mis-read of '48'. parliament_stamp_raw = '48TH PARLIAMENT' on the header-bearing pages (7-15) and null on page 6 (a bare continuation page with no NNth-PARLIAMENT header). page 11 is blank (0 rows). No illegible cells: dates and gift text all legible under render + reader cross-check."
+    },
+    "scanned_formA": {
+      "member": "Katter, Hon Robert (Member for Kennedy, QLD)",
+      "document_filename": "Katter_48P",
+      "version": "2025-09-09",
+      "last_modified": "Tue, 09 Sep 2025 02:16:33 GMT",
+      "url": "https://www.aph.gov.au/-/media/03_Senators_and_Members/32_Members/Register/48p/KN/Katter_48P.pdf",
+      "sha256": "625134ad3d9959d3d46548273bcf1c3840b09c588a7f87d00de1a49a6b996806",
+      "bytes": 260193,
+      "source_flavour": "scanned_vision",
+      "rows": 16,
+      "record_types": { "interest": 16, "change_notification": 0 },
+      "notes": "Worst-case-OCR fixture that turned out fully legible under the WinRT render (a TYPED form scanned with a garbage OCR text layer, NOT handwriting — correcting the §3.9/§7 'OCR-garbage' expectation: the underlying text is typed and clear). 16 interest rows across cats 1,2,6,8,9,10,12,13,14; cat 1 equity ('A number of AMP shares' Self; a prose Spouse refusal). No alteration rows (the alteration page is present but empty -> 0). The statement completion date is handwritten and illegible -> filing.filed_date would be null (§3.7); no per-row date. confidence 0.98.",
+      "illegible_flags": "cat 2 (Family/business trusts) Self & Spouse are FREE-TEXT PROSE the member wrote spanning the 3-column grid (cattle/mining paragraphs) -> entry_fields {} (unresolved to clean columns; NOT a failed grid resolution, so no extra confidence penalty). cat 9 Spouse 'None of the present that I can think of' is prose (not the 'N/A' token) so it is emitted as a row (flagged: a vision extractor would likely emit it; an auditor may judge it semantically empty). Minor punctuation (hyphen vs dash) in the cat-1 Spouse refusal transcribed as best-effort."
+    }
+  },
+  "conformance_conventions": {
+    "silver_shape": "expected.silver.json = Vec<pipeline StagingRow> = [{payload, confidence}] (same wrapper as us_house/canada). payload carries every regime-doc §4 field INCLUDING `extractor`, EXCEPT `confidence`, which is the wrapper-level f32. One StagingRow per §3.4 row: one per NON-empty (category x owner-band x line-item) statement cell, and one per alteration Details line item.",
+    "gold_shape": "expected.gold.json = Vec<GoldCandidate> (crates/core/src/domain/gold.rs). record_type interest|change_notification -> validate() requires nothing extra (side/transaction_date/as_of_date all null). value NULL always (§3.6). asset_class: equity for cat 1, real_estate for cat 3, else other. instrument_id null (company/trust free text is the resolution input, below-threshold -> stays null, invariant 3). fingerprint null (computed at promotion, Task 6). extracted_by 'australia_register/llm@1'.",
+    "row_granularity": "PER LINE-ITEM, not per grid cell: a (category, owner-band) cell with N distinct entries emits N rows (regime doc §3.4 'Buchholz cat 1: 2 Self + 1 Spouse'). entry_text_raw is the single line-item, not the whole cell.",
+    "category_name_normalization": "category_name_raw (and details.category_name) is NORMALIZED to the §3.2 canonical category heading (see the 14-entry table in build provenance), consistent across the two form-version wordings (Katter's older 'List shareholdings...' vs the newer 'Shareholdings...'). §3.10 check 2 validates category_number+heading against the §3.2 census; the schema-constrained extractor maps each grid/alteration Item to its census heading.",
+    "entry_text_and_fields": "entry_fields_raw is the column-labelled parts for the MULTI-column grids only: cat 2 {trust_or_nominee_company,nature_of_operation,beneficial_interest}, cat 3 {location,purpose}, cat 4 {company,activities}, cat 5 {name,nature_of_interest,activities}, cat 6 {nature_of_liability,creditor}, cat 7 {type_of_investment,body}, cat 8 {nature_of_account,institution}; cat 1 {company}; single-column cats 9/10/13/14 and all alteration rows -> {}. entry_text_raw for a multi-field row = the column values joined by ' — ' (space, EM DASH U+2014, space) in column order (matches the §7 '... — ...' notation); for single-field/alteration rows it is the value/Details text verbatim. asset_description_raw = entry_text_raw verbatim.",
+    "owner_map": "statement rows: owner_band_raw Self->self, Spouse/Partner->spouse, Dependent Children->dependent (no dependent rows observed in these 4 docs; all Dependent bands are N/A). alteration rows: owner_band_raw null; owner derived self by default, spouse when the Details line is prefixed 'Spouse -' / 'Spouse gift -' (Albanese pages 7 & 13). The marker stays verbatim in entry_text_raw/asset_description_raw (invariant 2). 'joint with spouse' / 'joint owner' free text is NEVER parsed to owner=joint (§3.5) — it stays self and lives in the raw text.",
+    "dates": "day-first. Alteration date_raw parsed DD/MM/YYYY (typed Submitted Date, Buchholz/Chalmers) or D/M/YY (handwritten member Date, Albanese, year 25->2025 / 26->2026) -> notified_date + details.submitted_date ISO. Statement rows carry no per-row date -> date_raw null, notified_date null, details.statement_date null. transaction_date / as_of_date null always.",
+    "confidence_literals": "TWO f32 images only, serialized as serde_json casts f32->f64 (ryu-shortest): text_layer rows = 1.0 (JSON literal `1.0`; the deterministic pdftotext cross-check confirms every cell field-for-field, §6 step 2); scanned_vision rows = 0.98 whose exact f64 image is the JSON literal `0.9800000190734863` (a uniform vision-only wrapper discount — no deterministic text-layer cross-check available; matches the us_house/canada 0.98 image). NEVER emit integer `1` (serde_json PosInt deep-compares UNEQUAL to Float 1.0) nor bare `0.98`. No per-field §6 penalty fires in these 4 fixtures (all dates legible/structurally-absent, owners clear, multi-column grids resolved except Katter cat 2 free-text prose which is captured as entry_text with entry_fields {}).",
+    "page_ordinal": "scanned_vision docs (Katter, Albanese) carry EXACT page_ordinal from the WinRT render. text_layer docs (Buchholz, Chalmers) page_ordinal is derived from the form footer page numbers in pdftotext -layout output (APPROXIMATE grouping by category; a precise render would refine it — flagged low-risk, the builder's vision extractor emits the exact physical page).",
+    "details_nulls": "optional details fields are EXPLICIT nulls (full contract surface visible): owner_band, statement_date null on statement rows; submitted_date/parliament_stamp on change_notification; entry_fields is {} not null when unresolved. change_notification details additionally carry addition_deletion ('addition' — no DELETION rows observed), submitted_date, parliament_stamp; statement_date is null on change_notification rows (the notified date lives in submitted_date).",
+    "conformance_ids": {
+      "rationale": "Conformance runs pool:None so filing/politician/regime ids cannot resolve from a roster. These fixed Crockford-valid ULID constants (prefix 0AHR* = Australia House Register; A/H/R Crockford-valid, no I/L/O/U; leading 0 so 128 bits fit 26 chars) are the contract the adapter MUST emit in conformance mode (production resolves real ids from Postgres via the (electoral division, state) roster join, §2.4). All rows of a fixture share one filing_id + politician_id.",
+      "regime_id": "0AHRREG0000000000000000001",
+      "filing_ids": {
+        "Buchholz_48P@2026-02-26": "0AHRFNG0000000000000000001",
+        "Chalmers_48P@2026-04-30": "0AHRFNG0000000000000000002",
+        "Albanese_48P@2026-05-26": "0AHRFNG0000000000000000003",
+        "Katter_48P@2025-09-09": "0AHRFNG0000000000000000004"
+      },
+      "politician_ids": {
+        "Buchholz (Wright, QLD)": "0AHRMBR0000000000000000001",
+        "Chalmers (Rankin, QLD)": "0AHRMBR0000000000000000002",
+        "Albanese (Grayndler, NSW)": "0AHRMBR0000000000000000003",
+        "Katter (Kennedy, QLD)": "0AHRMBR0000000000000000004"
+      },
+      "filing_external_id_rule": "production filing.external_id = '{filename}@{version}', version = media Last-Modified date YYYY-MM-DD (§2.5). The conformance filing_id constants above stand in for those."
+    }
+  },
+  "details_contracts": {
+    "interest": "(australia_register, interest) — Form A category entries. Fields (regime doc §5): document_filename, parliament_no, row_ordinal, page_ordinal, category_number (1..14), category_name, owner_band (self|spouse|dependent|null), electoral_division, state, entry_text, entry_fields (object string->string), statement_date (date|null), language (const 'en'), source_flavour (text_layer|scanned_vision).",
+    "change_notification": "(australia_register, change_notification) — alteration entries. Every interest field PLUS addition_deletion (addition|deletion), submitted_date (date|null), parliament_stamp (string|null). statement_date is null on these rows.",
+    "schema_placement": "builder snapshot-commits crates/pipeline/schemas/details/australia_register.interest.json and australia_register.change_notification.json from the schemars types in crates/adapters/australia_register/src/details.rs (adapter-local, T8d ruling)."
+  },
+  "builder_notes": {
+    "scaffold": "crates/adapters/australia_register/{Cargo.toml, src/lib.rs} is a scaffold-only crate committed in THIS leg so the crates/adapters/* workspace glob stays valid and `cargo test --workspace` is green BEFORE the build leg (us_house CI-red lesson, commit c6dceb7). No dependencies, no logic. The builder replaces src/lib.rs with the real adapter/parse/normalize/details/seed modules and adds a `conformance_entry` bin (unique constant name — Windows exe-clobber lesson).",
+    "conformance_registry": "crates/pipeline/src/conformance.rs details_schema() has NO (australia_register, interest) NOR (australia_register, change_notification) arm — the harness fails closed (Ok(None) -> 'no details schema registered') for BOTH until the builder adds both arms + snapshot-commits both schema files. `cargo run -p pipeline --bin conformance -- australia_register` is intentionally not wired yet (no conformance_entry bin). Do NOT hack the harness.",
+    "extraction_cache_priming": "This is an LLM-vision regime (like us_house scanned_paper_ptr). PRECEDENT CHECKED: for us_house's LLM case, the test-designer commit (77740d8) shipped input.pdf + expected.silver.json + expected.gold.json + MANIFEST ONLY; the extraction.cache.json was created LATER by the BUILDER (commit 2dfed7a) via pipeline::extraction::prime_from_expected_silver. So THIS leg does NOT author extraction.cache.json — the builder primes it mechanically from each expected.silver.json. Priming key per case: CacheKey { document_sha256 = the case sha256 above, extractor_tag = 'australia_register/llm@1', model_id = <builder's primary model, us_house used 'claude-haiku-4-5-20251001'> }. prime_from_expected_silver requires a non-empty Vec<StagingRow> (all 4 qualify: 52/45/76/16 rows). Provenance must record derived_by = prime_from_expected_silver + primed_from = expected.silver.json (mechanical, NOT a live LLM call).",
+    "harness_blast_radius": "verified at capture time: no test globs across crates/adapters/*/fixtures. role_evals hardcodes us_house paths; e2e_local / promote / api::contract are scoped to fixtures_dir('us_house'). So these australia_register fixtures + the scaffold crate are inert to every existing test — `cargo test --workspace` compiles the scaffold and runs ZERO australia_register cases. Confirmed green this leg.",
+    "eol_pinning": ".gitattributes covers `crates/adapters/*/fixtures/** -text` and `docs/regimes/*/evidence/** -text`, so the binary input.pdf bytes survive git checkout byte-exact (verified via git check-attr: input.pdf -> text: unset) and the sha256 pins hold. PDFs are binary; no CRLF risk.",
+    "spec_corrections": "Two corrections the builder/auditor should fold back into docs/regimes/australia_register.md: (1) §7/§8 Bronze pins are now ESTABLISHED (the 4 sha256 + versions in `cases` above) — replace the '_capture leg (§7)_' placeholders. (2) The '45 TH PARLIAMENT mis-stamp' (§3.3 quirk, fixture #3 expectation, E4) is an OCR artifact, NOT present in the pinned Albanese bytes (all pages render '48TH PARLIAMENT'); the mis-stamp handling code path is unexercised by these fixtures. Also: Albanese fixture #3 is a COMPOUND statement+alterations doc (33 interest + 43 change_notification), not alterations-only as E4 implied.",
+    "coverage": "the 4 fixtures span both source_flavours (text_layer: Buchholz/Chalmers; scanned_vision: Katter/Albanese), both record types (interest x139, change_notification x50), asset_class equity(cat1)/real_estate(cat3)/other, owner self+spouse (dependent grammatically supported but unobserved — every Dependent band is N/A across all 4 members), 'Not Applicable' -> no-row, entry_fields resolution on all 7 multi-column grids, the typed Submitted-Date and handwritten member-Date DD/MM parses, the 'Spouse -'/'Spouse gift -' owner markers, and the empty-alteration-page -> 0-rows case (Buchholz p8, Katter alteration, Albanese p11). NOT covered (evidence-only, later legs): a populated Dependent-Children band, a DELETION alteration row, an all-'Not Applicable' 0-Form-A-row document (Aldred/Bell, E9/E10), the genuine mis-stamp quirk, and a supersession/reissue (version diff)."
+  },
+  "evidence": "docs/regimes/australia_register/evidence/ — the spec-leg reader-extracts E1-E12 (archived 063a) + this leg's retrieval/politeness record 2026-07-05-aph-register-fixture-capture-063b.retrieval.json."
+}

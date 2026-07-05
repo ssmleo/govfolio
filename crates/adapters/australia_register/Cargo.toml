@@ -1,0 +1,15 @@
+[package]
+name = "australia_register"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+# Scaffold-only workspace member (goal 063 leg B). Committed so the
+# `crates/adapters/*` workspace glob stays valid and `cargo test --workspace`
+# is green BEFORE the build leg starts (us_house CI-red lesson, commit c6dceb7).
+# No dependencies and no logic; the builder (leg C) replaces src/lib.rs with the
+# real adapter/parse/normalize/details/seed modules and adds a `conformance_entry`
+# bin. Until then `cargo run -p pipeline --bin conformance -- australia_register`
+# is intentionally not wired.

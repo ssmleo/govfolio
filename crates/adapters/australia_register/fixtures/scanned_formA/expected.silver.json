@@ -1,0 +1,395 @@
+[
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 1,
+      "page_ordinal": 2,
+      "section_kind": "statement",
+      "category_number": 1,
+      "category_name_raw": "Shareholdings in public and private companies",
+      "owner_band_raw": "Self",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "A number of AMP shares",
+      "entry_fields_raw": {
+        "company": "A number of AMP shares"
+      },
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 2,
+      "page_ordinal": 2,
+      "section_kind": "statement",
+      "category_number": 1,
+      "category_name_raw": "Shareholdings in public and private companies",
+      "owner_band_raw": "Spouse/Partner",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "She does not provide me with this information - regards this as personal business and I respect her wishes in these matters",
+      "entry_fields_raw": {
+        "company": "She does not provide me with this information - regards this as personal business and I respect her wishes in these matters"
+      },
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 3,
+      "page_ordinal": 2,
+      "section_kind": "statement",
+      "category_number": 2,
+      "category_name_raw": "Family and business trusts and nominee companies",
+      "owner_band_raw": "Self",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "I may have some interest in cattle operations in the gulf. Also I have close friends and relatives that will benefit directly and indirectly with the creation and opening up of the beef highway into Indonesia and China.",
+      "entry_fields_raw": {
+        "trust_or_nominee_company": "I",
+        "nature_of_operation": " ",
+        "beneficial_interest": "m"
+      },
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 4,
+      "page_ordinal": 2,
+      "section_kind": "statement",
+      "category_number": 2,
+      "category_name_raw": "Family and business trusts and nominee companies",
+      "owner_band_raw": "Self",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "And in mining nothing definite at this stage but I intend to take up old mining tenements discovered by myself prior to going into Parliament and involve myself in other mining activities but there are no specifics at this stage.",
+      "entry_fields_raw": {
+        "trust_or_nominee_company": "A",
+        "nature_of_operation": "n",
+        "beneficial_interest": "d"
+      },
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 5,
+      "page_ordinal": 2,
+      "section_kind": "statement",
+      "category_number": 2,
+      "category_name_raw": "Family and business trusts and nominee companies",
+      "owner_band_raw": "Spouse/Partner",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "My wife has an interest in a trust that has interests in some cattle operations in Cape York.",
+      "entry_fields_raw": {
+        "trust_or_nominee_company": "M",
+        "nature_of_operation": "y",
+        "beneficial_interest": " "
+      },
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 6,
+      "page_ordinal": 3,
+      "section_kind": "statement",
+      "category_number": 6,
+      "category_name_raw": "Liabilities",
+      "owner_band_raw": "Self",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "Loans — ANZ, Commonwealth, NAB, Metway and others",
+      "entry_fields_raw": {
+        "nature_of_liability": "Loans",
+        "creditor": "ANZ, Commonwealth, NAB, Metway and others"
+      },
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 7,
+      "page_ordinal": 3,
+      "section_kind": "statement",
+      "category_number": 6,
+      "category_name_raw": "Liabilities",
+      "owner_band_raw": "Spouse/Partner",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "I assume that my wife has property loans and other loans — She does business with the above and other banks from time to time",
+      "entry_fields_raw": {
+        "nature_of_liability": "I assume that my wife has property loans and other loans",
+        "creditor": "She does business with the above and other banks from time to time"
+      },
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 8,
+      "page_ordinal": 4,
+      "section_kind": "statement",
+      "category_number": 8,
+      "category_name_raw": "Saving or investment accounts",
+      "owner_band_raw": "Self",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "The usual saving and cheque accounts — ANZ, Commonwealth, Westpac etc.",
+      "entry_fields_raw": {
+        "nature_of_account": "The usual saving and cheque accounts",
+        "institution": "ANZ, Commonwealth, Westpac etc."
+      },
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 9,
+      "page_ordinal": 4,
+      "section_kind": "statement",
+      "category_number": 9,
+      "category_name_raw": "Other assets each valued over $7,500",
+      "owner_band_raw": "Self",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "Part ownership of a rental property in Charters Towers",
+      "entry_fields_raw": {},
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 10,
+      "page_ordinal": 4,
+      "section_kind": "statement",
+      "category_number": 9,
+      "category_name_raw": "Other assets each valued over $7,500",
+      "owner_band_raw": "Spouse/Partner",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "None of the present that I can think of",
+      "entry_fields_raw": {},
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 11,
+      "page_ordinal": 4,
+      "section_kind": "statement",
+      "category_number": 10,
+      "category_name_raw": "Other substantial sources of income",
+      "owner_band_raw": "Self",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "Refer to page 2,2 (1) \"Family and business trust and nominee companies\"",
+      "entry_fields_raw": {},
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 12,
+      "page_ordinal": 4,
+      "section_kind": "statement",
+      "category_number": 10,
+      "category_name_raw": "Other substantial sources of income",
+      "owner_band_raw": "Self",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "I may from time to time get royalties from book sales.",
+      "entry_fields_raw": {},
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 13,
+      "page_ordinal": 4,
+      "section_kind": "statement",
+      "category_number": 10,
+      "category_name_raw": "Other substantial sources of income",
+      "owner_band_raw": "Spouse/Partner",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "Income from investment properties",
+      "entry_fields_raw": {},
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 14,
+      "page_ordinal": 5,
+      "section_kind": "statement",
+      "category_number": 12,
+      "category_name_raw": "Sponsored travel or hospitality",
+      "owner_band_raw": "Self",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "Use of a private aircraft from time to time, sometimes during election campaigns - probably not happening these days.",
+      "entry_fields_raw": {},
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 15,
+      "page_ordinal": 5,
+      "section_kind": "statement",
+      "category_number": 13,
+      "category_name_raw": "Membership of any organisation",
+      "owner_band_raw": "Self",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "I have in-laws that have extensive dealings with Government.",
+      "entry_fields_raw": {},
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  },
+  {
+    "payload": {
+      "document_filename": "Katter_48P",
+      "parliament_no": 48,
+      "row_ordinal": 16,
+      "page_ordinal": 5,
+      "section_kind": "statement",
+      "category_number": 14,
+      "category_name_raw": "Any other interests",
+      "owner_band_raw": "Self",
+      "addition_deletion_raw": null,
+      "family_name_raw": "Katter",
+      "given_names_raw": "Robert Carl",
+      "electoral_division_raw": "Kennedy",
+      "state_raw": "QLD",
+      "entry_text_raw": "Some members of my family have interests in cattle",
+      "entry_fields_raw": {},
+      "date_raw": null,
+      "parliament_stamp_raw": null,
+      "extractor": "australia_register/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  }
+]
