@@ -22,4 +22,11 @@ Learnings (dated):
   features pull reqwest (remote $ref resolving) — `default-features = false` suffices
   for local schema docs. `tokio::time::pause`/`start_paused` needs the `test-util`
   feature (dev-dependency).
+- 2026-07-04: constants under the unwrap ban — `NaiveDate::from_ymd_opt` is const-evaluable:
+  `const D: NaiveDate = match NaiveDate::from_ymd_opt(..) { Some(d) => d, None => panic!("..") };`
+  proves the date at compile time (const panic is not clippy::unwrap_used/expect_used).
+  Related pedantic trap: `similar_names` denies close bindings (`stats`/`status`, `args`/`argv`).
+- 2026-07-04: `#[derive(sqlx::FromRow)]` maps INT4→u32 fields via `#[sqlx(try_from = "i32")]`;
+  a non-core crate can host `#[sqlx::test]` suites with dev-dep `sqlx { features = ["macros",
+  "migrate", ...] }` (pattern: pipeline's e2e drives us_house via the legal dev-dep cycle).
 Write-back: deepen this file when the procedure teaches you something; same PR.

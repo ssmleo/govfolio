@@ -7,12 +7,19 @@ use std::io::Read as _;
 
 use anyhow::Context as _;
 
-/// One index `Member` row (only the fields discovery needs).
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// One index `Member` row: the fields discovery needs plus the name parts
+/// roster seeding uses (design §5.4: rosters from official member lists —
+/// this index IS the Clerk's member list).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) struct IndexMember {
     pub(crate) doc_id: String,
     pub(crate) filing_type: String,
     pub(crate) year: String,
+    pub(crate) prefix: String,
+    pub(crate) first: String,
+    pub(crate) last: String,
+    pub(crate) suffix: String,
+    pub(crate) state_dst: String,
 }
 
 /// `https://…/financial-pdfs/{year}FD.zip` (regime doc §1).
@@ -50,16 +57,14 @@ pub(crate) fn parse_index_xml(xml: &str) -> anyhow::Result<Vec<IndexMember>> {
     let mut members = Vec::new();
     let mut in_member = false;
     let mut field: Option<String> = None;
-    let (mut doc_id, mut filing_type, mut year) = (String::new(), String::new(), String::new());
+    let mut member = IndexMember::default();
     loop {
         match reader.read_event().context("reading index XML")? {
             Event::Start(start) => {
                 let name = String::from_utf8_lossy(start.name().as_ref()).into_owned();
                 if name == "Member" {
                     in_member = true;
-                    doc_id.clear();
-                    filing_type.clear();
-                    year.clear();
+                    member = IndexMember::default();
                 } else if in_member {
                     field = Some(name);
                 }
@@ -67,22 +72,26 @@ pub(crate) fn parse_index_xml(xml: &str) -> anyhow::Result<Vec<IndexMember>> {
             Event::Text(text) => {
                 if let Some(name) = &field {
                     let value = String::from_utf8_lossy(text.as_ref());
-                    match name.as_str() {
-                        "DocID" => doc_id.push_str(value.trim()),
-                        "FilingType" => filing_type.push_str(value.trim()),
-                        "Year" => year.push_str(value.trim()),
-                        _ => {}
+                    let target = match name.as_str() {
+                        "DocID" => Some(&mut member.doc_id),
+                        "FilingType" => Some(&mut member.filing_type),
+                        "Year" => Some(&mut member.year),
+                        "Prefix" => Some(&mut member.prefix),
+                        "First" => Some(&mut member.first),
+                        "Last" => Some(&mut member.last),
+                        "Suffix" => Some(&mut member.suffix),
+                        "StateDst" => Some(&mut member.state_dst),
+                        _ => None,
+                    };
+                    if let Some(target) = target {
+                        target.push_str(value.trim());
                     }
                 }
             }
             Event::End(end) => {
                 if end.name().as_ref() == b"Member" {
                     in_member = false;
-                    members.push(IndexMember {
-                        doc_id: doc_id.clone(),
-                        filing_type: filing_type.clone(),
-                        year: year.clone(),
-                    });
+                    members.push(member.clone());
                 } else {
                     field = None;
                 }
@@ -117,10 +126,16 @@ mod tests {
                 doc_id: "20020055".to_owned(),
                 filing_type: "P".to_owned(),
                 year: "2026".to_owned(),
+                prefix: "Hon.".to_owned(),
+                first: "Nicholas".to_owned(),
+                last: "Begich".to_owned(),
+                suffix: String::new(),
+                state_dst: "AK00".to_owned(),
             }
         );
         assert_eq!(members[1].filing_type, "W");
         assert_eq!(members[1].doc_id, "8068");
+        assert_eq!(members[1].state_dst, "", "blank W-row fields tolerated");
     }
 
     #[test]

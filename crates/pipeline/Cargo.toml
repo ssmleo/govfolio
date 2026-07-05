@@ -21,9 +21,15 @@ serde = { version = "1.0.228", features = ["derive"] }
 serde_json = { version = "1.0.150", features = ["float_roundtrip"] }
 sha2 = "0.11.0"
 similar = "3.1.1"
-sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres"] }
+rust_decimal = "1.42.1"
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "chrono", "rust_decimal", "json"] }
 tokio = { version = "1.52.3", features = ["rt", "macros", "time", "sync"] }
+ulid = "1.2.1"
 
 [dev-dependencies]
 fixture_fake = { path = "../adapters/fixture_fake" }
+# Dev-dep cycle (pipeline -> us_house -> pipeline) is legal: the e2e runner
+# test drives the real adapter end to end.
+us_house = { path = "../adapters/us_house" }
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros"] }
 tokio = { version = "1.52.3", features = ["test-util", "macros", "time", "rt"] }

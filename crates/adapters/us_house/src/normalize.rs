@@ -34,20 +34,37 @@ const CONFORMANCE_POLITICIANS: &[(&str, &str)] = &[
     ("Hon. Nancy Pelosi|CA11", "0HSEMBR0000000000000000004"),
 ];
 
+/// Identity binding mode (plan Task 9, closing the T8c seam).
+///
+/// Conformance runs (`pool: None`) emit the fixed MANIFEST ULID constants the
+/// fixtures pin. Pool-backed runs emit UNBOUND identity (nil ULIDs): the
+/// runner's publish stage binds real ids resolved from Postgres (roster
+/// lookup + `(regime_id, external_id)` filing dedup). A placeholder can never
+/// reach Gold — publish overwrites unconditionally, and the FK constraints
+/// reject a nil id if a bug ever let one through.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IdentityMode {
+    Conformance,
+    Unbound,
+}
+
+/// Nil ULID: the "identity not yet bound" marker for pool-backed runs.
+const UNBOUND_ID: &str = "00000000000000000000000000";
+
 /// Normalizes staged rows into Gold candidates.
 pub(crate) fn normalize_rows(
     rows: &[StagingRow],
     ctx: &RunCtx,
 ) -> anyhow::Result<Vec<GoldCandidate>> {
-    anyhow::ensure!(
-        ctx.pool.is_none(),
-        "us_house roster/filing resolution against Postgres arrives with plan Task 9; \
-         only conformance mode (pool: None) is wired — fail closed"
-    );
-    rows.iter().map(normalize_row).collect()
+    let mode = if ctx.pool.is_some() {
+        IdentityMode::Unbound
+    } else {
+        IdentityMode::Conformance
+    };
+    rows.iter().map(|row| normalize_row(row, mode)).collect()
 }
 
-fn normalize_row(staged: &StagingRow) -> anyhow::Result<GoldCandidate> {
+fn normalize_row(staged: &StagingRow, mode: IdentityMode) -> anyhow::Result<GoldCandidate> {
     let row: SilverRow = serde_json::from_value(staged.payload.clone())
         .context("silver payload is not a us_house staging row")?;
 
@@ -108,12 +125,25 @@ fn normalize_row(staged: &StagingRow) -> anyhow::Result<GoldCandidate> {
         signed_date,
     };
 
+    let (filing_id, politician_id, regime_id) = match mode {
+        IdentityMode::Conformance => (
+            conformance_filing_id(&row.doc_id)?,
+            conformance_politician_id(&row.filer_name_raw, &row.state_district_raw)?,
+            CONFORMANCE_REGIME_ID
+                .parse::<RegimeId>()
+                .map_err(|e| anyhow::anyhow!("conformance regime id: {e}"))?,
+        ),
+        IdentityMode::Unbound => (
+            unbound_id::<FilingId>("filing")?,
+            unbound_id::<PoliticianId>("politician")?,
+            unbound_id::<RegimeId>("regime")?,
+        ),
+    };
+
     Ok(GoldCandidate {
-        filing_id: conformance_filing_id(&row.doc_id)?,
-        politician_id: conformance_politician_id(&row.filer_name_raw, &row.state_district_raw)?,
-        regime_id: CONFORMANCE_REGIME_ID
-            .parse::<RegimeId>()
-            .map_err(|e| anyhow::anyhow!("conformance regime id: {e}"))?,
+        filing_id,
+        politician_id,
+        regime_id,
         instrument_id: None, // resolution waterfall is design §5.4; never guess
         asset_description_raw: row.asset_raw.clone(),
         record_type: RecordType::Transaction,
@@ -151,8 +181,19 @@ fn band_interval(amount_raw: &str) -> anyhow::Result<ValueInterval> {
 }
 
 /// `MM/DD/YYYY` as printed → [`NaiveDate`].
-fn parse_mdy(raw: &str) -> anyhow::Result<NaiveDate> {
+pub(crate) fn parse_mdy(raw: &str) -> anyhow::Result<NaiveDate> {
     NaiveDate::parse_from_str(raw, "%m/%d/%Y").with_context(|| format!("unparseable date {raw:?}"))
+}
+
+/// Nil-ULID placeholder for a not-yet-bound identity field (see
+/// [`IdentityMode::Unbound`]).
+fn unbound_id<T: std::str::FromStr>(what: &str) -> anyhow::Result<T>
+where
+    T::Err: std::fmt::Display,
+{
+    UNBOUND_ID
+        .parse()
+        .map_err(|e: T::Err| anyhow::anyhow!("unbound {what} id: {e}"))
 }
 
 /// Conformance filing ULID: prefix + `DocID` zero-padded to 19 (MANIFEST rule).
@@ -210,6 +251,46 @@ mod tests {
     #[test]
     fn unknown_filers_are_refused_not_guessed() {
         assert!(conformance_politician_id("Hon. Nobody", "ZZ99").is_err());
+    }
+
+    #[test]
+    fn pool_backed_mode_emits_unbound_identity_for_any_filer() {
+        // Not in the conformance table on purpose: pool-backed runs must not
+        // consult it — the runner binds identities from Postgres instead.
+        let staged = StagingRow {
+            payload: serde_json::json!({
+                "doc_id": "20099999",
+                "row_ordinal": 1,
+                "filer_name_raw": "Hon. Someone Unknown",
+                "filer_status_raw": "Member",
+                "state_district_raw": "ZZ99",
+                "row_id_raw": null,
+                "owner_code_raw": null,
+                "asset_raw": "Example Corp (EX) [ST]",
+                "asset_type_code_raw": "ST",
+                "transaction_type_raw": "P",
+                "transaction_date_raw": "05/13/2026",
+                "notification_date_raw": "05/13/2026",
+                "amount_raw": "$1,001 - $15,000",
+                "cap_gains_over_200": null,
+                "filing_status_raw": "New",
+                "subholding_of_raw": null,
+                "description_raw": null,
+                "comments_raw": null,
+                "vehicle_owner_code_raw": null,
+                "vehicle_location_raw": null,
+                "signed_date_raw": "06/12/2026",
+                "extractor": "us_house_ptr/text@1"
+            }),
+            confidence: 0.98,
+        };
+        let candidate = normalize_row(&staged, IdentityMode::Unbound).unwrap();
+        assert_eq!(candidate.filing_id.to_string(), UNBOUND_ID);
+        assert_eq!(candidate.politician_id.to_string(), UNBOUND_ID);
+        assert_eq!(candidate.regime_id.to_string(), UNBOUND_ID);
+        assert_eq!(candidate.fingerprint, None, "computed at publish");
+        // Conformance mode still refuses unknown filers (fixtures contract).
+        assert!(normalize_row(&staged, IdentityMode::Conformance).is_err());
     }
 
     #[test]

@@ -1,0 +1,15 @@
+[package]
+name = "worker"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1.0.103"
+core = { version = "0.1.0", path = "../core" }
+pipeline = { version = "0.1.0", path = "../pipeline" }
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
+us_house = { version = "0.1.0", path = "../adapters/us_house" }

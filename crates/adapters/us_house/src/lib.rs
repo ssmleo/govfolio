@@ -7,11 +7,13 @@
 //! `crates/adapters/us_house/fixtures/MANIFEST.json`.
 
 pub mod adapter;
+pub mod binding;
 pub mod details;
 pub mod extractor;
 pub(crate) mod index;
 pub(crate) mod normalize;
 pub(crate) mod parse;
+pub mod seed;
 pub(crate) mod tables;
 
 pub use adapter::UsHouseAdapter;

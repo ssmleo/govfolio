@@ -136,8 +136,15 @@ impl BronzeStore {
     /// # Errors
     /// Unknown address or I/O failure.
     pub fn get(&self, doc: &RawDocRef) -> anyhow::Result<Vec<u8>> {
-        let path = self.root.join(&doc.sha256);
+        let path = self.path(doc);
         std::fs::read(&path).with_context(|| format!("reading bronze doc {}", path.display()))
+    }
+
+    /// Local filesystem address of a document (`raw_document.storage_uri`
+    /// records it; object storage arrives later behind this same shape).
+    #[must_use]
+    pub fn path(&self, doc: &RawDocRef) -> PathBuf {
+        self.root.join(&doc.sha256)
     }
 }
 

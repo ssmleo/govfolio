@@ -127,6 +127,26 @@ Evidence citations `E1..E12` refer to the Evidence log at the bottom. All retrie
    between requests to the host; exponential backoff on 429/5xx; no robots.txt
    exists (E11) so these self-imposed limits govern.
 
+### 2.5 Roster seeding + politician resolution (Task 9, 2026-07-04)
+
+- Rosters seed from THIS index's `Member` data (design §5.4: official member
+  lists): `politician.canonical_name = "First Last Suffix"`, as-filed
+  `politician_alias = "Prefix First Last Suffix"`, one `mandate` on
+  (`US House`, `StateDst`) with `start_date = Jan 1 of index Year` — an
+  index-attested "active since at least" bound, NOT tenure start (Wikidata
+  refinement is a later goal). Offline runs seed from the archived E1 slice
+  (`docs/regimes/us-house/evidence/`); live runs use the same parser on the zip.
+- Alias assembly verified: `Prefix First Last Suffix` equals the PDF `Name:`
+  header VERBATIM on all four fixtures (incl. `Hon. Nicholas Begich III` with
+  Suffix, `Hon. Lloyd K. Smucker` with middle initial in `First`).
+- Resolution (pipeline runner, publish stage): exact alias + `(body, district)`
+  join; anything but exactly one hit fails closed — `review_task
+  reason = "unresolved_filer"` (target `us_house:<DocID>`), no filing row, no
+  Gold rows (invariant 3). Prefix-blank members (§2.2) resolve on their
+  prefix-less alias or fail closed the same way.
+- `filing.filed_date` = the PDF `Digitally Signed:` date (filer-claimed; §2.2:
+  equals index `FilingDate` on all samples). `filing.external_id = DocID`.
+
 ## 3. Document anatomy (electronic PTR)
 
 Layout identical across all 5 fetched documents (E4–E8), 1–2 pages:
@@ -274,12 +294,20 @@ otherwise** (E7, E9): PTR amendments are FilingType `P` documents with a new Doc
   the §7 promotion machinery (Task 11), never by guessed matching.
 - If a future evidence pass shows amended `row_id`s matching ids that eFD exposes
   elsewhere, upgrade this rule here first (SAF-first discipline).
+- IMPLEMENTED (Task 9, 2026-07-04): the publish stage opens one
+  `ptr_amendment_unlinked` task per NEWLY INSERTED record whose
+  `details.filing_status_raw = "Amended"` (gated on the Gold insert, so
+  idempotent replays cannot duplicate tasks). Supersession itself remains
+  Task 11.
 
 ## 4. Silver contract — `StagingRow` (stg_us_house)
 
 Source-faithful; verbatim strings, no normalization, no entity resolution. This is
 the shape `expected.silver.json` asserts (array of rows, document order).
 `null` = absent in source. test-designer authors against THIS table, not parser code.
+DDL: `crates/core/migrations/0002_silver_us_house.sql` (Task 9) — plus linkage
+columns `id`, `raw_document_id`, `created_at` and dedup key
+`unique (raw_document_id, row_ordinal)`; `stg_meta` carries run linkage.
 
 | Field | Type | Req | Content (verbatim unless noted) |
 |---|---|---|---|

@@ -11,7 +11,7 @@ docker compose up -d && cargo test --workspace -- --ignored
 ```
 
 ## Checklist
-- [x] T1 workspace  - [x] T2 CI  - [x] T3 migrations  - [x] T4 domain  - [x] T5 DDL  - [x] T6 fingerprint  - [x] T7 conformance  - [ ] T8 us_house  - [ ] T9 pipeline  - [ ] T10 /v1  - [ ] T11 promote
+- [x] T1 workspace  - [x] T2 CI  - [x] T3 migrations  - [x] T4 domain  - [x] T5 DDL  - [x] T6 fingerprint  - [x] T7 conformance  - [ ] T8 us_house  - [x] T9 pipeline  - [ ] T10 /v1  - [ ] T11 promote
 
 ## BLOCKED (human)
 - ~~fixture expected.*.json completion is human ground truth (plan Task 8)~~
@@ -65,6 +65,21 @@ docker compose up -d && cargo test --workspace -- --ignored
     snapshots never landed under docs/regimes/us-house/evidence/ despite the §8
     same-PR note (only the index slice did) — hygiene gap for a future pass, pins
     remain sha256-re-verifiable.
+
+## T9 progress (2026-07-04)
+- [x] T9 local pipeline runner, end-to-end idempotent (rust-builder)
+  - pipeline: `run.rs` (Runner + RunnerBinding seam; §5.1 adapter trait untouched) +
+    `stages/{pipeline_run,ingest,seed,roster,publish}.rs`; migration 0002
+    (stg_us_house + stg_meta, expand-only, guardrail green); worker `local` bin
+    (offline, fixtures + evidence-slice roster, no network).
+  - T8c seam closed: us_house normalize pool=Some emits unbound (nil-ULID) identity;
+    publish binds roster-resolved politician + (regime_id, external_id)-deduped filing,
+    computes fingerprint via core::fingerprint, writes Gold unverified + outbox_event
+    SAME TXN + §3.7 amendment tasks; unresolved filer = review_task, no Gold row.
+  - Evidence: e2e_local 3/3 green on PG (second run inserts nothing across all 15
+    tables; forced publish replay inserts nothing; publish rollback atomic).
+    Local bin run 1: 4 published / 12 gold / 12 outbox / 1 review task;
+    run 2: 4 replayed / 0 inserted. Conformance still 4/4; fmt/clippy/test green.
 
 ## Environment note (2026-07-04)
 Host has no Docker/admin: acceptance line `docker compose up -d` is satisfied by portable
