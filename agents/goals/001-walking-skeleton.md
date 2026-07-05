@@ -11,7 +11,7 @@ docker compose up -d && cargo test --workspace -- --ignored
 ```
 
 ## Checklist
-- [x] T1 workspace  - [x] T2 CI  - [x] T3 migrations  - [x] T4 domain  - [x] T5 DDL  - [x] T6 fingerprint  - [x] T7 conformance  - [ ] T8 us_house  - [x] T9 pipeline  - [x] T10 /v1  - [ ] T11 promote
+- [x] T1 workspace  - [x] T2 CI  - [x] T3 migrations  - [x] T4 domain  - [x] T5 DDL  - [x] T6 fingerprint  - [x] T7 conformance  - [ ] T8 us_house  - [x] T9 pipeline  - [x] T10 /v1  - [x] T11 promote
 
 ## BLOCKED (human)
 - ~~fixture expected.*.json completion is human ground truth (plan Task 8)~~
@@ -102,6 +102,26 @@ docker compose up -d && cargo test --workspace -- --ignored
   - Evidence: workspace 73 passed; ignored sqlx suites 9/9 on PG 5433;
     conformance us_house 4/4; fmt/clippy -D warnings green; regen sha stable
     across double emit.
+
+## T11 progress (2026-07-04)
+- [x] T11 verification promotion + supersession (rust-builder)
+  - pipeline: `promote.rs` — `resolve_review_task(pool, task_id, Verdict)` in ONE txn
+    (task row locked `for update`; non-open task → `AlreadyResolved` no-op).
+    Confirm = THE sanctioned UPDATE (`verification_state` only, guarded
+    `unverified → 'verified'`); Edit = ZERO UPDATEs — INSERTs superseding row
+    (`'corrected'`, `supersedes_record_id` set, correction-namespaced fingerprint
+    `correction:<original_id>`, identity pinned from original, details contract +
+    domain validation re-checked) + `disclosure_record.corrected` outbox SAME TXN;
+    Reject = `unverified → 'disputed'` (DDL vocabulary: reviewer adjudicated,
+    no correction available — 'unverified' would claim nobody looked).
+    Conflicting adjudication (record no longer unverified) fails closed, txn rolls
+    back, task stays open.
+  - Evidence: promote suite 3/3 green on PG (confirm flip + idempotent replay;
+    edit: original row `d::text` byte-identical before/after across ALL columns,
+    superseding row corrected facts + new fingerprint, one outbox event,
+    contract-violating edit rolls back whole; reject disputes). Full block green:
+    fmt/clippy -D warnings, workspace 73 passed, conformance us_house 4/4,
+    ignored sqlx suites 12/12.
 
 ## Environment note (2026-07-04)
 Host has no Docker/admin: acceptance line `docker compose up -d` is satisfied by portable

@@ -164,8 +164,9 @@ fn bind_identity(
 }
 
 /// Serializes a closed-vocabulary value to its wire token (the SQL CHECK
-/// literal — one rule, two enforcers).
-fn wire<T: Serialize>(value: &T) -> anyhow::Result<String> {
+/// literal — one rule, two enforcers). Shared with `promote` (the superseding
+/// insert speaks the same vocabulary).
+pub(crate) fn wire<T: Serialize>(value: &T) -> anyhow::Result<String> {
     match serde_json::to_value(value).context("serializing wire token")? {
         serde_json::Value::String(s) => Ok(s),
         other => anyhow::bail!("expected a string wire token, got {other}"),
