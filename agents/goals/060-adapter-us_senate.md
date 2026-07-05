@@ -15,7 +15,13 @@ cargo run -p pipeline --bin conformance -- us_senate
 ```
 
 ## Checklist
-- [ ] regime doc  - [ ] fixtures  - [ ] expected (human)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
+- [x] regime doc (2026-07-05, spec leg: docs/regimes/us_senate.md + evidence archived same commit under docs/regimes/us_senate/evidence/; fixture pins + pinning rule in its §7)  - [ ] fixtures  - [ ] expected (auto, see below)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
 
 ## BLOCKED (human)
-- expected.*.json completion
+- ~~expected.*.json completion~~ SUPERSEDED 2026-07-05 by docs/decisions/automation-policy.md
+  ("FIXTURE expected outputs … auto-resolved"): test-designer authors expected.silver.json /
+  expected.gold.json independently (high-confidence extraction + second-model cross-check);
+  records publish `unverified` and flow to the sampling-audit queue. Step 3 of the template
+  above reads accordingly. No human gate remains on this goal.
+- NOTE (fetch design, not a gate): eFD's bot manager 403s non-browser TLS fingerprints on
+  view-page GETs — see docs/regimes/us_senate.md §2.5 before building `fetch`.

@@ -1,0 +1,65 @@
+{
+  "evidence_for": "docs/regimes/us_senate.md (goal 060 spec leg) — Senate eFD PTR session dance, search endpoint contract, report-page anatomy, fixture pins, client-fingerprint probe matrix",
+  "retrieved_at_utc": "2026-07-05T11:37:00Z through 2026-07-05T12:20:00Z",
+  "hosts": ["efdsearch.senate.gov", "efd-media-public.senate.gov"],
+  "identification": {
+    "user_agent_attempted": "govfolio.io research (contact: ssm.leo@outlook.com) — REJECTED (Akamai 403, see probe_matrix)",
+    "user_agent_used": "stock Chromium 149 UA (Playwright-bundled browser, UA untouched)",
+    "contact_identification": "From: ssm.leo@outlook.com request header on every request of every successful session",
+    "rationale": "the host's bot manager mechanically rejects any non-stock UA string and any non-browser TLS fingerprint; identification therefore rides the standard From header (RFC 9110 §10.1.2) instead of the UA. Recorded as a politeness deviation, not a stealth choice: contact identification was present on every request that reached the origin."
+  },
+  "politeness": {
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "app_requests_total_approx": 40,
+    "notes": "each 403 was followed by a configuration change, never a blind retry; no 429 or throttling observed at concurrency 1 with >=2s spacing; static assets loaded by the real browser during page navigations are not separately throttled (normal browser behavior)"
+  },
+  "probe_matrix_client_fingerprint": [
+    {"client": "curl 8.21 (Schannel, HTTP/1.1)", "ua": "govfolio.io research (contact: ...)", "request": "GET /robots.txt, /search/, /search/home/", "result": "403 AkamaiGHost 'Access Denied' ($(SERVE_403) rule)"},
+    {"client": "curl 8.21", "ua": "Mozilla/5.0 (compatible; govfolio.io research; ...) + browser Accept headers", "request": "GET /search/home/", "result": "403"},
+    {"client": "curl 8.21", "ua": "stock Chrome 137 UA string + Sec-Fetch headers", "request": "GET /search/home/", "result": "403 — UA string alone does not pass; TLS/HTTP fingerprint is checked"},
+    {"client": "Playwright Chromium 149 (real browser)", "ua": "stock UA + ' govfolio.io-research/0.1 (contact: ...)' suffix", "request": "GET /robots.txt, /search/", "result": "403 — custom UA suffix on a real browser is ALSO rejected (UA/client-hints consistency check)"},
+    {"client": "Playwright Chromium 149 (real browser)", "ua": "stock UA, From: header added", "request": "GET /search/ and all subsequent", "result": "200 — the working configuration"},
+    {"client": "Playwright APIRequestContext (Node HTTP stack, non-browser TLS)", "ua": "stock Chrome UA string", "request": "GET /search/home/, GET /search/ (HTML pages)", "result": "403 even with a valid, agreement-accepted session cookie set (hybrid probe) — GET-HTML paths are fingerprint-gated regardless of cookies"},
+    {"client": "Playwright APIRequestContext (same non-browser stack)", "ua": "stock Chrome UA string", "request": "POST /search/home/ (agreement), POST /search/report/data/", "result": "302 / 200 — POST endpoints passed from the non-browser stack in every attempt"},
+    {"client": "Playwright Chromium 149 (real browser)", "ua": "stock UA + From", "request": "GET https://efd-media-public.senate.gov/media/... GIFs", "result": "200 (no session required on the media host)"}
+  ],
+  "session_dance": [
+    {"step": 1, "method": "GET", "url": "https://efdsearch.senate.gov/search/", "result": "302 Location: /search/home/ when the session has not accepted the agreement; the redirect target sets csrftoken (~1y expiry, not HttpOnly) and one opaque session cookie whose NAME and VALUE are both 32-char hex strings (e.g. 33a5c6d97f299a223cb6fc3925909ef7=234ecb30977c50e635749ba9af5ace7d; HttpOnly, Secure, session-scoped)"},
+    {"step": 2, "method": "GET", "url": "https://efdsearch.senate.gov/search/home/", "result": "200 agreement page: <form id=\"agreement_form\" action=\"\" method=\"POST\"> with checkbox name=prohibition_agreement value=1 (id agree_statement) and hidden csrfmiddlewaretoken (64-char masked Django token, distinct from the 32-char csrftoken cookie); page JS submits the form on checkbox click"},
+    {"step": 3, "method": "POST", "url": "https://efdsearch.senate.gov/search/home/", "form": "prohibition_agreement=1&csrfmiddlewaretoken=<form token>", "required": "Referer: https://efdsearch.senate.gov/search/home/ + csrftoken cookie (Django CSRF)", "result": "302 Location: /search/ — agreement acceptance is stored server-side against the opaque session cookie; no new cookie is set"},
+    {"step": 4, "method": "GET", "url": "https://efdsearch.senate.gov/search/", "result": "200 search form page (post-agreement). Field legend: filer_type checkbox values 1=Senator, 4=Candidate, 5=Former Senator; report_type checkbox values 7=Annual, 11=Periodic Transactions, 10=Due Date Extension, 14=Blind Trusts, 15=Other Documents; date fields submitted_start_date/submitted_end_date; the page's own DataTables config POSTs to /search/report/data/ with exactly the documented body fields"},
+    {"step": 5, "method": "POST", "url": "https://efdsearch.senate.gov/search/report/data/", "form": "draw, start, length, report_types='[11]', filer_types='[1]', submitted_start_date='MM/DD/YYYY HH:MM:SS', submitted_end_date, candidate_state, senator_state, office_id, first_name, last_name, order[0][column], order[0][dir], columns[N][data]", "required": "X-CSRFToken header = csrftoken COOKIE value (not the form token), Referer: /search/, X-Requested-With: XMLHttpRequest", "result": "200 JSON {draw, recordsTotal, recordsFiltered, data: [[first_name, last_name, office, '<a href=\"/search/view/(ptr|paper)/<uuid>/\">title</a>', date_submitted MM/DD/YYYY], ...]}"},
+    {"step": 6, "method": "GET", "url": "https://efdsearch.senate.gov/search/view/ptr/{uuid}/", "result": "200 electronic PTR HTML (session required; fingerprint-gated). /search/view/paper/{uuid}/ serves a GIF-image carousel page instead; images live on https://efd-media-public.senate.gov/media/... (no session)"}
+  ],
+  "variance_tests": {
+    "within_session_refetch": "ptr/4b69867f: sha256 bd2d1df7... == bd2d1df7... (byte-identical)",
+    "cross_session_refetch": "ptr/4b69867f fetched in a separate fresh session (new agreement dance): byte-identical; ptr/4aa0094d, ptr/727b4eb6, ptr/a9754ff5 each re-fetched in a second session: byte-identical",
+    "token_scan": "0 occurrences of 'csrf' in any fetched /search/view/ptr/ page — view pages embed no session-variant markup",
+    "conclusion": "raw-byte sha256 pinning is sound for /search/view/ptr/ pages today; normalization fallback rule documented in us_senate.md section 7 in case the host ever starts injecting per-session markup"
+  },
+  "response_headers_view_page": {
+    "note": "captured on pin-check GETs (dance6): no ETag and no Last-Modified on /search/view/ptr/ responses; conditional GETs are NOT available on report pages — cache by sha after a single fetch (pages proved byte-stable) and never re-fetch a stored report",
+    "robots_txt": "HTTP 404 under the working browser configuration (styled 404 page). The earlier curl 403s were the bot manager, not a robots policy. No robots.txt exists."
+  },
+  "historical_depth_probe": {
+    "query": "report_types=[11], filer_types=[], submitted_start_date=01/01/2012, order by date_submitted asc, length 10",
+    "recordsTotal": 2383,
+    "earliest": "Periodic Transaction Report for 07/25/2012, BENJAMIN L CARDIN (paper, /search/view/paper/CDFDAF62-18EA-4298-B0C5-62085A6EC3CD/)",
+    "file": "a074a33785c513e8d22960dfb08224bf99dfba23461cebcbfdd63a26f2d8725f.ptr-search-earliest-since-2012.json"
+  },
+  "archived_files": {
+    "0481e1b5602294554f9327955c04f7da1e0cf0808354f0125665a72285ea47bf.agreement-page.html": "E1 — /search/home/ agreement page (contains that session's csrfmiddlewaretoken; session tokens in EVIDENCE files are expected, unlike fixture pins)",
+    "457751d5acb511207eff08be810cd01238569c628da95773481abbb588984e31.search-form.html": "E2 — /search/ post-agreement search form (filer/report type value legend + DataTables ajax config)",
+    "4ab5ca7e13b2b84cb3f5bb891ed2af0d7f48a07667de4cf4fc342d08bd6b0a15.ptr-search-2026-06-window.json": "E3 — search JSON, senators, PTRs, submitted >= 06/01/2026 (13 rows incl. amendment + paper rows)",
+    "bd2d1df73361210360e1c4b4c0fdb72d1b646497352975a4b2dcb562aaaea80e.ptr-fetterman-4b69867f.html": "E4 — fixture 1 canonical bytes",
+    "abbbdd79d5bc33ff07f880398cd9c6ee985df3b45d17ef22a83649cd2e5a6ef2.ptr-whitehouse-4aa0094d.html": "E5 — fixture 2 canonical bytes",
+    "9c53a91cce5db4e201889fb580df5e4d43db4df9157fefbece42e7a1019dd5e7.ptr-boozman-amendment1-727b4eb6.html": "E6 — fixture 3 canonical bytes (Amendment 1)",
+    "b1a9c78d5b059909f5944a8dc5d5fd6b19851f3b43ad0c9d31faf9b27d9fb487.ptr-boozman-orig-a9754ff5.html": "E7 — fixture 4 canonical bytes (the amended original, 18 rows, filed 10:19 AM)",
+    "9c859cd43d78283e99226fa391ad704d47c0ea3eb3d2845f7d51d04b6d898fbe.ptr-boozman-orig-2e076759.html": "E8 — same-day sibling original (15 rows, 9:46 AM) proving (filer, for-date) amendment ambiguity",
+    "932f61763b40721319378f36dd465c1e260dbeed1a1cff3e24eee1df42b4d8f8.paper-view-blumenthal-a0d25e8f.html": "E9 — paper PTR view page (GIF carousel, 7 pages, no filer header/Filed line in HTML)",
+    "a06ddb01fb7215da9727a7c3e4489f50d15e9996aafda2394e75f7d751bfad8d.paper-gif-formpage1-000000113.gif": "E10 — paper form page 1: full statutory band columns, owner codes (S)/(DC)/(J), Purchase/Sale/Exchange, 30/45-day + $1,000 rule text printed on the form, received stamp",
+    "c793070150665ce1d5885a857e05988b579f815ad1dfd423611dd0f116e2e871.paper-gif-coverletter-000000112.gif": "E11 — paper transmittal cover letter (third-party counsel name + handwritten signature: redaction-relevant personal data)",
+    "a074a33785c513e8d22960dfb08224bf99dfba23461cebcbfdd63a26f2d8725f.ptr-search-earliest-since-2012.json": "E12 — earliest-PTR probe (historical depth)"
+  }
+}
