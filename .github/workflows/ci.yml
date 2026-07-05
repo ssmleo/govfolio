@@ -60,15 +60,14 @@ jobs:
       - uses: actions/checkout@v5
       - name: migrations expand-only
         run: sh scripts/check-migration-safety.sh crates/core/migrations
-      - name: terraform destroy-budget
-        env:
-          DESTROY_BUDGET: "2"
+      # CI has no cloud credentials by design, so the destroy-budget gate
+      # (plan + scripts/check-tf-plan.sh) runs fail-closed in deploy.yml immediately
+      # before ANY apply. Here: syntax + schema validation only (auth-free).
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - name: terraform fmt/validate
         run: |
-          if [ ! -d infra ]; then
-            echo "no infra/ yet (goal 020) — tf-plan guardrail inactive"
-            exit 0
-          fi
-          # infra/ landed: add hashicorp/setup-terraform + backend config above, then:
-          terraform -chdir=infra plan -out=tfplan
-          terraform -chdir=infra show -json tfplan > tfplan.json
-          sh scripts/check-tf-plan.sh tfplan.json
+          terraform -chdir=infra fmt -check
+          terraform -chdir=infra init -backend=false -input=false
+          terraform -chdir=infra validate

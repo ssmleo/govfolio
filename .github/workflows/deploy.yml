@@ -1,0 +1,107 @@
+name: deploy
+
+# Deploys ONLY after the `ci` workflow concludes GREEN on main (workflow_run gate;
+# checked again at job level), or on manual dispatch. Auth is Workload Identity
+# Federation — short-lived OIDC tokens, no service-account keys anywhere (runbook
+# non-negotiable). Until the founder finishes the bootstrap in docs/runbooks/deploy.md
+# (first apply creates the WIF pool + CI service accounts; then set the repo variables
+# GCP_WIF_PROVIDER / GCP_DEPLOY_SA / GCP_TF_SA / GCP_STATE_BUCKET), every job here
+# no-ops: fail closed = deploy nothing.
+
+on:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # WIF OIDC token minting
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false # never kill a terraform apply mid-flight
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID || 'govfolio' }}
+  REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    # CI-green gate: workflow_run fires on ANY conclusion; only success may proceed.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    outputs:
+      configured: ${{ steps.check.outputs.configured }}
+    steps:
+      - id: check
+        env:
+          WIF: ${{ vars.GCP_WIF_PROVIDER }}
+          DEPLOY_SA: ${{ vars.GCP_DEPLOY_SA }}
+          TF_SA: ${{ vars.GCP_TF_SA }}
+          STATE_BUCKET: ${{ vars.GCP_STATE_BUCKET }}
+        run: |
+          if [ -n "$WIF" ] && [ -n "$DEPLOY_SA" ] && [ -n "$TF_SA" ] && [ -n "$STATE_BUCKET" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::deploy not configured (WIF repo variables unset) — bootstrap per docs/runbooks/deploy.md. Fail closed: nothing deployed."
+          fi
+
+  terraform:
+    # Same guardrail chain as local/agent applies (automation-policy guardrail 2):
+    # plan -> scripts/check-tf-plan.sh (DESTROY_BUDGET, exit 1 halts the job) -> apply
+    # of THAT plan file only.
+    needs: preflight
+    if: needs.preflight.outputs.configured == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_TF_SA }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      - run: terraform -chdir=infra init -input=false -backend-config="bucket=${{ vars.GCP_STATE_BUCKET }}"
+      - run: terraform -chdir=infra plan -input=false -out=tfplan
+      - run: terraform -chdir=infra show -json tfplan > tfplan.json
+      - name: destroy-budget gate (fail closed)
+        env:
+          DESTROY_BUDGET: "2"
+        run: sh scripts/check-tf-plan.sh tfplan.json
+      - run: terraform -chdir=infra apply -input=false tfplan
+
+  deploy-services:
+    # Build with docker on the runner (Dockerfiles use cargo-chef layers for Rust —
+    # dependency caching without gcloud builds submit complexity), push to Artifact
+    # Registry, roll the Cloud Run revision. Terraform ignores image drift by design
+    # (infra/cloudrun.tf lifecycle.ignore_changes).
+    needs: terraform
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [api, worker, web]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v3
+      - name: build, push, deploy (skips until the service's Dockerfile lands)
+        run: |
+          DOCKERFILE="docker/${{ matrix.service }}.Dockerfile"
+          if [ ! -f "$DOCKERFILE" ]; then
+            echo "::notice::$DOCKERFILE not present yet (arrives with the service's goal) — skipping ${{ matrix.service }}"
+            exit 0
+          fi
+          IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/govfolio/${{ matrix.service }}:${{ github.sha }}"
+          gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
+          docker build -f "$DOCKERFILE" -t "$IMAGE" .
+          docker push "$IMAGE"
+          gcloud run deploy "govfolio-${{ matrix.service }}" \
+            --image "$IMAGE" --region "$REGION" --project "$PROJECT_ID" --quiet

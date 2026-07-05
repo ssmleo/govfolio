@@ -59,16 +59,70 @@ Over cap → halt. Any billing-affecting change (new services, larger tiers, egr
 
 A halt files a goal and the loop continues other work. Ambiguity is a halt, not a guess.
 
-## Deploy flow (target infra — goal `agents/goals/020-cloud-substrate.md`, design §3/§8)
+## Deploy flow (infra landed in goal `agents/goals/020-cloud-substrate.md`, design §3/§8)
 
-Terraform GCP: Cloud SQL PG (PITR), GCS bronze+exports (versioned), Cloud Run api/web/worker
-(scale-to-zero), Cloud Tasks per stage, Scheduler cadences, Secret Manager. GitHub Actions
-deploys on `main`; Cloudflare fronts DNS/CDN/WAF.
+Terraform GCP (`infra/`, region us-central1 — tier-1 pricing + closest to launch
+jurisdictions): Cloud SQL PG16 (PITR, IAM db auth, no passwords), GCS bronze+exports
+(versioned), Cloud Run api/web/worker (scale-to-zero, image drift ignored by terraform),
+Cloud Tasks per stage, Scheduler cadence stubs (created PAUSED), Secret Manager shells
+(values never in repo/state inputs). GitHub Actions deploys on `main` via
+`.github/workflows/deploy.yml`; Cloudflare fronts DNS/CDN/WAF.
 
 1. `terraform -chdir=infra fmt -check && terraform -chdir=infra validate`
 2. plan → `check-tf-plan.sh` → apply (within budget)
 3. Cloud Run deploy via `cloud-run` MCP or `gcloud run deploy`; verify `/health` + logs
 4. Secrets via Secret Manager only — never commit or echo secret values
+
+## Bootstrap (once per project — state bucket, ADC, first apply)
+
+> **HALT (interactive auth), recorded 2026-07-05 (goal 020):** the loop host has gcloud
+> user auth but NO Application Default Credentials; creating them is browser-interactive,
+> so agents must never attempt it. Founder runs, once:
+> `gcloud auth application-default login`
+> Until then every `terraform plan/apply` against the google provider fails with:
+> `Error: storage.NewClient() failed: dialing: credentials: could not find default credentials. See https://cloud.google.com/docs/authentication/external/set-up-adc for more information`
+> Agents hitting this: do NOT retry, do NOT create service-account keys — fail closed,
+> leave/refresh the halt note, continue other work.
+
+Chicken-egg: terraform state lives in GCS, but terraform can't create its own state
+bucket. The backend block in `infra/versions.tf` is therefore intentionally bucket-less;
+bootstrap in this order:
+
+```bash
+# 1. ADC (founder, interactive — see HALT above)
+gcloud auth application-default login
+
+# 2. State bucket, once, outside terraform (versioning = every apply recoverable)
+gcloud storage buckets create gs://govfolio-terraform-state --project=govfolio \
+  --location=us-central1 --uniform-bucket-level-access --public-access-prevention
+gcloud storage buckets update gs://govfolio-terraform-state --versioning
+
+# 3. Bind the backend (partial config — bucket name is deliberately not in the repo block)
+terraform -chdir=infra init -backend-config="bucket=govfolio-terraform-state"
+
+# 4. First apply, through the standard guardrail (billing note: creates Cloud SQL etc. —
+#    counts against the monthly HARD CAP)
+terraform -chdir=infra plan -out=tfplan
+terraform -chdir=infra show -json tfplan > tfplan.json
+DESTROY_BUDGET=2 scripts/check-tf-plan.sh tfplan.json
+terraform -chdir=infra apply tfplan
+
+# 5. Secret VALUES (never in repo/terraform; shells were created by the apply)
+printf '%s' "$DATABASE_URL" | gcloud secrets versions add database-url --data-file=-
+
+# 6. GitHub deploy auth (WIF — no keys): set repo VARIABLES from terraform output:
+#    GCP_WIF_PROVIDER  = output.wif_provider
+#    GCP_DEPLOY_SA     = output.deploy_service_account
+#    GCP_TF_SA         = output.terraform_service_account
+#    GCP_STATE_BUCKET  = govfolio-terraform-state
+#    (optional) GCP_PROJECT_ID / GCP_REGION if they ever differ from defaults
+# 7. Scheduler jobs are created PAUSED — unpause per tier as adapters pass conformance.
+```
+
+`deploy.yml` no-ops (fail closed, green) until step 6 is done; it then runs
+plan → `check-tf-plan.sh` → apply with `GCP_TF_SA`, and builds/deploys any service whose
+`docker/<svc>.Dockerfile` exists (cargo-chef layering lives in the Dockerfiles), gated on
+the `ci` workflow concluding green on `main`.
 
 ## Non-negotiables
 

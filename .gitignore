@@ -7,6 +7,14 @@ agents/loop.log
 # Environment
 .env
 
+# Terraform (lock file IS committed; local state/plans/providers are not)
+infra/.terraform/
+*.tfstate
+*.tfstate.*
+tfplan
+tfplan.json
+*.tfvars
+
 # IDE
 .idea/
 .vscode/
