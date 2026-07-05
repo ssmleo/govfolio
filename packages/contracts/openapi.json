@@ -359,10 +359,178 @@
         ],
         "type": "object"
       },
+      "FilingProvenance": {
+        "description": "Filing provenance: the source filing the record came from.",
+        "properties": {
+          "external_id": {
+            "description": "Source-native filing id when the source has one.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "filed_date": {
+            "description": "Date the filing was filed.",
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "Filing ULID.",
+            "type": "string"
+          },
+          "published_at": {
+            "description": "When the government made it public.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "InstrumentHit": {
+        "description": "One instrument hit.",
+        "properties": {
+          "asset_class": {
+            "description": "Asset class as stored.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Instrument ULID.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "name": {
+            "description": "Instrument display name.",
+            "type": "string"
+          },
+          "ticker": {
+            "description": "Exchange ticker when known.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "asset_class"
+        ],
+        "type": "object"
+      },
       "InstrumentId": {
         "description": "ULID (26-char Crockford base32, time-sortable)",
         "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
         "type": "string"
+      },
+      "Jurisdiction": {
+        "description": "One jurisdiction with its disclosure regimes — the scorecard row.",
+        "properties": {
+          "id": {
+            "description": "Stable jurisdiction id (ISO 3166-1 alpha-2 lowercase by convention).",
+            "type": "string"
+          },
+          "iso_code": {
+            "description": "ISO 3166-1 alpha-2 where applicable.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "level": {
+            "description": "`supranational` | `national` | `subnational`.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Display name.",
+            "type": "string"
+          },
+          "parent_id": {
+            "description": "Parent jurisdiction for subnational entries.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "regimes": {
+            "description": "Disclosure regimes of this jurisdiction, in id order — the\ntransparency-scorecard metadata (design §7.3).",
+            "items": {
+              "$ref": "#/components/schemas/Regime"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "level",
+          "regimes"
+        ],
+        "type": "object"
+      },
+      "Mandate": {
+        "description": "One mandate (Gold `mandate`): a role held in a jurisdiction body.",
+        "properties": {
+          "body": {
+            "description": "The body, e.g. `US House`.",
+            "type": "string"
+          },
+          "district": {
+            "description": "District code as filed, e.g. `PA11`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "end_date": {
+            "description": "Mandate end; `null` while active.",
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "Mandate ULID.",
+            "type": "string"
+          },
+          "jurisdiction_id": {
+            "description": "Jurisdiction of the body (`jurisdiction.id`, e.g. `us`).",
+            "type": "string"
+          },
+          "party": {
+            "description": "Party affiliation when known.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "role": {
+            "description": "Role held, e.g. `Representative`.",
+            "type": "string"
+          },
+          "start_date": {
+            "description": "Mandate start (roster-attested \"active since at least\" bound).",
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "jurisdiction_id",
+          "body",
+          "role",
+          "start_date"
+        ],
+        "type": "object"
       },
       "Owner": {
         "description": "`owner` CHECK: whose asset the record concerns. `self` is a Rust keyword,\nhence the `Self_` variant with an explicit wire rename.",
@@ -375,10 +543,187 @@
         ],
         "type": "string"
       },
+      "Politician": {
+        "description": "One politician (Gold `politician`, design §4.2).",
+        "properties": {
+          "canonical_name": {
+            "description": "Canonical person name (no honorific).",
+            "type": "string"
+          },
+          "id": {
+            "description": "Politician ULID (the pagination cursor).",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "wikidata_qid": {
+            "description": "Wikidata QID when linked.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "canonical_name"
+        ],
+        "type": "object"
+      },
       "PoliticianId": {
         "description": "ULID (26-char Crockford base32, time-sortable)",
         "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
         "type": "string"
+      },
+      "PoliticianPage": {
+        "description": "One page of politicians; the same `next_cursor` rule as `/v1/records`.",
+        "properties": {
+          "items": {
+            "description": "Politicians in ascending ULID order.",
+            "items": {
+              "$ref": "#/components/schemas/Politician"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass back as `cursor` to fetch the page after this one; `null` at the end.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "PoliticianProfile": {
+        "description": "A politician profile: the person, their mandates, and a record summary\n(the profile page's above-the-fold data, design §6.4).",
+        "properties": {
+          "canonical_name": {
+            "description": "Canonical person name (no honorific).",
+            "type": "string"
+          },
+          "id": {
+            "description": "Politician ULID.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "mandates": {
+            "description": "Mandates, most recent first.",
+            "items": {
+              "$ref": "#/components/schemas/Mandate"
+            },
+            "type": "array"
+          },
+          "records": {
+            "$ref": "#/components/schemas/RecordSummary",
+            "description": "Disclosure-record summary (count + event-date range)."
+          },
+          "wikidata_qid": {
+            "description": "Wikidata QID when linked.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "canonical_name",
+          "mandates",
+          "records"
+        ],
+        "type": "object"
+      },
+      "Provenance": {
+        "description": "Full provenance of one record: filing, archived raw document, and the\nregime it was filed under (with its methodology metadata).",
+        "properties": {
+          "filing": {
+            "$ref": "#/components/schemas/FilingProvenance",
+            "description": "The source filing."
+          },
+          "raw_document": {
+            "$ref": "#/components/schemas/RawDocumentProvenance",
+            "description": "Our archived copy of the official document."
+          },
+          "regime": {
+            "$ref": "#/components/schemas/Regime",
+            "description": "The disclosure regime the record was filed under."
+          }
+        },
+        "required": [
+          "filing",
+          "raw_document",
+          "regime"
+        ],
+        "type": "object"
+      },
+      "RawDocumentProvenance": {
+        "description": "Raw-document provenance: our archived copy of the official document\n(invariant 2: raw is sacred — official link + archived copy, design §7.3).",
+        "properties": {
+          "fetched_at": {
+            "description": "When we fetched the document.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "Raw document ULID.",
+            "type": "string"
+          },
+          "sha256": {
+            "description": "sha256 of the archived Bronze bytes (integrity + citability).",
+            "type": "string"
+          },
+          "source_url": {
+            "description": "Official source URL the document was fetched from.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "sha256",
+          "fetched_at"
+        ],
+        "type": "object"
+      },
+      "RecordDetail": {
+        "description": "One record with its trust surface (design §7.3): provenance plus the full\nsupersession history in both directions (invariant 1: corrections insert\nsuperseding rows, so history is a chain of records).",
+        "properties": {
+          "provenance": {
+            "$ref": "#/components/schemas/Provenance",
+            "description": "Where it came from."
+          },
+          "record": {
+            "$ref": "#/components/schemas/DisclosureRecord",
+            "description": "The record itself."
+          },
+          "superseded_by": {
+            "description": "Corrections that (transitively) supersede this one, ascending ULID.",
+            "items": {
+              "$ref": "#/components/schemas/DisclosureRecord"
+            },
+            "type": "array"
+          },
+          "supersedes": {
+            "description": "Records this one (transitively) supersedes — the corrected history,\nascending ULID (= insertion-time) order.",
+            "items": {
+              "$ref": "#/components/schemas/DisclosureRecord"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "record",
+          "provenance",
+          "supersedes",
+          "superseded_by"
+        ],
+        "type": "object"
       },
       "RecordFilter": {
         "description": "A conjunctive filter over `disclosure_record` (design §6.1 filter list:\njurisdiction, type, `asset_class`, instrument, politician, date range,\nvalue bounds, `verification_state`). Every field is optional; an empty\nfilter matches everything.\n\nValue-bound semantics: a record matches when its declared band\n`[value_low, value_high|∞]` OVERLAPS `[value_min, value_max]`; records\nwithout a declared value never match a value bound.",
@@ -502,6 +847,36 @@
         ],
         "type": "object"
       },
+      "RecordSummary": {
+        "description": "Aggregate summary of a politician's disclosure records.",
+        "properties": {
+          "count": {
+            "description": "Total records concerning the politician.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "first_event_date": {
+            "description": "Earliest `event_date` across those records.",
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_event_date": {
+            "description": "Latest `event_date` across those records.",
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "count"
+        ],
+        "type": "object"
+      },
       "RecordType": {
         "description": "`record_type` CHECK: the four observation types, one table (design D1).",
         "enum": [
@@ -511,6 +886,104 @@
           "change_notification"
         ],
         "type": "string"
+      },
+      "Regime": {
+        "description": "One disclosure regime — a jurisdiction body's disclosure rules and the\ntransparency-scorecard metadata (design §6.1/§7.3).",
+        "properties": {
+          "body": {
+            "description": "Disclosing body, e.g. `US House`.",
+            "type": "string"
+          },
+          "cadence": {
+            "description": "Free-form filing cadence description.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "disclosure_lag_days": {
+            "description": "Statutory maximum disclosure lag in days.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "effective_from": {
+            "description": "Date the regime's rules took effect.",
+            "format": "date",
+            "type": "string"
+          },
+          "effective_to": {
+            "description": "Date the rules stopped applying; `null` while current.",
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "Regime ULID (stable adapter constant).",
+            "type": "string"
+          },
+          "jurisdiction_id": {
+            "description": "Jurisdiction the regime belongs to (`jurisdiction.id`, e.g. `us`).",
+            "type": "string"
+          },
+          "regime_type": {
+            "description": "`transaction_report` | `periodic_declaration` | `change_notification`\n| `none`.",
+            "type": "string"
+          },
+          "source_url": {
+            "description": "Official source landing page.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value_precision": {
+            "description": "Value precision the regime discloses: `exact` | `banded` |\n`categorical` | `none`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "jurisdiction_id",
+          "body",
+          "regime_type",
+          "value_precision",
+          "effective_from"
+        ],
+        "type": "object"
+      },
+      "SearchResults": {
+        "description": "Typed search results: one arm per entity kind, each capped at 20 hits in\nid order.",
+        "properties": {
+          "instruments": {
+            "description": "Instruments whose name or ticker contains the query.",
+            "items": {
+              "$ref": "#/components/schemas/InstrumentHit"
+            },
+            "type": "array"
+          },
+          "politicians": {
+            "description": "Politicians whose canonical name or as-filed alias contains the query.",
+            "items": {
+              "$ref": "#/components/schemas/Politician"
+            },
+            "type": "array"
+          },
+          "query": {
+            "description": "The query as evaluated (trimmed).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "politicians",
+          "instruments"
+        ],
+        "type": "object"
       },
       "Side": {
         "description": "`side` CHECK: direction of a transaction.",
@@ -556,7 +1029,7 @@
     }
   },
   "info": {
-    "description": "Worldwide politician financial-disclosure tracking. Cursor pagination on ULIDs; consistent error envelope; verification_state on every record.",
+    "description": "Worldwide politician financial-disclosure tracking. Cursor pagination on ULIDs; consistent error envelope; verification_state on every record. Every successful GET carries a strong ETag (sha256 of the body); requests with a matching If-None-Match receive 304 Not Modified.",
     "title": "govfolio API",
     "version": "0.1.0"
   },
@@ -772,6 +1245,169 @@
         "summary": "Replaces an alert rule.",
         "tags": [
           "alert-rules"
+        ]
+      }
+    },
+    "/v1/jurisdictions": {
+      "get": {
+        "description": "# Errors\n`500` on backend failure, in the consistent error envelope.",
+        "operationId": "list_jurisdictions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Jurisdiction"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "All jurisdictions with their disclosure regimes"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Lists all jurisdictions (id order) with their regimes joined in.",
+        "tags": [
+          "jurisdictions"
+        ]
+      }
+    },
+    "/v1/politicians": {
+      "get": {
+        "description": "# Errors\n`400` on a malformed cursor or limit; `500` on backend failure — all in\nthe consistent error envelope.",
+        "operationId": "list_politicians",
+        "parameters": [
+          {
+            "description": "Case-insensitive substring over canonical name and as-filed aliases\n(plain ILIKE; `%`/`_` are literals).",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Pagination cursor: the `id` of the last politician on the previous\npage (from `next_cursor`). Pages begin strictly after it.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, `1..=200`; defaults to 50.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoliticianPage"
+                }
+              }
+            },
+            "description": "One page of politicians"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Malformed cursor or limit"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Lists politicians in ascending ULID order, optionally name-filtered.",
+        "tags": [
+          "politicians"
+        ]
+      }
+    },
+    "/v1/politicians/{id}": {
+      "get": {
+        "description": "# Errors\n`404` for an unknown politician; `500` on backend failure — all in the\nconsistent error envelope.",
+        "operationId": "politician_profile",
+        "parameters": [
+          {
+            "description": "Politician ULID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PoliticianProfile"
+                }
+              }
+            },
+            "description": "The politician's profile"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown politician"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Fetches one politician's profile: person, mandates, record summary.",
+        "tags": [
+          "politicians"
         ]
       }
     },
@@ -1017,6 +1653,147 @@
           "records"
         ]
       }
+    },
+    "/v1/records/{id}": {
+      "get": {
+        "description": "# Errors\n`404` for an unknown record; `500` on backend failure — all in the\nconsistent error envelope.",
+        "operationId": "get_record",
+        "parameters": [
+          {
+            "description": "Record ULID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordDetail"
+                }
+              }
+            },
+            "description": "The record with provenance and supersession history"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown record"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Fetches one record with provenance and its supersession chain.",
+        "tags": [
+          "records"
+        ]
+      }
+    },
+    "/v1/regimes": {
+      "get": {
+        "description": "# Errors\n`500` on backend failure, in the consistent error envelope.",
+        "operationId": "list_regimes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Regime"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "All disclosure regimes with scorecard metadata"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Lists all disclosure regimes — the scorecard rows — in id order.",
+        "tags": [
+          "jurisdictions"
+        ]
+      }
+    },
+    "/v1/search": {
+      "get": {
+        "description": "# Errors\n`400` on a missing or blank `q`; `500` on backend failure — all in the\nconsistent error envelope.",
+        "operationId": "search",
+        "parameters": [
+          {
+            "description": "Query text: case-insensitive substring, at least one non-blank\ncharacter; `%`/`_` are literals.",
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchResults"
+                }
+              }
+            },
+            "description": "Typed search results"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or blank query"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Searches politicians (name/alias) and instruments (name/ticker).",
+        "tags": [
+          "search"
+        ]
+      }
     }
   },
   "tags": [
@@ -1027,6 +1804,14 @@
     {
       "description": "Politician-scoped views",
       "name": "politicians"
+    },
+    {
+      "description": "Jurisdictions and disclosure regimes — the transparency scorecard (design §6.1/§7.3)",
+      "name": "jurisdictions"
+    },
+    {
+      "description": "Minimal substring search over politicians and instruments (Postgres-backed until it hurts, §6.4)",
+      "name": "search"
     },
     {
       "description": "Alert rules over the shared record filter grammar (design §6.3). Auth arrives with accounts (goal 050).",

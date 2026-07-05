@@ -5,6 +5,7 @@
 
 pub mod dto;
 pub mod error;
+pub mod etag;
 pub mod extract;
 pub mod routes;
 
@@ -26,10 +27,25 @@ pub struct AppState {
 pub fn app(pool: PgPool) -> Router {
     Router::new()
         .route("/v1/records", get(routes::records::list_records))
+        .route("/v1/records/{id}", get(routes::records::get_record))
+        .route(
+            "/v1/politicians",
+            get(routes::politicians::list_politicians),
+        )
+        .route(
+            "/v1/politicians/{id}",
+            get(routes::politicians::politician_profile),
+        )
         .route(
             "/v1/politicians/{id}/records",
             get(routes::politicians::politician_records),
         )
+        .route(
+            "/v1/jurisdictions",
+            get(routes::jurisdictions::list_jurisdictions),
+        )
+        .route("/v1/regimes", get(routes::regimes::list_regimes))
+        .route("/v1/search", get(routes::search::search))
         .route(
             "/v1/alert-rules",
             post(routes::alert_rules::create_alert_rule).get(routes::alert_rules::list_alert_rules),
@@ -39,6 +55,9 @@ pub fn app(pool: PgPool) -> Router {
             put(routes::alert_rules::update_alert_rule)
                 .delete(routes::alert_rules::delete_alert_rule),
         )
+        // Strong ETags + If-None-Match → 304 on every successful GET
+        // (design §6.1: ETags everywhere).
+        .layer(axum::middleware::from_fn(etag::etag))
         .with_state(AppState { pool })
 }
 
@@ -50,11 +69,19 @@ pub fn app(pool: PgPool) -> Router {
         title = "govfolio API",
         description = "Worldwide politician financial-disclosure tracking. \
                        Cursor pagination on ULIDs; consistent error envelope; \
-                       verification_state on every record."
+                       verification_state on every record. Every successful GET \
+                       carries a strong ETag (sha256 of the body); requests with \
+                       a matching If-None-Match receive 304 Not Modified."
     ),
     paths(
         routes::records::list_records,
+        routes::records::get_record,
+        routes::politicians::list_politicians,
+        routes::politicians::politician_profile,
         routes::politicians::politician_records,
+        routes::jurisdictions::list_jurisdictions,
+        routes::regimes::list_regimes,
+        routes::search::search,
         routes::alert_rules::create_alert_rule,
         routes::alert_rules::list_alert_rules,
         routes::alert_rules::update_alert_rule,
@@ -63,6 +90,10 @@ pub fn app(pool: PgPool) -> Router {
     tags(
         (name = "records", description = "Canonical disclosure records (Gold)"),
         (name = "politicians", description = "Politician-scoped views"),
+        (name = "jurisdictions", description = "Jurisdictions and disclosure \
+         regimes — the transparency scorecard (design §6.1/§7.3)"),
+        (name = "search", description = "Minimal substring search over \
+         politicians and instruments (Postgres-backed until it hurts, §6.4)"),
         (name = "alert-rules", description = "Alert rules over the shared record \
          filter grammar (design §6.3). Auth arrives with accounts (goal 050)."),
     )

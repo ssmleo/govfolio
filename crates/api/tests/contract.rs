@@ -11,15 +11,20 @@
 use std::path::PathBuf;
 
 use axum::Router;
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
+use axum::body::{Body, Bytes};
+use axum::http::{HeaderMap, Request, StatusCode};
+use chrono::NaiveDate;
 use http_body_util::BodyExt as _;
 use serde_json::{Value, json};
 use sqlx::PgPool;
 use tower::ServiceExt as _;
 
+use govfolio_core::domain::enums::{AssetClass, Currency, Owner, RecordType, Side};
+use govfolio_core::domain::gold::GoldCandidate;
+use govfolio_core::domain::value::ValueInterval;
 use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx};
 use pipeline::conformance::{fixtures_dir, workspace_root};
+use pipeline::promote::{ResolveOutcome, Verdict, resolve_review_task};
 use pipeline::run::{LocalFiling, Runner};
 use pipeline::stages::roster::{resolve_politician, seed_roster};
 use pipeline::stages::seed::seed_regime;
@@ -147,6 +152,28 @@ fn assert_valid(validator: &jsonschema::Validator, body: &Value) {
         "response body violates the OpenAPI contract:\n{}\nbody: {body:#}",
         errors.join("\n")
     );
+}
+
+/// Raw GET with optional request headers — for probing response headers and
+/// bodies the JSON helper would obscure (the ETag/304 path).
+async fn get_raw(
+    app: &Router,
+    uri: &str,
+    headers: &[(&str, &str)],
+) -> (StatusCode, HeaderMap, Bytes) {
+    let mut request = Request::get(uri);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
+    let response = app
+        .clone()
+        .oneshot(request.body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, bytes)
 }
 
 async fn get(app: &Router, uri: &str) -> (StatusCode, Value) {
@@ -496,4 +523,499 @@ async fn alert_rules_crud_round_trip_matches_the_contract(pool: PgPool) {
     assert_eq!(status, StatusCode::NOT_FOUND);
     let (_, list) = get(&app, "/v1/alert-rules").await;
     assert_eq!(list.as_array().unwrap().len(), 0);
+}
+
+// ------------------------------------------------- goal 040a read surface --
+
+/// The reviewer's corrected facts for the amended Boeing row — the same edit
+/// seed the promote suite proves invariant 1 with: the amount band was
+/// mis-extracted one band too low; everything else re-attested as filed.
+/// Identity fields are unbound (nil ULIDs) — `promote` pins them from the
+/// original row.
+fn corrected_boeing() -> GoldCandidate {
+    GoldCandidate {
+        filing_id: "00000000000000000000000000".parse().unwrap(),
+        politician_id: "00000000000000000000000000".parse().unwrap(),
+        regime_id: "00000000000000000000000000".parse().unwrap(),
+        instrument_id: None,
+        asset_description_raw: "Boeing Company (BA) [ST]".to_owned(),
+        record_type: RecordType::Transaction,
+        asset_class: AssetClass::Equity,
+        side: Some(Side::Sell),
+        transaction_date: Some(NaiveDate::from_ymd_opt(2025, 12, 9).unwrap()),
+        as_of_date: None,
+        notified_date: Some(NaiveDate::from_ymd_opt(2025, 12, 9).unwrap()),
+        value: Some(
+            ValueInterval::new(
+                rust_decimal::Decimal::new(1_500_100, 2),
+                Some(rust_decimal::Decimal::new(5_000_000, 2)),
+                Currency::USD,
+            )
+            .unwrap(),
+        ),
+        owner: Some(Owner::Self_),
+        extraction_confidence: None, // human correction, not an extractor guess
+        extracted_by: "review:contract_test@1".to_owned(),
+        fingerprint: None,
+        details: serde_json::json!({
+            "doc_id": "20033759",
+            "row_ordinal": 1,
+            "row_id": "2000152831",
+            "asset_type_code": "ST",
+            "amount_band_raw": "$15,001 - $50,000",
+            "transaction_type_raw": "S",
+            "partial_sale": false,
+            "cap_gains_over_200": null,
+            "filing_status_raw": "Amended",
+            "owner_source": "default_self",
+            "subholding_of": "Interactive Brokers LLC",
+            "vehicle_owner_code": null,
+            "vehicle_location": null,
+            "description": null,
+            "comments": "Sold at a $1,440 loss.",
+            "signed_date": "2026-01-07"
+        }),
+    }
+}
+
+/// The multi-row fixture filer's politician id.
+async fn smucker_id(pool: &PgPool) -> String {
+    resolve_politician(
+        pool,
+        &us_house::seed::regime_binding(),
+        "Hon. Lloyd K. Smucker",
+        "PA11",
+    )
+    .await
+    .unwrap()
+    .unwrap()
+}
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn politicians_list_pages_searches_and_matches_the_contract(pool: PgPool) {
+    seed_via_pipeline(&pool).await;
+    let app = api::app(pool.clone());
+    let doc = openapi_doc();
+    let ok = validator_for(&doc, "/v1/politicians", "200");
+    assert!(
+        ok.validate(&json!({ "items": "not-an-array" })).is_err(),
+        "the contract validator must have teeth"
+    );
+
+    // Ground truth: all five roster politicians in ULID order.
+    let all: Vec<String> = sqlx::query_scalar("select id from politician order by id")
+        .fetch_all(&pool)
+        .await
+        .unwrap();
+    assert_eq!(all.len(), 5, "four index-slice members + the paper filer");
+
+    // Page walk, limit 2: the same ULID cursor rule as /v1/records.
+    let (status, page1) = get(&app, "/v1/politicians?limit=2").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &page1);
+    assert_eq!(item_ids(&page1), all[..2]);
+    for item in page1["items"].as_array().unwrap() {
+        assert!(
+            item["canonical_name"]
+                .as_str()
+                .is_some_and(|n| !n.is_empty()),
+            "every listed politician carries a canonical name: {item:#}"
+        );
+    }
+    let cursor1 = page1["next_cursor"].as_str().unwrap();
+    assert_eq!(cursor1, all[1], "cursor = last id of the page");
+    let (status, page2) = get(&app, &format!("/v1/politicians?limit=2&cursor={cursor1}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &page2);
+    assert_eq!(item_ids(&page2), all[2..4]);
+    let cursor2 = page2["next_cursor"].as_str().unwrap();
+    let (status, page3) = get(&app, &format!("/v1/politicians?limit=2&cursor={cursor2}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &page3);
+    assert_eq!(item_ids(&page3), all[4..]);
+    assert!(
+        page3["next_cursor"].is_null(),
+        "exhausted listing terminates"
+    );
+
+    // Name query: canonical_name ILIKE, case-insensitive, no fuzzy magic.
+    let smucker = smucker_id(&pool).await;
+    let (status, hits) = get(&app, "/v1/politicians?q=smucker").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &hits);
+    assert_eq!(item_ids(&hits), vec![smucker.clone()]);
+
+    // Alias-only match: "Hon. Lloyd" appears in the as-filed alias, not the
+    // canonical name — the alias join must carry it.
+    let (status, hits) = get(&app, "/v1/politicians?q=Hon.%20Lloyd").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(item_ids(&hits), vec![smucker]);
+
+    // ILIKE metacharacters are literals, never wildcards: '%' matches nothing.
+    let (status, hits) = get(&app, "/v1/politicians?q=%25").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(item_ids(&hits), Vec::<String>::new());
+
+    // Errors use the consistent envelope.
+    let err = validator_for(&doc, "/v1/politicians", "400");
+    let (status, body) = get(&app, "/v1/politicians?cursor=not-a-ulid").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_valid(&err, &body);
+    assert_eq!(body["error"]["code"], "invalid_cursor");
+    let (status, body) = get(&app, "/v1/politicians?limit=0").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"]["code"], "invalid_limit");
+}
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn politician_profile_carries_mandates_and_the_record_summary(pool: PgPool) {
+    seed_via_pipeline(&pool).await;
+    let app = api::app(pool.clone());
+    let doc = openapi_doc();
+    let path = "/v1/politicians/{id}";
+    let ok = validator_for(&doc, path, "200");
+
+    let id = smucker_id(&pool).await;
+    let (status, profile) = get(&app, &format!("/v1/politicians/{id}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &profile);
+    assert_eq!(profile["id"], json!(id));
+    assert_eq!(profile["canonical_name"], json!("Lloyd K. Smucker"));
+
+    // Mandates straight from Gold.
+    let mandates = profile["mandates"].as_array().unwrap();
+    assert_eq!(mandates.len(), 1, "one seeded House mandate");
+    assert_eq!(mandates[0]["jurisdiction_id"], json!("us"));
+    assert_eq!(mandates[0]["body"], json!("US House"));
+    assert_eq!(mandates[0]["role"], json!("Representative"));
+    assert_eq!(mandates[0]["district"], json!("PA11"));
+
+    // Record summary equals an independently written SQL aggregate.
+    let (count, first, last): (i64, Option<NaiveDate>, Option<NaiveDate>) = sqlx::query_as(
+        "select count(*), min(event_date), max(event_date) \
+         from disclosure_record where politician_id = $1",
+    )
+    .bind(&id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(count, 8, "the multi-row fixture publishes 8 rows");
+    assert_eq!(profile["records"]["count"], json!(count));
+    assert_eq!(profile["records"]["first_event_date"], json!(first));
+    assert_eq!(profile["records"]["last_event_date"], json!(last));
+
+    // Unknown politician: 404 in the envelope.
+    let err = validator_for(&doc, path, "404");
+    let (status, body) = get(&app, "/v1/politicians/01ARZ3NDEKTSV4RRFFQ69G5FAV").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_valid(&err, &body);
+    assert_eq!(body["error"]["code"], "not_found");
+}
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn record_detail_returns_provenance_and_the_supersession_chain(pool: PgPool) {
+    seed_via_pipeline(&pool).await;
+
+    // Resolve the run's one open review task as an EDIT: promote inserts a
+    // superseding 'corrected' record (invariant 1) — the chain under test.
+    let (task_id, original_id): (String, String) = sqlx::query_as(
+        "select id, target_id from review_task \
+         where reason = 'ptr_amendment_unlinked' and status = 'open'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let outcome = resolve_review_task(
+        &pool,
+        &task_id,
+        Verdict::Edit {
+            regime_code: "us_house".to_owned(),
+            corrected: Box::new(corrected_boeing()),
+        },
+    )
+    .await
+    .unwrap();
+    let ResolveOutcome::Applied {
+        superseding_record_id: Some(superseding_id),
+        ..
+    } = outcome
+    else {
+        panic!("edit resolution must insert a superseding record: {outcome:?}");
+    };
+
+    let app = api::app(pool.clone());
+    let doc = openapi_doc();
+    let path = "/v1/records/{id}";
+    let ok = validator_for(&doc, path, "200");
+    assert!(
+        ok.validate(&json!({ "record": "not-an-object" })).is_err(),
+        "the contract validator must have teeth"
+    );
+
+    // The original record: full provenance + the superseding correction.
+    let (status, detail) = get(&app, &format!("/v1/records/{original_id}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &detail);
+    assert_eq!(detail["record"]["id"], json!(original_id));
+    assert_eq!(detail["record"]["verification_state"], json!("unverified"));
+
+    // Provenance equals an independent SQL join over filing/raw_document.
+    let (filing_id, external_id, filed_date, raw_id, source_url, sha256): (
+        String,
+        Option<String>,
+        Option<NaiveDate>,
+        String,
+        Option<String>,
+        String,
+    ) = sqlx::query_as(
+        "select f.id, f.external_id, f.filed_date, d.id, d.source_url, d.sha256 \
+         from disclosure_record r \
+         join filing f on f.id = r.filing_id \
+         join raw_document d on d.id = f.raw_document_id \
+         where r.id = $1",
+    )
+    .bind(&original_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let filing = &detail["provenance"]["filing"];
+    assert_eq!(filing["id"], json!(filing_id));
+    assert_eq!(filing["external_id"], json!(external_id));
+    assert_eq!(filing["filed_date"], json!(filed_date));
+    assert!(
+        filing.as_object().unwrap().contains_key("published_at"),
+        "provenance declares when the government published the filing"
+    );
+    let raw = &detail["provenance"]["raw_document"];
+    assert_eq!(raw["id"], json!(raw_id));
+    assert_eq!(raw["source_url"], json!(source_url));
+    assert_eq!(raw["sha256"], json!(sha256));
+    assert!(raw["fetched_at"].is_string(), "archived copies are dated");
+    let regime = &detail["provenance"]["regime"];
+    assert_eq!(regime["id"], json!(us_house::seed::REGIME_ID));
+    assert_eq!(regime["regime_type"], json!("transaction_report"));
+    assert_eq!(regime["value_precision"], json!("banded"));
+
+    // Supersession chain, both directions of supersedes_record_id.
+    assert_eq!(
+        detail["supersedes"].as_array().unwrap().len(),
+        0,
+        "the original supersedes nothing"
+    );
+    let superseding = detail["superseded_by"].as_array().unwrap();
+    assert_eq!(superseding.len(), 1, "one correction supersedes it");
+    assert_eq!(superseding[0]["id"], json!(superseding_id));
+    assert_eq!(superseding[0]["verification_state"], json!("corrected"));
+    assert_eq!(superseding[0]["supersedes_record_id"], json!(original_id));
+    assert!(
+        superseding[0]["value"]["low"].is_string(),
+        "money stays decimal strings in chain records (invariant 7)"
+    );
+
+    // The correction's own page points back at the original.
+    let (status, detail) = get(&app, &format!("/v1/records/{superseding_id}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &detail);
+    assert_eq!(detail["superseded_by"].as_array().unwrap().len(), 0);
+    let chain = detail["supersedes"].as_array().unwrap();
+    assert_eq!(chain.len(), 1);
+    assert_eq!(chain[0]["id"], json!(original_id));
+
+    // Unknown record: 404 in the envelope.
+    let err = validator_for(&doc, path, "404");
+    let (status, body) = get(&app, "/v1/records/01ARZ3NDEKTSV4RRFFQ69G5FAV").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_valid(&err, &body);
+    assert_eq!(body["error"]["code"], "not_found");
+}
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn jurisdictions_and_regimes_serve_the_scorecard_metadata(pool: PgPool) {
+    // The scorecard is regime metadata only — the seed stage suffices.
+    govfolio_core::db::migrate(&pool).await.unwrap();
+    seed_regime(&pool, &us_house::seed::regime_seed())
+        .await
+        .unwrap();
+    let app = api::app(pool.clone());
+    let doc = openapi_doc();
+
+    let ok = validator_for(&doc, "/v1/jurisdictions", "200");
+    assert!(
+        ok.validate(&json!("garbage")).is_err(),
+        "the contract validator must have teeth"
+    );
+    let (status, list) = get(&app, "/v1/jurisdictions").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &list);
+    let us = list
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|j| j["id"] == "us")
+        .unwrap();
+    assert_eq!(us["name"], json!("United States"));
+    assert_eq!(us["iso_code"], json!("US"));
+    assert_eq!(us["level"], json!("national"));
+
+    // The scorecard source (design §7.3): regime metadata joined in.
+    let regimes = us["regimes"].as_array().unwrap();
+    assert_eq!(regimes.len(), 1);
+    let regime = &regimes[0];
+    assert_eq!(regime["id"], json!(us_house::seed::REGIME_ID));
+    assert_eq!(regime["body"], json!("US House"));
+    assert_eq!(regime["regime_type"], json!("transaction_report"));
+    assert_eq!(regime["value_precision"], json!("banded"));
+    assert_eq!(regime["disclosure_lag_days"], json!(45));
+    assert_eq!(
+        regime["source_url"],
+        json!("https://disclosures-clerk.house.gov/FinancialDisclosure")
+    );
+    assert!(regime["cadence"].as_str().is_some_and(|c| !c.is_empty()));
+    assert_eq!(regime["effective_from"], json!("2012-04-04"));
+
+    // /v1/regimes = the flat scorecard endpoint (design §6.1): same shape.
+    let ok = validator_for(&doc, "/v1/regimes", "200");
+    let (status, flat) = get(&app, "/v1/regimes").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &flat);
+    assert_eq!(flat.as_array().unwrap().len(), 1);
+    assert_eq!(flat[0], *regime, "one regime shape behind both doors");
+}
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn search_returns_typed_hits_and_escapes_like_metacharacters(pool: PgPool) {
+    seed_via_pipeline(&pool).await;
+    // No pipeline stage writes instruments yet (below-threshold matches stay
+    // NULL — invariant 3), so the instrument arm is seeded directly.
+    for (id, name, ticker) in [
+        ("01ARZ3NDEKTSV4RRFFQ69G5FA0", "Boeing Company", "BA"),
+        ("01ARZ3NDEKTSV4RRFFQ69G5FA1", "Apple Inc.", "AAPL"),
+    ] {
+        sqlx::query(
+            "insert into instrument (id, name, ticker, asset_class) values ($1, $2, $3, 'equity')",
+        )
+        .bind(id)
+        .bind(name)
+        .bind(ticker)
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+    let app = api::app(pool.clone());
+    let doc = openapi_doc();
+    let ok = validator_for(&doc, "/v1/search", "200");
+    assert!(
+        ok.validate(&json!({ "politicians": "not-an-array" }))
+            .is_err(),
+        "the contract validator must have teeth"
+    );
+
+    // Politician arm: name/alias ILIKE.
+    let smucker = smucker_id(&pool).await;
+    let (status, results) = get(&app, "/v1/search?q=smucker").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &results);
+    assert_eq!(results["query"], json!("smucker"));
+    let politician_hits: Vec<&str> = results["politicians"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|hit| hit["id"].as_str().unwrap())
+        .collect();
+    assert_eq!(politician_hits, vec![smucker.as_str()]);
+    assert_eq!(results["instruments"].as_array().unwrap().len(), 0);
+
+    // Instrument arm: by name and by ticker.
+    let (status, results) = get(&app, "/v1/search?q=boeing").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &results);
+    let names: Vec<&str> = results["instruments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|hit| hit["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, vec!["Boeing Company"]);
+    let (status, results) = get(&app, "/v1/search?q=AAPL").await;
+    assert_eq!(status, StatusCode::OK);
+    let tickers: Vec<&str> = results["instruments"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|hit| hit["ticker"].as_str().unwrap())
+        .collect();
+    assert_eq!(tickers, vec!["AAPL"]);
+
+    // '%' is a literal, never a wildcard: nothing contains one.
+    let (status, results) = get(&app, "/v1/search?q=%25").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &results);
+    assert_eq!(results["politicians"].as_array().unwrap().len(), 0);
+    assert_eq!(results["instruments"].as_array().unwrap().len(), 0);
+
+    // Missing or blank q: 400 in the envelope.
+    let err = validator_for(&doc, "/v1/search", "400");
+    let (status, body) = get(&app, "/v1/search").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_valid(&err, &body);
+    assert_eq!(body["error"]["code"], "invalid_query");
+    let (status, body) = get(&app, "/v1/search?q=%20").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"]["code"], "invalid_query");
+}
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn etag_round_trips_and_if_none_match_serves_304(pool: PgPool) {
+    govfolio_core::db::migrate(&pool).await.unwrap();
+    let app = api::app(pool.clone());
+
+    // Every 200 GET carries a strong ETag: the quoted sha256 of the body.
+    let (status, headers, body) = get_raw(&app, "/v1/records", &[]).await;
+    assert_eq!(status, StatusCode::OK);
+    let etag_header = headers.get("etag");
+    assert!(etag_header.is_some(), "200 GET responses carry an ETag");
+    let etag = etag_header.unwrap().to_str().unwrap().to_owned();
+    assert!(
+        etag.len() == 66 && etag.starts_with('"') && etag.ends_with('"'),
+        "strong quoted sha256 hex, got {etag:?}"
+    );
+    assert!(!body.is_empty());
+
+    // If-None-Match round trip: 304, empty body, ETag still present.
+    let (status, headers, body) = get_raw(&app, "/v1/records", &[("if-none-match", &etag)]).await;
+    assert_eq!(status, StatusCode::NOT_MODIFIED);
+    assert!(body.is_empty(), "304 carries no body");
+    assert_eq!(headers.get("etag").unwrap().to_str().unwrap(), etag);
+
+    // A stale validator misses: full 200 again.
+    let stale = format!("\"{}\"", "0".repeat(64));
+    let (status, _, body) = get_raw(&app, "/v1/records", &[("if-none-match", &stale)]).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(!body.is_empty());
+
+    // A validator list and the wildcard both match.
+    let list = format!("{stale}, {etag}");
+    let (status, _, _) = get_raw(&app, "/v1/records", &[("if-none-match", &list)]).await;
+    assert_eq!(status, StatusCode::NOT_MODIFIED);
+    let (status, _, _) = get_raw(&app, "/v1/records", &[("if-none-match", "*")]).await;
+    assert_eq!(status, StatusCode::NOT_MODIFIED);
+
+    // Detail/list endpoints all sit behind the same middleware.
+    let (status, headers, _) = get_raw(&app, "/v1/jurisdictions", &[]).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        headers.get("etag").is_some(),
+        "ETags everywhere (design §6.1)"
+    );
+
+    // Error responses carry no validator.
+    let (status, headers, _) = get_raw(&app, "/v1/records?limit=0", &[]).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(headers.get("etag").is_none());
 }

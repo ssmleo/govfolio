@@ -73,4 +73,9 @@ Learnings (dated):
   the captured Vec instead. Related: `similar_names` denies `status` next to `stats`.
   `hmac::Hmac::new_from_slice` structurally cannot fail (RFC 2104 any-length keys) —
   `let Ok(..) = .. else { unreachable!(..) }` satisfies the unwrap ban with a reason.
+- 2026-07-05: the shared-projection const pattern (`RECORD_COLUMNS` = "select <cols> from t ")
+  composes into recursive CTEs too: `concatcp!("with recursive up as (...) ", RECORD_COLUMNS,
+  "where id in (select id from up)")` — chain-walking queries stay compile-time `&'static str`
+  under `SqlSafeStr` with zero projection drift. Supersession chains can't cycle structurally
+  (pointer targets an earlier immutable row), so `union all` needs no cycle guard.
 Write-back: deepen this file when the procedure teaches you something; same PR.
