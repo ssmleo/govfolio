@@ -1,7 +1,7 @@
 # Goal queue (ordered — loop picks first unchecked)
 
 - [x] 001 M0–M1 walking skeleton — execute docs/plans/2026-07-04-govfolio-implementation.md Tasks 1–11 in order (done 2026-07-04; full acceptance green incl. CI; see goal file + JOURNAL)
-- [ ] 015 coverage factory setup (validators + registry columns; then standing loop)
+- [x] 015 coverage factory setup (validators + registry columns; then standing loop) (setup done 2026-07-04, commit c9fa7b8; standing loop runs via orchestration step 2d from E2)
 - [ ] 016 role evals + E1 calibration (epoch gate)
 - [ ] 019 skill-imports gateway (impeccable + rust/ts packs; superpowers leg already done)
 - [ ] 020 cloud substrate (terraform + deploy skeleton)
