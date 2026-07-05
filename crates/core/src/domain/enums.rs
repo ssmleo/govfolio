@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// `record_type` CHECK: the four observation types, one table (design D1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum RecordType {
     Transaction,
@@ -16,6 +17,7 @@ pub enum RecordType {
 
 /// `side` CHECK: direction of a transaction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Side {
     Buy,
@@ -26,6 +28,7 @@ pub enum Side {
 /// `owner` CHECK: whose asset the record concerns. `self` is a Rust keyword,
 /// hence the `Self_` variant with an explicit wire rename.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum Owner {
     #[serde(rename = "self")]
@@ -38,6 +41,7 @@ pub enum Owner {
 
 /// `verification_state` CHECK: two-stage publication states (design §4.2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum VerificationState {
     Unverified,
@@ -48,6 +52,7 @@ pub enum VerificationState {
 
 /// `asset_class` vocabulary (design §4.2 column comment).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 #[serde(rename_all = "snake_case")]
 pub enum AssetClass {
     Equity,
@@ -66,6 +71,7 @@ pub enum AssetClass {
 /// schema snapshot).
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub enum Currency {
     EUR,
     GBP,

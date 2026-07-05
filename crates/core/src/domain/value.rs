@@ -14,6 +14,7 @@ use crate::domain::enums::Currency;
 /// the only door: `high < low` never exists — in memory or on the wire, because
 /// the manual `Deserialize` impl funnels back through [`ValueInterval::new`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, JsonSchema)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
 pub struct ValueInterval {
     low: Decimal,
     high: Option<Decimal>,

@@ -29,4 +29,9 @@ Learnings (dated):
 - 2026-07-04: `#[derive(sqlx::FromRow)]` maps INT4→u32 fields via `#[sqlx(try_from = "i32")]`;
   a non-core crate can host `#[sqlx::test]` suites with dev-dep `sqlx { features = ["macros",
   "migrate", ...] }` (pattern: pipeline's e2e drives us_house via the legal dev-dep cycle).
+- 2026-07-04: sqlx 0.9 `SqlSafeStr` in production paths without `AssertSqlSafe`: when
+  several queries share one projection, build them with `macro_rules!` + `concat!`
+  (`record_select!("where ... limit $4")`) — stays a compile-time `&'static str`, so the
+  injection guarantee holds structurally. Static SQL + `($n::text is null or col = $n)`
+  binds covers optional filters without dynamic SQL.
 Write-back: deepen this file when the procedure teaches you something; same PR.

@@ -11,7 +11,7 @@ docker compose up -d && cargo test --workspace -- --ignored
 ```
 
 ## Checklist
-- [x] T1 workspace  - [x] T2 CI  - [x] T3 migrations  - [x] T4 domain  - [x] T5 DDL  - [x] T6 fingerprint  - [x] T7 conformance  - [ ] T8 us_house  - [x] T9 pipeline  - [ ] T10 /v1  - [ ] T11 promote
+- [x] T1 workspace  - [x] T2 CI  - [x] T3 migrations  - [x] T4 domain  - [x] T5 DDL  - [x] T6 fingerprint  - [x] T7 conformance  - [ ] T8 us_house  - [x] T9 pipeline  - [x] T10 /v1  - [ ] T11 promote
 
 ## BLOCKED (human)
 - ~~fixture expected.*.json completion is human ground truth (plan Task 8)~~
@@ -80,6 +80,28 @@ docker compose up -d && cargo test --workspace -- --ignored
     tables; forced publish replay inserts nothing; publish rollback atomic).
     Local bin run 1: 4 published / 12 gold / 12 outbox / 1 review task;
     run 2: 4 replayed / 0 inserted. Conformance still 4/4; fmt/clippy/test green.
+
+## T10 progress (2026-07-04)
+- [x] T10 minimal /v1, contract-tested + drift-gated (rust-builder)
+  - crates/api: axum 0.8 + sqlx handlers — GET /v1/records (minimal filters:
+    record_type, verification_state) and GET /v1/politicians/{id}/records;
+    ULID cursor pagination (cursor = last id, page 2 strictly after it);
+    consistent error envelope ({"error":{code,message}}) incl. Query rejections;
+    verification_state on every record (non-optional in the contract).
+  - Contract single-sourcing: core wire enums + ValueInterval get feature-gated
+    utoipa::ToSchema derives (core `utoipa` feature) — money stays decimal
+    strings via the ONE core serializer; openapi bin emits
+    packages/contracts/openapi.json (pretty, recursive key sort,
+    byte-deterministic; generated-but-committed).
+  - Contract test (2x #[sqlx::test] + ignore): app booted on a pool seeded by
+    the REAL T9 pipeline over the 4 fixtures; bodies validated against the
+    emitted OpenAPI schema (jsonschema, allOf+components wrap, teeth-checked);
+    pagination walked 5/5/2 + timeline 5/3; 400/404 envelopes schema-valid.
+  - CI rust job gained the drift gate:
+    `cargo run -p api --bin openapi && git diff --exit-code packages/contracts/`.
+  - Evidence: workspace 73 passed; ignored sqlx suites 9/9 on PG 5433;
+    conformance us_house 4/4; fmt/clippy -D warnings green; regen sha stable
+    across double emit.
 
 ## Environment note (2026-07-04)
 Host has no Docker/admin: acceptance line `docker compose up -d` is satisfied by portable

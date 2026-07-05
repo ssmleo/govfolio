@@ -17,4 +17,15 @@ Learnings (dated):
   it into the conformance registry; no dep cycle because only the JSON crosses). Bootstrap
   order matters: `include_str!` needs the file BEFORE the generating test can compile — seed a
   `{}` placeholder, then `UPDATE_SNAPSHOT=1 cargo test -p <adapter> --test details_schema_snapshot`.
+- 2026-07-04: OpenAPI surface reuses core wire types via a feature-gated derive — core
+  grows `utoipa = { optional = true }` + `#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]`
+  on the enums/ValueInterval; the derive honors serde attrs (`rename_all`, `rename = "self"`),
+  so SQL CHECK tokens and money-as-strings stay single-sourced. `#[schema(pattern = ...)]`
+  takes only string LITERALS (a `const` is "expected string literal").
+- 2026-07-04: contract-testing OpenAPI 3.1 responses with `jsonschema`: build the validation
+  doc as `{"$schema": 2020-12, "allOf": [<response schema node>], "components": doc.components}`
+  so internal `#/components/schemas/...` pointers resolve; then PROVE the validator has teeth
+  against a garbage body — a silently unresolved ref validates everything. Deterministic emit
+  for the committed openapi.json: recursive explicit key sort (never the map backing — see
+  rust-tdd preserve_order learning) + trailing newline; verify by double-emit sha compare.
 Write-back: deepen this file when the procedure teaches you something; same PR.

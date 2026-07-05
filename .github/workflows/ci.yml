@@ -18,6 +18,9 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo test --workspace
+      # Contract drift gate (design §6.1): openapi.json is generated-but-committed,
+      # never hand-edited; regeneration must be a no-op.
+      - run: cargo run -p api --bin openapi && git diff --exit-code packages/contracts/
 
   db:
     runs-on: ubuntu-latest
