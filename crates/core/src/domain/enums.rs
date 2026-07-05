@@ -66,6 +66,27 @@ pub enum AssetClass {
     Other,
 }
 
+/// `user_account.tier` CHECK (design §6.2 freemium table): the tier decides
+/// freshness (free = 24h-delayed via the ONE visibility bound in
+/// `core::query`) and the daily request quota. Default is `free`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[cfg_attr(feature = "utoipa", derive(utoipa::ToSchema))]
+#[serde(rename_all = "snake_case")]
+pub enum Tier {
+    Free,
+    Pro,
+    Data,
+}
+
+impl Tier {
+    /// Real-time record visibility (design §6.2: the 24-hour delay is the
+    /// only monetization lever — pro and data see records as we do).
+    #[must_use]
+    pub fn realtime(self) -> bool {
+        matches!(self, Self::Pro | Self::Data)
+    }
+}
+
 /// ISO 4217 currency code (`char(3)` in DDL), uppercase on the wire — `snake_case`
 /// would mangle codes. Closed set for now; extend as regimes land (visible in the
 /// schema snapshot).
@@ -103,6 +124,15 @@ mod tests {
         );
         // ISO 4217 codes stay uppercase (snake_case would mangle "USD" into "u_s_d").
         assert_eq!(serde_json::to_value(Currency::USD).unwrap(), json!("USD"));
+        assert_eq!(serde_json::to_value(Tier::Free).unwrap(), json!("free"));
+        assert_eq!(serde_json::to_value(Tier::Data).unwrap(), json!("data"));
+    }
+
+    #[test]
+    fn only_paid_tiers_are_realtime() {
+        assert!(!Tier::Free.realtime());
+        assert!(Tier::Pro.realtime());
+        assert!(Tier::Data.realtime());
     }
 
     #[test]

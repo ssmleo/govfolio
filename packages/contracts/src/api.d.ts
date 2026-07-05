@@ -12,16 +12,17 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Lists alert rules (optionally one user's).
+         * Lists the authenticated account's alert rules.
          * @description # Errors
-         *     `500` on backend failure.
+         *     `401`/`403` without a pro/data key; `500` on backend failure.
          */
         get: operations["list_alert_rules"];
         put?: never;
         /**
-         * Creates an alert rule.
+         * Creates an alert rule owned by the authenticated account.
          * @description # Errors
-         *     `400` on a body outside the contracts; `500` on backend failure.
+         *     `401`/`403` without a pro/data key; `400` on a body outside the
+         *     contracts; `500` on backend failure.
          */
         post: operations["create_alert_rule"];
         delete?: never;
@@ -39,17 +40,20 @@ export interface paths {
         };
         get?: never;
         /**
-         * Replaces an alert rule.
+         * Replaces one of the authenticated account's alert rules.
          * @description # Errors
-         *     `400` on a body outside the contracts; `404` for an unknown rule; `500`
+         *     `401`/`403` without a pro/data key; `400` on a body outside the
+         *     contracts; `404` for a rule that is unknown or not the caller's; `500`
          *     on backend failure.
          */
         put: operations["update_alert_rule"];
         post?: never;
         /**
-         * Deletes an alert rule (its delivery ledger rows cascade with it).
+         * Deletes one of the authenticated account's alert rules (its delivery
+         *     ledger rows cascade with it).
          * @description # Errors
-         *     `404` for an unknown rule; `500` on backend failure.
+         *     `401`/`403` without a pro/data key; `404` for a rule that is unknown or
+         *     not the caller's; `500` on backend failure.
          */
         delete: operations["delete_alert_rule"];
         options?: never;
@@ -73,6 +77,59 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/keys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lists the caller's keys (metadata only — the plaintext is unrecoverable
+         *     by design).
+         * @description # Errors
+         *     `401` without a valid API key; `500` on backend failure.
+         */
+        get: operations["list_keys"];
+        put?: never;
+        /**
+         * Creates an API key. With key auth: for the caller's own account. With
+         *     `X-Admin-Token`: for the user named in the body (bootstrap).
+         * @description # Errors
+         *     `401` without any valid credential; `400` on a blank label or a body/auth
+         *     mismatch; `404` for an unknown user (admin path); `500` on backend
+         *     failure.
+         */
+        post: operations["create_key"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/keys/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revokes a key (immediate — the very next request with it is `401`).
+         *     Key auth revokes own keys; `X-Admin-Token` revokes any.
+         * @description # Errors
+         *     `401` without any valid credential; `404` for an unknown (or not owned)
+         *     key; `500` on backend failure.
+         */
+        delete: operations["revoke_key"];
         options?: never;
         head?: never;
         patch?: never;
@@ -321,6 +378,50 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/stripe/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Receives Stripe webhook events (subscription lifecycle mirror).
+         * @description # Errors
+         *     `503` when no webhook secret is configured; `400` on a missing/invalid
+         *     signature or an unparseable event; `500` on backend failure.
+         */
+        post: operations["stripe_webhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Creates an account (bootstrap; real signup is deferred — see module docs).
+         * @description # Errors
+         *     `401` without a valid `X-Admin-Token`; `400` on a blank email; `409` on a
+         *     duplicate email; `500` on backend failure.
+         */
+        post: operations["create_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -367,10 +468,13 @@ export interface components {
              * @description When the rule was last updated.
              */
             updated_at: string;
-            /** @description Owning user (free text until accounts land — goal 050). */
+            /** @description Owning account (`user_account.id` — always the authenticated caller). */
             user_id: string;
         };
-        /** @description Create/replace body for an alert rule (`POST` and `PUT` share it). */
+        /**
+         * @description Create/replace body for an alert rule (`POST` and `PUT` share it). The
+         *     owner is always the authenticated account — never caller-supplied.
+         */
         AlertRuleSpec: {
             /** @description Whether the rule matches at all (defaults to active). */
             active?: boolean;
@@ -380,14 +484,62 @@ export interface components {
             digest?: boolean;
             /** @description Filter in the shared record grammar; unknown keys are rejected. */
             filter: components["schemas"]["RecordFilter"];
-            /** @description Owning user (free text until accounts land — goal 050). */
-            user_id: string;
+        };
+        /** @description One key as listed — metadata only, nothing secret-derived. */
+        ApiKeyInfo: {
+            /**
+             * Format: date-time
+             * @description When the key was created.
+             */
+            created_at: string;
+            /** @description Key ULID. */
+            id: string;
+            /** @description Human label. */
+            label: string;
+            /**
+             * Format: date-time
+             * @description When the key was revoked; `null` while active.
+             */
+            revoked_at?: string | null;
         };
         /**
          * @description `asset_class` vocabulary (design §4.2 column comment).
          * @enum {string}
          */
         AssetClass: "equity" | "bond" | "fund" | "option" | "crypto" | "commodity" | "real_estate" | "private" | "other";
+        /** @description Body of `POST /v1/keys`. */
+        CreateKey: {
+            /** @description Human label for the key (shown in listings). */
+            label: string;
+            /**
+             * @description Target user — REQUIRED with admin auth, FORBIDDEN with key auth
+             *     (a key only mints keys for its own account).
+             */
+            user_id?: string | null;
+        };
+        /** @description Body of `POST /v1/users` (admin bootstrap). */
+        CreateUser: {
+            /** @description Account email (unique). */
+            email: string;
+            tier?: null | components["schemas"]["Tier"];
+        };
+        /** @description The creation response — the ONLY place the plaintext key ever appears. */
+        CreatedKey: {
+            /**
+             * Format: date-time
+             * @description When the key was created.
+             */
+            created_at: string;
+            /** @description Key ULID (use for revocation). */
+            id: string;
+            /**
+             * @description The bearer token (`gfk_...`). Shown once; store it now — only its
+             *     hash is retained.
+             */
+            key: string;
+            /** @description Human label. */
+            label: string;
+        };
         /**
          * @description ISO 4217 currency code (`char(3)` in DDL), uppercase on the wire — `snake_case`
          *     would mangle codes. Closed set for now; extend as regimes land (visible in the
@@ -959,6 +1111,27 @@ export interface components {
          */
         Side: "buy" | "sell" | "exchange";
         /**
+         * @description `user_account.tier` CHECK (design §6.2 freemium table): the tier decides
+         *     freshness (free = 24h-delayed via the ONE visibility bound in
+         *     `core::query`) and the daily request quota. Default is `free`.
+         * @enum {string}
+         */
+        Tier: "free" | "pro" | "data";
+        /** @description One account (Gold-side `user_account`). */
+        UserAccount: {
+            /**
+             * Format: date-time
+             * @description When the account was created.
+             */
+            created_at: string;
+            /** @description Unique account email. */
+            email: string;
+            /** @description User ULID. */
+            id: string;
+            /** @description Tier (decides freshness delay + daily quota, design §6.2). */
+            tier: components["schemas"]["Tier"];
+        };
+        /**
          * @description A money interval `low ..= high` in `currency`. Exact figures are `low == high`;
          *     `high == None` is an open-ended threshold (UK "over £70,000"). Construction is
          *     the only door: `high < low` never exists — in memory or on the wire, because
@@ -985,23 +1158,38 @@ export type $defs = Record<string, never>;
 export interface operations {
     list_alert_rules: {
         parameters: {
-            query?: {
-                /** @description Only rules owned by this user. */
-                user_id?: string;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description All matching rules */
+            /** @description The caller's rules */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["AlertRule"][];
+                };
+            };
+            /** @description No valid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Tier does not include alerts */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Internal error */
@@ -1039,6 +1227,24 @@ export interface operations {
             };
             /** @description Body violates the filter/channel contracts */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No valid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Tier does not include alerts */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1091,7 +1297,25 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorBody"];
                 };
             };
-            /** @description Unknown rule */
+            /** @description No valid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Tier does not include alerts */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown (or not owned) rule */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1130,7 +1354,25 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Unknown rule */
+            /** @description No valid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Tier does not include alerts */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown (or not owned) rule */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -1166,6 +1408,152 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Jurisdiction"][];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_keys: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The caller's keys, metadata only */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiKeyInfo"][];
+                };
+            };
+            /** @description No valid API key */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateKey"];
+            };
+        };
+        responses: {
+            /** @description The created key, plaintext INCLUDED — shown exactly once */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatedKey"];
+                };
+            };
+            /** @description Blank label or user_id/auth mismatch */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description No valid API key or admin token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown user (admin path) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    revoke_key: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Key ULID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked (idempotent) */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No valid API key or admin token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown or not owned key */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
                 };
             };
             /** @description Internal error */
@@ -1693,6 +2081,116 @@ export interface operations {
             };
             /** @description Missing or blank query */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    stripe_webhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Raw Stripe event JSON (signature over the exact bytes) */
+        requestBody: {
+            content: {
+                "text/plain": string;
+            };
+        };
+        responses: {
+            /** @description Event verified and processed (or acknowledged as not ours) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing/invalid Stripe-Signature or malformed event */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Webhook secret not configured (fail closed) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    create_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateUser"];
+            };
+        };
+        responses: {
+            /** @description The created account */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserAccount"];
+                };
+            };
+            /** @description Blank email */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Email already registered */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

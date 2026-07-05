@@ -5,17 +5,22 @@
 
 use anyhow::Context as _;
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use chrono::NaiveDate;
 use const_format::concatcp;
 use serde::{Deserialize, Serialize};
 use utoipa::{IntoParams, ToSchema};
 
+use govfolio_core::ids::PoliticianId;
+use govfolio_core::query::RecordFilter;
+
 use crate::AppState;
+use crate::auth::AuthContext;
 use crate::dto::{RecordPage, RecordRow, build_page, validate_page_params};
 use crate::error::{ApiError, ErrorBody};
 use crate::extract::ApiQuery;
-use crate::routes::{RECORD_COLUMNS, like_pattern};
+use crate::routes::like_pattern;
+use crate::routes::records::LIST_SQL as RECORDS_LIST_SQL;
 
 /// One politician (Gold `politician`, design §4.2).
 #[derive(Debug, Serialize, ToSchema, sqlx::FromRow)]
@@ -182,6 +187,7 @@ pub async fn list_politicians(
 )]
 pub async fn politician_profile(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
     Path(id): Path<String>,
 ) -> Result<Json<PoliticianProfile>, ApiError> {
     let politician: Option<Politician> =
@@ -201,14 +207,16 @@ pub async fn politician_profile(
     .bind(&id)
     .fetch_all(&state.pool)
     .await?;
+    // The summary is derived from records, so it flows through the shared
+    // evaluator too — a free-tier profile must not count records the free
+    // tier cannot see yet (the count would leak "something fresh exists").
+    let scope = politician_scope(&politician.id)
+        .ok_or_else(|| ApiError::from(anyhow::anyhow!("stored politician id is not a ULID")))?;
     let (count, first_event_date, last_event_date): (i64, Option<NaiveDate>, Option<NaiveDate>) =
-        sqlx::query_as(
-            "select count(*), min(event_date), max(event_date) \
-             from disclosure_record where politician_id = $1",
-        )
-        .bind(&id)
-        .fetch_one(&state.pool)
-        .await?;
+        auth.apply(scope)
+            .bind_query_as(sqlx::query_as(SUMMARY_SQL))?
+            .fetch_one(&state.pool)
+            .await?;
     Ok(Json(PoliticianProfile {
         id: politician.id,
         canonical_name: politician.canonical_name,
@@ -220,6 +228,22 @@ pub async fn politician_profile(
             last_event_date,
         },
     }))
+}
+
+/// Record summary through the ONE evaluator (`$1..=$11` = the grammar with
+/// the caller's freshness bound; the politician pins via the grammar's own
+/// `politician_id` slot).
+const SUMMARY_SQL: &str = concatcp!(
+    "select count(*), min(event_date), max(event_date) from disclosure_record where ",
+    RecordFilter::SQL_WHERE
+);
+
+/// A grammar filter scoped to one politician. Stored politician ids are
+/// ULIDs by construction; a path id that does not parse cannot name a
+/// politician, so callers turn `None` into their 404 (fail closed — never
+/// an unscoped filter).
+fn politician_scope(id: &str) -> Option<RecordFilter> {
+    Some(RecordFilter::default().with_politician(id.parse::<PoliticianId>().ok()?))
 }
 
 /// Query parameters of `GET /v1/politicians/{id}/records`.
@@ -257,6 +281,7 @@ pub struct TimelineParams {
 )]
 pub async fn politician_records(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
     Path(id): Path<String>,
     ApiQuery(params): ApiQuery<TimelineParams>,
 ) -> Result<Json<RecordPage>, ApiError> {
@@ -265,22 +290,21 @@ pub async fn politician_records(
         .bind(&id)
         .fetch_one(&state.pool)
         .await?;
-    if !exists {
+    let scope = politician_scope(&id);
+    let (Some(scope), true) = (scope, exists) else {
         return Err(ApiError::NotFound {
             message: format!("politician {id} not found"),
         });
-    }
-    let rows: Vec<RecordRow> = sqlx::query_as(concatcp!(
-        RECORD_COLUMNS,
-        "where politician_id = $1 \
-           and ($2::text is null or id > $2) \
-         order by id \
-         limit $3"
-    ))
-    .bind(&id)
-    .bind(&cursor)
-    .bind(limit + 1)
-    .fetch_all(&state.pool)
-    .await?;
+    };
+    // The timeline is /v1/records scoped to one politician: the SAME
+    // statement, so the tier's freshness bound cannot diverge between the
+    // two doors.
+    let rows: Vec<RecordRow> = auth
+        .apply(scope)
+        .bind_query_as(sqlx::query_as(RECORDS_LIST_SQL))?
+        .bind(&cursor)
+        .bind(limit + 1)
+        .fetch_all(&state.pool)
+        .await?;
     Ok(Json(build_page(rows, limit)?))
 }

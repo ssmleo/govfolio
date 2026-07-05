@@ -47,6 +47,34 @@ pub enum ApiError {
         /// Human-readable explanation.
         message: String,
     },
+    /// Missing or invalid credentials (bad/revoked key, bad admin token).
+    Unauthorized {
+        /// Stable machine-readable code.
+        code: &'static str,
+        /// Human-readable explanation.
+        message: String,
+    },
+    /// Authenticated, but the tier does not include this capability.
+    Forbidden {
+        /// Stable machine-readable code.
+        code: &'static str,
+        /// Human-readable explanation.
+        message: String,
+    },
+    /// Quota or rate limit exhausted (goal 050 metering).
+    TooManyRequests {
+        /// Stable machine-readable code.
+        code: &'static str,
+        /// Human-readable explanation.
+        message: String,
+    },
+    /// A required backend integration is not configured (fail closed).
+    Unavailable {
+        /// Stable machine-readable code.
+        code: &'static str,
+        /// Human-readable explanation.
+        message: String,
+    },
     /// Anything the client cannot fix; details stay server-side.
     Internal(anyhow::Error),
 }
@@ -55,6 +83,30 @@ impl ApiError {
     /// Shorthand for a [`ApiError::BadRequest`].
     pub fn bad_request(code: &'static str, message: impl Into<String>) -> Self {
         Self::BadRequest {
+            code,
+            message: message.into(),
+        }
+    }
+
+    /// Shorthand for a [`ApiError::Unauthorized`].
+    pub fn unauthorized(code: &'static str, message: impl Into<String>) -> Self {
+        Self::Unauthorized {
+            code,
+            message: message.into(),
+        }
+    }
+
+    /// Shorthand for a [`ApiError::Forbidden`].
+    pub fn forbidden(code: &'static str, message: impl Into<String>) -> Self {
+        Self::Forbidden {
+            code,
+            message: message.into(),
+        }
+    }
+
+    /// Shorthand for a [`ApiError::TooManyRequests`].
+    pub fn too_many_requests(code: &'static str, message: impl Into<String>) -> Self {
+        Self::TooManyRequests {
             code,
             message: message.into(),
         }
@@ -89,6 +141,16 @@ impl IntoResponse for ApiError {
             }
             Self::NotFound { message } => (StatusCode::NOT_FOUND, "not_found".to_owned(), message),
             Self::Conflict { code, message } => (StatusCode::CONFLICT, code.to_owned(), message),
+            Self::Unauthorized { code, message } => {
+                (StatusCode::UNAUTHORIZED, code.to_owned(), message)
+            }
+            Self::Forbidden { code, message } => (StatusCode::FORBIDDEN, code.to_owned(), message),
+            Self::TooManyRequests { code, message } => {
+                (StatusCode::TOO_MANY_REQUESTS, code.to_owned(), message)
+            }
+            Self::Unavailable { code, message } => {
+                (StatusCode::SERVICE_UNAVAILABLE, code.to_owned(), message)
+            }
             Self::Internal(err) => {
                 // Details stay server-side; the envelope stays generic.
                 eprintln!("internal error: {err:#}");

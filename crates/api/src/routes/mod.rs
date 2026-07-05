@@ -2,11 +2,13 @@
 
 pub mod alert_rules;
 pub mod jurisdictions;
+pub mod keys;
 pub mod politicians;
 pub mod records;
 pub mod regimes;
 pub mod review;
 pub mod search;
+pub mod stripe;
 
 /// One shared `disclosure_record` projection behind every records endpoint —
 /// a `const` so every composed statement stays a compile-time `&'static str`

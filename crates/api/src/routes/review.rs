@@ -490,7 +490,15 @@ pub async fn get_review_task(
     let mut record = None;
     let mut extraction = None;
     if task.target_kind == "disclosure_record" {
-        record = fetch_record_detail(&state, &task.target_id).await?;
+        // Real-time visibility: the review surface sits behind the admin
+        // gate (lib.rs), and reviewers must see records the moment they
+        // exist — the freemium delay is a public-tier concern.
+        record = fetch_record_detail(
+            &state,
+            &govfolio_core::query::RecordFilter::default(),
+            &task.target_id,
+        )
+        .await?;
         if let Some(detail) = &record {
             // Cache evidence keyed by the Bronze sha + the record's extractor
             // tag (design §5.3 cache address). Multiple model_ids mean a

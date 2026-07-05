@@ -21,11 +21,13 @@ use crate::alerts::{DispatchConfig, load_active_rules};
 /// (visible backlog) until code that understands them ships.
 pub const EVENT_KIND: &str = "disclosure_record.published";
 
-/// One record-vs-filter evaluation: the grammar owns `$1..=$10`, the record
-/// id binds at `$11`. This is the SAME `SQL_WHERE` `/v1/records` runs — one
-/// grammar, one evaluator (design §6.3).
+/// One record-vs-filter evaluation: the grammar owns `$1..=$11`, the record
+/// id binds at `$12`. This is the SAME `SQL_WHERE` `/v1/records` runs — one
+/// grammar, one evaluator (design §6.3). Stored rules deserialize with the
+/// internal visibility slot unset, so alert matching is real-time (alerts
+/// are the paid fast path, design §6.2).
 const MATCH_SQL: &str = concatcp!(
-    "select exists(select 1 from disclosure_record where id = $11 and ",
+    "select exists(select 1 from disclosure_record where id = $12 and ",
     RecordFilter::SQL_WHERE,
     ")"
 );
@@ -124,6 +126,6 @@ mod tests {
         // The evaluator is core's fragment verbatim, with the record pinned
         // at the next free slot — no second grammar implementation exists.
         assert!(MATCH_SQL.contains(RecordFilter::SQL_WHERE));
-        assert!(MATCH_SQL.contains("$11"));
+        assert!(MATCH_SQL.contains("$12"));
     }
 }

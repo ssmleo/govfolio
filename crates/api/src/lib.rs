@@ -3,11 +3,14 @@
 //! byte producer behind `packages/contracts/openapi.json` — generated,
 //! committed, never hand-edited; regen drift fails CI.
 
+pub mod auth;
 pub mod dto;
 pub mod error;
 pub mod etag;
 pub mod extract;
 pub mod routes;
+
+use std::sync::Arc;
 
 use anyhow::Context as _;
 use axum::Router;
@@ -15,16 +18,97 @@ use axum::routing::{get, post, put};
 use sqlx::PgPool;
 use utoipa::OpenApi;
 
+/// Deploy-time configuration (all optional; every absence fails closed).
+#[derive(Debug, Default, Clone)]
+pub struct ApiConfig {
+    /// Bootstrap admin token (`ADMIN_TOKEN`): gates account creation and the
+    /// reviewer surface. Unset = those surfaces are disabled (401), never
+    /// open.
+    pub admin_token: Option<String>,
+    /// Stripe webhook endpoint secret (`STRIPE_WEBHOOK_SECRET`). Unset = the
+    /// webhook endpoint answers 503 (an unverifiable event is never acted
+    /// on).
+    pub stripe_webhook_secret: Option<String>,
+    /// Anonymous per-IP per-minute backstop (`UNAUTH_REQUESTS_PER_MINUTE`,
+    /// default [`ApiConfig::DEFAULT_UNAUTH_PER_MINUTE`]). Authoritative
+    /// anonymous limiting lives at the CDN edge (design §6.4); this only
+    /// stops a single instance from being trivially hammered.
+    pub unauth_requests_per_minute: u32,
+}
+
+impl ApiConfig {
+    /// Generous by design: the SSR origin funnels many site visitors
+    /// through one IP.
+    pub const DEFAULT_UNAUTH_PER_MINUTE: u32 = 600;
+
+    /// Reads the deploy environment (see field docs for the variables).
+    #[must_use]
+    pub fn from_env() -> Self {
+        Self {
+            admin_token: std::env::var("ADMIN_TOKEN").ok().filter(|t| !t.is_empty()),
+            stripe_webhook_secret: std::env::var("STRIPE_WEBHOOK_SECRET")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            unauth_requests_per_minute: std::env::var("UNAUTH_REQUESTS_PER_MINUTE")
+                .ok()
+                .and_then(|raw| raw.parse().ok())
+                .unwrap_or(Self::DEFAULT_UNAUTH_PER_MINUTE),
+        }
+    }
+
+    /// Default config with the standard anonymous ceiling (the derived
+    /// `Default` would be 0 = block everything).
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            unauth_requests_per_minute: Self::DEFAULT_UNAUTH_PER_MINUTE,
+            ..Self::default()
+        }
+    }
+}
+
 /// Shared handler state.
 #[derive(Clone)]
 pub struct AppState {
     /// Read pool over the Gold schema.
     pub pool: PgPool,
+    /// Deploy-time configuration.
+    pub config: Arc<ApiConfig>,
+    /// Anonymous backstop counters (per app instance — see `auth` docs).
+    pub unauth_counters: auth::UnauthCounters,
 }
 
 /// Builds the `/v1` router over the given pool — the one app both `main` and
-/// the contract test boot.
-pub fn app(pool: PgPool) -> Router {
+/// the contract tests boot.
+pub fn app(pool: PgPool, config: ApiConfig) -> Router {
+    let state = AppState {
+        pool,
+        config: Arc::new(config),
+        unauth_counters: auth::UnauthCounters::default(),
+    };
+    // Reviewer admin surface (design §7.2), whole subtree behind the
+    // bootstrap admin token: review tasks expose record context in REAL
+    // TIME, so leaving it open would tunnel under the freemium delay.
+    // Resolution goes through the pipeline promote path — the API never
+    // mutates records directly.
+    let review = Router::new()
+        .route("/v1/review-tasks", get(routes::review::list_review_tasks))
+        .route(
+            "/v1/review-tasks/{id}",
+            get(routes::review::get_review_task),
+        )
+        .route(
+            "/v1/review-tasks/{id}/resolve",
+            post(routes::review::resolve_review_task),
+        )
+        .route(
+            "/v1/review-tasks/{id}/audit",
+            get(routes::review::review_task_audit),
+        )
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth::admin_gate,
+        ));
     Router::new()
         .route("/v1/records", get(routes::records::list_records))
         .route("/v1/records/{id}", get(routes::records::get_record))
@@ -55,25 +139,29 @@ pub fn app(pool: PgPool) -> Router {
             put(routes::alert_rules::update_alert_rule)
                 .delete(routes::alert_rules::delete_alert_rule),
         )
-        // Reviewer admin surface (design §7.2). Resolution goes through the
-        // pipeline promote path — the API never mutates records directly.
-        .route("/v1/review-tasks", get(routes::review::list_review_tasks))
+        // Account bootstrap + key management (goal 050; real signup deferred).
+        .route("/v1/users", post(routes::keys::create_user))
         .route(
-            "/v1/review-tasks/{id}",
-            get(routes::review::get_review_task),
+            "/v1/keys",
+            post(routes::keys::create_key).get(routes::keys::list_keys),
         )
         .route(
-            "/v1/review-tasks/{id}/resolve",
-            post(routes::review::resolve_review_task),
+            "/v1/keys/{id}",
+            axum::routing::delete(routes::keys::revoke_key),
         )
-        .route(
-            "/v1/review-tasks/{id}/audit",
-            get(routes::review::review_task_audit),
-        )
+        // Stripe subscription mirror (signature-verified, config-gated).
+        .route("/v1/stripe/webhook", post(routes::stripe::stripe_webhook))
+        .merge(review)
         // Strong ETags + If-None-Match → 304 on every successful GET
         // (design §6.1: ETags everywhere).
         .layer(axum::middleware::from_fn(etag::etag))
-        .with_state(AppState { pool })
+        // Outermost: key → user → tier resolution, quota + metering, the
+        // anonymous backstop. Every request below carries an AuthContext.
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth::authenticate,
+        ))
+        .with_state(state)
 }
 
 /// The `OpenAPI` document — generated from the handlers, so the contract can
@@ -86,7 +174,16 @@ pub fn app(pool: PgPool) -> Router {
                        Cursor pagination on ULIDs; consistent error envelope; \
                        verification_state on every record. Every successful GET \
                        carries a strong ETag (sha256 of the body); requests with \
-                       a matching If-None-Match receive 304 Not Modified."
+                       a matching If-None-Match receive 304 Not Modified. \
+                       Authentication: `Authorization: Bearer gfk_...` API keys \
+                       (create via /v1/keys; hashes only at rest). Requests \
+                       without a key are served at the free tier. Tiers control \
+                       record freshness (free: filings we discovered less than \
+                       24 hours ago are not yet visible; pro/data: real time) \
+                       and the daily request quota (counted per account; over \
+                       quota is 429 quota_exceeded in the standard envelope). \
+                       Anonymous traffic has a light per-IP rate backstop \
+                       (429 rate_limited)."
     ),
     paths(
         routes::records::list_records,
@@ -101,6 +198,11 @@ pub fn app(pool: PgPool) -> Router {
         routes::alert_rules::list_alert_rules,
         routes::alert_rules::update_alert_rule,
         routes::alert_rules::delete_alert_rule,
+        routes::keys::create_user,
+        routes::keys::create_key,
+        routes::keys::list_keys,
+        routes::keys::revoke_key,
+        routes::stripe::stripe_webhook,
         routes::review::list_review_tasks,
         routes::review::get_review_task,
         routes::review::resolve_review_task,
@@ -114,12 +216,20 @@ pub fn app(pool: PgPool) -> Router {
         (name = "search", description = "Minimal substring search over \
          politicians and instruments (Postgres-backed until it hurts, §6.4)"),
         (name = "alert-rules", description = "Alert rules over the shared record \
-         filter grammar (design §6.3). Auth arrives with accounts (goal 050)."),
-        (name = "review", description = "Admin review queue (design §7.1–7.2): \
-         priority-ranked tasks with target-record context and extraction \
-         evidence; resolutions go through the pipeline promote path \
-         (supersede-never-update) and every attempt is audit-logged. Auth \
-         arrives with accounts (goal 050); reviewer is free text until then."),
+         filter grammar (design §6.3). Requires a pro or data tier API key; \
+         rules belong to the authenticated account."),
+        (name = "account", description = "Accounts and API keys (goal 050). \
+         Account creation is operator-bootstrap behind X-Admin-Token until \
+         self-serve signup ships; keys are hashed at rest and shown exactly \
+         once."),
+        (name = "billing", description = "Stripe integration seam (goal 050): \
+         signature-verified webhook mirroring subscription status; usage \
+         metering flows from usage_event via the billing-sync worker."),
+        (name = "review", description = "Admin review queue (design §7.1–7.2), \
+         X-Admin-Token gated: priority-ranked tasks with REAL-TIME record \
+         context and extraction evidence; resolutions go through the pipeline \
+         promote path (supersede-never-update) and every attempt is \
+         audit-logged."),
     )
 )]
 pub struct ApiDoc;

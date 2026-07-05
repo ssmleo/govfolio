@@ -22,6 +22,8 @@ jsonschema = { version = "0.46.9", default-features = false }
 # The ONE write path behind /v1/review-tasks/{id}/resolve: promote owns all
 # adjudication semantics (supersede-never-update); the API is a thin door.
 pipeline = { path = "../pipeline" }
+# API key minting (auth::generate_key): 32 CSPRNG bytes per key.
+rand = "0.9.2"
 rust_decimal = "1.42.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"

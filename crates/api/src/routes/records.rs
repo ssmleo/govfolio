@@ -5,7 +5,7 @@
 //! history (the record page's trust surface, design §7.3).
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use chrono::{DateTime, NaiveDate, Utc};
 use const_format::concatcp;
 use serde::{Deserialize, Serialize};
@@ -14,19 +14,22 @@ use utoipa::{IntoParams, ToSchema};
 use govfolio_core::query::RecordFilter;
 
 use crate::AppState;
+use crate::auth::AuthContext;
 use crate::dto::{DisclosureRecord, RecordPage, RecordRow, build_page, validate_page_params};
 use crate::error::{ApiError, ErrorBody};
 use crate::extract::ApiQuery;
 use crate::routes::RECORD_COLUMNS;
 use crate::routes::regimes::{REGIME_COLUMNS, Regime};
 
-/// The full listing statement: the grammar owns `$1..=$10`; the cursor and
-/// limit follow at `$11`/`$12`.
-const LIST_SQL: &str = concatcp!(
+/// The full listing statement: the grammar owns `$1..=$11` (slot `$11` = the
+/// tier's freshness bound, stamped by [`AuthContext::apply`]); the cursor
+/// and limit follow at `$12`/`$13`. Shared with the politician timeline —
+/// one statement, one delay enforcement.
+pub(crate) const LIST_SQL: &str = concatcp!(
     RECORD_COLUMNS,
     "where ",
     RecordFilter::SQL_WHERE,
-    " and ($11::text is null or id > $11) order by id limit $12"
+    " and ($12::text is null or id > $12) order by id limit $13"
 );
 
 /// Pagination parameters of `GET /v1/records`; the filter parameters are the
@@ -61,11 +64,13 @@ pub struct ListRecordsParams {
 )]
 pub async fn list_records(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
     ApiQuery(params): ApiQuery<ListRecordsParams>,
     ApiQuery(filter): ApiQuery<RecordFilter>,
 ) -> Result<Json<RecordPage>, ApiError> {
     let (cursor, limit) = validate_page_params(params.cursor.as_deref(), params.limit)?;
-    let rows: Vec<RecordRow> = filter
+    let rows: Vec<RecordRow> = auth
+        .apply(filter) // the tier's freshness bound (design §6.2)
         .bind_query_as(sqlx::query_as(LIST_SQL))?
         .bind(&cursor)
         .bind(limit + 1)
@@ -131,40 +136,59 @@ pub struct RecordDetail {
     pub superseded_by: Vec<DisclosureRecord>,
 }
 
-const GET_SQL: &str = concatcp!(RECORD_COLUMNS, "where id = $1");
+/// Detail lookup THROUGH the shared evaluator: a record whose filing is
+/// still inside the caller's freshness window does not exist for them —
+/// the delay holds on detail exactly as on listings (design §6.2).
+const GET_SQL: &str = concatcp!(
+    RECORD_COLUMNS,
+    "where ",
+    RecordFilter::SQL_WHERE,
+    " and id = $12"
+);
 
 /// Ancestor chain: follow `supersedes_record_id` FROM the record. Terminates
 /// structurally — the pointer always references an earlier, immutable row
-/// (supersede-never-update), so no cycles exist.
+/// (supersede-never-update), so no cycles exist. The outer projection runs
+/// through the shared evaluator: chain members the caller cannot see yet
+/// are omitted.
 const SUPERSEDES_SQL: &str = concatcp!(
     "with recursive up as ( \
         select r.id, r.supersedes_record_id from disclosure_record r \
-         where r.id = (select supersedes_record_id from disclosure_record where id = $1) \
+         where r.id = (select supersedes_record_id from disclosure_record where id = $12) \
         union all \
         select r.id, r.supersedes_record_id from disclosure_record r \
           join up on r.id = up.supersedes_record_id) ",
     RECORD_COLUMNS,
-    "where id in (select id from up) order by id"
+    "where ",
+    RecordFilter::SQL_WHERE,
+    " and id in (select id from up) order by id"
 );
 
 /// Descendant chain: records whose `supersedes_record_id` points (transitively)
 /// AT the record.
 const SUPERSEDED_BY_SQL: &str = concatcp!(
     "with recursive down as ( \
-        select r.id from disclosure_record r where r.supersedes_record_id = $1 \
+        select r.id from disclosure_record r where r.supersedes_record_id = $12 \
         union all \
         select r.id from disclosure_record r \
           join down on r.supersedes_record_id = down.id) ",
     RECORD_COLUMNS,
-    "where id in (select id from down) order by id"
+    "where ",
+    RecordFilter::SQL_WHERE,
+    " and id in (select id from down) order by id"
 );
 
 async fn fetch_chain(
     state: &AppState,
     sql: &'static str,
+    visibility: &RecordFilter,
     id: &str,
 ) -> Result<Vec<DisclosureRecord>, ApiError> {
-    let rows: Vec<RecordRow> = sqlx::query_as(sql).bind(id).fetch_all(&state.pool).await?;
+    let rows: Vec<RecordRow> = visibility
+        .bind_query_as(sqlx::query_as(sql))?
+        .bind(id)
+        .fetch_all(&state.pool)
+        .await?;
     rows.into_iter().map(DisclosureRecord::try_from).collect()
 }
 
@@ -186,9 +210,10 @@ async fn fetch_chain(
 )]
 pub async fn get_record(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
     Path(id): Path<String>,
 ) -> Result<Json<RecordDetail>, ApiError> {
-    match fetch_record_detail(&state, &id).await? {
+    match fetch_record_detail(&state, &auth.filter(), &id).await? {
         Some(detail) => Ok(Json(detail)),
         None => Err(ApiError::NotFound {
             message: format!("record {id} not found"),
@@ -197,13 +222,17 @@ pub async fn get_record(
 }
 
 /// Builds the full [`RecordDetail`] for one record id; `None` for an unknown
-/// id. Shared with the review-task detail endpoint (goal 041a), so reviewers
-/// adjudicate against EXACTLY the public trust surface.
+/// (or not-yet-visible) id. `visibility` carries the caller's freshness
+/// bound. Shared with the review-task detail endpoint (goal 041a) — which
+/// passes a real-time filter behind its admin gate — so reviewers adjudicate
+/// against EXACTLY the public trust surface.
 pub(crate) async fn fetch_record_detail(
     state: &AppState,
+    visibility: &RecordFilter,
     id: &str,
 ) -> Result<Option<RecordDetail>, ApiError> {
-    let row: Option<RecordRow> = sqlx::query_as(GET_SQL)
+    let row: Option<RecordRow> = visibility
+        .bind_query_as(sqlx::query_as(GET_SQL))?
         .bind(id)
         .fetch_optional(&state.pool)
         .await?;
@@ -238,8 +267,8 @@ pub(crate) async fn fetch_record_detail(
         .fetch_one(&state.pool)
         .await?;
 
-    let supersedes = fetch_chain(state, SUPERSEDES_SQL, id).await?;
-    let superseded_by = fetch_chain(state, SUPERSEDED_BY_SQL, id).await?;
+    let supersedes = fetch_chain(state, SUPERSEDES_SQL, visibility, id).await?;
+    let superseded_by = fetch_chain(state, SUPERSEDED_BY_SQL, visibility, id).await?;
 
     Ok(Some(RecordDetail {
         record,

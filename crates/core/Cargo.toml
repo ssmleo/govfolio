@@ -16,6 +16,10 @@ workspace = true
 [dependencies]
 anyhow = "1.0.103"
 chrono = { version = "0.4.45", features = ["serde"] }
+# Stripe webhook signature scheme (core::stripe): HMAC-SHA256 over
+# "{t}.{payload}", hex-encoded — pure, no HTTP.
+hex = "0.4.3"
+hmac = "0.12.1"
 rust_decimal = "1.42.1"
 schemars = { version = "1.2.1", features = ["chrono04", "rust_decimal1"] }
 serde = { version = "1.0.228", features = ["derive"] }

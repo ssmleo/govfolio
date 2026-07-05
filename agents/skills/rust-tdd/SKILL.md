@@ -89,4 +89,13 @@ Learnings (dated):
   pool. On Err + audit-write-Err, attach the audit failure to the original error with
   `.context(..)` — never swallow either. Caller pre-checks existence (404) so post-hoc
   rows stay FK-valid.
+- 2026-07-05: axum middleware fns (`from_fn_with_state`) must not hold `&Request` across
+  an await — the future goes !Send (Body is !Sync) and the error is an opaque unfulfilled
+  `FromFn: Service` bound, not a Send diagnostic. Extract owned header/path slices FIRST,
+  then await. Related: reqwest 0.13 feature-gates `.form()`/`.json()` behind `form`/`json`.
+- 2026-07-05: adding a slot to a shared fixed-slot SQL fragment (query.rs SQL_WHERE) —
+  grep every composer for the old `$N+1` caller binds BEFORE bumping BIND_SLOTS; the type
+  system cannot catch positional-bind drift, only the suites can. An internal-only filter
+  field (`#[serde(skip)]` + private + builder) keeps grammar contracts byte-identical:
+  schemars, utoipa ToSchema AND IntoParams all honor serde(skip).
 Write-back: deepen this file when the procedure teaches you something; same PR.

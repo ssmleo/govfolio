@@ -89,7 +89,7 @@
             "type": "string"
           },
           "user_id": {
-            "description": "Owning user (free text until accounts land — goal 050).",
+            "description": "Owning account (`user_account.id` — always the authenticated caller).",
             "type": "string"
           }
         },
@@ -106,7 +106,7 @@
         "type": "object"
       },
       "AlertRuleSpec": {
-        "description": "Create/replace body for an alert rule (`POST` and `PUT` share it).",
+        "description": "Create/replace body for an alert rule (`POST` and `PUT` share it). The\nowner is always the authenticated account — never caller-supplied.",
         "properties": {
           "active": {
             "description": "Whether the rule matches at all (defaults to active).",
@@ -126,16 +126,44 @@
           "filter": {
             "$ref": "#/components/schemas/RecordFilter",
             "description": "Filter in the shared record grammar; unknown keys are rejected."
-          },
-          "user_id": {
-            "description": "Owning user (free text until accounts land — goal 050).",
-            "type": "string"
           }
         },
         "required": [
-          "user_id",
           "filter",
           "channels"
+        ],
+        "type": "object"
+      },
+      "ApiKeyInfo": {
+        "description": "One key as listed — metadata only, nothing secret-derived.",
+        "properties": {
+          "created_at": {
+            "description": "When the key was created.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "Key ULID.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "label": {
+            "description": "Human label.",
+            "type": "string"
+          },
+          "revoked_at": {
+            "description": "When the key was revoked; `null` while active.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "label",
+          "created_at"
         ],
         "type": "object"
       },
@@ -153,6 +181,80 @@
           "other"
         ],
         "type": "string"
+      },
+      "CreateKey": {
+        "description": "Body of `POST /v1/keys`.",
+        "properties": {
+          "label": {
+            "description": "Human label for the key (shown in listings).",
+            "type": "string"
+          },
+          "user_id": {
+            "description": "Target user — REQUIRED with admin auth, FORBIDDEN with key auth\n(a key only mints keys for its own account).",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "label"
+        ],
+        "type": "object"
+      },
+      "CreateUser": {
+        "description": "Body of `POST /v1/users` (admin bootstrap).",
+        "properties": {
+          "email": {
+            "description": "Account email (unique).",
+            "type": "string"
+          },
+          "tier": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Tier",
+                "description": "Tier; defaults to `free`."
+              }
+            ]
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "type": "object"
+      },
+      "CreatedKey": {
+        "description": "The creation response — the ONLY place the plaintext key ever appears.",
+        "properties": {
+          "created_at": {
+            "description": "When the key was created.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "Key ULID (use for revocation).",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "key": {
+            "description": "The bearer token (`gfk_...`). Shown once; store it now — only its\nhash is retained.",
+            "type": "string"
+          },
+          "label": {
+            "description": "Human label.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "key",
+          "label",
+          "created_at"
+        ],
+        "type": "object"
       },
       "Currency": {
         "description": "ISO 4217 currency code (`char(3)` in DDL), uppercase on the wire — `snake_case`\nwould mangle codes. Closed set for now; extend as regimes land (visible in the\nschema snapshot).",
@@ -1381,6 +1483,45 @@
         ],
         "type": "string"
       },
+      "Tier": {
+        "description": "`user_account.tier` CHECK (design §6.2 freemium table): the tier decides\nfreshness (free = 24h-delayed via the ONE visibility bound in\n`core::query`) and the daily request quota. Default is `free`.",
+        "enum": [
+          "free",
+          "pro",
+          "data"
+        ],
+        "type": "string"
+      },
+      "UserAccount": {
+        "description": "One account (Gold-side `user_account`).",
+        "properties": {
+          "created_at": {
+            "description": "When the account was created.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "email": {
+            "description": "Unique account email.",
+            "type": "string"
+          },
+          "id": {
+            "description": "User ULID.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/Tier",
+            "description": "Tier (decides freshness delay + daily quota, design §6.2)."
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "tier",
+          "created_at"
+        ],
+        "type": "object"
+      },
       "ValueInterval": {
         "description": "A money interval `low ..= high` in `currency`. Exact figures are `low == high`;\n`high == None` is an open-ended threshold (UK \"over £70,000\"). Construction is\nthe only door: `high < low` never exists — in memory or on the wire, because\nthe manual `Deserialize` impl funnels back through [`ValueInterval::new`].",
         "properties": {
@@ -1416,7 +1557,7 @@
     }
   },
   "info": {
-    "description": "Worldwide politician financial-disclosure tracking. Cursor pagination on ULIDs; consistent error envelope; verification_state on every record. Every successful GET carries a strong ETag (sha256 of the body); requests with a matching If-None-Match receive 304 Not Modified.",
+    "description": "Worldwide politician financial-disclosure tracking. Cursor pagination on ULIDs; consistent error envelope; verification_state on every record. Every successful GET carries a strong ETag (sha256 of the body); requests with a matching If-None-Match receive 304 Not Modified. Authentication: `Authorization: Bearer gfk_...` API keys (create via /v1/keys; hashes only at rest). Requests without a key are served at the free tier. Tiers control record freshness (free: filings we discovered less than 24 hours ago are not yet visible; pro/data: real time) and the daily request quota (counted per account; over quota is 429 quota_exceeded in the standard envelope). Anonymous traffic has a light per-IP rate backstop (429 rate_limited).",
     "title": "govfolio API",
     "version": "0.1.0"
   },
@@ -1424,19 +1565,8 @@
   "paths": {
     "/v1/alert-rules": {
       "get": {
-        "description": "# Errors\n`500` on backend failure.",
+        "description": "# Errors\n`401`/`403` without a pro/data key; `500` on backend failure.",
         "operationId": "list_alert_rules",
-        "parameters": [
-          {
-            "description": "Only rules owned by this user.",
-            "in": "query",
-            "name": "user_id",
-            "required": false,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "content": {
@@ -1449,7 +1579,27 @@
                 }
               }
             },
-            "description": "All matching rules"
+            "description": "The caller's rules"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No valid API key"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Tier does not include alerts"
           },
           "500": {
             "content": {
@@ -1462,13 +1612,13 @@
             "description": "Internal error"
           }
         },
-        "summary": "Lists alert rules (optionally one user's).",
+        "summary": "Lists the authenticated account's alert rules.",
         "tags": [
           "alert-rules"
         ]
       },
       "post": {
-        "description": "# Errors\n`400` on a body outside the contracts; `500` on backend failure.",
+        "description": "# Errors\n`401`/`403` without a pro/data key; `400` on a body outside the\ncontracts; `500` on backend failure.",
         "operationId": "create_alert_rule",
         "requestBody": {
           "content": {
@@ -1501,6 +1651,26 @@
             },
             "description": "Body violates the filter/channel contracts"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No valid API key"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Tier does not include alerts"
+          },
           "500": {
             "content": {
               "application/json": {
@@ -1512,7 +1682,7 @@
             "description": "Internal error"
           }
         },
-        "summary": "Creates an alert rule.",
+        "summary": "Creates an alert rule owned by the authenticated account.",
         "tags": [
           "alert-rules"
         ]
@@ -1520,7 +1690,7 @@
     },
     "/v1/alert-rules/{id}": {
       "delete": {
-        "description": "# Errors\n`404` for an unknown rule; `500` on backend failure.",
+        "description": "# Errors\n`401`/`403` without a pro/data key; `404` for a rule that is unknown or\nnot the caller's; `500` on backend failure.",
         "operationId": "delete_alert_rule",
         "parameters": [
           {
@@ -1537,6 +1707,26 @@
           "204": {
             "description": "Deleted"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No valid API key"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Tier does not include alerts"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -1545,7 +1735,7 @@
                 }
               }
             },
-            "description": "Unknown rule"
+            "description": "Unknown (or not owned) rule"
           },
           "500": {
             "content": {
@@ -1558,13 +1748,13 @@
             "description": "Internal error"
           }
         },
-        "summary": "Deletes an alert rule (its delivery ledger rows cascade with it).",
+        "summary": "Deletes one of the authenticated account's alert rules (its delivery\nledger rows cascade with it).",
         "tags": [
           "alert-rules"
         ]
       },
       "put": {
-        "description": "# Errors\n`400` on a body outside the contracts; `404` for an unknown rule; `500`\non backend failure.",
+        "description": "# Errors\n`401`/`403` without a pro/data key; `400` on a body outside the\ncontracts; `404` for a rule that is unknown or not the caller's; `500`\non backend failure.",
         "operationId": "update_alert_rule",
         "parameters": [
           {
@@ -1608,6 +1798,26 @@
             },
             "description": "Body violates the filter/channel contracts"
           },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No valid API key"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Tier does not include alerts"
+          },
           "404": {
             "content": {
               "application/json": {
@@ -1616,7 +1826,7 @@
                 }
               }
             },
-            "description": "Unknown rule"
+            "description": "Unknown (or not owned) rule"
           },
           "500": {
             "content": {
@@ -1629,7 +1839,7 @@
             "description": "Internal error"
           }
         },
-        "summary": "Replaces an alert rule.",
+        "summary": "Replaces one of the authenticated account's alert rules.",
         "tags": [
           "alert-rules"
         ]
@@ -1667,6 +1877,177 @@
         "summary": "Lists all jurisdictions (id order) with their regimes joined in.",
         "tags": [
           "jurisdictions"
+        ]
+      }
+    },
+    "/v1/keys": {
+      "get": {
+        "description": "# Errors\n`401` without a valid API key; `500` on backend failure.",
+        "operationId": "list_keys",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ApiKeyInfo"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "The caller's keys, metadata only"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No valid API key"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Lists the caller's keys (metadata only — the plaintext is unrecoverable\nby design).",
+        "tags": [
+          "account"
+        ]
+      },
+      "post": {
+        "description": "# Errors\n`401` without any valid credential; `400` on a blank label or a body/auth\nmismatch; `404` for an unknown user (admin path); `500` on backend\nfailure.",
+        "operationId": "create_key",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKey"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedKey"
+                }
+              }
+            },
+            "description": "The created key, plaintext INCLUDED — shown exactly once"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Blank label or user_id/auth mismatch"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No valid API key or admin token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown user (admin path)"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Creates an API key. With key auth: for the caller's own account. With\n`X-Admin-Token`: for the user named in the body (bootstrap).",
+        "tags": [
+          "account"
+        ]
+      }
+    },
+    "/v1/keys/{id}": {
+      "delete": {
+        "description": "# Errors\n`401` without any valid credential; `404` for an unknown (or not owned)\nkey; `500` on backend failure.",
+        "operationId": "revoke_key",
+        "parameters": [
+          {
+            "description": "Key ULID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked (idempotent)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "No valid API key or admin token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown or not owned key"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Revokes a key (immediate — the very next request with it is `401`).\nKey auth revokes own keys; `X-Admin-Token` revokes any.",
+        "tags": [
+          "account"
         ]
       }
     },
@@ -2448,6 +2829,134 @@
           "search"
         ]
       }
+    },
+    "/v1/stripe/webhook": {
+      "post": {
+        "description": "# Errors\n`503` when no webhook secret is configured; `400` on a missing/invalid\nsignature or an unparseable event; `500` on backend failure.",
+        "operationId": "stripe_webhook",
+        "requestBody": {
+          "content": {
+            "text/plain": {
+              "schema": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Raw Stripe event JSON (signature over the exact bytes)",
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Event verified and processed (or acknowledged as not ours)"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing/invalid Stripe-Signature or malformed event"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Webhook secret not configured (fail closed)"
+          }
+        },
+        "summary": "Receives Stripe webhook events (subscription lifecycle mirror).",
+        "tags": [
+          "billing"
+        ]
+      }
+    },
+    "/v1/users": {
+      "post": {
+        "description": "# Errors\n`401` without a valid `X-Admin-Token`; `400` on a blank email; `409` on a\nduplicate email; `500` on backend failure.",
+        "operationId": "create_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateUser"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAccount"
+                }
+              }
+            },
+            "description": "The created account"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Blank email"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Email already registered"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Creates an account (bootstrap; real signup is deferred — see module docs).",
+        "tags": [
+          "account"
+        ]
+      }
     }
   },
   "tags": [
@@ -2468,11 +2977,19 @@
       "name": "search"
     },
     {
-      "description": "Alert rules over the shared record filter grammar (design §6.3). Auth arrives with accounts (goal 050).",
+      "description": "Alert rules over the shared record filter grammar (design §6.3). Requires a pro or data tier API key; rules belong to the authenticated account.",
       "name": "alert-rules"
     },
     {
-      "description": "Admin review queue (design §7.1–7.2): priority-ranked tasks with target-record context and extraction evidence; resolutions go through the pipeline promote path (supersede-never-update) and every attempt is audit-logged. Auth arrives with accounts (goal 050); reviewer is free text until then.",
+      "description": "Accounts and API keys (goal 050). Account creation is operator-bootstrap behind X-Admin-Token until self-serve signup ships; keys are hashed at rest and shown exactly once.",
+      "name": "account"
+    },
+    {
+      "description": "Stripe integration seam (goal 050): signature-verified webhook mirroring subscription status; usage metering flows from usage_event via the billing-sync worker.",
+      "name": "billing"
+    },
+    {
+      "description": "Admin review queue (design §7.1–7.2), X-Admin-Token gated: priority-ranked tasks with REAL-TIME record context and extraction evidence; resolutions go through the pipeline promote path (supersede-never-update) and every attempt is audit-logged.",
       "name": "review"
     }
   ]

@@ -5,22 +5,40 @@
 //! schema forbids unknown keys, so a typo'd filter fails instead of silently
 //! matching everything — invariant-5 discipline applied to rule config).
 //!
-//! AUTH: none yet — accounts and tier enforcement land in goal 050; until
-//! then `user_id` is caller-supplied free text (schema already has room).
+//! AUTH (goal 050): alerts are the paid fast path (design §6.2 — free tier
+//! has no alerts, so an open rules door would tunnel under the 24h delay).
+//! Every endpoint requires a pro/data-tier API key; rules belong to the
+//! authenticated account and are invisible across accounts.
 
 use axum::Json;
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use utoipa::{IntoParams, ToSchema};
+use utoipa::ToSchema;
 
 use govfolio_core::alerts::AlertChannel;
 use govfolio_core::query::RecordFilter;
 
 use crate::AppState;
+use crate::auth::{AuthContext, Principal};
 use crate::error::{ApiError, ErrorBody};
-use crate::extract::{ApiJson, ApiQuery};
+use crate::extract::ApiJson;
+
+/// Alert rules require an authenticated paid tier (see module docs).
+fn require_paid(auth: &AuthContext) -> Result<&Principal, ApiError> {
+    let principal = auth
+        .principal
+        .as_ref()
+        .ok_or_else(|| ApiError::unauthorized("key_required", "authenticate with an API key"))?;
+    if !auth.tier.realtime() {
+        return Err(ApiError::forbidden(
+            "tier_required",
+            "alert rules require the pro or data tier",
+        ));
+    }
+    Ok(principal)
+}
 
 /// One alert rule.
 #[derive(Debug, Serialize, ToSchema)]
@@ -28,7 +46,7 @@ pub struct AlertRule {
     /// Rule ULID.
     #[schema(pattern = "^[0-7][0-9A-HJKMNP-TV-Z]{25}$")]
     pub id: String,
-    /// Owning user (free text until accounts land — goal 050).
+    /// Owning account (`user_account.id` — always the authenticated caller).
     pub user_id: String,
     /// Filter in the shared record grammar — identical to `/v1/records`
     /// query parameters (design §6.3: one grammar, learned once).
@@ -46,11 +64,10 @@ pub struct AlertRule {
     pub updated_at: DateTime<Utc>,
 }
 
-/// Create/replace body for an alert rule (`POST` and `PUT` share it).
+/// Create/replace body for an alert rule (`POST` and `PUT` share it). The
+/// owner is always the authenticated account — never caller-supplied.
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct AlertRuleSpec {
-    /// Owning user (free text until accounts land — goal 050).
-    pub user_id: String,
     /// Filter in the shared record grammar; unknown keys are rejected.
     #[schema(value_type = RecordFilter)]
     pub filter: serde_json::Value,
@@ -66,14 +83,6 @@ pub struct AlertRuleSpec {
 
 fn default_active() -> bool {
     true
-}
-
-/// Query parameters of `GET /v1/alert-rules`.
-#[derive(Debug, Deserialize, IntoParams)]
-#[into_params(parameter_in = Query)]
-pub struct ListAlertRulesParams {
-    /// Only rules owned by this user.
-    pub user_id: Option<String>,
 }
 
 /// Raw `alert_rule` row; conversion re-types the jsonb columns through the
@@ -120,12 +129,6 @@ const RULE_COLUMNS: &str = "id, user_id, filter, channels, digest, active, creat
 /// # Errors
 /// `400` with a stable code on any contract violation.
 fn validate_spec(spec: &AlertRuleSpec) -> Result<(serde_json::Value, serde_json::Value), ApiError> {
-    if spec.user_id.trim().is_empty() {
-        return Err(ApiError::bad_request(
-            "invalid_user_id",
-            "user_id must be non-empty",
-        ));
-    }
     // Strict grammar check against the committed schema (unknown keys reject).
     let schema = serde_json::to_value(govfolio_core::schemas::record_filter())
         .map_err(|e| anyhow::anyhow!("rendering the filter schema: {e}"))?;
@@ -183,10 +186,11 @@ fn validate_spec(spec: &AlertRuleSpec) -> Result<(serde_json::Value, serde_json:
     Ok((filter, channels))
 }
 
-/// Creates an alert rule.
+/// Creates an alert rule owned by the authenticated account.
 ///
 /// # Errors
-/// `400` on a body outside the contracts; `500` on backend failure.
+/// `401`/`403` without a pro/data key; `400` on a body outside the
+/// contracts; `500` on backend failure.
 #[utoipa::path(
     post,
     path = "/v1/alert-rules",
@@ -195,13 +199,17 @@ fn validate_spec(spec: &AlertRuleSpec) -> Result<(serde_json::Value, serde_json:
     responses(
         (status = 201, description = "The created rule", body = AlertRule),
         (status = 400, description = "Body violates the filter/channel contracts", body = ErrorBody),
+        (status = 401, description = "No valid API key", body = ErrorBody),
+        (status = 403, description = "Tier does not include alerts", body = ErrorBody),
         (status = 500, description = "Internal error", body = ErrorBody),
     ),
 )]
 pub async fn create_alert_rule(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
     ApiJson(spec): ApiJson<AlertRuleSpec>,
 ) -> Result<(StatusCode, Json<AlertRule>), ApiError> {
+    let principal = require_paid(&auth)?;
     let (filter, channels) = validate_spec(&spec)?;
     let row: AlertRuleRow = sqlx::query_as(const_format::concatcp!(
         "insert into alert_rule (id, user_id, filter, channels, digest, active) \
@@ -209,7 +217,7 @@ pub async fn create_alert_rule(
         RULE_COLUMNS
     ))
     .bind(ulid::Ulid::new().to_string())
-    .bind(&spec.user_id)
+    .bind(&principal.user_id)
     .bind(filter)
     .bind(channels)
     .bind(spec.digest)
@@ -219,30 +227,32 @@ pub async fn create_alert_rule(
     Ok((StatusCode::CREATED, Json(row.try_into()?)))
 }
 
-/// Lists alert rules (optionally one user's).
+/// Lists the authenticated account's alert rules.
 ///
 /// # Errors
-/// `500` on backend failure.
+/// `401`/`403` without a pro/data key; `500` on backend failure.
 #[utoipa::path(
     get,
     path = "/v1/alert-rules",
     tag = "alert-rules",
-    params(ListAlertRulesParams),
     responses(
-        (status = 200, description = "All matching rules", body = [AlertRule]),
+        (status = 200, description = "The caller's rules", body = [AlertRule]),
+        (status = 401, description = "No valid API key", body = ErrorBody),
+        (status = 403, description = "Tier does not include alerts", body = ErrorBody),
         (status = 500, description = "Internal error", body = ErrorBody),
     ),
 )]
 pub async fn list_alert_rules(
     State(state): State<AppState>,
-    ApiQuery(params): ApiQuery<ListAlertRulesParams>,
+    Extension(auth): Extension<AuthContext>,
 ) -> Result<Json<Vec<AlertRule>>, ApiError> {
+    let principal = require_paid(&auth)?;
     let rows: Vec<AlertRuleRow> = sqlx::query_as(const_format::concatcp!(
         "select ",
         RULE_COLUMNS,
-        " from alert_rule where ($1::text is null or user_id = $1) order by id"
+        " from alert_rule where user_id = $1 order by id"
     ))
-    .bind(&params.user_id)
+    .bind(&principal.user_id)
     .fetch_all(&state.pool)
     .await?;
     let rules = rows
@@ -252,10 +262,11 @@ pub async fn list_alert_rules(
     Ok(Json(rules))
 }
 
-/// Replaces an alert rule.
+/// Replaces one of the authenticated account's alert rules.
 ///
 /// # Errors
-/// `400` on a body outside the contracts; `404` for an unknown rule; `500`
+/// `401`/`403` without a pro/data key; `400` on a body outside the
+/// contracts; `404` for a rule that is unknown or not the caller's; `500`
 /// on backend failure.
 #[utoipa::path(
     put,
@@ -266,25 +277,29 @@ pub async fn list_alert_rules(
     responses(
         (status = 200, description = "The updated rule", body = AlertRule),
         (status = 400, description = "Body violates the filter/channel contracts", body = ErrorBody),
-        (status = 404, description = "Unknown rule", body = ErrorBody),
+        (status = 401, description = "No valid API key", body = ErrorBody),
+        (status = 403, description = "Tier does not include alerts", body = ErrorBody),
+        (status = 404, description = "Unknown (or not owned) rule", body = ErrorBody),
         (status = 500, description = "Internal error", body = ErrorBody),
     ),
 )]
 pub async fn update_alert_rule(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
     Path(id): Path<String>,
     ApiJson(spec): ApiJson<AlertRuleSpec>,
 ) -> Result<Json<AlertRule>, ApiError> {
+    let principal = require_paid(&auth)?;
     let (filter, channels) = validate_spec(&spec)?;
     let row: Option<AlertRuleRow> = sqlx::query_as(const_format::concatcp!(
         "update alert_rule \
-         set user_id = $2, filter = $3, channels = $4, digest = $5, active = $6, \
+         set filter = $3, channels = $4, digest = $5, active = $6, \
              updated_at = now() \
-         where id = $1 returning ",
+         where id = $1 and user_id = $2 returning ",
         RULE_COLUMNS
     ))
     .bind(&id)
-    .bind(&spec.user_id)
+    .bind(&principal.user_id)
     .bind(filter)
     .bind(channels)
     .bind(spec.digest)
@@ -299,10 +314,12 @@ pub async fn update_alert_rule(
     }
 }
 
-/// Deletes an alert rule (its delivery ledger rows cascade with it).
+/// Deletes one of the authenticated account's alert rules (its delivery
+/// ledger rows cascade with it).
 ///
 /// # Errors
-/// `404` for an unknown rule; `500` on backend failure.
+/// `401`/`403` without a pro/data key; `404` for a rule that is unknown or
+/// not the caller's; `500` on backend failure.
 #[utoipa::path(
     delete,
     path = "/v1/alert-rules/{id}",
@@ -310,16 +327,21 @@ pub async fn update_alert_rule(
     params(("id" = String, Path, description = "Rule ULID")),
     responses(
         (status = 204, description = "Deleted"),
-        (status = 404, description = "Unknown rule", body = ErrorBody),
+        (status = 401, description = "No valid API key", body = ErrorBody),
+        (status = 403, description = "Tier does not include alerts", body = ErrorBody),
+        (status = 404, description = "Unknown (or not owned) rule", body = ErrorBody),
         (status = 500, description = "Internal error", body = ErrorBody),
     ),
 )]
 pub async fn delete_alert_rule(
     State(state): State<AppState>,
+    Extension(auth): Extension<AuthContext>,
     Path(id): Path<String>,
 ) -> Result<StatusCode, ApiError> {
-    let result = sqlx::query("delete from alert_rule where id = $1")
+    let principal = require_paid(&auth)?;
+    let result = sqlx::query("delete from alert_rule where id = $1 and user_id = $2")
         .bind(&id)
+        .bind(&principal.user_id)
         .execute(&state.pool)
         .await?;
     if result.rows_affected() == 0 {

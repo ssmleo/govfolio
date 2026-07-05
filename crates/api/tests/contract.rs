@@ -106,6 +106,53 @@ async fn seed_via_pipeline(pool: &PgPool) {
     let report = runner.run_local(&fixture_inputs()).await.unwrap();
     assert_eq!(report.failed, Vec::<String>::new());
     assert_eq!(report.gold_inserted, 13, "1+8+2+1+1 fixture rows");
+
+    // Age the seed past the free-tier 24h delay (goal 050): this suite
+    // exercises the public read surface as an anonymous (= free) caller,
+    // and freshly discovered filings would be invisible to it. The tier
+    // matrix itself is proven in tests/tiers.rs.
+    sqlx::query("update filing set discovered_at = discovered_at - interval '25 hours'")
+        .execute(pool)
+        .await
+        .unwrap();
+}
+
+// ------------------------------------------------------------- app + auth --
+
+/// Bootstrap admin token for this suite (the admin surface is disabled when
+/// unset — goal 050 fail-closed gate).
+const TEST_ADMIN: &str = "contract-suite-admin";
+
+fn test_app(pool: &PgPool) -> Router {
+    api::app(
+        pool.clone(),
+        api::ApiConfig {
+            admin_token: Some(TEST_ADMIN.to_owned()),
+            ..api::ApiConfig::new()
+        },
+    )
+}
+
+/// Creates a user + key through the admin bootstrap endpoints; returns the
+/// plaintext bearer token (only ever available at creation, by design).
+async fn seed_key(app: &Router, email: &str, tier: &str) -> String {
+    let (status, user) = send(
+        app,
+        "POST",
+        "/v1/users",
+        Some(&json!({"email": email, "tier": tier})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "create user: {user:#}");
+    let (status, created) = send(
+        app,
+        "POST",
+        "/v1/keys",
+        Some(&json!({"user_id": user["id"], "label": "contract"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED, "create key: {created:#}");
+    created["key"].as_str().unwrap().to_owned()
 }
 
 // --------------------------------------------------------- schema harness --
@@ -155,13 +202,15 @@ fn assert_valid(validator: &jsonschema::Validator, body: &Value) {
 }
 
 /// Raw GET with optional request headers — for probing response headers and
-/// bodies the JSON helper would obscure (the ETag/304 path).
+/// bodies the JSON helper would obscure (the ETag/304 path). Carries the
+/// suite admin token (ignored by public endpoints; required by the review
+/// surface since goal 050).
 async fn get_raw(
     app: &Router,
     uri: &str,
     headers: &[(&str, &str)],
 ) -> (StatusCode, HeaderMap, Bytes) {
-    let mut request = Request::get(uri);
+    let mut request = Request::get(uri).header("x-admin-token", TEST_ADMIN);
     for (name, value) in headers {
         request = request.header(*name, *value);
     }
@@ -177,22 +226,31 @@ async fn get_raw(
 }
 
 async fn get(app: &Router, uri: &str) -> (StatusCode, Value) {
-    let response = app
-        .clone()
-        .oneshot(Request::get(uri).body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    let status = response.status();
-    let bytes = response.into_body().collect().await.unwrap().to_bytes();
-    let body = serde_json::from_slice(&bytes)
-        .unwrap_or_else(|e| panic!("GET {uri} returned non-JSON ({status}): {e}"));
-    (status, body)
+    send_with(app, "GET", uri, &[], None).await
 }
 
 /// Sends a JSON-bodied request (POST/PUT/DELETE); `None` body for DELETE.
-/// Returns `Value::Null` for empty response bodies (204).
+/// Returns `Value::Null` for empty response bodies (204). Carries the suite
+/// admin token (see [`get_raw`]).
 async fn send(app: &Router, method: &str, uri: &str, body: Option<&Value>) -> (StatusCode, Value) {
-    let request = Request::builder().method(method).uri(uri);
+    send_with(app, method, uri, &[], body).await
+}
+
+/// `send` with extra headers (e.g. `Authorization: Bearer gfk_...`).
+async fn send_with(
+    app: &Router,
+    method: &str,
+    uri: &str,
+    headers: &[(&str, &str)],
+    body: Option<&Value>,
+) -> (StatusCode, Value) {
+    let mut request = Request::builder()
+        .method(method)
+        .uri(uri)
+        .header("x-admin-token", TEST_ADMIN);
+    for (name, value) in headers {
+        request = request.header(*name, *value);
+    }
     let request = match body {
         Some(json) => request
             .header("content-type", "application/json")
@@ -238,7 +296,7 @@ fn assert_verification_state_on_every_record(page: &Value) {
 #[ignore = "needs postgres"]
 async fn records_paginate_by_ulid_cursor_and_match_the_contract(pool: PgPool) {
     seed_via_pipeline(&pool).await;
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
     let ok = validator_for(&doc, "/v1/records", "200");
     assert!(
@@ -317,7 +375,7 @@ async fn records_paginate_by_ulid_cursor_and_match_the_contract(pool: PgPool) {
 #[ignore = "needs postgres"]
 async fn politician_timeline_pages_and_matches_the_contract(pool: PgPool) {
     seed_via_pipeline(&pool).await;
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
     let path = "/v1/politicians/{id}/records";
     let ok = validator_for(&doc, path, "200");
@@ -377,7 +435,7 @@ async fn politician_timeline_pages_and_matches_the_contract(pool: PgPool) {
 #[ignore = "needs postgres"]
 async fn records_filter_through_the_shared_grammar(pool: PgPool) {
     seed_via_pipeline(&pool).await;
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
     let ok = validator_for(&doc, "/v1/records", "200");
 
@@ -419,19 +477,23 @@ async fn records_filter_through_the_shared_grammar(pool: PgPool) {
 
 /// Alert-rules CRUD: contract-valid round trip, strict filter validation
 /// (unknown keys reject — the schema is the committed grammar snapshot),
-/// and the one-channel-per-type rule.
+/// and the one-channel-per-type rule. Since goal 050 the surface requires a
+/// pro/data key and rules belong to the authenticated account (the tier
+/// matrix itself is proven in tests/tiers.rs).
 #[sqlx::test(migrations = false)]
 #[ignore = "needs postgres"]
 async fn alert_rules_crud_round_trip_matches_the_contract(pool: PgPool) {
     govfolio_core::db::migrate(&pool).await.unwrap();
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
     let path = "/v1/alert-rules";
     let id_path = "/v1/alert-rules/{id}";
+    let key = seed_key(&app, "rules@contract", "pro").await;
+    let bearer = format!("Bearer {key}");
+    let auth: &[(&str, &str)] = &[("authorization", &bearer)];
 
     // POST: created, contract-valid, filter normalized through the grammar.
     let spec = json!({
-        "user_id": "user-030",
         "filter": { "record_type": "transaction", "value_min": "1000.00" },
         "channels": [
             { "type": "email", "to": "alerts@example.org" },
@@ -439,7 +501,7 @@ async fn alert_rules_crud_round_trip_matches_the_contract(pool: PgPool) {
         ],
     });
     let created_ok = validator_for_op(&doc, "post", path, "201");
-    let (status, rule) = send(&app, "POST", path, Some(&spec)).await;
+    let (status, rule) = send_with(&app, "POST", path, auth, Some(&spec)).await;
     assert_eq!(status, StatusCode::CREATED);
     assert_valid(&created_ok, &rule);
     assert_eq!(rule["filter"], spec["filter"]);
@@ -450,50 +512,46 @@ async fn alert_rules_crud_round_trip_matches_the_contract(pool: PgPool) {
     // POST with a typo'd filter key: the committed schema rejects it
     // (a silently ignored key would match everything — fail closed).
     let bad = json!({
-        "user_id": "user-030",
         "filter": { "recordtype": "transaction" },
         "channels": [{ "type": "email", "to": "a@example.org" }],
     });
     let err = validator_for_op(&doc, "post", path, "400");
-    let (status, body) = send(&app, "POST", path, Some(&bad)).await;
+    let (status, body) = send_with(&app, "POST", path, auth, Some(&bad)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_valid(&err, &body);
     assert_eq!(body["error"]["code"], "invalid_filter");
 
     // POST with two channels of one type: rejected (dedup key is per type).
     let bad = json!({
-        "user_id": "user-030",
         "filter": {},
         "channels": [
             { "type": "webhook", "url": "https://a.example.org", "secret": "s1" },
             { "type": "webhook", "url": "https://b.example.org", "secret": "s2" },
         ],
     });
-    let (status, body) = send(&app, "POST", path, Some(&bad)).await;
+    let (status, body) = send_with(&app, "POST", path, auth, Some(&bad)).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(body["error"]["code"], "invalid_channels");
 
-    // GET list: contract-valid; user_id filter works.
+    // GET list: contract-valid; scoped to the authenticated account.
     let list_ok = validator_for(&doc, path, "200");
-    let (status, list) = get(&app, "/v1/alert-rules?user_id=user-030").await;
+    let (status, list) = send_with(&app, "GET", path, auth, None).await;
     assert_eq!(status, StatusCode::OK);
     assert_valid(&list_ok, &list);
     assert_eq!(list.as_array().unwrap().len(), 1);
-    let (_, other) = get(&app, "/v1/alert-rules?user_id=someone-else").await;
-    assert_eq!(other.as_array().unwrap().len(), 0);
 
     // PUT: replaces, contract-valid, updated_at advances.
     let update = json!({
-        "user_id": "user-030",
         "filter": { "asset_class": "equity" },
         "channels": [{ "type": "email", "to": "alerts@example.org" }],
         "digest": true,
     });
     let updated_ok = validator_for_op(&doc, "put", id_path, "200");
-    let (status, updated) = send(
+    let (status, updated) = send_with(
         &app,
         "PUT",
         &format!("/v1/alert-rules/{rule_id}"),
+        auth,
         Some(&update),
     )
     .await;
@@ -505,10 +563,11 @@ async fn alert_rules_crud_round_trip_matches_the_contract(pool: PgPool) {
 
     // PUT/DELETE on an unknown id: 404 envelope.
     let missing = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
-    let (status, body) = send(
+    let (status, body) = send_with(
         &app,
         "PUT",
         &format!("/v1/alert-rules/{missing}"),
+        auth,
         Some(&update),
     )
     .await;
@@ -516,12 +575,26 @@ async fn alert_rules_crud_round_trip_matches_the_contract(pool: PgPool) {
     assert_eq!(body["error"]["code"], "not_found");
 
     // DELETE: 204, then gone.
-    let (status, body) = send(&app, "DELETE", &format!("/v1/alert-rules/{rule_id}"), None).await;
+    let (status, body) = send_with(
+        &app,
+        "DELETE",
+        &format!("/v1/alert-rules/{rule_id}"),
+        auth,
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     assert_eq!(body, Value::Null);
-    let (status, _) = send(&app, "DELETE", &format!("/v1/alert-rules/{rule_id}"), None).await;
+    let (status, _) = send_with(
+        &app,
+        "DELETE",
+        &format!("/v1/alert-rules/{rule_id}"),
+        auth,
+        None,
+    )
+    .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
-    let (_, list) = get(&app, "/v1/alert-rules").await;
+    let (_, list) = send_with(&app, "GET", path, auth, None).await;
     assert_eq!(list.as_array().unwrap().len(), 0);
 }
 
@@ -595,7 +668,7 @@ async fn smucker_id(pool: &PgPool) -> String {
 #[ignore = "needs postgres"]
 async fn politicians_list_pages_searches_and_matches_the_contract(pool: PgPool) {
     seed_via_pipeline(&pool).await;
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
     let ok = validator_for(&doc, "/v1/politicians", "200");
     assert!(
@@ -672,7 +745,7 @@ async fn politicians_list_pages_searches_and_matches_the_contract(pool: PgPool) 
 #[ignore = "needs postgres"]
 async fn politician_profile_carries_mandates_and_the_record_summary(pool: PgPool) {
     seed_via_pipeline(&pool).await;
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
     let path = "/v1/politicians/{id}";
     let ok = validator_for(&doc, path, "200");
@@ -747,7 +820,7 @@ async fn record_detail_returns_provenance_and_the_supersession_chain(pool: PgPoo
         panic!("edit resolution must insert a superseding record: {outcome:?}");
     };
 
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
     let path = "/v1/records/{id}";
     let ok = validator_for(&doc, path, "200");
@@ -841,7 +914,7 @@ async fn jurisdictions_and_regimes_serve_the_scorecard_metadata(pool: PgPool) {
     seed_regime(&pool, &us_house::seed::regime_seed())
         .await
         .unwrap();
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
 
     let ok = validator_for(&doc, "/v1/jurisdictions", "200");
@@ -907,7 +980,7 @@ async fn search_returns_typed_hits_and_escapes_like_metacharacters(pool: PgPool)
         .await
         .unwrap();
     }
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
     let ok = validator_for(&doc, "/v1/search", "200");
     assert!(
@@ -1043,7 +1116,7 @@ fn queue_task_ids(page: &Value) -> Vec<String> {
 #[ignore = "needs postgres"]
 async fn review_queue_ranks_by_priority_then_age_and_paginates(pool: PgPool) {
     seed_via_pipeline(&pool).await;
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
     let path = "/v1/review-tasks";
     let ok = validator_for(&doc, path, "200");
@@ -1149,7 +1222,7 @@ async fn review_queue_ranks_by_priority_then_age_and_paginates(pool: PgPool) {
 #[ignore = "needs postgres"]
 async fn review_task_detail_serves_record_and_extraction_context(pool: PgPool) {
     seed_via_pipeline(&pool).await;
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
     let path = "/v1/review-tasks/{id}";
     let ok = validator_for(&doc, path, "200");
@@ -1250,7 +1323,7 @@ async fn review_task_detail_serves_record_and_extraction_context(pool: PgPool) {
 #[ignore = "needs postgres"]
 async fn resolve_confirm_and_reject_round_trip_with_exact_audit(pool: PgPool) {
     seed_via_pipeline(&pool).await;
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
     let resolve_path = "/v1/review-tasks/{id}/resolve";
     let audit_path = "/v1/review-tasks/{id}/audit";
@@ -1413,7 +1486,7 @@ async fn resolve_confirm_and_reject_round_trip_with_exact_audit(pool: PgPool) {
 #[ignore = "needs postgres"]
 async fn resolve_edit_supersedes_through_promote_and_audits_failures(pool: PgPool) {
     seed_via_pipeline(&pool).await;
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
     let doc = openapi_doc();
     let ok = validator_for_op(&doc, "post", "/v1/review-tasks/{id}/resolve", "200");
 
@@ -1520,7 +1593,7 @@ async fn resolve_edit_supersedes_through_promote_and_audits_failures(pool: PgPoo
 #[ignore = "needs postgres"]
 async fn etag_round_trips_and_if_none_match_serves_304(pool: PgPool) {
     govfolio_core::db::migrate(&pool).await.unwrap();
-    let app = api::app(pool.clone());
+    let app = test_app(&pool);
 
     // Every 200 GET carries a strong ETag: the quoted sha256 of the body.
     let (status, headers, body) = get_raw(&app, "/v1/records", &[]).await;

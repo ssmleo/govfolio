@@ -11,7 +11,7 @@
 //! serde itself stays lenient because the same struct doubles as the
 //! `/v1/records` query-string extractor (which also carries `cursor`/`limit`).
 
-use chrono::NaiveDate;
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -68,6 +68,16 @@ pub struct RecordFilter {
     /// Only records in this verification state.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verification_state: Option<VerificationState>,
+    /// INTERNAL visibility bound — the freemium 24h delay (design §6.2), the
+    /// tier's ONE lever. Only records whose filing we discovered at or before
+    /// this instant match (`filing.discovered_at` = our knowledge time,
+    /// honestly — `published_at` is the government's clock and often absent;
+    /// the promise "free is 24h behind US" is only enforceable on OUR clock).
+    /// `#[serde(skip)]`: never part of the grammar contract — callers cannot
+    /// request it, alert rules cannot store it; the API layer sets it from
+    /// the authenticated tier via [`Self::with_max_discovered_at`].
+    #[serde(skip)]
+    max_discovered_at: Option<DateTime<Utc>>,
 }
 
 /// Grammar evaluation failure: a closed-vocabulary value refused to render as
@@ -99,8 +109,8 @@ pub fn wire_token<T: Serialize>(value: &T) -> Result<String, QueryError> {
     }
 }
 
-/// Binds the ten grammar slots in order — shared by both `bind_*` helpers so
-/// the slot order exists exactly once.
+/// Binds the eleven grammar slots in order — shared by both `bind_*` helpers
+/// so the slot order exists exactly once.
 macro_rules! bind_slots {
     ($self:ident, $query:ident) => {
         Ok($query
@@ -119,20 +129,26 @@ macro_rules! bind_slots {
                     .as_ref()
                     .map(wire_token)
                     .transpose()?,
-            ))
+            )
+            .bind($self.max_discovered_at))
     };
 }
 
 impl RecordFilter {
     /// Number of bind slots [`Self::SQL_WHERE`] consumes: the grammar owns
-    /// `$1..=$10`; caller-specific binds MUST start at `$11`.
-    pub const BIND_SLOTS: u16 = 10;
+    /// `$1..=$11`; caller-specific binds MUST start at `$12`.
+    pub const BIND_SLOTS: u16 = 11;
 
     /// The single SQL evaluation of the grammar — a conjunction over
-    /// `disclosure_record` with fixed placeholder slots `$1..=$10` (each
+    /// `disclosure_record` with fixed placeholder slots `$1..=$11` (each
     /// `NULL` bind disables its clause). A compile-time `&'static str`, so
     /// sqlx's `SqlSafeStr` injection guarantee holds structurally; compose it
     /// with `const_format::concatcp!` at call sites.
+    ///
+    /// `$11` is the internal freshness bound (design §6.2 free-tier delay):
+    /// it lives INSIDE the one evaluator so no record-serving query can
+    /// forget it — a route that composes `SQL_WHERE` gets the delay for free
+    /// once the api layer sets the bound from the tier.
     pub const SQL_WHERE: &'static str = "($1::text is null or exists (select 1 from disclosure_regime \
            where disclosure_regime.id = disclosure_record.regime_id \
              and disclosure_regime.jurisdiction_id = $1)) \
@@ -145,7 +161,27 @@ impl RecordFilter {
        and ($8::numeric is null or (value_low is not null \
             and (value_high is null or value_high >= $8))) \
        and ($9::numeric is null or (value_low is not null and value_low <= $9)) \
-       and ($10::text is null or verification_state = $10)";
+       and ($10::text is null or verification_state = $10) \
+       and ($11::timestamptz is null or exists (select 1 from filing \
+            where filing.id = disclosure_record.filing_id \
+              and filing.discovered_at <= $11))";
+
+    /// Sets the internal visibility bound (the free-tier 24h delay). `None`
+    /// means real-time. API-layer only — this never round-trips through the
+    /// serde contract.
+    #[must_use]
+    pub fn with_max_discovered_at(mut self, bound: Option<DateTime<Utc>>) -> Self {
+        self.max_discovered_at = bound;
+        self
+    }
+
+    /// Scopes the filter to one politician (struct-update syntax is closed
+    /// off by the private visibility slot; this is the ergonomic door).
+    #[must_use]
+    pub fn with_politician(mut self, id: PoliticianId) -> Self {
+        self.politician_id = Some(id);
+        self
+    }
 
     /// Binds the grammar slots (`$1..=$10`, in slot order) on a `query_as`.
     /// MUST be called before any caller-specific binds.
@@ -217,7 +253,24 @@ mod tests {
                 "slot ${slot} missing from SQL_WHERE"
             );
         }
-        assert!(!RecordFilter::SQL_WHERE.contains("$11"));
+        assert!(!RecordFilter::SQL_WHERE.contains("$12"));
+    }
+
+    #[test]
+    fn visibility_bound_is_internal_never_contract_surface() {
+        // The 24h-delay slot must be invisible to the grammar's serde/schema
+        // contract: callers cannot set it, alert rules cannot store it.
+        let bounded =
+            RecordFilter::default().with_max_discovered_at(Some(chrono::DateTime::UNIX_EPOCH));
+        assert_eq!(serde_json::to_value(&bounded).unwrap(), json!({}));
+        let schema = serde_json::to_value(schemars::schema_for!(RecordFilter)).unwrap();
+        assert!(
+            !schema.to_string().contains("max_discovered_at"),
+            "internal bound leaked into the committed grammar schema"
+        );
+        // And a filter parsed from stored JSON is always realtime (alerts).
+        let parsed: RecordFilter = serde_json::from_value(json!({})).unwrap();
+        assert_eq!(parsed, RecordFilter::default());
     }
 
     #[test]

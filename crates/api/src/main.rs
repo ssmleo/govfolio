@@ -16,7 +16,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("binding 0.0.0.0:8080")?;
     println!("govfolio api listening on http://localhost:8080 (try /v1/records)");
-    axum::serve(listener, api::app(pool))
+    axum::serve(listener, api::app(pool, api::ApiConfig::from_env()))
         .await
         .context("serving /v1")
 }
