@@ -18,4 +18,9 @@ Learnings (dated):
   Also: no python on host ≠ no third path — a hand-rolled tag tokenizer in
   node stdlib is disjoint from any spec-compliant DOM parser and doubles as
   an independent §3.7-style integrity re-computation.
+- 2026-07-05 (061 uk interests): a re-derivation match proves nothing about a
+  mapping rule whose two candidate inputs are EQUAL in every fixture (e.g.
+  notified_date = registrationDate vs publishedDate). Check the fixture set
+  DISCRIMINATES each trap — here reg≠pub on 3/5 rows, so the match is real
+  evidence; if none differed, flag coverage, don't credit the rule.
 Write-back: deepen this file when the procedure teaches you something; same PR.
