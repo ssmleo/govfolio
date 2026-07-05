@@ -25,8 +25,8 @@ const VALUE_PRECISION: &[&str] = &["exact", "banded", "categorical", "none"];
 
 /// Every `RegimeSurvey` front-matter key (template:
 /// `docs/regimes/_templates/AUTHORITY.template.md`). All required; anything
-/// else rejects (fail closed).
-const SURVEY_KEYS: &[&str] = &[
+/// else rejects (fail closed). Shared with the role-eval harness (goal 016).
+pub(crate) const SURVEY_KEYS: &[&str] = &[
     "jurisdiction",
     "bodies",
     "legal_basis",
@@ -668,7 +668,7 @@ fn check_evidence_file(
 
 /// The YAML front-matter between the leading `---` line and the next `---`
 /// line, or `None` when the document has no front-matter block.
-fn front_matter(text: &str) -> Option<&str> {
+pub(crate) fn front_matter(text: &str) -> Option<&str> {
     let rest = text.strip_prefix("---")?;
     let rest = rest
         .strip_prefix("\r\n")
@@ -684,7 +684,7 @@ fn front_matter(text: &str) -> Option<&str> {
 }
 
 /// Exactly one `input.*` file inside a fixture case directory.
-fn single_input(case_dir: &Path) -> Result<PathBuf, String> {
+pub(crate) fn single_input(case_dir: &Path) -> Result<PathBuf, String> {
     let entries = fs::read_dir(case_dir)
         .map_err(|e| format!("unreadable fixture directory {}: {e}", case_dir.display()))?;
     let mut inputs = Vec::new();
@@ -798,7 +798,7 @@ fn join_at(at: &str, key: &str) -> String {
 }
 
 /// Digest bytes → 64 lowercase hex chars.
-fn sha256_hex(bytes: &[u8]) -> String {
+pub(crate) fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::{Digest as _, Sha256};
     const HEX: &[u8; 16] = b"0123456789abcdef";
     let digest = Sha256::digest(bytes);

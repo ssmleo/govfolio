@@ -43,6 +43,12 @@ path = "src/bin/validate_survey.rs"
 name = "validate-manifest"
 path = "src/bin/validate_manifest.rs"
 
+# Role-eval epoch gate (goal 016): per-role scores vs the frozen E1
+# reference + entry verdict, for orchestrator use.
+[[bin]]
+name = "epoch-gate"
+path = "src/bin/epoch_gate.rs"
+
 [dev-dependencies]
 fixture_fake = { path = "../adapters/fixture_fake" }
 # Dev-dep cycle (pipeline -> us_house -> pipeline) is legal: the e2e runner

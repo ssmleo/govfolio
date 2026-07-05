@@ -4,6 +4,7 @@
 
 pub mod adapter;
 pub mod conformance;
+pub mod evals;
 pub mod factory;
 pub mod promote;
 pub mod run;
