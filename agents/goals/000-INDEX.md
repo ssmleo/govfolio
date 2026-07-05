@@ -9,7 +9,7 @@
 - [x] 030 alerts (outbox dispatcher, email, HMAC webhooks, rules CRUD) (done 2026-07-05, commit 21971ec; exactly-once proven under redelivery; shared RecordFilter grammar core↔api↔matcher)
 - [x] 040 public website SSR (profiles, records, jurisdictions, search, sitemap) (done 2026-07-05, commits 75ccb91+e87a342; /v1 read surface completed; Playwright 11/11; CI web job live w/ TS drift gate)
 - [x] 041 reviewer UI (queue, side-by-side, promote/edit/reject) (done 2026-07-05, commits 8722fb6+cea2b05; promote.rs sole write authority; audit log; e2e 15/15)
-- [ ] 050 productization (auth, API keys, quotas→Stripe, 24h free-tier delay)
+- [x] 050 productization (auth, API keys, quotas→Stripe, 24h free-tier delay) (done 2026-07-05, commits c103f91+9f6a337; delay in ONE query place on discovered_at; tiers 8/8; stripe seam mock-proven; signup + price values = founder TODO)
 - [ ] 060 adapter: us_senate            (E1)
 - [ ] 061 adapter: uk_commons_register  (E1 diversity seed)
 - [ ] 062 adapter: canada_ciec          (E1 diversity seed)
