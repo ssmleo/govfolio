@@ -34,4 +34,9 @@ Learnings (dated):
   (`record_select!("where ... limit $4")`) — stays a compile-time `&'static str`, so the
   injection guarantee holds structurally. Static SQL + `($n::text is null or col = $n)`
   binds covers optional filters without dynamic SQL.
+- 2026-07-04: proving row immutability (invariant 1 supersession tests): `select d::text
+  from disclosure_record d where id = $1` renders the WHOLE row as one Postgres composite
+  literal — a before/after string compare is a byte-level all-columns probe with zero
+  column-list drift risk; `(to_jsonb(d) - 'verification_state')::text` gives the
+  all-but-one-column variant for sanctioned single-column transitions.
 Write-back: deepen this file when the procedure teaches you something; same PR.
