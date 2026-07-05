@@ -24,3 +24,5 @@ zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 rust_decimal_macros = "1.40.0"
+# Async seam tests (goal 021): cache-hit extraction + the ignored live API test.
+tokio = { version = "1.52.3", features = ["macros", "rt"] }

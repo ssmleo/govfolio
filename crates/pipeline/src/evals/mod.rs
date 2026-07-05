@@ -41,7 +41,7 @@ pub enum Role {
     SpecWriter,
     /// Phase 3 — fixtures + manifest + `expected.*.json` contracts.
     TestDesigner,
-    /// Phase 4 — conformance 4/4 + the full gate command block.
+    /// Phase 4 — conformance 5/5 + the full gate command block.
     RustBuilder,
     /// Cross-phase — audit journal line + goal-file findings sections.
     Auditor,

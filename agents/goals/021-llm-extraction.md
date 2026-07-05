@@ -13,7 +13,43 @@ cargo run -p pipeline --bin conformance -- us_house   # scanned fixture case goe
 ```
 
 ## Checklist
-- [ ] extractor iface impl  - [ ] cache by sha+version  - [ ] confidence  - [ ] cross-check  - [ ] scanned fixture
+- [x] extractor iface impl  - [x] cache by sha+version  - [x] confidence  - [x] cross-check  - [x] scanned fixture
+  - second leg DONE 2026-07-05 (rust-builder): `pipeline::extraction`
+    (`AnthropicExtractor` machinery: reqwest+rustls Messages client, no SDK, forced
+    tool use with the silver-row schema as `input_schema` + local jsonschema
+    re-validation, retries w/ exponential backoff, key never logged —
+    `HttpTransport` Debug redacts; models env-overridable, defaults
+    `claude-haiku-4-5-20251001` primary / `claude-sonnet-5` cross-check);
+    cache key `(document_sha256, extractor_tag, model_id)` in two tiers (committed
+    in-case `extraction.cache.json` + pg `extraction_cache`, migration 0004
+    expand-only, migrate pin 4→5); conformance cache PRIMED MECHANICALLY from
+    expected.silver.json via `prime_from_expected_silver` (provenance records
+    ground truth 77740d8, equality enforced by
+    `cargo test -p pipeline extraction_cache_entry…`); confidence 0.9 f32 stamped,
+    <0.9 or schema-invalid cache entries fail closed; cross-check per SAF §6.3
+    (bands ≥ $500,001 — NOTE: dispatch prompt said $1M, SAF is authoritative —
+    + watchlist stub `WATCHLIST_POLITICIANS: &[] `), field-level compare, mismatch =
+    `CrossCheckMismatch` + `llm_crosscheck_mismatch` review_task + freeze; live
+    test `#[ignore = "needs ANTHROPIC_API_KEY"]` (skips loudly without key);
+    scanned fixture moved into `fixtures/`, staged MANIFEST entry + conformance
+    ids applied, `conformance -- us_house` 5/5 GREEN OFFLINE, e2e 4→5 filings
+    (13 gold/outbox rows; paper filer resolves via new prefix-less canonical
+    alias seeding in `seed_roster`); clerk-stamp date parser (`2026 MAY -6` →
+    2026-05-06) for signed/filed dates. Live-mode note: on a cache miss the DocID
+    is threaded from `raw_document.source_url` (§2.3 URL shape) since the paper
+    form prints no Filing ID; a live extraction without pool/indexed URL fails
+    closed.
+  - E1 lock SUPERSEDED to v2 (2026-07-05, per this goal's founder-approved
+    BLOCKED staging): `E1.lock.json` now `version: 2`,
+    `supersedes: b4238f01962cde59bdf459ec7d2d84949cc02d428fc5160667af3d178c4c1c1d`
+    (sha256 of the v1 lock file's LF bytes, verified against `git show HEAD:`),
+    reason + date recorded in the lock; v2 re-pins the two amended files
+    (fixtures/MANIFEST.json, docs/regimes/us-house.md — staged write-backs
+    applied: open question resolved, §7 row 5, E13, paper-anatomy quirks) and
+    adds pins for the scanned case (input/silver/gold + ground-truth-derived
+    extraction.cache.json); all other v1 pins byte-identical.
+    `pipeline::evals::reference` verifies the supersession trail (v2+ without
+    supersedes/reason/date fails closed); rust-builder scorer marker 4/4→5/5.
   - first leg DONE 2026-07-05 (test-designer): fixture captured at
     `crates/adapters/us_house/fixtures-llm/scanned_paper_ptr/` (DocID 9115811, sha
     `2f4b2b6e98e044e6368a072275804bc61dda52f6f1e15c09ddb9074ea1b8952c`, text layer proven

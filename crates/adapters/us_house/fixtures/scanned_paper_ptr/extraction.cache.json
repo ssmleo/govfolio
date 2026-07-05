@@ -1,0 +1,42 @@
+{
+  "key": {
+    "document_sha256": "2f4b2b6e98e044e6368a072275804bc61dda52f6f1e15c09ddb9074ea1b8952c",
+    "extractor_tag": "us_house_ptr/llm@1",
+    "model_id": "claude-haiku-4-5-20251001"
+  },
+  "rows": [
+    {
+      "payload": {
+        "amount_raw": "$15,001 - $50,000",
+        "asset_raw": "Black Belt Energy Gas DI SR C RV BE/R/, Municipal Bond",
+        "asset_type_code_raw": null,
+        "cap_gains_over_200": null,
+        "comments_raw": null,
+        "description_raw": null,
+        "doc_id": "9115811",
+        "extractor": "us_house_ptr/llm@1",
+        "filer_name_raw": "Diana Harshbarger",
+        "filer_status_raw": "Member",
+        "filing_status_raw": "New",
+        "notification_date_raw": "4/29/2026",
+        "owner_code_raw": null,
+        "row_id_raw": null,
+        "row_ordinal": 1,
+        "signed_date_raw": "2026 MAY -6",
+        "state_district_raw": "TN01",
+        "subholding_of_raw": null,
+        "transaction_date_raw": "4/17/2026",
+        "transaction_type_raw": "P",
+        "vehicle_location_raw": null,
+        "vehicle_owner_code_raw": null
+      },
+      "confidence": 0.9
+    }
+  ],
+  "provenance": {
+    "derived_by": "pipeline::extraction::prime_from_expected_silver (mechanical transform, NOT a live LLM call)",
+    "enforced_by": "cargo test -p pipeline extraction_cache_entry_is_primed_from_test_designer_ground_truth",
+    "ground_truth": "test-designer goal 021 first leg, commit 77740d8 — independent visual transcription",
+    "primed_from": "expected.silver.json"
+  }
+}

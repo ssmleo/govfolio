@@ -45,4 +45,20 @@ Learnings (dated):
   literal — a before/after string compare is a byte-level all-columns probe with zero
   column-list drift risk; `(to_jsonb(d) - 'verification_state')::text` gives the
   all-but-one-column variant for sanctioned single-column transitions.
+- 2026-07-05: serde_json f32 literals take TWO shapes for the SAME value: `to_value`/`Value`
+  routes f32 through an f64 cast (0.9f32 → `0.8999999761581421`) while direct struct
+  serialization uses ryu shortest-form (`0.9`). Both parse back to the identical f32 (with
+  `float_roundtrip` on), so committed artifacts may legitimately differ textually from
+  expected.*.json literals — compare in VALUE space (parse both sides), never bytes.
+  Related: `clippy::float_cmp` fires on exact-f32 contract assertions — scope an
+  `allow(clippy::float_cmp)` to the test mod with a comment saying bit-equality IS the contract.
+- 2026-07-05: mock seams over HTTP — a `#[async_trait] trait Transport { send(&Value) -> Value }`
+  plus a blanket `impl Transport for &T` lets prod code take `T: Transport` by value while
+  callers keep ownership (tests pass `&MockTransport` and can inspect recorded requests after).
+  Retry/backoff factored as a free `with_backoff(max_retries, base, op)` unit-tests cleanly under
+  `#[tokio::test(start_paused = true)]` (paused clock auto-advances sleeps — asserting elapsed
+  backoff time costs zero wall-clock).
+- 2026-07-05: `cargo test --workspace -- --ignored` RUNS ignored tests — an
+  `#[ignore = "needs SECRET"]` live test must ALSO early-return (loudly) when the env var is
+  absent, or the offline gate goes red on hosts without the secret.
 Write-back: deepen this file when the procedure teaches you something; same PR.

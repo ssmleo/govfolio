@@ -47,6 +47,47 @@
       "filer": "Hon. Nancy Pelosi (CA11)",
       "index_entry": { "FilingType": "P", "StateDst": "CA11", "Year": "2026", "FilingDate": "6/23/2026" },
       "rows": 2
+    },
+    "scanned_paper_ptr": {
+      "capture": {
+        "captured_by": "test-designer (goal 021 first leg, commit 77740d8) — expected.*.json transcribed INDEPENDENTLY from VISUAL page renders (two engines: native PDF read + WinRT Windows.Data.Pdf at 4x with region crops; all cells agree), parser/LLM-blind per docs/decisions/automation-policy.md; entry applied here verbatim by the goal 021 second-leg builder together with the E1 lock v2 supersede",
+        "captured_at_utc": "2026-07-05T04:28:24Z",
+        "politeness": {
+          "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+          "concurrency": 1,
+          "min_interval_seconds": 2,
+          "requests_this_capture": 11,
+          "breakdown": "1 conditional index GET (304 — E1 ETag still current) + 1 full index GET (byte-identical to E1 pin e5419282df7a96daa8aed108b72072a57bf909bb2a6c6333c938144f6898ba0d) + 8 HEADs sizing paper candidates + 1 PDF GET; no incidents"
+        }
+      },
+      "llm_path": "This case MUST run through the goal 021 LLM-extraction seam (us-house.md §6.3), never the text parser: the scan has no text layer. The extraction cache entry ships with this fixture as extraction.cache.json — primed MECHANICALLY from expected.silver.json (test-designer ground truth 77740d8) via pipeline::extraction::prime_from_expected_silver, NOT a live LLM call; equality with the ground truth is enforced by `cargo test -p pipeline extraction`. The expecteds stay renderer-transcribed ground truth.",
+      "doc_id": "9115811",
+      "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/9115811.pdf",
+      "sha256": "2f4b2b6e98e044e6368a072275804bc61dda52f6f1e15c09ddb9074ea1b8952c",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "Hon. Diana Harshbarger (TN01) — index Prefix 'Hon.'; the paper form NAME line reads 'Diana Harshbarger' WITHOUT the honorific (paper caveat to the §2.5 verbatim-alias rule)",
+      "index_entry": { "FilingType": "P", "StateDst": "TN01", "Year": "2026", "FilingDate": "5/6/2026" },
+      "index_slice_evidence": "docs/regimes/us-house/evidence/f312caf490ddb96fa4b2b4fc73cc67ad0eb335d004c9b4db82e3b48cd22b6bc7.2026FD-slice-9115811.xml (+ .retrieval.json politeness/probe log)",
+      "rows": 1,
+      "pages": 1,
+      "text_layer_probe": "xpdf pdftotext 4.06 exits 0 and emits exactly 1 byte — a lone form-feed page separator, zero text characters. Text layer ABSENT; that absence is why this is the LLM-fallback case.",
+      "paper_form_conventions": {
+        "doc_id": "the paper form prints NO Filing ID anywhere; ground truth doc_id = index DocID 9115811. The extractor cannot OCR it — the builder threads it from pipeline context (FilingRef.external_id); in conformance mode the cache priming carries it.",
+        "filer_status_raw": "'Member' from the checked 'Member of the U.S. House of Representatives' box ('Officer or Employee' unchecked); electronic vocabulary",
+        "state_district_raw": "'TN01' composed from form fields State: TN + District: 1 (state + 2-digit zero-padded district = index StateDst format)",
+        "transaction_type_raw": "'P' from the X in the Purchase column; paper checkbox columns map to the electronic token vocabulary: Purchase->P, Sale->S, Partial Sale->S (partial), Exchange->E",
+        "amount_raw": "'$15,001 - $50,000' (band_table canonical string) from the X in amount column B; the paper column header prints '$15,001-$50,000' without spaces around the hyphen",
+        "filing_status_raw": "'New' from the checked 'Initial Report' box ('Amendment' unchecked, 'Date of Report Being Amended' blank); electronic vocabulary New/Amended",
+        "asset_type_code_raw": "null — the paper form has no [XX] asset-type code (instructs 'Provide full name, not ticker symbol'); per SAF §3.6 missing code => gold asset_class 'other'. FLAGGED: the cell literally says 'Municipal Bond'; if the LLM contract later maps explicit paper asset-text to classes, update the SAF first, then these expecteds.",
+        "cap_gains_over_200": "null — the paper form has no Cap. Gains column at all",
+        "signed_date_raw": "'2026 MAY -6' verbatim from the clerk received stamp (HAND DELIVERED / LEGISLATIVE RESOURCE CENTER) — the paper form has NO signature/date block anywhere on the page; the stamp is the only in-document filing date and equals index FilingDate 5/6/2026. FLAGGED CONVENTION for builder + auditor: a received date standing in for a signed date; gold details.signed_date parses it to 2026-05-06.",
+        "confidence": "0.9 as f32 (design §5.3 confidence-scored LLM extraction; design §7 sampled spot-check band 0.8-0.95). Same serde f32->f64 convention as the T8b cases (confidence_literal below): JSON literal 0.8999999761581421 is the exact f64 image of 0.9f32 — do not 'fix' it.",
+        "extractor": "'us_house_ptr/llm@1' — the LLM-path extractor tag (text path stays 'us_house_ptr/text@1')"
+      },
+      "uncertain_cells": [
+        "asset_raw line 2 'DI SR C RV BE/R/, Municipal Bond': the 'BE/R/,' glyph cluster is the least crisp run on the scan; both render passes read 'BE/R/' + comma — transcribed as best reading, UNCERTAIN punctuation only (letters are unambiguous)"
+      ],
+      "non_contract_annotations": "handwritten office telephone 202-225-6356 with clerk initials (reads 'MC'); handwritten '2 of 2' beside the pre-printed 'Page 1 of ___' (fax/bundle pagination — the PDF itself is a single page); HAND DELIVERED stamp"
     }
   },
   "conformance_conventions": {
@@ -60,14 +101,17 @@
         "Hon. Nicholas Begich III|AK00": "0HSEMBR0000000000000000001",
         "Hon. Lloyd K. Smucker|PA11": "0HSEMBR0000000000000000002",
         "Hon. David Rouzer|NC07": "0HSEMBR0000000000000000003",
-        "Hon. Nancy Pelosi|CA11": "0HSEMBR0000000000000000004"
+        "Hon. Nancy Pelosi|CA11": "0HSEMBR0000000000000000004",
+        "Diana Harshbarger|TN01": "0HSEMBR0000000000000000005"
       },
       "filing_ids": {
         "20020055": "0HSEFNG0000000000020020055",
         "20019182": "0HSEFNG0000000000020019182",
         "20033759": "0HSEFNG0000000000020033759",
-        "20034836": "0HSEFNG0000000000020034836"
-      }
+        "20034836": "0HSEFNG0000000000020034836",
+        "9115811": "0HSEFNG0000000000009115811"
+      },
+      "paper_alias_note": "the scanned_paper_ptr politician key is the paper form's NAME line verbatim — no 'Hon.' prefix on paper filings (quirks log 2026-07-05); pool-backed runs resolve it via the roster's prefix-less canonical alias"
     }
   },
   "evidence": "index slice + retrieval metadata: docs/regimes/us-house/evidence/ (2026FD.zip sha256 e5419282df7a96daa8aed108b72072a57bf909bb2a6c6333c938144f6898ba0d re-verified against the E1 pin at capture time; ETag \"3e8597f0ebadd1:0\" unchanged)"

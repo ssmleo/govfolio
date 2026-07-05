@@ -655,7 +655,7 @@ fn pins_match_regime_doc_check(root: &Path, cases: &serde_json::Map<String, Valu
 }
 
 // ---------------------------------------------------------------------------
-// rust-builder: conformance 4/4 + the full gate command block, for real
+// rust-builder: conformance 5/5 + the full gate command block, for real
 // ---------------------------------------------------------------------------
 
 pub(super) fn rust_builder(root: &Path) -> Outcome {
@@ -673,7 +673,7 @@ pub(super) fn rust_builder(root: &Path) -> Outcome {
     let checks = vec![
         run_gate_command(
             root,
-            "conformance_us_house_4_of_4",
+            "conformance_us_house_5_of_5",
             &cargo,
             &[
                 "run",
@@ -686,7 +686,9 @@ pub(super) fn rust_builder(root: &Path) -> Outcome {
                 "us_house",
             ],
             &[],
-            Some("4/4 cases green"),
+            // 5 cases since the goal-021 scanned_paper_ptr LLM fixture landed
+            // (E1 lock v2 supersede records the corpus change).
+            Some("5/5 cases green"),
         ),
         run_gate_command(
             root,

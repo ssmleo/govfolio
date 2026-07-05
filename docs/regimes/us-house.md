@@ -42,7 +42,6 @@ open_questions:
   - {question: "DC / JT owner codes rendering", tried: ["not present in 5 fetched PTRs"]}
   - {question: "Checked-state rendering of Cap-Gains checkbox and IPO radio in the text layer", tried: ["all 5 fetched PTRs have them unchecked/No; text layer carries no state token"]}
   - {question: "Official instruction confirming blank Owner column = filer (self)", tried: ["2026-07-04 ethics.house.gov soft-404 (E10)"]}
-  - {question: "Do paper PTRs (7-digit DocIDs) have any text layer?", tried: ["only HEAD-verified URL (E12); body not fetched"]}
   - {question: "Does {YYYY}FD.zip exist for historical years (backfill, goal 080)?", tried: ["only 2026 fetched; one-download budget for this task"]}
   - {question: "Is the original DocID de-listed or kept in its year's index after amendment?", tried: ["needs a cross-year index diff; original of 20033759 is in the 2025 index, out of this task's single-download budget"]}
 regime_versions:
@@ -57,8 +56,14 @@ load this before any source-scoped task and MUST write back new learnings in the
 Scope: **Periodic Transaction Reports only** (`FilingType == "P"`). Annual FDs, candidate
 reports, extensions etc. are separate regimes/goals. All money is `USD`.
 
-Evidence citations `E1..E12` refer to the Evidence log at the bottom. All retrievals
-2026-07-04 (UTC), UA `govfolio.io research (contact: ssm.leo@outlook.com)`.
+Evidence citations `E1..E13` refer to the Evidence log at the bottom. Retrievals
+2026-07-04 (E1–E12) and 2026-07-05 (E13), UA `govfolio.io research
+(contact: ssm.leo@outlook.com)`.
+
+RESOLVED open question (2026-07-05, goal 021 first leg): **paper PTRs (7-digit
+DocIDs) have NO text layer** — xpdf `pdftotext` 4.06 exits 0 and emits exactly
+1 byte (a lone form-feed page separator, zero text characters) on E13/9115811.
+Paper filings are therefore the §6.3 LLM-seam case by construction.
 
 ## 1. Regime metadata
 
@@ -432,8 +437,10 @@ anti-pattern here.
 ## 7. Conformance fixtures (test-designer captures; DO NOT commit from this task)
 
 Selection: smallest clean representatives of the three required cases + one
-owner/options case. All verified live 2026-07-04; sha256 of fetched bytes pinned.
-`capture_fixture` must re-fetch and confirm the sha (drift ⇒ stop + review).
+owner/options case (captured 2026-07-04) + the scanned paper LLM-seam case
+(captured 2026-07-05, goal 021). All verified live; sha256 of fetched bytes
+pinned. `capture_fixture` must re-fetch and confirm the sha (drift ⇒ stop +
+review).
 
 | # | Case | DocID | Filer | Signed | Rows | URL | sha256 |
 |---|---|---|---|---|---|---|---|
@@ -441,6 +448,7 @@ owner/options case. All verified live 2026-07-04; sha256 of fetched bytes pinned
 | 2 | multi-row, 2 pages, sales, wraps, vehicle `(Owner: SP)` + blank row owners, 4 distinct bands | `20019182` | Hon. Lloyd K. Smucker (PA11) | 04/30/2026 | 8 | https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20019182.pdf | `5b1b60bea609310f4288adce9557702231cd1f23eb5ceabf1c0babc3fe867b37` |
 | 3 | amendment: `F S : Amended`, populated `row_id 2000152831`, `C :` comment, prior-year transaction date | `20033759` | Hon. David Rouzer (NC07) | 01/07/2026 | 1 | https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20033759.pdf | `0a5861a182db417541f62a0179dfbba025d06cf1aa990c4d1931a2076760af1e` |
 | 4 | explicit `SP` owner, options `[OP]`, `D :` description, top observed band $1M–$5M | `20034836` | Hon. Nancy Pelosi (CA11) | 06/23/2026 | 2 | https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20034836.pdf | `90bf98e6a2a3685f429964bb0e154ae05cc99423227b94666012332b81dc821e` |
+| 5 | scanned paper PTR: NO text layer (E13) → §6.3 LLM seam; received stamp `2026 MAY -6` stands in for the signed date | `9115811` | Hon. Diana Harshbarger (TN01) — form NAME prints `Diana Harshbarger`, no `Hon.` | received 2026 MAY -6 | 1 | https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/9115811.pdf | `2f4b2b6e98e044e6368a072275804bc61dda52f6f1e15c09ddb9074ea1b8952c` |
 
 Alternate (not selected; anatomy evidence only): `20034796` Cohen (TN09) — single row
 with `S O :` + `L : US` vehicle; covered by #2's vehicle handling.
@@ -449,10 +457,15 @@ sha256 `2b78212b71e77830566cb541c2028b6b13ccc9e1f464e565acb1e739b510f1e6`.
 Rationale: #1 exercises the happy path and the blank-owner default; #2 exercises
 multi-page continuation, cell wrapping, vehicle-owner inheritance, band variety;
 #3 exercises amendment detection + unlinked-supersession review_task; #4 exercises
-explicit owner code, option asset class, and description sub-line. Together they
-cover every §3.2 grammar branch observed in evidence. Expected outputs are produced
-per automation policy (high-confidence extraction + second-model cross-check,
-published `unverified`, sampling-audit queue) — no human gate.
+explicit owner code, option asset class, and description sub-line; #5 exercises
+the §6.3 LLM-extraction seam end to end (paper anatomy quirks, sha-keyed
+extraction cache, `us_house_ptr/llm@1` tag, 0.9 wrapper confidence). Together
+they cover every §3.2 grammar branch observed in evidence plus the no-text-layer
+fallback. Expected outputs are produced per automation policy (#1–#4
+high-confidence extraction + second-model cross-check; #5 independent visual
+transcription, parser/LLM-blind — its conformance cache entry is primed
+mechanically FROM those expecteds, never from a model call), published
+`unverified`, sampling-audit queue — no human gate.
 
 ## 8. Evidence log (retrieved 2026-07-04, UA as above)
 
@@ -477,6 +490,7 @@ sha256 pins below make every snapshot re-verifiable.
 | E10 | https://ethics.house.gov/financial-disclosure/periodic-transaction-reports-ptrs | `dd9d2f653459041568ac11df73074af26f442fabe73e0d8208fb806ffd4adc95` (soft-404 "Page not found" — tried-log) |
 | E11 | https://disclosures-clerk.house.gov/robots.txt | HTTP 404 (no robots policy) |
 | E12 | …/ptr-pdfs/2026/9115726.pdf | HEAD 200 (paper PTR at ptr-pdfs path); …/financial-pdfs/2026/9115726.pdf HEAD 404 |
+| E13 | …/ptr-pdfs/2026/9115811.pdf | `2f4b2b6e98e044e6368a072275804bc61dda52f6f1e15c09ddb9074ea1b8952c` (scanned paper PTR, fixture #5; retrieved 2026-07-05, goal 021 first leg. Text layer ABSENT: pdftotext emits 1 byte, a lone form-feed. Index slice + retrieval/politeness log archived: `evidence/f312caf490ddb96fa4b2b4fc73cc67ad0eb335d004c9b4db82e3b48cd22b6bc7.2026FD-slice-9115811.xml` + `.retrieval.json`) |
 
 ## Quirks log (append-only, dated)
 
@@ -505,6 +519,24 @@ sha256 pins below make every snapshot re-verifiable.
   header block land BETWEEN row 6's sub-lines and row 7's asset cell; rows stay
   contiguous, so the §6.4 escalation criteria were NOT met and `pdf-extract`
   remains the extractor (adapter built against it, conformance ×4 green).
+
+- 2026-07-05 · Paper-form anatomy (E13, fixture #5 — the §6.3 LLM-seam case):
+  the scanned paper PTR prints NO `Filing ID #` anywhere (doc_id must be
+  threaded from pipeline context — index DocID / fetch URL; conformance cache
+  priming carries it); the NAME line lacks the `Hon.` honorific (paper caveat
+  to the §2.5 verbatim-alias rule — the roster therefore also seeds the
+  prefix-less canonical name as an alias so paper filings resolve); there is
+  NO signature/date block — the clerk received stamp (`2026 MAY -6`, dash pads
+  single-digit days; HAND DELIVERED / LEGISLATIVE RESOURCE CENTER) is the only
+  in-document filing date and stands in for `signed_date_raw` (gold
+  `details.signed_date` parses it, e.g. 2026-05-06 = index FilingDate); the
+  form has NO Cap. Gains column (tri-state null) and NO `[XX]` asset-type
+  codes (§3.6 bucket `other`); checkbox columns map to the electronic token
+  vocabulary (Purchase→`P`, Sale→`S`, Partial Sale→`S (partial)`, Exchange→`E`;
+  Initial Report→`New`, Amendment→`Amended`; Member box→`Member`; State +
+  zero-padded District→StateDst). LLM-path rows carry
+  `extractor us_house_ptr/llm@1` and wrapper confidence 0.9 (f32), cached by
+  `(document_sha256, extractor_tag, model_id)`.
 
 ## Operational notes (politeness incidents, outages)
 

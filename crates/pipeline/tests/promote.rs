@@ -4,7 +4,7 @@
 //! DB-gated like the other sqlx suites: `--ignored` + postgres on
 //! `DATABASE_URL`.
 //!
-//! Proves, against Gold rows seeded by the REAL T9 pipeline over the four
+//! Proves, against Gold rows seeded by the REAL T9 pipeline over the five
 //! `us_house` fixtures:
 //! - `confirm` flips the target record `unverified → 'verified'` — the ONE
 //!   sanctioned state transition — and touches nothing else on the row;
@@ -58,14 +58,30 @@ async fn table_counts(pool: &PgPool) -> Vec<(String, i64)> {
     counts
 }
 
-fn evidence_index_xml() -> String {
+fn evidence_xml(file: &str) -> String {
     let path = workspace_root()
         .join("docs")
         .join("regimes")
         .join("us-house")
         .join("evidence")
-        .join("94781947c3975677a2fa8f7839f6c0f074b3d3a2ff6019b3cfd8ee4942f6262e.2026FD-slice.xml");
+        .join(file);
     std::fs::read_to_string(path).unwrap()
+}
+
+/// The full offline roster: the four E1 index-slice members plus the paper
+/// filer of the goal-021 scanned fixture (its own archived index slice).
+fn full_roster() -> Vec<pipeline::stages::roster::RosterMember> {
+    let mut roster = us_house::seed::roster_from_index_xml(&evidence_xml(
+        "94781947c3975677a2fa8f7839f6c0f074b3d3a2ff6019b3cfd8ee4942f6262e.2026FD-slice.xml",
+    ))
+    .unwrap();
+    roster.extend(
+        us_house::seed::roster_from_index_xml(&evidence_xml(
+            "f312caf490ddb96fa4b2b4fc73cc67ad0eb335d004c9b4db82e3b48cd22b6bc7.2026FD-slice-9115811.xml",
+        ))
+        .unwrap(),
+    );
+    roster
 }
 
 fn fixture_inputs() -> Vec<LocalFiling> {
@@ -76,7 +92,7 @@ fn fixture_inputs() -> Vec<LocalFiling> {
         .filter(|p| p.is_dir())
         .collect();
     dirs.sort();
-    assert_eq!(dirs.len(), 4, "expected the four T8 fixture cases");
+    assert_eq!(dirs.len(), 5, "expected the T8 + goal-021 fixture cases");
     dirs.into_iter()
         .map(|dir| LocalFiling {
             path: dir.join("input.pdf"),
@@ -95,7 +111,7 @@ fn temp_bronze_root(tag: &str) -> PathBuf {
     ))
 }
 
-/// Seeds regime + roster and runs the REAL T9 pipeline over the four
+/// Seeds regime + roster and runs the REAL T9 pipeline over the five
 /// fixtures, then returns the one open review task the run files
 /// (`ptr_amendment_unlinked`) as `(task_id, target_record_id)`.
 async fn seed_via_pipeline(pool: &PgPool, tag: &str) -> (String, String) {
@@ -103,8 +119,7 @@ async fn seed_via_pipeline(pool: &PgPool, tag: &str) -> (String, String) {
     seed_regime(pool, &us_house::seed::regime_seed())
         .await
         .unwrap();
-    let roster = us_house::seed::roster_from_index_xml(&evidence_index_xml()).unwrap();
-    seed_roster(pool, &us_house::seed::regime_binding(), &roster)
+    seed_roster(pool, &us_house::seed::regime_binding(), &full_roster())
         .await
         .unwrap();
 
@@ -120,7 +135,7 @@ async fn seed_via_pipeline(pool: &PgPool, tag: &str) -> (String, String) {
     let runner = Runner::new(&adapter, &binding, us_house::seed::regime_binding(), ctx).unwrap();
     let report = runner.run_local(&fixture_inputs()).await.unwrap();
     assert_eq!(report.failed, Vec::<String>::new());
-    assert_eq!(report.gold_inserted, 12, "1+8+2+1 fixture rows");
+    assert_eq!(report.gold_inserted, 13, "1+8+2+1+1 fixture rows");
 
     let (task_id, record_id): (String, String) = sqlx::query_as(
         "select id, target_id from review_task \
@@ -269,7 +284,7 @@ async fn confirm_flips_unverified_to_verified_and_is_idempotent(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(unverified, 11, "the other 11 records stay unverified");
+    assert_eq!(unverified, 12, "the other 12 records stay unverified");
 
     // The task is resolved with an audit payload.
     let (status, verdict, has_resolved_at): (String, String, bool) = sqlx::query_as(
@@ -406,12 +421,12 @@ async fn edit_supersedes_and_never_updates_the_original(pool: PgPool) {
     .unwrap();
     assert_eq!(events, [(superseding_id.clone(), record_id.clone())]);
 
-    // 12 pipeline rows + 1 superseding row; task resolved with the audit trail.
+    // 13 pipeline rows + 1 superseding row; task resolved with the audit trail.
     let gold: i64 = sqlx::query_scalar("select count(*) from disclosure_record")
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(gold, 13);
+    assert_eq!(gold, 14);
     let (status, verdict, recorded_superseding): (String, String, String) = sqlx::query_as(
         "select status, resolution->>'verdict', resolution->>'superseding_record_id' \
          from review_task where id = $1",

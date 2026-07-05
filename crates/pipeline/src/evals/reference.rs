@@ -30,6 +30,16 @@ pub struct ReferenceLock {
     pub frozen_at_utc: String,
     /// The supersede-never-mutate policy statement.
     pub policy: String,
+    /// sha256 of the superseded lock file's own bytes (LF, as committed) —
+    /// REQUIRED from version 2 on: a supersession must name its predecessor.
+    #[serde(default)]
+    pub supersedes: Option<String>,
+    /// Why the freeze was superseded — REQUIRED from version 2 on.
+    #[serde(default)]
+    pub reason: Option<String>,
+    /// Supersession date (ISO) — REQUIRED from version 2 on.
+    #[serde(default)]
+    pub date: Option<String>,
     /// Workspace-relative path (forward slashes) → sha256 (64 lowercase hex).
     pub pins: BTreeMap<String, String>,
 }
@@ -70,6 +80,34 @@ pub fn verify_lock(root: &Path) -> Vec<String> {
     }
     if lock.version == 0 {
         fails.push("lock version must be >= 1".to_owned());
+    }
+    if lock.version >= 2 {
+        // Supersede, never mutate: a re-frozen bundle must name its
+        // predecessor (by the old lock file's own sha256), a reason, and a
+        // date — a version bump without that trail is a silent mutation.
+        let supersedes_ok = lock
+            .supersedes
+            .as_deref()
+            .is_some_and(|sha| sha.len() == 64 && sha.bytes().all(|b| b.is_ascii_hexdigit()));
+        if !supersedes_ok {
+            fails.push(format!(
+                "lock version {} must carry `supersedes` = sha256 of the superseded lock file \
+                 (supersede, never mutate)",
+                lock.version
+            ));
+        }
+        if lock.reason.as_deref().is_none_or(|r| r.trim().is_empty()) {
+            fails.push(format!(
+                "lock version {} must carry a non-empty supersession `reason`",
+                lock.version
+            ));
+        }
+        if lock.date.as_deref().is_none_or(|d| d.trim().is_empty()) {
+            fails.push(format!(
+                "lock version {} must carry a supersession `date`",
+                lock.version
+            ));
+        }
     }
     if lock.pins.is_empty() {
         fails.push("lock pins are empty — nothing frozen (fail closed)".to_owned());
@@ -151,6 +189,38 @@ mod tests {
             fails.iter().any(|f| f.contains("E1.lock.json")),
             "missing lock must fail closed: {fails:?}"
         );
+    }
+
+    #[test]
+    fn superseded_locks_must_name_predecessor_reason_and_date() {
+        let dir = tempfile::tempdir().unwrap();
+        let artifact = dir.path().join("frozen.txt");
+        fs::write(&artifact, "bytes").unwrap();
+        let lock_dir = dir.path().join("docs/regimes/us-house/reference");
+        fs::create_dir_all(&lock_dir).unwrap();
+        let mut lock = serde_json::json!({
+            "version": 2,
+            "epoch": "E1",
+            "reference": "us_house",
+            "frozen_at_utc": "2026-07-05T00:00:00Z",
+            "policy": "supersede, never mutate",
+            "pins": { "frozen.txt": sha256_hex(b"bytes") }
+        });
+        fs::write(lock_dir.join("E1.lock.json"), lock.to_string()).unwrap();
+        let fails = verify_lock(dir.path());
+        assert!(
+            fails.iter().any(|f| f.contains("supersedes")),
+            "v2 without a supersession trail must fail closed: {fails:?}"
+        );
+        assert!(fails.iter().any(|f| f.contains("reason")), "{fails:?}");
+        assert!(fails.iter().any(|f| f.contains("date")), "{fails:?}");
+
+        lock["supersedes"] =
+            serde_json::json!("b4238f01962cde59bdf459ec7d2d84949cc02d428fc5160667af3d178c4c1c1d");
+        lock["reason"] = serde_json::json!("goal 021: scanned_paper_ptr LLM fixture");
+        lock["date"] = serde_json::json!("2026-07-05");
+        fs::write(lock_dir.join("E1.lock.json"), lock.to_string()).unwrap();
+        assert_eq!(verify_lock(dir.path()), Vec::<String>::new());
     }
 
     #[test]

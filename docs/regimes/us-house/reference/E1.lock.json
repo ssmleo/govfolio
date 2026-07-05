@@ -1,17 +1,24 @@
 {
-  "version": 1,
+  "version": 2,
   "epoch": "E1",
   "reference": "us_house",
-  "frozen_at_utc": "2026-07-05T02:42:23Z",
+  "frozen_at_utc": "2026-07-05T00:00:00Z",
   "policy": "Tamper-evident freeze over the E1 us_house ground-truth corpus (goal 016). Pinned artifacts are IMMUTABLE: amending any pinned file requires SUPERSEDING this lock (version bump + note of what changed and why), founder-gated like role edits — see docs/decisions/role-eval-thresholds.md. A scorer that finds a defect in a pinned artifact surfaces a FINDING; it never edits the artifact. Verified mechanically by `cargo test -p pipeline role_evals` and by the epoch-gate bin.",
+  "supersedes": "b4238f01962cde59bdf459ec7d2d84949cc02d428fc5160667af3d178c4c1c1d",
+  "reason": "Goal 021 second leg (per the founder-approved goal instruction + the first-leg BLOCKED staging in agents/goals/021-llm-extraction.md): the scanned_paper_ptr LLM-path fixture (test-designer capture 77740d8) joins the reference corpus — fixtures/MANIFEST.json gains the staged case entry + conformance ids, docs/regimes/us-house.md gains the staged SAF write-backs (paper-text-layer open question resolved, §7 row 5, E13, paper-anatomy quirks), and the ground-truth-derived extraction.cache.json is pinned alongside the expecteds. All other v1 pins are unchanged (byte-identical).",
+  "date": "2026-07-05",
   "pins": {
-    "crates/adapters/us_house/fixtures/MANIFEST.json": "cabeda6b054c90763ebc711b957b1927ce86d870cf701dfb31440d436af447b2",
+    "crates/adapters/us_house/fixtures/MANIFEST.json": "0a36822afdc7e002e271dc8beea886a7c299298a0868c21f0d9d061c002335fa",
     "crates/adapters/us_house/fixtures/amendment_unlinked/expected.gold.json": "381e8f3f89e583d753ed53298b59325cec7d854af0ecce12812f39c79f88ae7e",
     "crates/adapters/us_house/fixtures/amendment_unlinked/expected.silver.json": "b2b57aaea01bf28bb0e1c2ebb3cf9b636124298ceef8b90786a58dffada931c7",
     "crates/adapters/us_house/fixtures/amendment_unlinked/input.pdf": "0a5861a182db417541f62a0179dfbba025d06cf1aa990c4d1931a2076760af1e",
     "crates/adapters/us_house/fixtures/multi_row_sp_vehicle/expected.gold.json": "d42636946e9b61e04649ab3b8050a1460c508216c67f005d586c32bc2ec35102",
     "crates/adapters/us_house/fixtures/multi_row_sp_vehicle/expected.silver.json": "1702664ecebeeccf8baf876aff56c0d0453326283de17afa5ee83de89abc2b71",
     "crates/adapters/us_house/fixtures/multi_row_sp_vehicle/input.pdf": "5b1b60bea609310f4288adce9557702231cd1f23eb5ceabf1c0babc3fe867b37",
+    "crates/adapters/us_house/fixtures/scanned_paper_ptr/expected.gold.json": "b62fb04d5a913091672275abc959044aa0ba3fc6e6ee7658cd1c763d39c203a9",
+    "crates/adapters/us_house/fixtures/scanned_paper_ptr/expected.silver.json": "eb88f90421698ab2ec54778c20e25f354d50ffe74d793afdc4d1565a97c51565",
+    "crates/adapters/us_house/fixtures/scanned_paper_ptr/extraction.cache.json": "4cf6167f6e8d37e23f3e47d6d6fb7505e5d830582bd809c0327f04c5133e005c",
+    "crates/adapters/us_house/fixtures/scanned_paper_ptr/input.pdf": "2f4b2b6e98e044e6368a072275804bc61dda52f6f1e15c09ddb9074ea1b8952c",
     "crates/adapters/us_house/fixtures/sp_owner_options/expected.gold.json": "b7040553f5df74a21df628e053a09c28e96caa02cfb8e877c92f656d6779c97b",
     "crates/adapters/us_house/fixtures/sp_owner_options/expected.silver.json": "831e87a462011a86ae32e3b7be07a8965cb802474d06a07806d62c4b94ba415b",
     "crates/adapters/us_house/fixtures/sp_owner_options/input.pdf": "90bf98e6a2a3685f429964bb0e154ae05cc99423227b94666012332b81dc821e",
@@ -19,8 +26,10 @@
     "crates/adapters/us_house/fixtures/typical_single_row/expected.silver.json": "39b63f7d398ebb0ee5a90f4c502ce6865daf227c57d005ebe4da8f50b206c512",
     "crates/adapters/us_house/fixtures/typical_single_row/input.pdf": "4a12b888c2c89ebbfad5c280fa8a6af52489218dbec402ca2abc803436d8fa3f",
     "crates/pipeline/schemas/details/us_house.transaction.json": "ef468adba0179e8404679e0c2236dbadf9828bda28acf559f5959b528f55f5e0",
-    "docs/regimes/us-house.md": "a5e6174049c4ce28d153ecc186fc975909dae87fb36a88f97a0981bb9008d43a",
+    "docs/regimes/us-house.md": "7a5e068b61525da470fb3f05a85cb48914aad7f665d0e8d9869c52b731df65ab",
     "docs/regimes/us-house/evidence/94781947c3975677a2fa8f7839f6c0f074b3d3a2ff6019b3cfd8ee4942f6262e.2026FD-slice.xml": "94781947c3975677a2fa8f7839f6c0f074b3d3a2ff6019b3cfd8ee4942f6262e",
-    "docs/regimes/us-house/evidence/94781947c3975677a2fa8f7839f6c0f074b3d3a2ff6019b3cfd8ee4942f6262e.retrieval.json": "1a5b7cc1504b32712811419fd5f531a619ca2eb59434db5762d589ea1fe27c4c"
+    "docs/regimes/us-house/evidence/94781947c3975677a2fa8f7839f6c0f074b3d3a2ff6019b3cfd8ee4942f6262e.retrieval.json": "1a5b7cc1504b32712811419fd5f531a619ca2eb59434db5762d589ea1fe27c4c",
+    "docs/regimes/us-house/evidence/f312caf490ddb96fa4b2b4fc73cc67ad0eb335d004c9b4db82e3b48cd22b6bc7.2026FD-slice-9115811.xml": "f312caf490ddb96fa4b2b4fc73cc67ad0eb335d004c9b4db82e3b48cd22b6bc7",
+    "docs/regimes/us-house/evidence/f312caf490ddb96fa4b2b4fc73cc67ad0eb335d004c9b4db82e3b48cd22b6bc7.retrieval.json": "f54576b226fbbf900d064c8780c7c75dfb2e26ca02beecb7181d9cb3e75974f8"
   }
 }

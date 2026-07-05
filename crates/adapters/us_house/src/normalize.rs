@@ -32,6 +32,9 @@ const CONFORMANCE_POLITICIANS: &[(&str, &str)] = &[
     ("Hon. Lloyd K. Smucker|PA11", "0HSEMBR0000000000000000002"),
     ("Hon. David Rouzer|NC07", "0HSEMBR0000000000000000003"),
     ("Hon. Nancy Pelosi|CA11", "0HSEMBR0000000000000000004"),
+    // Paper filings print the NAME line without the honorific (quirks log
+    // 2026-07-05) — the key is the form's verbatim name, per the MANIFEST.
+    ("Diana Harshbarger|TN01", "0HSEMBR0000000000000000005"),
 ];
 
 /// Identity binding mode (plan Task 9, closing the T8c seam).
@@ -104,7 +107,7 @@ fn normalize_row(staged: &StagingRow, mode: IdentityMode) -> anyhow::Result<Gold
     let value = band_interval(&row.amount_raw)?;
     let transaction_date = parse_mdy(&row.transaction_date_raw)?;
     let notified_date = parse_mdy(&row.notification_date_raw)?;
-    let signed_date = parse_mdy(&row.signed_date_raw)?;
+    let signed_date = parse_source_date(&row.signed_date_raw)?;
 
     let details = UsHousePtrTransactionDetailsV1 {
         doc_id: row.doc_id.clone(),
@@ -183,6 +186,47 @@ fn band_interval(amount_raw: &str) -> anyhow::Result<ValueInterval> {
 /// `MM/DD/YYYY` as printed → [`NaiveDate`].
 pub(crate) fn parse_mdy(raw: &str) -> anyhow::Result<NaiveDate> {
     NaiveDate::parse_from_str(raw, "%m/%d/%Y").with_context(|| format!("unparseable date {raw:?}"))
+}
+
+/// A source filing date in either observed shape: the electronic
+/// `MM/DD/YYYY` signature date, or the paper clerk received stamp
+/// `YYYY MON [-]D` (e.g. `2026 MAY -6`, quirks log 2026-07-05 — the stamp
+/// pads single-digit days with a dash). Anything else is a hard reject.
+pub(crate) fn parse_source_date(raw: &str) -> anyhow::Result<NaiveDate> {
+    if let Ok(date) = NaiveDate::parse_from_str(raw, "%m/%d/%Y") {
+        return Ok(date);
+    }
+    clerk_stamp_date(raw).with_context(|| format!("unparseable source date {raw:?} — hard reject"))
+}
+
+/// `2026 MAY -6` → 2026-05-06.
+fn clerk_stamp_date(raw: &str) -> anyhow::Result<NaiveDate> {
+    let parts: Vec<&str> = raw.split_whitespace().collect();
+    let [year, month, day] = parts.as_slice() else {
+        anyhow::bail!("not a `YYYY MON D` clerk stamp");
+    };
+    let year: i32 = year.parse().context("stamp year")?;
+    let month = match *month {
+        "JAN" => 1,
+        "FEB" => 2,
+        "MAR" => 3,
+        "APR" => 4,
+        "MAY" => 5,
+        "JUN" => 6,
+        "JUL" => 7,
+        "AUG" => 8,
+        "SEP" => 9,
+        "OCT" => 10,
+        "NOV" => 11,
+        "DEC" => 12,
+        other => anyhow::bail!("unknown stamp month {other:?}"),
+    };
+    let day: u32 = day
+        .trim_start_matches('-') // single-digit days print as `-6`
+        .parse()
+        .context("stamp day")?;
+    NaiveDate::from_ymd_opt(year, month, day)
+        .with_context(|| format!("invalid stamp date {year}-{month}-{day}"))
 }
 
 /// Nil-ULID placeholder for a not-yet-bound identity field (see
@@ -291,6 +335,25 @@ mod tests {
         assert_eq!(candidate.fingerprint, None, "computed at publish");
         // Conformance mode still refuses unknown filers (fixtures contract).
         assert!(normalize_row(&staged, IdentityMode::Conformance).is_err());
+    }
+
+    #[test]
+    fn source_dates_parse_both_signature_and_clerk_stamp_shapes() {
+        assert_eq!(
+            parse_source_date("06/12/2026").unwrap().to_string(),
+            "2026-06-12"
+        );
+        // Paper clerk received stamp: single-digit day padded with a dash.
+        assert_eq!(
+            parse_source_date("2026 MAY -6").unwrap().to_string(),
+            "2026-05-06"
+        );
+        assert_eq!(
+            parse_source_date("2026 DEC 16").unwrap().to_string(),
+            "2026-12-16"
+        );
+        assert!(parse_source_date("MAY 6 2026").is_err(), "hard reject");
+        assert!(parse_source_date("2026 XXX -6").is_err(), "hard reject");
     }
 
     #[test]

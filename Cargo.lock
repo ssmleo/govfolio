@@ -1674,6 +1674,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "base64",
  "chrono",
  "core",
  "fixture_fake",
@@ -3043,6 +3044,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "tokio",
  "ulid",
  "zip",
 ]

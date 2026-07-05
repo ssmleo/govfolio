@@ -30,8 +30,8 @@ use pipeline::stages::seed::seed_regime;
 use us_house::UsHouseAdapter;
 use us_house::binding::UsHouseBinding;
 
-/// Every table of migrations 0001+0002 — the "second run inserts nothing"
-/// assertion sweeps ALL of them.
+/// Every table of migrations 0001+0002+0004 — the "second run inserts
+/// nothing" assertion sweeps ALL of them.
 const ALL_TABLES: &[&str] = &[
     "jurisdiction",
     "disclosure_regime",
@@ -48,6 +48,7 @@ const ALL_TABLES: &[&str] = &[
     "outbox_event",
     "stg_us_house",
     "stg_meta",
+    "extraction_cache",
 ];
 
 async fn table_counts(pool: &PgPool) -> Vec<(String, i64)> {
@@ -63,14 +64,28 @@ async fn table_counts(pool: &PgPool) -> Vec<(String, i64)> {
     counts
 }
 
-fn evidence_index_xml() -> String {
+fn evidence_xml(file: &str) -> String {
     let path = workspace_root()
         .join("docs")
         .join("regimes")
         .join("us-house")
         .join("evidence")
-        .join("94781947c3975677a2fa8f7839f6c0f074b3d3a2ff6019b3cfd8ee4942f6262e.2026FD-slice.xml");
+        .join(file);
     std::fs::read_to_string(path).unwrap()
+}
+
+fn evidence_index_xml() -> String {
+    evidence_xml(
+        "94781947c3975677a2fa8f7839f6c0f074b3d3a2ff6019b3cfd8ee4942f6262e.2026FD-slice.xml",
+    )
+}
+
+/// The archived index slice for the goal-021 scanned paper fixture's filer
+/// (Hon. Diana Harshbarger, TN01 — `DocID` 9115811).
+fn evidence_slice_9115811() -> String {
+    evidence_xml(
+        "f312caf490ddb96fa4b2b4fc73cc67ad0eb335d004c9b4db82e3b48cd22b6bc7.2026FD-slice-9115811.xml",
+    )
 }
 
 fn fixture_inputs() -> Vec<LocalFiling> {
@@ -81,7 +96,7 @@ fn fixture_inputs() -> Vec<LocalFiling> {
         .filter(|p| p.is_dir())
         .collect();
     dirs.sort();
-    assert_eq!(dirs.len(), 4, "expected the four T8 fixture cases");
+    assert_eq!(dirs.len(), 5, "expected the T8 + goal-021 fixture cases");
     dirs.into_iter()
         .map(|dir| LocalFiling {
             path: dir.join("input.pdf"),
@@ -122,30 +137,34 @@ async fn migrate_and_seed_regime(pool: &PgPool) {
 #[ignore = "needs postgres"]
 async fn full_local_run_publishes_and_second_run_inserts_nothing(pool: PgPool) {
     migrate_and_seed_regime(&pool).await;
-    let roster = us_house::seed::roster_from_index_xml(&evidence_index_xml()).unwrap();
+    let mut roster = us_house::seed::roster_from_index_xml(&evidence_index_xml()).unwrap();
+    roster.extend(us_house::seed::roster_from_index_xml(&evidence_slice_9115811()).unwrap());
     let seeded = seed_roster(&pool, &us_house::seed::regime_binding(), &roster)
         .await
         .unwrap();
-    assert_eq!(seeded, 4, "the evidence index slice carries four members");
+    assert_eq!(
+        seeded, 5,
+        "four E1 slice members + the goal-021 paper filer"
+    );
 
     let bronze_root = temp_bronze_root("idempotent");
     let report1 = run_once(&pool, &bronze_root).await;
     assert_eq!(report1.failed, Vec::<String>::new());
-    assert_eq!(report1.filings, 4);
-    assert_eq!(report1.gold_inserted, 12, "1+8+2+1 fixture rows");
-    assert_eq!(report1.outbox_written, 12);
+    assert_eq!(report1.filings, 5);
+    assert_eq!(report1.gold_inserted, 13, "1+8+2+1+1 fixture rows");
+    assert_eq!(report1.outbox_written, 13);
 
     // Bronze + Silver + linkage.
     let raw_docs: i64 = sqlx::query_scalar("select count(*) from raw_document")
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(raw_docs, 4);
+    assert_eq!(raw_docs, 5);
     let silver: i64 = sqlx::query_scalar("select count(*) from stg_us_house")
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(silver, 12);
+    assert_eq!(silver, 13);
     let meta: i64 = sqlx::query_scalar(
         "select count(*) from stg_meta m join pipeline_run r on r.id = m.pipeline_run_id \
          where m.stg_table = 'stg_us_house'",
@@ -153,7 +172,23 @@ async fn full_local_run_publishes_and_second_run_inserts_nothing(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(meta, 12, "every silver row is run-linked");
+    assert_eq!(meta, 13, "every silver row is run-linked");
+
+    // The scanned paper filing went through the LLM seam: llm@1-tagged rows
+    // at the staged 0.9 confidence, resolved to the prefix-less paper alias.
+    let (llm_rows, llm_confidence): (i64, Option<f32>) = sqlx::query_as(
+        "select count(*), min(confidence) from stg_us_house \
+         where extractor = 'us_house_ptr/llm@1'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(llm_rows, 1, "the scanned fixture is the one LLM-path row");
+    assert_eq!(
+        llm_confidence,
+        Some(0.9f32),
+        "staged llm@1 wrapper confidence"
+    );
 
     // Gold: all unverified, fingerprints present and unique.
     let states: Vec<String> =
@@ -180,11 +215,11 @@ async fn full_local_run_publishes_and_second_run_inserts_nothing(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(records, 12);
+    assert_eq!(records, 13);
     assert_eq!(events, records, "one outbox event per gold record");
     assert_eq!(joined, records, "every record has its event");
 
-    // pipeline_run: 3 stages x 4 filings, all succeeded, unique keys, stats kept.
+    // pipeline_run: 3 stages x 5 filings, all succeeded, unique keys, stats kept.
     let (runs, keys, succeeded, with_stats): (i64, i64, i64, i64) = sqlx::query_as(
         "select count(*), count(distinct idempotency_key), \
                 count(*) filter (where status = 'succeeded'), \
@@ -193,10 +228,10 @@ async fn full_local_run_publishes_and_second_run_inserts_nothing(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(runs, 12);
-    assert_eq!(keys, 12, "idempotency keys are unique per stage unit");
-    assert_eq!(succeeded, 12);
-    assert_eq!(with_stats, 12, "every stage records audit stats");
+    assert_eq!(runs, 15);
+    assert_eq!(keys, 15, "idempotency keys are unique per stage unit");
+    assert_eq!(succeeded, 15);
+    assert_eq!(with_stats, 15, "every stage records audit stats");
 
     // Amendment routing (regime doc §3.7): the single Amended row opened a task.
     let amendment_targets: Vec<String> = sqlx::query_scalar(
@@ -249,12 +284,13 @@ async fn full_local_run_publishes_and_second_run_inserts_nothing(pool: PgPool) {
 async fn unresolved_filer_fails_closed_no_gold_plus_review_task(pool: PgPool) {
     migrate_and_seed_regime(&pool).await;
     // Seed the roster WITHOUT the AK00 filer (typical_single_row's Begich).
-    let roster: Vec<_> = us_house::seed::roster_from_index_xml(&evidence_index_xml())
+    let mut roster: Vec<_> = us_house::seed::roster_from_index_xml(&evidence_index_xml())
         .unwrap()
         .into_iter()
         .filter(|m| m.district != "AK00")
         .collect();
-    assert_eq!(roster.len(), 3);
+    roster.extend(us_house::seed::roster_from_index_xml(&evidence_slice_9115811()).unwrap());
+    assert_eq!(roster.len(), 4);
     seed_roster(&pool, &us_house::seed::regime_binding(), &roster)
         .await
         .unwrap();
@@ -275,8 +311,8 @@ async fn unresolved_filer_fails_closed_no_gold_plus_review_task(pool: PgPool) {
     .fetch_one(&pool)
     .await
     .unwrap();
-    assert_eq!(filings, 3);
-    assert_eq!(gold, 11, "8+2+1 rows from the three resolvable filings");
+    assert_eq!(filings, 4);
+    assert_eq!(gold, 12, "8+2+1+1 rows from the four resolvable filings");
 
     let tasks: Vec<String> = sqlx::query_scalar(
         "select target_id from review_task \

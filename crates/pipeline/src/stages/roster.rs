@@ -71,6 +71,20 @@ pub async fn seed_roster(
             .execute(&mut *tx)
             .await
             .with_context(|| format!("seeding alias {:?}", member.filed_alias))?;
+        // Paper filings print the name WITHOUT the honorific (us_house quirks
+        // log 2026-07-05): the member list attests both forms, so the
+        // prefix-less canonical name is a legitimate as-filed alias too.
+        if member.canonical_name != member.filed_alias {
+            sqlx::query(
+                "insert into politician_alias (politician_id, alias) values ($1, $2) \
+                 on conflict do nothing",
+            )
+            .bind(&politician_id)
+            .bind(&member.canonical_name)
+            .execute(&mut *tx)
+            .await
+            .with_context(|| format!("seeding canonical alias {:?}", member.canonical_name))?;
+        }
         sqlx::query(
             "insert into mandate \
                (id, politician_id, jurisdiction_id, body, role, district, start_date) \

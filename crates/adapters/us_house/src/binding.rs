@@ -11,7 +11,7 @@ use govfolio_core::domain::gold::GoldCandidate;
 use pipeline::adapter::StagingRow;
 use pipeline::run::{FilingIdentity, RunnerBinding, StagedSilver};
 
-use crate::normalize::parse_mdy;
+use crate::normalize::parse_source_date;
 use crate::parse::SilverRow;
 
 /// The `us_house` [`RunnerBinding`].
@@ -107,8 +107,9 @@ impl RunnerBinding for UsHouseBinding {
             );
         }
         // filed_date: the filer-claimed signature date (regime doc §2.2: it
-        // equals the index FilingDate on every sample).
-        let filed_date = parse_mdy(&row.signed_date_raw)?;
+        // equals the index FilingDate on every sample) — or, on paper
+        // filings, the clerk received stamp (quirks log 2026-07-05).
+        let filed_date = parse_source_date(&row.signed_date_raw)?;
         Ok(FilingIdentity {
             external_id: row.doc_id,
             filer_name: row.filer_name_raw,

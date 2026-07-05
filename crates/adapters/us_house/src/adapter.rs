@@ -14,7 +14,7 @@ use pipeline::adapter::{
     FilingRef, JurisdictionAdapter, PolitenessCfg, RawDocRef, RegimeRef, RunCtx, StagingRow,
 };
 
-use crate::extractor::{Extractor as _, NeedsLlmExtraction};
+use crate::extractor::{Extractor as _, LlmExtractor};
 use crate::{index, normalize, parse};
 
 /// Mean row confidence below this routes the whole document to the LLM seam
@@ -32,6 +32,8 @@ struct IndexValidators {
 #[derive(Debug, Default)]
 pub struct UsHouseAdapter {
     index_validators: Mutex<IndexValidators>,
+    /// LLM seam for documents the text path cannot handle (goal 021).
+    extractor: LlmExtractor,
 }
 
 #[async_trait]
@@ -120,17 +122,20 @@ impl JurisdictionAdapter for UsHouseAdapter {
 
     async fn parse(&self, d: &RawDocRef, ctx: &RunCtx) -> anyhow::Result<Vec<StagingRow>> {
         let bytes = ctx.bronze.get(d)?;
-        let text = pdf_extract::extract_text_from_mem(&bytes)
-            .map_err(|e| anyhow::anyhow!("pdf text extraction failed for {}: {e}", d.sha256))?;
+        let Ok(text) = pdf_extract::extract_text_from_mem(&bytes) else {
+            // Unreadable-by-text-path document (scanned/paper): LLM seam
+            // (§6.3c) — the seam itself fails closed when it cannot extract.
+            return self.extractor.extract(d, ctx).await;
+        };
         if !text.contains("Filing ID #") {
             // No usable text layer (paper/scanned filing): LLM seam (§6.3a/c).
-            return NeedsLlmExtraction.extract(d, ctx).await;
+            return self.extractor.extract(d, ctx).await;
         }
         let doc = parse::parse_document(&text)
             .with_context(|| format!("parsing PTR text layer of {}", d.sha256))?;
         if doc.rows.is_empty() || doc.doc_id.len() == 7 {
             // Zero rows / paper DocID shape: LLM seam (§6.3a/c).
-            return NeedsLlmExtraction.extract(d, ctx).await;
+            return self.extractor.extract(d, ctx).await;
         }
         let row_count = u32::try_from(doc.rows.len()).context("row count overflow")?;
         let mean_confidence = doc
@@ -140,7 +145,7 @@ impl JurisdictionAdapter for UsHouseAdapter {
             .sum::<f64>()
             / f64::from(row_count);
         if mean_confidence < LLM_SEAM_CONFIDENCE_FLOOR {
-            return NeedsLlmExtraction.extract(d, ctx).await; // §6.3b
+            return self.extractor.extract(d, ctx).await; // §6.3b
         }
         doc.rows
             .into_iter()

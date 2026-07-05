@@ -95,6 +95,7 @@ fn role_evals_lock_pins_required_artifacts() {
         "multi_row_sp_vehicle",
         "amendment_unlinked",
         "sp_owner_options",
+        "scanned_paper_ptr", // goal 021 LLM-path case (lock v2 supersede)
     ] {
         required.push(format!(
             "crates/adapters/us_house/fixtures/{case}/input.pdf"
@@ -106,6 +107,13 @@ fn role_evals_lock_pins_required_artifacts() {
             "crates/adapters/us_house/fixtures/{case}/expected.gold.json"
         ));
     }
+    // The conformance extraction cache is ground-truth-derived — pinned too.
+    required.push(
+        "crates/adapters/us_house/fixtures/scanned_paper_ptr/extraction.cache.json".to_owned(),
+    );
+    // Lock v2 (goal 021) must carry its supersession trail.
+    assert!(lock.version >= 2, "goal 021 superseded the lock to v2");
+    assert!(lock.supersedes.is_some() && lock.reason.is_some() && lock.date.is_some());
     for path in &required {
         assert!(
             lock.pins.contains_key(path),

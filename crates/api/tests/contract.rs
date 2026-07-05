@@ -28,17 +28,32 @@ use us_house::binding::UsHouseBinding;
 
 // ---------------------------------------------------------------- seeding --
 // Same Task 9 machinery the pipeline e2e suite drives: migrate, seed the
-// regime + roster from the archived index evidence slice, run the pipeline
-// over the four committed fixtures (12 Gold rows, all `unverified`).
+// regime + roster from the archived index evidence slices, run the pipeline
+// over the five committed fixtures (13 Gold rows, all `unverified`).
 
-fn evidence_index_xml() -> String {
+fn evidence_xml(file: &str) -> String {
     let path = workspace_root()
         .join("docs")
         .join("regimes")
         .join("us-house")
         .join("evidence")
-        .join("94781947c3975677a2fa8f7839f6c0f074b3d3a2ff6019b3cfd8ee4942f6262e.2026FD-slice.xml");
+        .join(file);
     std::fs::read_to_string(path).unwrap()
+}
+
+/// Four E1 slice members + the goal-021 scanned fixture's paper filer.
+fn full_roster() -> Vec<pipeline::stages::roster::RosterMember> {
+    let mut roster = us_house::seed::roster_from_index_xml(&evidence_xml(
+        "94781947c3975677a2fa8f7839f6c0f074b3d3a2ff6019b3cfd8ee4942f6262e.2026FD-slice.xml",
+    ))
+    .unwrap();
+    roster.extend(
+        us_house::seed::roster_from_index_xml(&evidence_xml(
+            "f312caf490ddb96fa4b2b4fc73cc67ad0eb335d004c9b4db82e3b48cd22b6bc7.2026FD-slice-9115811.xml",
+        ))
+        .unwrap(),
+    );
+    roster
 }
 
 fn fixture_inputs() -> Vec<LocalFiling> {
@@ -69,8 +84,7 @@ async fn seed_via_pipeline(pool: &PgPool) {
     seed_regime(pool, &us_house::seed::regime_seed())
         .await
         .unwrap();
-    let roster = us_house::seed::roster_from_index_xml(&evidence_index_xml()).unwrap();
-    seed_roster(pool, &us_house::seed::regime_binding(), &roster)
+    seed_roster(pool, &us_house::seed::regime_binding(), &full_roster())
         .await
         .unwrap();
 
@@ -86,7 +100,7 @@ async fn seed_via_pipeline(pool: &PgPool) {
     let runner = Runner::new(&adapter, &binding, us_house::seed::regime_binding(), ctx).unwrap();
     let report = runner.run_local(&fixture_inputs()).await.unwrap();
     assert_eq!(report.failed, Vec::<String>::new());
-    assert_eq!(report.gold_inserted, 12, "1+8+2+1 fixture rows");
+    assert_eq!(report.gold_inserted, 13, "1+8+2+1+1 fixture rows");
 }
 
 // --------------------------------------------------------- schema harness --
@@ -179,12 +193,12 @@ async fn records_paginate_by_ulid_cursor_and_match_the_contract(pool: PgPool) {
         "the contract validator must have teeth (refs resolved, shape enforced)"
     );
 
-    // Ground truth: all 12 record ids in ULID (= id) order.
+    // Ground truth: all 13 record ids in ULID (= id) order.
     let all: Vec<String> = sqlx::query_scalar("select id from disclosure_record order by id")
         .fetch_all(&pool)
         .await
         .unwrap();
-    assert_eq!(all.len(), 12);
+    assert_eq!(all.len(), 13);
 
     // Page 1.
     let (status, page1) = get(&app, "/v1/records?limit=5").await;

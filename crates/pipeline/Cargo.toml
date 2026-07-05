@@ -9,6 +9,8 @@ workspace = true
 [dependencies]
 anyhow = "1.0.103"
 async-trait = "0.1.89"
+# LLM extraction (goal 021): PDF bytes travel as a base64 document block.
+base64 = "0.22.1"
 chrono = "0.4.45"
 core = { version = "0.1.0", path = "../core" }
 jsonschema = { version = "0.46.9", default-features = false }
