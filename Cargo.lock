@@ -150,7 +150,6 @@ dependencies = [
  "core",
  "pipeline",
  "schemars",
- "scraper",
  "serde",
  "serde_json",
  "tokio",

@@ -19,7 +19,6 @@ use std::time::Duration;
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use scraper::{Html, Selector};
 
 use govfolio_core::domain::gold::GoldCandidate;
 use pipeline::adapter::{
@@ -116,21 +115,14 @@ impl JurisdictionAdapter for AustraliaRegisterAdapter {
 /// document key, not a person id (regime doc §2.2); the `@{version}` binding
 /// (media `Last-Modified`, §2.5) is threaded at fetch time (follow-up).
 fn register_pdf_links(index_html: &str) -> Vec<FilingRef> {
-    let doc = Html::parse_document(index_html);
-    let Ok(selector) = Selector::parse("a[href$=\".pdf\"]") else {
-        return Vec::new();
-    };
     let mut seen = HashSet::new();
     let mut refs = Vec::new();
-    for anchor in doc.select(&selector) {
-        let Some(href) = anchor.value().attr("href") else {
-            continue;
-        };
+    for href in anchor_hrefs(index_html) {
         if !href.contains("/Register/") {
             continue; // not a register document link
         }
         let Some(stem) = pdf_filename_stem(href) else {
-            continue;
+            continue; // not a `.pdf` document
         };
         if seen.insert(stem.clone()) {
             refs.push(FilingRef {
@@ -140,6 +132,30 @@ fn register_pdf_links(index_html: &str) -> Vec<FilingRef> {
         }
     }
     refs
+}
+
+/// Every quoted `href="..."` / `href='...'` value in document order — a minimal
+/// scan (the register index is a flat server-rendered table; a full HTML DOM
+/// parser would be dead weight in this crate's link footprint, and the live
+/// fetch is browser-seam-gated anyway, §2.3).
+fn anchor_hrefs(html: &str) -> Vec<&str> {
+    const MARKER: &str = "href=";
+    let mut out = Vec::new();
+    let mut rest = html;
+    while let Some(at) = rest.find(MARKER) {
+        rest = &rest[at + MARKER.len()..];
+        let delim = rest.as_bytes().first().copied();
+        if delim != Some(b'"') && delim != Some(b'\'') {
+            continue; // unquoted or malformed — skip this occurrence
+        }
+        rest = &rest[1..];
+        let Some(end) = rest.bytes().position(|b| Some(b) == delim) else {
+            break;
+        };
+        out.push(&rest[..end]);
+        rest = &rest[end + 1..];
+    }
+    out
 }
 
 /// `.../{Surname}_{NNP}.pdf` → `{Surname}_{NNP}` (the document key, §2.2).

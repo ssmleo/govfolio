@@ -1079,7 +1079,7 @@
   ],
   "provenance": {
     "derived_by": "pipeline::extraction::prime_from_expected_silver (mechanical transform, NOT a live LLM call)",
-    "enforced_by": "cargo test -p australia_register --test extraction_cache_snapshot",
+    "enforced_by": "cargo test -p australia_register --test snapshots",
     "ground_truth": "test-designer goal 063 leg B — independent transcription (pdftotext -layout + WinRT render), commit d3ed1a8",
     "primed_from": "expected.silver.json"
   }
