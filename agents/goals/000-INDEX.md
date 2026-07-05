@@ -11,7 +11,7 @@
 - [x] 041 reviewer UI (queue, side-by-side, promote/edit/reject) (done 2026-07-05, commits 8722fb6+cea2b05; promote.rs sole write authority; audit log; e2e 15/15)
 - [x] 050 productization (auth, API keys, quotas→Stripe, 24h free-tier delay) (done 2026-07-05, commits c103f91+9f6a337; delay in ONE query place on discovered_at; tiers 8/8; stripe seam mock-proven; signup + price values = founder TODO)
 - [x] 060 adapter: us_senate            (E1) (done 2026-07-05, commits 94f0dd6+f07f5eb+4dc47c1; conformance 4/4; auditor cross-check PASS 70fb61c 40/40 rows; TLS-impersonation fetch + runner-binding = recorded follow-ups)
-- [ ] 061 adapter: uk_commons_register  (E1 diversity seed)
+- [x] 061 adapter: uk_commons_register  (E1 diversity seed) (done 2026-07-05, commits 16337a6+c95a437+648e767; FIRST interest record_type; JSON-API source; conformance 5/5; auditor PASS e628c42 9/9. Bonus: .gitattributes -text fixes CRLF pinning hazard repo-wide)
 - [ ] 062 adapter: canada_ciec          (E1 diversity seed)
 - [ ] 063 adapter: australia_register   (E1 diversity seed)
 - [ ] 064 adapter: eu_parliament + france_hatvp + germany_bundestag (E1 diversity seeds)
