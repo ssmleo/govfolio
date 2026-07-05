@@ -5,6 +5,7 @@ pub mod jurisdictions;
 pub mod politicians;
 pub mod records;
 pub mod regimes;
+pub mod review;
 pub mod search;
 
 /// One shared `disclosure_record` projection behind every records endpoint —

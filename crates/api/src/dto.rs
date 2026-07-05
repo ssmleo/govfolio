@@ -118,34 +118,42 @@ pub struct RecordRow {
 
 /// Parses a SQL CHECK wire token (e.g. `"buy"`) back into its core enum —
 /// the same one rule the writer enforced (one rule, two enforcers).
-fn from_token<T: DeserializeOwned>(token: String, what: &str) -> Result<T, ApiError> {
+pub(crate) fn from_token<T: DeserializeOwned>(token: String, what: &str) -> Result<T, ApiError> {
     serde_json::from_value(serde_json::Value::String(token))
         .with_context(|| format!("stored {what} is outside the core vocabulary"))
         .map_err(ApiError::from)
+}
+
+/// Re-types the three value columns into the core [`ValueInterval`] (money =
+/// decimal strings, invariant 7). Shared by every row-to-wire conversion.
+pub(crate) fn value_from_columns(
+    low: Option<Decimal>,
+    high: Option<Decimal>,
+    currency: Option<String>,
+) -> Result<Option<ValueInterval>, ApiError> {
+    match low {
+        None => Ok(None),
+        Some(low) => {
+            let currency: Currency = from_token(
+                currency
+                    .ok_or_else(|| ApiError::from(anyhow::anyhow!("value_low without currency")))?
+                    .trim()
+                    .to_owned(),
+                "currency",
+            )?;
+            Ok(Some(
+                ValueInterval::new(low, high, currency)
+                    .context("stored value interval is inverted")?,
+            ))
+        }
+    }
 }
 
 impl TryFrom<RecordRow> for DisclosureRecord {
     type Error = ApiError;
 
     fn try_from(row: RecordRow) -> Result<Self, Self::Error> {
-        let value = match row.value_low {
-            None => None,
-            Some(low) => {
-                let currency: Currency = from_token(
-                    row.currency
-                        .ok_or_else(|| {
-                            ApiError::from(anyhow::anyhow!("value_low without currency"))
-                        })?
-                        .trim()
-                        .to_owned(),
-                    "currency",
-                )?;
-                Some(
-                    ValueInterval::new(low, row.value_high, currency)
-                        .context("stored value interval is inverted")?,
-                )
-            }
-        };
+        let value = value_from_columns(row.value_low, row.value_high, row.currency)?;
         Ok(Self {
             id: row.id,
             filing_id: row.filing_id,

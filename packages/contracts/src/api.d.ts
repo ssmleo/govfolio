@@ -209,6 +209,96 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/review-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lists review tasks in ranking order (design §7.2 queue).
+         * @description # Errors
+         *     `400` on a malformed status, cursor or limit; `500` on backend failure —
+         *     all in the consistent error envelope.
+         */
+        get: operations["list_review_tasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/review-tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Fetches one review task with its full adjudication surface.
+         * @description # Errors
+         *     `404` for an unknown task; `500` on backend failure.
+         */
+        get: operations["get_review_task"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/review-tasks/{id}/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The audit log of one task: every resolve attempt, in order.
+         * @description # Errors
+         *     `404` for an unknown task; `500` on backend failure.
+         */
+        get: operations["review_task_audit"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/review-tasks/{id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolves one review task through the pipeline promote path (the single
+         *     write authority; design §7.2). Every attempt that carries a verdict is
+         *     audit-logged — applied, conflicting and failed alike.
+         * @description # Errors
+         *     `400` on a malformed body; `404` for an unknown task; `409` when the task
+         *     is already resolved; `500` when the resolution fails closed (e.g. a
+         *     correction violating the details contract) — the attempt is still
+         *     audit-logged.
+         */
+        post: operations["resolve_review_task"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/search": {
         parameters: {
             query?: never;
@@ -388,6 +478,43 @@ export interface components {
             code: string;
             /** @description Human-readable explanation. */
             message: string;
+        };
+        /**
+         * @description Extraction-cache evidence for the task's document: which model produced
+         *     the cached extraction and how (`provenance` carries the cross-check
+         *     status when the live call recorded one). Latest entry for the document's
+         *     sha + the record's extractor tag; absent for deterministic (non-LLM)
+         *     parses.
+         */
+        ExtractionCacheInfo: {
+            /**
+             * Format: date-time
+             * @description When the extraction was cached.
+             */
+            cached_at: string;
+            /** @description Model that produced the cached extraction. */
+            model_id: string;
+            /**
+             * @description How the entry was produced (audit surface): source, models, and
+             *     `cross_checked` verdict when a second model re-extracted (design §5.3).
+             */
+            provenance: Record<string, never>;
+        };
+        /**
+         * @description The LLM pre-review note (design §7.2): who/what extracted the target
+         *     record, with what confidence, and the extraction-cache evidence when the
+         *     LLM seam produced it. The record's Silver staging payload is NOT included
+         *     yet (see the module-level silver-payload gap note).
+         */
+        ExtractionContext: {
+            cache?: null | components["schemas"]["ExtractionCacheInfo"];
+            /** @description Parser id / model+prompt version that produced the record. */
+            extracted_by: string;
+            /**
+             * Format: float
+             * @description Extractor confidence in `[0, 1]`.
+             */
+            extraction_confidence?: number | null;
         };
         /** @description Filing provenance: the source filing the record came from. */
         FilingProvenance: {
@@ -664,6 +791,155 @@ export interface components {
              *     `categorical` | `none`.
              */
             value_precision: string;
+        };
+        /**
+         * @description Resolve request: reviewer identity plus one verdict. `regime_code` and
+         *     `corrected` travel only with `verdict = "edit"` (they select the details
+         *     contract and carry the corrected facts); supplying them with any other
+         *     verdict fails closed. Corrected identity fields (`filing_id`,
+         *     `politician_id`, `regime_id`) may be omitted — promote pins identity from
+         *     the original row and ignores reviewer-supplied values.
+         */
+        ResolveRequest: {
+            /** @description Corrected facts for an edit, in the `GoldCandidate` wire shape. */
+            corrected?: Record<string, never> | null;
+            /** @description Optional note, recorded verbatim in the audit log. */
+            note?: string | null;
+            /** @description Details-registry arm for an edit (e.g. `us_house`). */
+            regime_code?: string | null;
+            /** @description Reviewer identity — free text until accounts land (goal 050). */
+            reviewer: string;
+            /** @description `confirm` | `reject` | `edit`. */
+            verdict: string;
+        };
+        /**
+         * @description What an applied resolution did (non-applied attempts surface as errors:
+         *     `409` for an already-resolved task, `5xx` for a failed resolution).
+         */
+        ResolveResponse: {
+            /** @description Always `applied`. */
+            outcome: string;
+            /** @description The adjudicated record. */
+            record_id: string;
+            /**
+             * @description The superseding `corrected` record an edit inserted (`null` for
+             *     confirm/reject).
+             */
+            superseding_record_id?: string | null;
+        };
+        /**
+         * @description One resolve attempt in the audit log — exactly one row per attempt,
+         *     whatever came of it.
+         */
+        ReviewAuditEntry: {
+            /** @description Record ids the attempt touched (`[]` for non-applied attempts). */
+            affected_record_ids: string[];
+            /**
+             * Format: date-time
+             * @description When the attempt happened.
+             */
+            created_at: string;
+            /** @description Audit row ULID (time-sortable). */
+            id: string;
+            /** @description Reviewer note, verbatim. */
+            note?: string | null;
+            /**
+             * @description `applied` | `conflict` (task already resolved) | `failed` (rolled
+             *     back whole).
+             */
+            outcome: string;
+            /** @description The task the attempt adjudicated. */
+            review_task_id: string;
+            /** @description Who attempted (free text until goal 050 auth). */
+            reviewer: string;
+            /** @description `confirm` | `edit` | `reject`. */
+            verdict: string;
+        };
+        /**
+         * @description One queue entry: the task plus its target-record summary (`null` when the
+         *     task targets something other than a disclosure record).
+         */
+        ReviewQueueItem: {
+            record?: null | components["schemas"]["ReviewTargetSummary"];
+            /** @description The task itself. */
+            task: components["schemas"]["ReviewTask"];
+        };
+        /**
+         * @description One page of the review queue, ranked `priority_score` desc, then
+         *     `created_at` asc (oldest first within a priority), then id.
+         */
+        ReviewQueuePage: {
+            /** @description Queue entries in ranking order. */
+            items: components["schemas"]["ReviewQueueItem"][];
+            /**
+             * @description Pass back as `cursor` to fetch the page after this one; `null` at the
+             *     end. Ranking (not id order) is preserved across pages.
+             */
+            next_cursor?: string | null;
+        };
+        /** @description Target-record summary on a queue item — the reviewer's scan surface. */
+        ReviewTargetSummary: {
+            /** @description Asset description exactly as filed (invariant 2). */
+            asset_description_raw: string;
+            /** @description Parser id / model+prompt version that produced the record. */
+            extracted_by: string;
+            /**
+             * Format: float
+             * @description Extractor confidence in `[0, 1]`.
+             */
+            extraction_confidence?: number | null;
+            /** @description Canonical name of the politician the record concerns. */
+            politician_name: string;
+            /** @description The targeted `disclosure_record`. */
+            record_id: string;
+            /** @description One of the four observation types. */
+            record_type: components["schemas"]["RecordType"];
+            value?: null | components["schemas"]["ValueInterval"];
+            /** @description Two-stage publication state (design §7.1). */
+            verification_state: components["schemas"]["VerificationState"];
+        };
+        /** @description One `review_task` row (design §4.2). */
+        ReviewTask: {
+            /** @description Claimed reviewer, when assigned. */
+            assignee?: string | null;
+            /**
+             * Format: date-time
+             * @description When the task was opened.
+             */
+            created_at: string;
+            /** @description Task ULID (time-sortable; the queue pagination cursor). */
+            id: string;
+            /**
+             * Format: float
+             * @description Queue rank: impact × uncertainty (design §7.2); higher reviews first.
+             */
+            priority_score: number;
+            /** @description Why the task was opened (e.g. `ptr_amendment_unlinked`). */
+            reason: string;
+            /** @description Verdict payload once resolved. */
+            resolution?: Record<string, never> | null;
+            /**
+             * Format: date-time
+             * @description When the task was resolved.
+             */
+            resolved_at?: string | null;
+            /** @description `open` | `resolved` | `dismissed`. */
+            status: string;
+            /** @description Id of the targeted row. */
+            target_id: string;
+            /** @description What the task targets (e.g. `disclosure_record`). */
+            target_kind: string;
+        };
+        /**
+         * @description One review task with its full adjudication surface: the target record in
+         *     the public trust shape (provenance + supersession history) and the
+         *     extraction context.
+         */
+        ReviewTaskDetail: {
+            extraction?: null | components["schemas"]["ExtractionContext"];
+            record?: null | components["schemas"]["RecordDetail"];
+            /** @description The task itself. */
+            task: components["schemas"]["ReviewTask"];
         };
         /**
          * @description Typed search results: one arm per entity kind, each capped at 20 hits in
@@ -1191,6 +1467,196 @@ export interface operations {
                 };
             };
             /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_review_tasks: {
+        parameters: {
+            query?: {
+                /** @description Task status filter: `open` (default) | `resolved` | `dismissed`. */
+                status?: string;
+                /** @description Pagination cursor: the task id of the last item on the previous page. */
+                cursor?: string;
+                /** @description Page size, `1..=200`; defaults to 50. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of the review queue, ranked priority desc then age */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewQueuePage"];
+                };
+            };
+            /** @description Malformed status, cursor or limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_review_task: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Review task ULID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The task with its target record and extraction context */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewTaskDetail"];
+                };
+            };
+            /** @description Unknown task */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    review_task_audit: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Review task ULID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All resolve attempts, oldest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewAuditEntry"][];
+                };
+            };
+            /** @description Unknown task */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    resolve_review_task: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Review task ULID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveRequest"];
+            };
+        };
+        responses: {
+            /** @description The verdict was applied */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolveResponse"];
+                };
+            };
+            /** @description Malformed reviewer, verdict or corrected payload */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown task */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The task is already resolved */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description The resolution failed closed and rolled back whole */
             500: {
                 headers: {
                     [name: string]: unknown;

@@ -55,6 +55,21 @@ pub fn app(pool: PgPool) -> Router {
             put(routes::alert_rules::update_alert_rule)
                 .delete(routes::alert_rules::delete_alert_rule),
         )
+        // Reviewer admin surface (design §7.2). Resolution goes through the
+        // pipeline promote path — the API never mutates records directly.
+        .route("/v1/review-tasks", get(routes::review::list_review_tasks))
+        .route(
+            "/v1/review-tasks/{id}",
+            get(routes::review::get_review_task),
+        )
+        .route(
+            "/v1/review-tasks/{id}/resolve",
+            post(routes::review::resolve_review_task),
+        )
+        .route(
+            "/v1/review-tasks/{id}/audit",
+            get(routes::review::review_task_audit),
+        )
         // Strong ETags + If-None-Match → 304 on every successful GET
         // (design §6.1: ETags everywhere).
         .layer(axum::middleware::from_fn(etag::etag))
@@ -86,6 +101,10 @@ pub fn app(pool: PgPool) -> Router {
         routes::alert_rules::list_alert_rules,
         routes::alert_rules::update_alert_rule,
         routes::alert_rules::delete_alert_rule,
+        routes::review::list_review_tasks,
+        routes::review::get_review_task,
+        routes::review::resolve_review_task,
+        routes::review::review_task_audit,
     ),
     tags(
         (name = "records", description = "Canonical disclosure records (Gold)"),
@@ -96,6 +115,11 @@ pub fn app(pool: PgPool) -> Router {
          politicians and instruments (Postgres-backed until it hurts, §6.4)"),
         (name = "alert-rules", description = "Alert rules over the shared record \
          filter grammar (design §6.3). Auth arrives with accounts (goal 050)."),
+        (name = "review", description = "Admin review queue (design §7.1–7.2): \
+         priority-ranked tasks with target-record context and extraction \
+         evidence; resolutions go through the pipeline promote path \
+         (supersede-never-update) and every attempt is audit-logged. Auth \
+         arrives with accounts (goal 050); reviewer is free text until then."),
     )
 )]
 pub struct ApiDoc;

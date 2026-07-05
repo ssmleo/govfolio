@@ -78,4 +78,15 @@ Learnings (dated):
   "where id in (select id from up)")` — chain-walking queries stay compile-time `&'static str`
   under `SqlSafeStr` with zero projection drift. Supersession chains can't cycle structurally
   (pointer targets an earlier immutable row), so `union all` needs no cycle guard.
+- 2026-07-05: ranked keyset pagination under a plain ULID cursor — a mixed-direction
+  ORDER BY (score desc, created_at asc, id asc) breaks both `id > $cursor` and SQL row
+  comparators; dereference the cursor id into its (score, created_at) anchor server-side
+  and mirror the ORDER BY in an explicit strictly-after predicate. Wire cursor stays one
+  opaque ULID; a cursor that names no row is 400 invalid_cursor, not an empty page.
+- 2026-07-05: exactly-one-audit-row-per-attempt across rollback: the applied row goes in
+  the SAME txn as the work (applied ⟺ audited, atomic); conflict/failed attempts have no
+  surviving txn, so the same write-authority function inserts their rows post-hoc on the
+  pool. On Err + audit-write-Err, attach the audit failure to the original error with
+  `.context(..)` — never swallow either. Caller pre-checks existence (404) so post-hoc
+  rows stay FK-valid.
 Write-back: deepen this file when the procedure teaches you something; same PR.

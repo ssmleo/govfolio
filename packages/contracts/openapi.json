@@ -359,6 +359,62 @@
         ],
         "type": "object"
       },
+      "ExtractionCacheInfo": {
+        "description": "Extraction-cache evidence for the task's document: which model produced\nthe cached extraction and how (`provenance` carries the cross-check\nstatus when the live call recorded one). Latest entry for the document's\nsha + the record's extractor tag; absent for deterministic (non-LLM)\nparses.",
+        "properties": {
+          "cached_at": {
+            "description": "When the extraction was cached.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "model_id": {
+            "description": "Model that produced the cached extraction.",
+            "type": "string"
+          },
+          "provenance": {
+            "description": "How the entry was produced (audit surface): source, models, and\n`cross_checked` verdict when a second model re-extracted (design §5.3).",
+            "type": "object"
+          }
+        },
+        "required": [
+          "model_id",
+          "cached_at",
+          "provenance"
+        ],
+        "type": "object"
+      },
+      "ExtractionContext": {
+        "description": "The LLM pre-review note (design §7.2): who/what extracted the target\nrecord, with what confidence, and the extraction-cache evidence when the\nLLM seam produced it. The record's Silver staging payload is NOT included\nyet (see the module-level silver-payload gap note).",
+        "properties": {
+          "cache": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ExtractionCacheInfo",
+                "description": "Cache evidence for LLM-extracted documents; `null` for deterministic\nparses."
+              }
+            ]
+          },
+          "extracted_by": {
+            "description": "Parser id / model+prompt version that produced the record.",
+            "type": "string"
+          },
+          "extraction_confidence": {
+            "description": "Extractor confidence in `[0, 1]`.",
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "extracted_by"
+        ],
+        "type": "object"
+      },
       "FilingProvenance": {
         "description": "Filing provenance: the source filing the record came from.",
         "properties": {
@@ -953,6 +1009,337 @@
           "regime_type",
           "value_precision",
           "effective_from"
+        ],
+        "type": "object"
+      },
+      "ResolveRequest": {
+        "description": "Resolve request: reviewer identity plus one verdict. `regime_code` and\n`corrected` travel only with `verdict = \"edit\"` (they select the details\ncontract and carry the corrected facts); supplying them with any other\nverdict fails closed. Corrected identity fields (`filing_id`,\n`politician_id`, `regime_id`) may be omitted — promote pins identity from\nthe original row and ignores reviewer-supplied values.",
+        "properties": {
+          "corrected": {
+            "description": "Corrected facts for an edit, in the `GoldCandidate` wire shape.",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "note": {
+            "description": "Optional note, recorded verbatim in the audit log.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "regime_code": {
+            "description": "Details-registry arm for an edit (e.g. `us_house`).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reviewer": {
+            "description": "Reviewer identity — free text until accounts land (goal 050).",
+            "type": "string"
+          },
+          "verdict": {
+            "description": "`confirm` | `reject` | `edit`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reviewer",
+          "verdict"
+        ],
+        "type": "object"
+      },
+      "ResolveResponse": {
+        "description": "What an applied resolution did (non-applied attempts surface as errors:\n`409` for an already-resolved task, `5xx` for a failed resolution).",
+        "properties": {
+          "outcome": {
+            "description": "Always `applied`.",
+            "type": "string"
+          },
+          "record_id": {
+            "description": "The adjudicated record.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "superseding_record_id": {
+            "description": "The superseding `corrected` record an edit inserted (`null` for\nconfirm/reject).",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "outcome",
+          "record_id"
+        ],
+        "type": "object"
+      },
+      "ReviewAuditEntry": {
+        "description": "One resolve attempt in the audit log — exactly one row per attempt,\nwhatever came of it.",
+        "properties": {
+          "affected_record_ids": {
+            "description": "Record ids the attempt touched (`[]` for non-applied attempts).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "created_at": {
+            "description": "When the attempt happened.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "Audit row ULID (time-sortable).",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "note": {
+            "description": "Reviewer note, verbatim.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outcome": {
+            "description": "`applied` | `conflict` (task already resolved) | `failed` (rolled\nback whole).",
+            "type": "string"
+          },
+          "review_task_id": {
+            "description": "The task the attempt adjudicated.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "reviewer": {
+            "description": "Who attempted (free text until goal 050 auth).",
+            "type": "string"
+          },
+          "verdict": {
+            "description": "`confirm` | `edit` | `reject`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "review_task_id",
+          "reviewer",
+          "verdict",
+          "outcome",
+          "affected_record_ids",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "ReviewQueueItem": {
+        "description": "One queue entry: the task plus its target-record summary (`null` when the\ntask targets something other than a disclosure record).",
+        "properties": {
+          "record": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ReviewTargetSummary",
+                "description": "Target-record summary for `disclosure_record` tasks."
+              }
+            ]
+          },
+          "task": {
+            "$ref": "#/components/schemas/ReviewTask",
+            "description": "The task itself."
+          }
+        },
+        "required": [
+          "task"
+        ],
+        "type": "object"
+      },
+      "ReviewQueuePage": {
+        "description": "One page of the review queue, ranked `priority_score` desc, then\n`created_at` asc (oldest first within a priority), then id.",
+        "properties": {
+          "items": {
+            "description": "Queue entries in ranking order.",
+            "items": {
+              "$ref": "#/components/schemas/ReviewQueueItem"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass back as `cursor` to fetch the page after this one; `null` at the\nend. Ranking (not id order) is preserved across pages.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
+      },
+      "ReviewTargetSummary": {
+        "description": "Target-record summary on a queue item — the reviewer's scan surface.",
+        "properties": {
+          "asset_description_raw": {
+            "description": "Asset description exactly as filed (invariant 2).",
+            "type": "string"
+          },
+          "extracted_by": {
+            "description": "Parser id / model+prompt version that produced the record.",
+            "type": "string"
+          },
+          "extraction_confidence": {
+            "description": "Extractor confidence in `[0, 1]`.",
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "politician_name": {
+            "description": "Canonical name of the politician the record concerns.",
+            "type": "string"
+          },
+          "record_id": {
+            "description": "The targeted `disclosure_record`.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "record_type": {
+            "$ref": "#/components/schemas/RecordType",
+            "description": "One of the four observation types."
+          },
+          "value": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ValueInterval",
+                "description": "Declared value band; bounds are decimal STRINGS (invariant 7)."
+              }
+            ]
+          },
+          "verification_state": {
+            "$ref": "#/components/schemas/VerificationState",
+            "description": "Two-stage publication state (design §7.1)."
+          }
+        },
+        "required": [
+          "record_id",
+          "asset_description_raw",
+          "politician_name",
+          "record_type",
+          "verification_state",
+          "extracted_by"
+        ],
+        "type": "object"
+      },
+      "ReviewTask": {
+        "description": "One `review_task` row (design §4.2).",
+        "properties": {
+          "assignee": {
+            "description": "Claimed reviewer, when assigned.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "created_at": {
+            "description": "When the task was opened.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "description": "Task ULID (time-sortable; the queue pagination cursor).",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "priority_score": {
+            "description": "Queue rank: impact × uncertainty (design §7.2); higher reviews first.",
+            "format": "float",
+            "type": "number"
+          },
+          "reason": {
+            "description": "Why the task was opened (e.g. `ptr_amendment_unlinked`).",
+            "type": "string"
+          },
+          "resolution": {
+            "description": "Verdict payload once resolved.",
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "resolved_at": {
+            "description": "When the task was resolved.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "description": "`open` | `resolved` | `dismissed`.",
+            "type": "string"
+          },
+          "target_id": {
+            "description": "Id of the targeted row.",
+            "type": "string"
+          },
+          "target_kind": {
+            "description": "What the task targets (e.g. `disclosure_record`).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "target_kind",
+          "target_id",
+          "reason",
+          "priority_score",
+          "status",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "ReviewTaskDetail": {
+        "description": "One review task with its full adjudication surface: the target record in\nthe public trust shape (provenance + supersession history) and the\nextraction context.",
+        "properties": {
+          "extraction": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ExtractionContext",
+                "description": "The LLM pre-review note; present when the target record is."
+              }
+            ]
+          },
+          "record": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RecordDetail",
+                "description": "Full target record (the 040a `RecordDetail` shape) for\n`disclosure_record` tasks."
+              }
+            ]
+          },
+          "task": {
+            "$ref": "#/components/schemas/ReviewTask",
+            "description": "The task itself."
+          }
+        },
+        "required": [
+          "task"
         ],
         "type": "object"
       },
@@ -1742,6 +2129,273 @@
         ]
       }
     },
+    "/v1/review-tasks": {
+      "get": {
+        "description": "# Errors\n`400` on a malformed status, cursor or limit; `500` on backend failure —\nall in the consistent error envelope.",
+        "operationId": "list_review_tasks",
+        "parameters": [
+          {
+            "description": "Task status filter: `open` (default) | `resolved` | `dismissed`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Pagination cursor: the task id of the last item on the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, `1..=200`; defaults to 50.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewQueuePage"
+                }
+              }
+            },
+            "description": "One page of the review queue, ranked priority desc then age"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Malformed status, cursor or limit"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Lists review tasks in ranking order (design §7.2 queue).",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/review-tasks/{id}": {
+      "get": {
+        "description": "# Errors\n`404` for an unknown task; `500` on backend failure.",
+        "operationId": "get_review_task",
+        "parameters": [
+          {
+            "description": "Review task ULID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewTaskDetail"
+                }
+              }
+            },
+            "description": "The task with its target record and extraction context"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown task"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Fetches one review task with its full adjudication surface.",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/review-tasks/{id}/audit": {
+      "get": {
+        "description": "# Errors\n`404` for an unknown task; `500` on backend failure.",
+        "operationId": "review_task_audit",
+        "parameters": [
+          {
+            "description": "Review task ULID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReviewAuditEntry"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "All resolve attempts, oldest first"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown task"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "The audit log of one task: every resolve attempt, in order.",
+        "tags": [
+          "review"
+        ]
+      }
+    },
+    "/v1/review-tasks/{id}/resolve": {
+      "post": {
+        "description": "# Errors\n`400` on a malformed body; `404` for an unknown task; `409` when the task\nis already resolved; `500` when the resolution fails closed (e.g. a\ncorrection violating the details contract) — the attempt is still\naudit-logged.",
+        "operationId": "resolve_review_task",
+        "parameters": [
+          {
+            "description": "Review task ULID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResolveResponse"
+                }
+              }
+            },
+            "description": "The verdict was applied"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Malformed reviewer, verdict or corrected payload"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown task"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The task is already resolved"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "The resolution failed closed and rolled back whole"
+          }
+        },
+        "summary": "Resolves one review task through the pipeline promote path (the single\nwrite authority; design §7.2). Every attempt that carries a verdict is\naudit-logged — applied, conflicting and failed alike.",
+        "tags": [
+          "review"
+        ]
+      }
+    },
     "/v1/search": {
       "get": {
         "description": "# Errors\n`400` on a missing or blank `q`; `500` on backend failure — all in the\nconsistent error envelope.",
@@ -1816,6 +2470,10 @@
     {
       "description": "Alert rules over the shared record filter grammar (design §6.3). Auth arrives with accounts (goal 050).",
       "name": "alert-rules"
+    },
+    {
+      "description": "Admin review queue (design §7.1–7.2): priority-ranked tasks with target-record context and extraction evidence; resolutions go through the pipeline promote path (supersede-never-update) and every attempt is audit-logged. Auth arrives with accounts (goal 050); reviewer is free text until then.",
+      "name": "review"
     }
   ]
 }

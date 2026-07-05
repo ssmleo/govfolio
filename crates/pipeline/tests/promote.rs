@@ -255,7 +255,7 @@ async fn confirm_flips_unverified_to_verified_and_is_idempotent(pool: PgPool) {
     let before_rest = row_except_state(&pool, &record_id).await;
 
     // A task id that does not exist fails closed.
-    let err = resolve_review_task(&pool, "01NOPE00000000000000000000", Verdict::Confirm)
+    let err = resolve_review_task(&pool, "01NOPE00000000000000000000", Verdict::Confirm, None)
         .await
         .unwrap_err();
     assert!(
@@ -263,7 +263,7 @@ async fn confirm_flips_unverified_to_verified_and_is_idempotent(pool: PgPool) {
         "missing task is an error naming the task: {err:#}"
     );
 
-    let outcome = resolve_review_task(&pool, &task_id, Verdict::Confirm)
+    let outcome = resolve_review_task(&pool, &task_id, Verdict::Confirm, None)
         .await
         .unwrap();
     assert_eq!(
@@ -300,11 +300,11 @@ async fn confirm_flips_unverified_to_verified_and_is_idempotent(pool: PgPool) {
 
     // Second resolution attempt — same verdict OR a different one — is a no-op.
     let counts = table_counts(&pool).await;
-    let again = resolve_review_task(&pool, &task_id, Verdict::Confirm)
+    let again = resolve_review_task(&pool, &task_id, Verdict::Confirm, None)
         .await
         .unwrap();
     assert_eq!(again, ResolveOutcome::AlreadyResolved);
-    let conflicting = resolve_review_task(&pool, &task_id, Verdict::Reject)
+    let conflicting = resolve_review_task(&pool, &task_id, Verdict::Reject, None)
         .await
         .unwrap();
     assert_eq!(conflicting, ResolveOutcome::AlreadyResolved);
@@ -336,7 +336,7 @@ async fn edit_supersedes_and_never_updates_the_original(pool: PgPool) {
     // A correction that violates the details contract rolls back WHOLE:
     // no superseding row, no outbox event, task still open (invariant 5 at
     // promotion + same-txn atomicity).
-    let err = resolve_review_task(&pool, &task_id, edit_verdict(serde_json::json!({})))
+    let err = resolve_review_task(&pool, &task_id, edit_verdict(serde_json::json!({})), None)
         .await
         .unwrap_err();
     assert!(
@@ -357,7 +357,7 @@ async fn edit_supersedes_and_never_updates_the_original(pool: PgPool) {
     assert_eq!(row_text(&pool, &record_id).await, before);
 
     // The valid correction: superseding row + outbox event, one transaction.
-    let outcome = resolve_review_task(&pool, &task_id, edit_verdict(corrected_details()))
+    let outcome = resolve_review_task(&pool, &task_id, edit_verdict(corrected_details()), None)
         .await
         .unwrap();
     let ResolveOutcome::Applied {
@@ -440,7 +440,7 @@ async fn edit_supersedes_and_never_updates_the_original(pool: PgPool) {
 
     // Second resolution attempt of the same task: idempotent no-op.
     let counts = table_counts(&pool).await;
-    let again = resolve_review_task(&pool, &task_id, edit_verdict(corrected_details()))
+    let again = resolve_review_task(&pool, &task_id, edit_verdict(corrected_details()), None)
         .await
         .unwrap();
     assert_eq!(again, ResolveOutcome::AlreadyResolved);
@@ -454,7 +454,7 @@ async fn reject_marks_the_record_disputed_and_is_idempotent(pool: PgPool) {
     let (task_id, record_id) = seed_via_pipeline(&pool, "reject").await;
     let before_rest = row_except_state(&pool, &record_id).await;
 
-    let outcome = resolve_review_task(&pool, &task_id, Verdict::Reject)
+    let outcome = resolve_review_task(&pool, &task_id, Verdict::Reject, None)
         .await
         .unwrap();
     assert_eq!(
@@ -479,7 +479,7 @@ async fn reject_marks_the_record_disputed_and_is_idempotent(pool: PgPool) {
     assert_eq!((status.as_str(), verdict.as_str()), ("resolved", "reject"));
 
     let counts = table_counts(&pool).await;
-    let again = resolve_review_task(&pool, &task_id, Verdict::Reject)
+    let again = resolve_review_task(&pool, &task_id, Verdict::Reject, None)
         .await
         .unwrap();
     assert_eq!(again, ResolveOutcome::AlreadyResolved);

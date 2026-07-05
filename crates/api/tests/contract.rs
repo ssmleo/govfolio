@@ -735,6 +735,7 @@ async fn record_detail_returns_provenance_and_the_supersession_chain(pool: PgPoo
             regime_code: "us_house".to_owned(),
             corrected: Box::new(corrected_boeing()),
         },
+        None,
     )
     .await
     .unwrap();
@@ -967,6 +968,552 @@ async fn search_returns_typed_hits_and_escapes_like_metacharacters(pool: PgPool)
     let (status, body) = get(&app, "/v1/search?q=%20").await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
     assert_eq!(body["error"]["code"], "invalid_query");
+}
+
+// ------------------------------------------------ goal 041a review surface --
+
+/// Inserts an open review task with controlled `priority`/`created_at` (test
+/// seeding, like the instrument rows above — task rows are pipeline data;
+/// adjudication still only ever happens through promote).
+async fn seed_task(
+    pool: &PgPool,
+    target_id: &str,
+    reason: &str,
+    priority: f32,
+    created_at: &str,
+) -> String {
+    let id = ulid::Ulid::new().to_string();
+    sqlx::query(
+        "insert into review_task \
+           (id, target_kind, target_id, reason, priority_score, created_at) \
+         values ($1, 'disclosure_record', $2, $3, $4, $5::timestamptz)",
+    )
+    .bind(&id)
+    .bind(target_id)
+    .bind(reason)
+    .bind(priority)
+    .bind(created_at)
+    .execute(pool)
+    .await
+    .unwrap();
+    id
+}
+
+/// The full row rendered by Postgres itself — every column, byte-identical or
+/// not. THE probe for "facts are never `UPDATE`d" (T11 technique).
+async fn row_text(pool: &PgPool, record_id: &str) -> String {
+    sqlx::query_scalar("select d::text from disclosure_record d where id = $1")
+        .bind(record_id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+/// The row minus `verification_state` (the one column confirm/reject may
+/// touch), as canonical jsonb text.
+async fn row_except_state(pool: &PgPool, record_id: &str) -> String {
+    sqlx::query_scalar(
+        "select (to_jsonb(d) - 'verification_state')::text \
+         from disclosure_record d where id = $1",
+    )
+    .bind(record_id)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+async fn record_state(pool: &PgPool, record_id: &str) -> String {
+    sqlx::query_scalar("select verification_state from disclosure_record where id = $1")
+        .bind(record_id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+fn queue_task_ids(page: &Value) -> Vec<String> {
+    page["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|item| item["task"]["id"].as_str().unwrap().to_owned())
+        .collect()
+}
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn review_queue_ranks_by_priority_then_age_and_paginates(pool: PgPool) {
+    seed_via_pipeline(&pool).await;
+    let app = api::app(pool.clone());
+    let doc = openapi_doc();
+    let path = "/v1/review-tasks";
+    let ok = validator_for(&doc, path, "200");
+    assert!(
+        ok.validate(&json!({ "items": "not-an-array" })).is_err(),
+        "the contract validator must have teeth"
+    );
+
+    // The pipeline's own task (priority 0, created now()).
+    let (pipeline_task, boeing_record): (String, String) = sqlx::query_as(
+        "select id, target_id from review_task where reason = 'ptr_amendment_unlinked'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    // Three controlled tasks on other records. Priority dominates age (the
+    // mid-priority task is the OLDEST); created_at asc breaks priority ties.
+    let others: Vec<String> =
+        sqlx::query_scalar("select id from disclosure_record where id <> $1 order by id limit 3")
+            .bind(&boeing_record)
+            .fetch_all(&pool)
+            .await
+            .unwrap();
+    let hi_old = seed_task(&pool, &others[0], "spot_check", 5.0, "2026-07-01T00:00:00Z").await;
+    let hi_new = seed_task(&pool, &others[1], "spot_check", 5.0, "2026-07-02T00:00:00Z").await;
+    let mid = seed_task(
+        &pool,
+        &others[2],
+        "user_report",
+        1.5,
+        "2026-06-01T00:00:00Z",
+    )
+    .await;
+    let expected = [hi_old, hi_new, mid, pipeline_task.clone()];
+
+    // Full queue: priority_score desc, then created_at asc; open by default.
+    let (status, page) = get(&app, "/v1/review-tasks?limit=200").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &page);
+    assert_eq!(queue_task_ids(&page), expected);
+    assert!(page["next_cursor"].is_null());
+
+    // Every record-kind item carries the reviewer's scan summary.
+    let boeing_item = page["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|item| item["task"]["id"] == json!(pipeline_task))
+        .unwrap();
+    let summary = &boeing_item["record"];
+    assert_eq!(summary["record_id"], json!(boeing_record));
+    assert_eq!(
+        summary["asset_description_raw"],
+        json!("Boeing Company (BA) [ST]")
+    );
+    assert_eq!(summary["politician_name"], json!("David Rouzer"));
+    assert_eq!(summary["record_type"], json!("transaction"));
+    assert_eq!(summary["verification_state"], json!("unverified"));
+    assert!(
+        summary["value"]["low"].is_string(),
+        "money stays decimal strings on the queue (invariant 7)"
+    );
+    assert!(
+        summary["extracted_by"]
+            .as_str()
+            .is_some_and(|e| !e.is_empty()),
+        "the queue shows who extracted"
+    );
+
+    // Cursor pagination preserves the ranking exactly.
+    let (status, page1) = get(&app, "/v1/review-tasks?limit=2").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &page1);
+    assert_eq!(queue_task_ids(&page1), expected[..2]);
+    let cursor = page1["next_cursor"].as_str().unwrap();
+    assert_eq!(cursor, expected[1], "cursor = last task id of the page");
+    let (status, page2) = get(&app, &format!("/v1/review-tasks?limit=2&cursor={cursor}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &page2);
+    assert_eq!(queue_task_ids(&page2), expected[2..]);
+    assert!(page2["next_cursor"].is_null());
+
+    // Status filter (no resolved tasks yet); malformed inputs reject.
+    let (status, resolved) = get(&app, "/v1/review-tasks?status=resolved").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(resolved["items"].as_array().unwrap().len(), 0);
+    let err = validator_for(&doc, path, "400");
+    let (status, body) = get(&app, "/v1/review-tasks?status=bogus").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_valid(&err, &body);
+    assert_eq!(body["error"]["code"], "invalid_status");
+    let (status, body) = get(&app, "/v1/review-tasks?cursor=not-a-ulid").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"]["code"], "invalid_cursor");
+    // A well-formed ULID that names no task cannot anchor a page.
+    let (status, body) = get(&app, "/v1/review-tasks?cursor=01ARZ3NDEKTSV4RRFFQ69G5FAV").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"]["code"], "invalid_cursor");
+}
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn review_task_detail_serves_record_and_extraction_context(pool: PgPool) {
+    seed_via_pipeline(&pool).await;
+    let app = api::app(pool.clone());
+    let doc = openapi_doc();
+    let path = "/v1/review-tasks/{id}";
+    let ok = validator_for(&doc, path, "200");
+    assert!(
+        ok.validate(&json!({ "task": [] })).is_err(),
+        "the contract validator must have teeth"
+    );
+
+    // The pipeline's Boeing task: text-path extraction, no cache entry.
+    let (task_id, record_id): (String, String) = sqlx::query_as(
+        "select id, target_id from review_task where reason = 'ptr_amendment_unlinked'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let (status, detail) = get(&app, &format!("/v1/review-tasks/{task_id}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &detail);
+    assert_eq!(detail["task"]["id"], json!(task_id));
+    assert_eq!(detail["task"]["status"], json!("open"));
+    assert_eq!(detail["task"]["reason"], json!("ptr_amendment_unlinked"));
+
+    // Full target record in the 040a RecordDetail shape, provenance included.
+    assert_eq!(detail["record"]["record"]["id"], json!(record_id));
+    let raw = &detail["record"]["provenance"]["raw_document"];
+    assert_eq!(raw["sha256"].as_str().unwrap().len(), 64);
+    assert!(
+        raw.as_object().unwrap().contains_key("source_url"),
+        "the reviewer sees where the Bronze copy came from"
+    );
+
+    // The LLM pre-review note: extraction context travels with the task.
+    assert_eq!(
+        detail["extraction"]["extracted_by"],
+        detail["record"]["record"]["extracted_by"]
+    );
+    assert!(
+        detail["extraction"]
+            .as_object()
+            .unwrap()
+            .contains_key("extraction_confidence"),
+        "confidence is part of the pre-review note"
+    );
+    assert!(
+        detail["extraction"]["cache"].is_null(),
+        "text-path records have no extraction_cache entry"
+    );
+
+    // The scanned-paper record extracted through the LLM seam: its cache row
+    // (seeded exactly like production pg_put writes it) surfaces model +
+    // cross-check provenance.
+    let (llm_record, llm_sha, llm_tag): (String, String, String) = sqlx::query_as(
+        "select r.id, d.sha256, r.extracted_by from disclosure_record r \
+         join filing f on f.id = r.filing_id \
+         join raw_document d on d.id = f.raw_document_id \
+         where r.extracted_by like '%/llm@%'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    sqlx::query(
+        "insert into extraction_cache \
+           (document_sha256, extractor_tag, model_id, rows, provenance) \
+         values ($1, $2, 'claude-haiku-4-5-20251001', '[]'::jsonb, \
+                 '{\"source\": \"live anthropic messages call\", \"cross_checked\": true}'::jsonb)",
+    )
+    .bind(&llm_sha)
+    .bind(&llm_tag)
+    .execute(&pool)
+    .await
+    .unwrap();
+    let llm_task = seed_task(
+        &pool,
+        &llm_record,
+        "spot_check",
+        2.0,
+        "2026-07-03T00:00:00Z",
+    )
+    .await;
+    let (status, detail) = get(&app, &format!("/v1/review-tasks/{llm_task}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &detail);
+    assert_eq!(detail["extraction"]["extracted_by"], json!(llm_tag));
+    let cache = &detail["extraction"]["cache"];
+    assert_eq!(cache["model_id"], json!("claude-haiku-4-5-20251001"));
+    assert!(cache["cached_at"].is_string());
+    assert_eq!(cache["provenance"]["cross_checked"], json!(true));
+
+    // Unknown task: 404 in the envelope.
+    let err = validator_for(&doc, path, "404");
+    let (status, body) = get(&app, "/v1/review-tasks/01ARZ3NDEKTSV4RRFFQ69G5FAV").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_valid(&err, &body);
+    assert_eq!(body["error"]["code"], "not_found");
+}
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn resolve_confirm_and_reject_round_trip_with_exact_audit(pool: PgPool) {
+    seed_via_pipeline(&pool).await;
+    let app = api::app(pool.clone());
+    let doc = openapi_doc();
+    let resolve_path = "/v1/review-tasks/{id}/resolve";
+    let audit_path = "/v1/review-tasks/{id}/audit";
+    let ok = validator_for_op(&doc, "post", resolve_path, "200");
+    let audit_ok = validator_for(&doc, audit_path, "200");
+
+    // Two adjudications on two records (neither is the Boeing edit target).
+    let records: Vec<String> = sqlx::query_scalar(
+        "select id from disclosure_record \
+         where id not in (select target_id from review_task) order by id limit 2",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    let confirm_task = seed_task(
+        &pool,
+        &records[0],
+        "spot_check",
+        3.0,
+        "2026-07-03T00:00:00Z",
+    )
+    .await;
+    let reject_task = seed_task(
+        &pool,
+        &records[1],
+        "user_report",
+        3.5,
+        "2026-07-03T00:00:00Z",
+    )
+    .await;
+
+    // Confirm: the ONE sanctioned state transition, nothing else touched.
+    let before = row_except_state(&pool, &records[0]).await;
+    let (status, resolved) = send(
+        &app,
+        "POST",
+        &format!("/v1/review-tasks/{confirm_task}/resolve"),
+        Some(&json!({"reviewer": "rev-a", "verdict": "confirm", "note": "matches the filing"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &resolved);
+    assert_eq!(resolved["outcome"], json!("applied"));
+    assert_eq!(resolved["record_id"], json!(records[0]));
+    assert!(resolved["superseding_record_id"].is_null());
+    assert_eq!(record_state(&pool, &records[0]).await, "verified");
+    assert_eq!(
+        row_except_state(&pool, &records[0]).await,
+        before,
+        "confirm touches ONLY verification_state"
+    );
+
+    // Double-resolve: 409 in the envelope; nothing changes.
+    let conflict = validator_for_op(&doc, "post", resolve_path, "409");
+    let (status, body) = send(
+        &app,
+        "POST",
+        &format!("/v1/review-tasks/{confirm_task}/resolve"),
+        Some(&json!({"reviewer": "rev-b", "verdict": "reject"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_valid(&conflict, &body);
+    assert_eq!(body["error"]["code"], "already_resolved");
+    assert_eq!(record_state(&pool, &records[0]).await, "verified");
+
+    // Reject: disputed, only the state column.
+    let before = row_except_state(&pool, &records[1]).await;
+    let (status, resolved) = send(
+        &app,
+        "POST",
+        &format!("/v1/review-tasks/{reject_task}/resolve"),
+        Some(&json!({"reviewer": "rev-a", "verdict": "reject"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &resolved);
+    assert_eq!(record_state(&pool, &records[1]).await, "disputed");
+    assert_eq!(row_except_state(&pool, &records[1]).await, before);
+
+    // Door validation: malformed requests never reach promote (no verdict was
+    // adjudicated, so they are not audit-logged either).
+    for (body, code) in [
+        (
+            json!({"reviewer": "  ", "verdict": "confirm"}),
+            "invalid_reviewer",
+        ),
+        (
+            json!({"reviewer": "rev-a", "verdict": "approve"}),
+            "invalid_verdict",
+        ),
+        (
+            json!({"reviewer": "rev-a", "verdict": "edit"}),
+            "invalid_edit",
+        ),
+        (
+            json!({"reviewer": "rev-a", "verdict": "confirm", "corrected": {}}),
+            "invalid_edit",
+        ),
+    ] {
+        let (status, err_body) = send(
+            &app,
+            "POST",
+            &format!("/v1/review-tasks/{reject_task}/resolve"),
+            Some(&body),
+        )
+        .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{code}");
+        assert_eq!(err_body["error"]["code"], json!(code));
+    }
+
+    // Unknown task: 404 (no audit row can reference a task that never existed).
+    let (status, body) = send(
+        &app,
+        "POST",
+        "/v1/review-tasks/01ARZ3NDEKTSV4RRFFQ69G5FAV/resolve",
+        Some(&json!({"reviewer": "rev-a", "verdict": "confirm"})),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["error"]["code"], "not_found");
+
+    // The audit log, exactly.
+    let (status, log) = get(&app, &format!("/v1/review-tasks/{confirm_task}/audit")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&audit_ok, &log);
+    let entries = log.as_array().unwrap();
+    assert_eq!(entries.len(), 2, "applied + the conflicting second attempt");
+    assert_eq!(entries[0]["reviewer"], json!("rev-a"));
+    assert_eq!(entries[0]["verdict"], json!("confirm"));
+    assert_eq!(entries[0]["outcome"], json!("applied"));
+    assert_eq!(entries[0]["note"], json!("matches the filing"));
+    assert_eq!(entries[0]["affected_record_ids"], json!([records[0]]));
+    assert_eq!(entries[1]["reviewer"], json!("rev-b"));
+    assert_eq!(entries[1]["verdict"], json!("reject"));
+    assert_eq!(entries[1]["outcome"], json!("conflict"));
+    assert_eq!(entries[1]["affected_record_ids"], json!([]));
+
+    let (_, log) = get(&app, &format!("/v1/review-tasks/{reject_task}/audit")).await;
+    let entries = log.as_array().unwrap();
+    assert_eq!(entries.len(), 1);
+    assert_eq!(entries[0]["verdict"], json!("reject"));
+    assert_eq!(entries[0]["outcome"], json!("applied"));
+    assert_eq!(entries[0]["affected_record_ids"], json!([records[1]]));
+
+    // Exactly one row per attempt that carried a verdict — nothing more.
+    let total: i64 = sqlx::query_scalar("select count(*) from review_audit")
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(total, 3);
+
+    // Audit log of an unknown task: 404 in the envelope.
+    let (status, body) = get(&app, "/v1/review-tasks/01ARZ3NDEKTSV4RRFFQ69G5FAV/audit").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["error"]["code"], "not_found");
+}
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn resolve_edit_supersedes_through_promote_and_audits_failures(pool: PgPool) {
+    seed_via_pipeline(&pool).await;
+    let app = api::app(pool.clone());
+    let doc = openapi_doc();
+    let ok = validator_for_op(&doc, "post", "/v1/review-tasks/{id}/resolve", "200");
+
+    let (task_id, original_id): (String, String) = sqlx::query_as(
+        "select id, target_id from review_task \
+         where reason = 'ptr_amendment_unlinked' and status = 'open'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    let before = row_text(&pool, &original_id).await;
+
+    // Corrected facts in the wire shape; identity fields OMITTED — promote
+    // pins them from the original row (reviewer identity input is ignored).
+    let mut corrected = serde_json::to_value(corrected_boeing()).unwrap();
+    for key in ["filing_id", "politician_id", "regime_id", "fingerprint"] {
+        corrected.as_object_mut().unwrap().remove(key);
+    }
+
+    // A contract-violating correction fails closed: 500, task still open, no
+    // superseding row, original untouched — but the ATTEMPT is audit-logged.
+    let mut bad = corrected.clone();
+    bad["details"] = json!({});
+    let (status, body) = send(
+        &app,
+        "POST",
+        &format!("/v1/review-tasks/{task_id}/resolve"),
+        Some(&json!({
+            "reviewer": "rev-a", "verdict": "edit", "regime_code": "us_house",
+            "corrected": bad, "note": "first try",
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(body["error"]["code"], "internal");
+    let (task_status, corrected_rows): (String, i64) = sqlx::query_as(
+        "select (select status from review_task where id = $1), \
+                (select count(*) from disclosure_record where verification_state = 'corrected')",
+    )
+    .bind(&task_id)
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(task_status, "open");
+    assert_eq!(corrected_rows, 0);
+    assert_eq!(row_text(&pool, &original_id).await, before);
+
+    // The valid correction: applied through the REAL promote path.
+    let (status, resolved) = send(
+        &app,
+        "POST",
+        &format!("/v1/review-tasks/{task_id}/resolve"),
+        Some(&json!({
+            "reviewer": "rev-a", "verdict": "edit", "regime_code": "us_house",
+            "corrected": corrected, "note": "band was one too low",
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &resolved);
+    assert_eq!(resolved["outcome"], json!("applied"));
+    assert_eq!(resolved["record_id"], json!(original_id));
+    let superseding_id = resolved["superseding_record_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+
+    // Invariant 1, byte-level: the original row never changed.
+    assert_eq!(
+        row_text(&pool, &original_id).await,
+        before,
+        "edits supersede, never update"
+    );
+
+    // The correction is a real Gold row wired into the supersession chain.
+    let (status, detail) = get(&app, &format!("/v1/records/{original_id}")).await;
+    assert_eq!(status, StatusCode::OK);
+    let superseded_by = detail["superseded_by"].as_array().unwrap();
+    assert_eq!(superseded_by.len(), 1);
+    assert_eq!(superseded_by[0]["id"], json!(superseding_id));
+    assert_eq!(superseded_by[0]["verification_state"], json!("corrected"));
+    assert_eq!(superseded_by[0]["supersedes_record_id"], json!(original_id));
+    assert_eq!(superseded_by[0]["value"]["high"], json!("50000.00"));
+
+    // Audit trail, exactly: the failed attempt, then the applied edit with
+    // BOTH affected record ids.
+    let (status, log) = get(&app, &format!("/v1/review-tasks/{task_id}/audit")).await;
+    assert_eq!(status, StatusCode::OK);
+    let entries = log.as_array().unwrap();
+    assert_eq!(entries.len(), 2);
+    assert_eq!(entries[0]["verdict"], json!("edit"));
+    assert_eq!(entries[0]["outcome"], json!("failed"));
+    assert_eq!(entries[0]["note"], json!("first try"));
+    assert_eq!(entries[0]["affected_record_ids"], json!([]));
+    assert_eq!(entries[1]["outcome"], json!("applied"));
+    assert_eq!(entries[1]["note"], json!("band was one too low"));
+    assert_eq!(
+        entries[1]["affected_record_ids"],
+        json!([original_id, superseding_id])
+    );
 }
 
 #[sqlx::test(migrations = false)]

@@ -39,6 +39,14 @@ pub enum ApiError {
         /// Human-readable explanation.
         message: String,
     },
+    /// The request is well-formed but conflicts with current state (e.g.
+    /// resolving an already-resolved review task).
+    Conflict {
+        /// Stable machine-readable code.
+        code: &'static str,
+        /// Human-readable explanation.
+        message: String,
+    },
     /// Anything the client cannot fix; details stay server-side.
     Internal(anyhow::Error),
 }
@@ -80,6 +88,7 @@ impl IntoResponse for ApiError {
                 (StatusCode::BAD_REQUEST, code.to_owned(), message)
             }
             Self::NotFound { message } => (StatusCode::NOT_FOUND, "not_found".to_owned(), message),
+            Self::Conflict { code, message } => (StatusCode::CONFLICT, code.to_owned(), message),
             Self::Internal(err) => {
                 // Details stay server-side; the envelope stays generic.
                 eprintln!("internal error: {err:#}");

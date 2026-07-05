@@ -188,14 +188,27 @@ pub async fn get_record(
     State(state): State<AppState>,
     Path(id): Path<String>,
 ) -> Result<Json<RecordDetail>, ApiError> {
+    match fetch_record_detail(&state, &id).await? {
+        Some(detail) => Ok(Json(detail)),
+        None => Err(ApiError::NotFound {
+            message: format!("record {id} not found"),
+        }),
+    }
+}
+
+/// Builds the full [`RecordDetail`] for one record id; `None` for an unknown
+/// id. Shared with the review-task detail endpoint (goal 041a), so reviewers
+/// adjudicate against EXACTLY the public trust surface.
+pub(crate) async fn fetch_record_detail(
+    state: &AppState,
+    id: &str,
+) -> Result<Option<RecordDetail>, ApiError> {
     let row: Option<RecordRow> = sqlx::query_as(GET_SQL)
-        .bind(&id)
+        .bind(id)
         .fetch_optional(&state.pool)
         .await?;
     let Some(row) = row else {
-        return Err(ApiError::NotFound {
-            message: format!("record {id} not found"),
-        });
+        return Ok(None);
     };
     let record = DisclosureRecord::try_from(row)?;
 
@@ -225,10 +238,10 @@ pub async fn get_record(
         .fetch_one(&state.pool)
         .await?;
 
-    let supersedes = fetch_chain(&state, SUPERSEDES_SQL, &id).await?;
-    let superseded_by = fetch_chain(&state, SUPERSEDED_BY_SQL, &id).await?;
+    let supersedes = fetch_chain(state, SUPERSEDES_SQL, id).await?;
+    let superseded_by = fetch_chain(state, SUPERSEDED_BY_SQL, id).await?;
 
-    Ok(Json(RecordDetail {
+    Ok(Some(RecordDetail {
         record,
         provenance: Provenance {
             filing: FilingProvenance {

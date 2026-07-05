@@ -31,6 +31,15 @@
 //! [`ResolveOutcome::AlreadyResolved`] and writes nothing. The superseding
 //! insert itself is `ON CONFLICT (fingerprint) DO NOTHING` (invariant 4) with
 //! a deterministic correction-namespaced fingerprint.
+//!
+//! Audit (goal 041a, design §7.2 "all actions audit-logged"): when the caller
+//! supplies a [`ResolveAudit`], EVERY resolution attempt leaves exactly one
+//! `review_audit` row. An applied verdict's row is written in the SAME
+//! transaction as the resolution (atomic: verdict applied ⟺ audit row
+//! exists); conflict (`AlreadyResolved`) and failed attempts have no
+//! surviving transaction to join, so their rows are written after the fact
+//! on the pool. All three arms live HERE — promote stays the one write
+//! authority for adjudications and their trail.
 
 use anyhow::Context as _;
 use serde_json::json;
@@ -87,9 +96,64 @@ struct OriginalRecord {
     regime_id: String,
 }
 
+/// Reviewer identity + note for the `review_audit` log (goal 041a). `None`
+/// skips auditing (pipeline-internal callers); the reviewer API always
+/// audits. `reviewer` is caller-supplied free text until accounts land
+/// (goal 050).
+#[derive(Debug, Clone)]
+pub struct ResolveAudit {
+    /// Who resolved — free-text identity until goal 050 auth.
+    pub reviewer: String,
+    /// Optional reviewer note, recorded verbatim.
+    pub note: Option<String>,
+}
+
+/// The wire token of a verdict (the `review_audit.verdict` CHECK vocabulary).
+fn verdict_wire(verdict: &Verdict) -> &'static str {
+    match verdict {
+        Verdict::Confirm => "confirm",
+        Verdict::Edit { .. } => "edit",
+        Verdict::Reject => "reject",
+    }
+}
+
+/// Inserts one `review_audit` row — callable both inside the resolution
+/// transaction (`'applied'`) and on the pool afterwards (`'conflict'` /
+/// `'failed'`, whose transactions did not survive).
+async fn insert_audit_row<'e, E>(
+    executor: E,
+    task_id: &str,
+    audit: &ResolveAudit,
+    verdict: &'static str,
+    outcome: &'static str,
+    affected_record_ids: &[&str],
+) -> anyhow::Result<()>
+where
+    E: sqlx::PgExecutor<'e>,
+{
+    sqlx::query(
+        "insert into review_audit \
+           (id, review_task_id, reviewer, verdict, outcome, note, affected_record_ids) \
+         values ($1, $2, $3, $4, $5, $6, $7)",
+    )
+    .bind(ulid::Ulid::new().to_string())
+    .bind(task_id)
+    .bind(&audit.reviewer)
+    .bind(verdict)
+    .bind(outcome)
+    .bind(&audit.note)
+    .bind(json!(affected_record_ids))
+    .execute(executor)
+    .await
+    .with_context(|| format!("writing {outcome} review_audit row for task {task_id}"))?;
+    Ok(())
+}
+
 /// Resolves one `review_task` with the given verdict — task update, record
-/// state transition or superseding insert, and outbox event all in ONE
-/// transaction.
+/// state transition or superseding insert, outbox event, and (when `audit`
+/// is supplied) the `'applied'` audit row all in ONE transaction. With
+/// `audit`, non-applied attempts (conflict / failure) are also recorded:
+/// exactly one `review_audit` row per attempt.
 ///
 /// # Errors
 /// A task id that does not exist, a target kind this resolver does not handle
@@ -97,11 +161,51 @@ struct OriginalRecord {
 /// adjudication (confirm/reject on a record no longer `'unverified'`), a
 /// correction failing domain validation or the `details` contract
 /// (invariant 5), or database failure. Any error rolls back the WHOLE
-/// resolution: the task stays open, no partial writes survive.
+/// resolution: the task stays open, no partial writes survive (the attempt
+/// itself is still audit-logged when `audit` is supplied).
 pub async fn resolve_review_task(
     pool: &PgPool,
     task_id: &str,
     verdict: Verdict,
+    audit: Option<&ResolveAudit>,
+) -> anyhow::Result<ResolveOutcome> {
+    let verdict_token = verdict_wire(&verdict);
+    let result = apply_resolution(pool, task_id, verdict, audit, verdict_token).await;
+    let Some(audit) = audit else {
+        return result;
+    };
+    match &result {
+        // The 'applied' row was written inside the resolution transaction.
+        Ok(ResolveOutcome::Applied { .. }) => result,
+        Ok(ResolveOutcome::AlreadyResolved) => {
+            insert_audit_row(pool, task_id, audit, verdict_token, "conflict", &[]).await?;
+            result
+        }
+        Err(_) => {
+            // The attempt's transaction rolled back (taking any in-txn audit
+            // row with it): record the failure after the fact. The original
+            // error stays primary; an audit-write failure is attached to it,
+            // never swallowed.
+            let audit_write =
+                insert_audit_row(pool, task_id, audit, verdict_token, "failed", &[]).await;
+            match (result, audit_write) {
+                (Err(error), Err(audit_error)) => Err(error.context(format!(
+                    "additionally, recording the failed-attempt audit row failed: {audit_error:#}"
+                ))),
+                (result, _) => result,
+            }
+        }
+    }
+}
+
+/// The resolution transaction itself (the pre-041a `resolve_review_task`
+/// body): everything an APPLIED verdict writes, atomically.
+async fn apply_resolution(
+    pool: &PgPool,
+    task_id: &str,
+    verdict: Verdict,
+    audit: Option<&ResolveAudit>,
+    verdict_token: &'static str,
 ) -> anyhow::Result<ResolveOutcome> {
     let mut tx = pool.begin().await.context("opening resolve txn")?;
 
@@ -170,6 +274,23 @@ pub async fn resolve_review_task(
         && superseding.inserted
     {
         insert_corrected_outbox(&mut tx, &original, superseding, task_id).await?;
+    }
+
+    if let Some(audit) = audit {
+        // Same transaction as the verdict's writes: applied ⟺ audited.
+        let mut affected = vec![original.id.as_str()];
+        if let Some(superseding) = &superseding_record_id {
+            affected.push(superseding.record_id.as_str());
+        }
+        insert_audit_row(
+            &mut *tx,
+            task_id,
+            audit,
+            verdict_token,
+            "applied",
+            &affected,
+        )
+        .await?;
     }
 
     let resolved = sqlx::query(
