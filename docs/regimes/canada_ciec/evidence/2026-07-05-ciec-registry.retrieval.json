@@ -1,0 +1,430 @@
+{
+ "task": "goal 062 leg A — canada_ciec regime research (spec-writer)",
+ "date": "2026-07-05",
+ "client": {
+  "engine": "curl 8.x (plain HTTP client; no browser engine needed — host serves identified UA without challenge)",
+  "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+  "headers": {
+   "From": "ssm.leo@outlook.com"
+  },
+  "concurrency": 1,
+  "min_interval_seconds": 2.2,
+  "conditional_gets": "impossible — no ETag/Last-Modified on any response (Kestrel; verified on registry list, details, fragment responses)"
+ },
+ "politeness_stats": {
+  "requests_total": 48,
+  "http_200": 47,
+  "http_404": 1,
+  "http_429_or_5xx": 0,
+  "challenges": "none — no bot manager, no CAPTCHA, no session gate, no cookies set on any response",
+  "notes": "robots.txt is a catch-all HTML route (no robots policy served); politeness limits are self-imposed per invariant 10"
+ },
+ "variance_tests": [
+  {
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=be05dcef-5166-f111-81a9-001dd8b72449",
+   "sha256": "9a9ae8bec70fcd290ea20fbaf26ff3b5b407932ab318196c9cfcfce5d06bc6af",
+   "result": "byte-identical 2/2 (slugs 08 and 37, within session)"
+  },
+  {
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=877aeea7-e1b1-4348-bd5d-808c7758fb22",
+   "sha256": "c95a66fa36c59ee06390c5ea0e45fc231bd54136f1fc3eb1c1c67115f2681485",
+   "result": "byte-identical 2/2 (slugs 19 and 38, within session)"
+  }
+ ],
+ "api_probes": [
+  {
+   "url": "https://ciec-ccie.parl.gc.ca/swagger/v1/swagger.json",
+   "result": "404 HTML — no documented API (regime-research skill probe)"
+  },
+  {
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/cards?page=1 with Accept: application/json",
+   "result": "200 HTML fragment — content negotiation ignored; no JSON route"
+  }
+ ],
+ "requests": [
+  {
+   "ts": "2026-07-05T16:00:31Z",
+   "status": 200,
+   "bytes": 11133,
+   "sha256": "a85a1098188b68ef63f5232f3d1ee8a7b76cac41f737adc5968ab09d6c833d44",
+   "slug": "01-robots-ciec",
+   "url": "https://ciec-ccie.parl.gc.ca/robots.txt"
+  },
+  {
+   "ts": "2026-07-05T16:00:35Z",
+   "status": 200,
+   "bytes": 3524,
+   "sha256": "4d3e7e9fd7a6d0158b2a98d387d86dcc7c41a7d690a6419e3135619faf31d193",
+   "slug": "02-home-ciec",
+   "url": "https://ciec-ccie.parl.gc.ca/"
+  },
+  {
+   "ts": "2026-07-05T16:00:55Z",
+   "status": 200,
+   "bytes": 111627,
+   "sha256": "232501112f4372636d326c657150c289df2ce56ff8fdd2ed4bd0a2699d8e3692",
+   "slug": "03-public-registry",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry"
+  },
+  {
+   "ts": "2026-07-05T16:04:18Z",
+   "status": 200,
+   "bytes": 10464,
+   "sha256": "89d1790197e103e45f261d7ac39c58cd9ba8329b8c6fdf2f6eba6127d5534af8",
+   "slug": "04-details-gift-act",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=115dc125-a574-f111-81ab-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:04:22Z",
+   "status": 200,
+   "bytes": 104055,
+   "sha256": "b1e5766c85fac23c1335dc7411bdecd246e17aa8f4072d043863ce0ba27a8afe",
+   "slug": "05-list-declarable-assets",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=c37a52a7-b858-47db-9bb8-2a6d1f29dc14"
+  },
+  {
+   "ts": "2026-07-05T16:04:25Z",
+   "status": 200,
+   "bytes": 103747,
+   "sha256": "993b057ca472a150b87cbfb822bf64327a21b7f0470fae785213065821b2583f",
+   "slug": "06-list-liabilities",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=3f99bf47-a35a-494e-8b78-fe00533857b9"
+  },
+  {
+   "ts": "2026-07-05T16:04:28Z",
+   "status": 200,
+   "bytes": 104509,
+   "sha256": "d71076a9d85c23df640b0b355f294899b2b83883397d1b3e1c12e07785d99c64",
+   "slug": "07-list-outside-activities",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=dd98430c-ff79-4c96-b1dc-e881095abe4e"
+  },
+  {
+   "ts": "2026-07-05T16:05:08Z",
+   "status": 200,
+   "bytes": 10126,
+   "sha256": "9a9ae8bec70fcd290ea20fbaf26ff3b5b407932ab318196c9cfcfce5d06bc6af",
+   "slug": "08-details-asset-wilkinson",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=be05dcef-5166-f111-81a9-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:05:11Z",
+   "status": 200,
+   "bytes": 10290,
+   "sha256": "c3e9df01f2d1e5c3aa68f5096005ab3853c876e80ac4b31adfe8105be392b61a",
+   "slug": "09-details-liability-fuhr",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=a4542986-719d-f011-819d-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:05:14Z",
+   "status": 200,
+   "bytes": 10147,
+   "sha256": "a1f261d9ebba8fd764374b050e42bad5fb5347a68d733a16e3b4f68e66bf0e1b",
+   "slug": "10-details-activity-tessier",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=59a77521-a570-f111-81ab-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:05:17Z",
+   "status": 200,
+   "bytes": 21662,
+   "sha256": "739c01033565654c62b46b47a91651367ef2c50c0ba4fa1176b319c89986cc2c",
+   "slug": "11-client-aziz",
+   "url": "https://ciec-ccie.parl.gc.ca/en/client?clientId=4f8c0d03-57a4-ec11-8155-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:07:16Z",
+   "status": 200,
+   "bytes": 110315,
+   "sha256": "8456b3e35a094585e54a0dce9964b48778e82fc430bc26ad0a9dcc220443bd10",
+   "slug": "12-list-summary-statements-act",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=acdd6784-b1ef-48b5-80ba-08c3c49ef733"
+  },
+  {
+   "ts": "2026-07-05T16:07:20Z",
+   "status": 200,
+   "bytes": 192883,
+   "sha256": "9a85bea6240500e540b594a15df219749ff8ecabc0381c6418bc9418bd83a66b",
+   "slug": "13-list-compliance-measures",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=9c59f81f-5a80-4e3f-a49d-de50faab503d"
+  },
+  {
+   "ts": "2026-07-05T16:07:24Z",
+   "status": 200,
+   "bytes": 116078,
+   "sha256": "9207e2e2de668a79215332968c06b690998a45f73de49890883d06a3ff6db3b0",
+   "slug": "14-list-travel-act",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=af4085f1-0baf-4450-a48e-81d7e175f944"
+  },
+  {
+   "ts": "2026-07-05T16:07:27Z",
+   "status": 200,
+   "bytes": 90403,
+   "sha256": "0e8d9f7c1521e6697fd1eab7116d17fb4b38cef30ff105a4bd8f72eb90732fb8",
+   "slug": "15-cards-fragment-liab-p2",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/cards?page=2&declarationType=3f99bf47-a35a-494e-8b78-fe00533857b9"
+  },
+  {
+   "ts": "2026-07-05T16:08:26Z",
+   "status": 200,
+   "bytes": 11534,
+   "sha256": "4a68d19893d4238fb76b90b491008882f7b23e9ac7675b7208b66f8b98712c74",
+   "slug": "16-details-summary-act-felizarta",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=fbc2a000-863a-f111-81a7-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:08:29Z",
+   "status": 200,
+   "bytes": 10812,
+   "sha256": "56ae2e89593964be682b71b45f421805becc232e22913b256c0de14312ad2a7f",
+   "slug": "17-details-gift-act-FR",
+   "url": "https://ciec-ccie.parl.gc.ca/fr/registre-public/Details?declarationId=115dc125-a574-f111-81ab-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:08:32Z",
+   "status": 200,
+   "bytes": 11014,
+   "sha256": "9eb65e0e239169232e4bef76a924c5d731183af499895d7630c869cbbfa60df2",
+   "slug": "18-details-matchange-groleau",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=c7bf3da3-9669-f111-81a9-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:09:21Z",
+   "status": 200,
+   "bytes": 14879,
+   "sha256": "c95a66fa36c59ee06390c5ea0e45fc231bd54136f1fc3eb1c1c67115f2681485",
+   "slug": "19-details-summary-code-groleau",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=877aeea7-e1b1-4348-bd5d-808c7758fb22"
+  },
+  {
+   "ts": "2026-07-05T16:09:25Z",
+   "status": 200,
+   "bytes": 111563,
+   "sha256": "f2690ce4383bd0662cef151fc367e8243ea2eb381684f34340f7bb2923a1045b",
+   "slug": "20-list-junewindow",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&disclosureFrom=2026-06-01&disclosureTo=2026-06-30"
+  },
+  {
+   "ts": "2026-07-05T16:10:27Z",
+   "status": 200,
+   "bytes": 114976,
+   "sha256": "fdc4c9054425cbd9752bc1fda66036bed24a7b09a4ba5ee90ade6b1b2031aaa9",
+   "slug": "21-list-sumstate-ministers",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=acdd6784-b1ef-48b5-80ba-08c3c49ef733&affiliationRole=c8c94a19-d04e-e111-b8ea-00265535a320"
+  },
+  {
+   "ts": "2026-07-05T16:10:30Z",
+   "status": 200,
+   "bytes": 115127,
+   "sha256": "f995cdfb3176ba0419da10ec0ef36dc69c2751b6667322338a78d4eb8d717b44",
+   "slug": "22-list-sponsored-travel",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=5eda55e6-2726-4ee0-ae4c-ad3d79541281"
+  },
+  {
+   "ts": "2026-07-05T16:10:33Z",
+   "status": 200,
+   "bytes": 104058,
+   "sha256": "1e3cc030a4d7b120e8e8a1e5583df26a1edd758374647741e88aea15b83d7c5e",
+   "slug": "23-list-gifts-code",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=665b3de7-7a3d-4227-b077-a390f1d14d88"
+  },
+  {
+   "ts": "2026-07-05T16:10:37Z",
+   "status": 200,
+   "bytes": 113236,
+   "sha256": "a6a20c3b47ec884ae2a14502d47670d8f801c2ba0511918f11539636e5e24251",
+   "slug": "24-list-recusals",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=94b3d6f8-cb5f-4cc0-8c03-367612e53c1e"
+  },
+  {
+   "ts": "2026-07-05T16:11:13Z",
+   "status": 200,
+   "bytes": 11953,
+   "sha256": "e631c24d51957d11b9bf2b03806c7771e7c793ea133f3c68b0493fe1c74b1cb4",
+   "slug": "25-details-sumstate-minister",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=e882485d-719d-f011-819d-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:11:16Z",
+   "status": 200,
+   "bytes": 116234,
+   "sha256": "d67f83da7b1e9b8041f758fba43215a569fae4222651222b14199df86adb6095",
+   "slug": "26-list-earliest",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&sortBy=declarationDisclosureDate&sortDir=asc"
+  },
+  {
+   "ts": "2026-07-05T16:11:20Z",
+   "status": 200,
+   "bytes": 11241,
+   "sha256": "757425ede36c2fb8fccae2ab34ded1f2217827f94ec26cb87843717239dba3f2",
+   "slug": "27-important-notices",
+   "url": "https://ciec-ccie.parl.gc.ca/en/important-notices"
+  },
+  {
+   "ts": "2026-07-05T16:11:23Z",
+   "status": 200,
+   "bytes": 115793,
+   "sha256": "780c9fec799bac0decc93c67f758fbcf6508143286dd40927723c063e55c6f78",
+   "slug": "28-registre-public-FR",
+   "url": "https://ciec-ccie.parl.gc.ca/fr/registre-public"
+  },
+  {
+   "ts": "2026-07-05T16:12:59Z",
+   "status": 200,
+   "bytes": 128559,
+   "sha256": "de371a4f6b36dffab929a72c5a3fa96473482cd181a79578ad238c7609b88aef",
+   "slug": "29-list-nolongerapplicable",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationStatus=6e4f9ba2-2bda-40c5-b7d1-29d3c902cd0d"
+  },
+  {
+   "ts": "2026-07-05T16:13:02Z",
+   "status": 200,
+   "bytes": 102313,
+   "sha256": "c9c888029f07214df171710ca3a429e9589a771dd5160ba3e236281d952bb7ad",
+   "slug": "30-list-gifts-act",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=abe9286c-93c6-40d7-8fda-16304d3b6b61"
+  },
+  {
+   "ts": "2026-07-05T16:13:06Z",
+   "status": 200,
+   "bytes": 109924,
+   "sha256": "f4d8f7bc0152bd11a69c775029c25b19ea118d4c3caf23d983fa897b30b0e74a",
+   "slug": "31-list-material-changes",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=2da4414a-caa4-497b-8fed-9b31d84f68cf"
+  },
+  {
+   "ts": "2026-07-05T16:13:09Z",
+   "status": 200,
+   "bytes": 130088,
+   "sha256": "e029e630019a1172774a7ff34b10aae346bfb500b4c789c63de2c7ccf3c1592e",
+   "slug": "32-list-disclosure-summaries-code",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=5924f660-7f25-4702-a727-bc15b1b85dba"
+  },
+  {
+   "ts": "2026-07-05T16:13:12Z",
+   "status": 200,
+   "bytes": 103096,
+   "sha256": "456e07892af03442e11d506c1538e0ff55aa4653130ef37f36392bcff08170ad",
+   "slug": "33-list-forfeited-gifts",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=453089cd-f784-4c49-99ba-d3dd38ff4b98"
+  },
+  {
+   "ts": "2026-07-05T16:13:15Z",
+   "status": 200,
+   "bytes": 32505,
+   "sha256": "9207c2f4e2f50984bc705edc4af93a1b2bb615d1f9f01ce73f82e3eebb1d99d6",
+   "slug": "34-list-private-interest",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=76e97e8a-fdfc-4e77-9650-adb41c9ec8d6"
+  },
+  {
+   "ts": "2026-07-05T16:13:18Z",
+   "status": 200,
+   "bytes": 83182,
+   "sha256": "b6ca393b1bec69a33b6fd892d6fed1ff762d27e6bdd106ada3a2c6f98c68ff54",
+   "slug": "35-list-other-docs",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=5bc55a37-f19e-45b2-8222-44a5c5d3b074"
+  },
+  {
+   "ts": "2026-07-05T16:14:11Z",
+   "status": 200,
+   "bytes": 10329,
+   "sha256": "59a6001f6b5251d74c25c03d002868c85fe63c5055157180e5a3c520443940e8",
+   "slug": "36-details-NLA",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=8eaa8c32-d964-f111-81a9-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:14:15Z",
+   "status": 200,
+   "bytes": 10126,
+   "sha256": "9a9ae8bec70fcd290ea20fbaf26ff3b5b407932ab318196c9cfcfce5d06bc6af",
+   "slug": "37-regetA-asset-wilkinson",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=be05dcef-5166-f111-81a9-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:14:17Z",
+   "status": 200,
+   "bytes": 14879,
+   "sha256": "c95a66fa36c59ee06390c5ea0e45fc231bd54136f1fc3eb1c1c67115f2681485",
+   "slug": "38-regetB-summary-groleau",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=877aeea7-e1b1-4348-bd5d-808c7758fb22"
+  },
+  {
+   "ts": "2026-07-05T16:14:58Z",
+   "status": 200,
+   "bytes": 58058,
+   "sha256": "1c45781053083bac6796dedca77659306899bc61550e52c196028fcc5497aa7a",
+   "slug": "39-profile-search",
+   "url": "https://ciec-ccie.parl.gc.ca/en/profile"
+  },
+  {
+   "ts": "2026-07-05T16:15:01Z",
+   "status": 200,
+   "bytes": 29677,
+   "sha256": "b55527b54b99af1892d41e7c085b1b2c4bee4f584867b8b6ba5f7473ebf3a009",
+   "slug": "40-client-groleau-mp",
+   "url": "https://ciec-ccie.parl.gc.ca/en/client?clientId=f0f4e0ff-7b2a-f011-8195-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:16:46Z",
+   "status": 404,
+   "bytes": 8039,
+   "sha256": "5da82440799a585648c6545efe0dd3b36048ab793e5d13a3d6b281960c7c5fec",
+   "slug": "41-probe-swagger",
+   "url": "https://ciec-ccie.parl.gc.ca/swagger/v1/swagger.json"
+  },
+  {
+   "ts": "2026-07-05T16:16:49Z",
+   "status": 200,
+   "bytes": 98354,
+   "sha256": "f77a2ca4d14d4653c6b0de88d79464bea841c8d790081ff9bdbf1e3fb195f1c4",
+   "slug": "42-probe-cards-json (Accept: application/json)",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/cards?page=1"
+  },
+  {
+   "ts": "2026-07-05T16:20:19Z",
+   "status": 200,
+   "bytes": 103949,
+   "sha256": "5ddfe5075e85ebc3a0ce14faa1c79284da53255a0a40e4f736abf15b71d450e1",
+   "slug": "43-list-assets-ministers",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=c37a52a7-b858-47db-9bb8-2a6d1f29dc14&affiliationRole=c8c94a19-d04e-e111-b8ea-00265535a320"
+  },
+  {
+   "ts": "2026-07-05T16:20:22Z",
+   "status": 200,
+   "bytes": 13613,
+   "sha256": "063851fd1d51880cc0b987cfa2ded977823bdfa7b68265fba235847d9762c733",
+   "slug": "44-list-activities-mps",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=dd98430c-ff79-4c96-b1dc-e881095abe4e&affiliationRole=cac94a19-d04e-e111-b8ea-00265535a320"
+  },
+  {
+   "ts": "2026-07-05T16:20:25Z",
+   "status": 200,
+   "bytes": 11823,
+   "sha256": "2b95fa9a9e1f133446317ff8c53ffe02543af539e47239e45935beaa2be2e762",
+   "slug": "45-details-gift-code",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=3f544e69-d268-f111-81a9-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:20:55Z",
+   "status": 200,
+   "bytes": 62890,
+   "sha256": "d16f699bf4a769ccfb49945116f63111299ca0b5e923d6aab474c0791f2b2807",
+   "slug": "46-list-activities-ministers",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry?page=1&declarationType=dd98430c-ff79-4c96-b1dc-e881095abe4e&affiliationRole=c8c94a19-d04e-e111-b8ea-00265535a320"
+  },
+  {
+   "ts": "2026-07-05T16:20:59Z",
+   "status": 200,
+   "bytes": 10159,
+   "sha256": "4531a973b004a2cbcaf68ebca9df849991614a15fe7fedf2270391bf6ff2a408",
+   "slug": "47-details-asset-chartrand",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=30c94327-3108-f111-81a2-001dd8b72449"
+  },
+  {
+   "ts": "2026-07-05T16:21:35Z",
+   "status": 200,
+   "bytes": 10179,
+   "sha256": "03061e491fc555f323cb8d928fc9de18a1a0b38a7750fba2f1ae82ee854dcd7a",
+   "slug": "48-details-activity-sarai",
+   "url": "https://ciec-ccie.parl.gc.ca/en/public-registry/Details?declarationId=39e5bbfe-5a8e-f011-819c-001dd8b72449"
+  }
+ ]
+}

@@ -10,4 +10,11 @@ Learnings (dated):
   swagger.json` (UK Parliament ships one per service: members-api, interests-api,
   whatson-api). The interests API's published OpenAPI contract replaced an entire
   HTML-anatomy study and carries the category scheme + typed money in-band.
+- 2026-07-05 (canada_ciec): no API is not the end of machine-readability — a
+  rebuilt registry (ASP.NET/Dynamics) exposed stable CRM GUIDs for every entity
+  (types, roles, persons, declarations, per-ITEM disclosure divs) behind plain GET
+  query params + a bare `data-cards-url` HTML-fragment endpoint for sweeps: join on
+  GUIDs, display labels. Also read the site's own notices page early: an official
+  "temporary website / phased transition" notice is a drift forecast — record it as
+  the sentinel's top watch item in the SAF.
 Write-back: deepen this file when the procedure teaches you something; same PR.

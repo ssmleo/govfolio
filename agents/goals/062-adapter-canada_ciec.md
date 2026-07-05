@@ -15,7 +15,13 @@ cargo run -p pipeline --bin conformance -- canada_ciec
 ```
 
 ## Checklist
-- [ ] regime doc  - [ ] fixtures  - [ ] expected (human)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
+- [x] regime doc (2026-07-05, spec leg: docs/regimes/canada_ciec.md + evidence archived same commit under docs/regimes/canada_ciec/evidence/ — 45 pages + retrieval log; fixture pins ×7 + pinning rule in its §7; v1 scope = 10 financial-substance declaration types × 3 politician roles, record_type interest + change_notification, value NULL always)  - [ ] fixtures  - [ ] expected (human)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
 
 ## BLOCKED (human)
-- expected.*.json completion
+- ~~expected.*.json completion~~ SUPERSEDED 2026-07-05 by docs/decisions/automation-policy.md
+  ("FIXTURE expected outputs … auto-resolved"): test-designer authors expected.silver.json /
+  expected.gold.json independently (high-confidence extraction + second-model cross-check);
+  records publish `unverified` and flow to the sampling-audit queue. Step 3 of the template
+  above reads accordingly. No human gate remains on this goal.
+- NOTE (not a gate): the source is an officially TEMPORARY website in phased transition to
+  ethicscanada.ca (docs/regimes/canada_ciec.md, E40) — expect layout drift; sentinel priority.

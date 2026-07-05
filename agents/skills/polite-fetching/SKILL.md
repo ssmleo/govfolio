@@ -18,4 +18,8 @@ Learnings (dated):
   publications.parliament.uk Cloudflare-403'd the same client the same hour. Run the
   probe ladder per host; prefer a documented public API host (published OpenAPI +
   contact address = designed-for-reuse signal) over any HTML route of the same org.
+- 2026-07-05 (canada_ciec): robots.txt can be a catch-all HTML route — a 200 whose
+  body is the site's home page is NOT a robots policy (and not permission either).
+  Verify the body looks like robots grammar before treating any robots response as
+  policy; absence means self-imposed limits govern (invariant 10), same as a 404.
 Write-back: deepen this file when the procedure teaches you something; same PR.

@@ -18,4 +18,11 @@ Learnings (dated):
   stay open and land verbatim in Silver. Type money by machine markers
   (typeInfo.currencyCode present), never by field name/number-ness alone: the same
   source ships currencyless Decimals (HoursWorked) beside money Decimals.
+- 2026-07-05 (canada_ciec): when LIST cards render free-text blobs, inspect the
+  DETAILS page before reaching for an LLM — CIEC list cards flatten summaries into
+  `<br>`-joined prose, but the details page carries per-item stable GUIDs + section
+  labels (`ciec-declaration-disclosureitem`), turning "blob" into deterministic
+  per-item rows. Parse the richest rendering of a document, not the first one seen;
+  choose the row unit (per-item vs per-document) per grammar FAMILY and record it
+  in the SAF.
 Write-back: deepen this file when the procedure teaches you something; same PR.
