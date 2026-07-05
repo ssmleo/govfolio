@@ -7,7 +7,7 @@
 - [ ] 020 cloud substrate (terraform + deploy skeleton) — 3/4 done 2026-07-05 commit 5064d4c (modules+deploy.yml+runbook, validate green); HALT on `plan`: founder must run `gcloud auth application-default login` once, then re-run goal acceptance
 - [x] 021 LLM extraction fallback (schema-constrained, sha-cached, confidence) (done 2026-07-05, commits 77740d8+2dfed7a; conformance 5/5 offline via primed cache; live test ignored pending ANTHROPIC_API_KEY)
 - [x] 030 alerts (outbox dispatcher, email, HMAC webhooks, rules CRUD) (done 2026-07-05, commit 21971ec; exactly-once proven under redelivery; shared RecordFilter grammar core↔api↔matcher)
-- [ ] 040 public website SSR (profiles, records, jurisdictions, search, sitemap)
+- [x] 040 public website SSR (profiles, records, jurisdictions, search, sitemap) (done 2026-07-05, commits 75ccb91+e87a342; /v1 read surface completed; Playwright 11/11; CI web job live w/ TS drift gate)
 - [ ] 041 reviewer UI (queue, side-by-side, promote/edit/reject)
 - [ ] 050 productization (auth, API keys, quotas→Stripe, 24h free-tier delay)
 - [ ] 060 adapter: us_senate            (E1)
