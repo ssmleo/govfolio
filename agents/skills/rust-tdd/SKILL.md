@@ -4,6 +4,12 @@ Load when: BUILD phase, any crate change
 Core checklist:
 - failing test first -> minimal impl -> cargo fmt/clippy -D warnings/test workspace -> commit small
 Anti-patterns: unwrap outside tests; skipping red; broad commits
+Discipline deltas (distilled 2026-07-05 from imported/superpowers@d884ae04edeb/test-driven-development, goal 019; this bespoke file stays authoritative):
+- Verify RED for the RIGHT reason: the test must fail because the feature is missing — not a typo/compile error. Test passes immediately = it tests existing behavior; fix the test, not the code.
+- Wrote impl before the test? Delete it and re-derive from the test — no "keep as reference", no adapting; adapted code is tests-after with extra steps.
+- Regression tests need a red-green proof: pass -> revert fix -> MUST fail -> restore -> pass. A test that never failed proves nothing.
+- Green means pristine: whole suite passes AND output clean (no new warnings) — matches our `-D warnings` law.
+- Hard-to-test is a design signal: huge setup or mock-everything means the interface is wrong — simplify the interface, don't grow the test harness. Write the wished-for API/assertion first when stuck.
 Learnings (dated):
 - 2026-07-04: package `core` keeps its name, but its lib target is `govfolio_core` — an --extern named `core` shadows sysroot core inside the package's own tests/bins and breaks proc macros emitting `::core::...` (#[tokio::main], #[sqlx::test]). Import as `govfolio_core::...`; `-p core` commands unchanged.
 - 2026-07-04: this Windows host is x86_64-pc-windows-gnu without MSVC; builds with C deps (ring) need `~/tools/mingw64/bin` prepended to PATH (rustup self-contained gcc is linker-only, its dlltool lacks `as`). DB suites gate as `#[sqlx::test(migrations = false)]` + `#[ignore = "needs postgres"]`; local server: portable pg16 on 5433, trust auth.

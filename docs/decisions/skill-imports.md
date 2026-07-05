@@ -51,3 +51,29 @@ Same method: shallow clone (identified UA), pinned HEAD sha, vendor-copy to
 - rust-best-practices: `.agents` copy is byte-identical to fresh apollographql/skills @ 7df6a608 — MATCH.
 - rust-async-patterns: `.agents` copy is byte-identical to fresh wshobson/agents @ 5cc2549a — MATCH.
 - tdd-rust (`.agents`, source rtk-ai/rtk): not a 019 target; not vendored. Bespoke rust-tdd remains authoritative (A3).
+
+## 019 Phase B/C resolution — 2026-07-05
+
+**Founder decision (2026-07-05, in chat, verbatim): "the Phase B line-audit is
+considered DONE; move on."**
+
+Recorded honestly: no full line-audit was performed. This is an explicit founder WAIVER
+of the Phase B line-audit — activation proceeds on the Phase A automated red-flag
+screens alone (tables above). Consistent with docs/decisions/automation-policy.md
+(explicit risk acceptance; enforcement stays mechanical + fail-closed). The waiver
+covers screened, licensed, sha-pinned vendored content only; it does NOT override
+fail-closed skips (missing license, ambiguous source) and does NOT extend to executing
+imported code. The superpowers @ d884ae04edeb full line-audit (tracked on 019) is
+covered by the same waiver; its Phase-B merges (verification-before-completion ->
+chassis DoD; test-driven-development -> bespoke rust-tdd distillation) proceeded under
+it on 2026-07-05.
+
+| skill | verdict | basis | license |
+|---|---|---|---|
+| rust-best-practices@7df6a608dd71 | **ACTIVATED** (pack:rust-craft) | screen-pass (56 hits, benign); line-audit WAIVED by founder 2026-07-05 | MIT |
+| rust-async-patterns@5cc2549a50fc | **ACTIVATED** (pack:rust-craft) | screen-pass (9 hits, benign); line-audit WAIVED by founder 2026-07-05 | MIT |
+| typescript-advanced-types@5cc2549a50fc | **ACTIVATED** (pack:ts-craft, PARTIAL — sole member until typescript-expert resolves) | screen-pass (7 hits, benign); line-audit WAIVED by founder 2026-07-05 | MIT |
+| frontend-design@9d2f1ae18723 | **ACTIVATED** | screen-pass (1 hit, benign); line-audit WAIVED by founder 2026-07-05 | Apache-2.0 |
+| impeccable@582f23eae3c9 | **ACTIVATED DOCS-ONLY** | screen: **86 exec(, 26 fetch(, 6 child_process, 44 .env** concentrated in skills/impeccable/scripts/*.mjs — NOT classifiable benign at screen and NOT line-audited (waived). **RESTRICTION: SKILL.md/docs guidance only; agents MUST NOT execute scripts/*.mjs (or any other code in the vendored tree). Any future script activation requires a real line-audit first.** | Apache-2.0 |
+| typescript-react-reviewer | **NOT ACTIVATED** | no upstream license (dotneet/claude-code-marketplace) — fail closed stands; founder waiver does not cover a missing license. Path: bespoke authoring (A3). | none (blocker) |
+| typescript-expert | **NOT ACTIVATED** | canonical source ambiguous (davila7/claude-code-templates vs martinholovsky/claude-skills-generator) — fail closed; awaits founder pick or bespoke (A3). Non-blocking. | n/a |
