@@ -17,4 +17,11 @@ Learnings (dated):
 - 2026-07-05: sizing candidates by HEAD Content-Length is a cheap politeness-friendly
   proxy for scan page count (24–56 KB spread cleanly separated 1-page from multi-page
   paper PTRs); probe several, GET one.
+- 2026-07-05: browser-engine captures with a `From:` identification header — scope the
+  header to the target host(s) via route interception, never context-global
+  extraHTTPHeaders: `From` is not CORS-safelisted, so on third-party CDN script loads
+  it forces preflights that fail and silently kill page JS (eFD's agreement dance
+  needs CDN jQuery; the checkbox→submit handler never binds and nothing errors at the
+  origin). Also: pin against RAW response bytes (`response.body()`), not `page.content()`
+  DOM re-serialization.
 Write-back: deepen this file when the procedure teaches you something; same PR.

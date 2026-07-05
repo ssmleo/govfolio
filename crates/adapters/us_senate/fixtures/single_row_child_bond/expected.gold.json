@@ -1,0 +1,34 @@
+[
+  {
+    "filing_id": "0SENFNG000000000004B69867F",
+    "politician_id": "0SENMBR0000000000000000001",
+    "regime_id": "0SENREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "EXPEDIA GROUP INC NOTE",
+    "record_type": "transaction",
+    "asset_class": "bond",
+    "side": "buy",
+    "transaction_date": "2026-05-06",
+    "as_of_date": null,
+    "notified_date": null,
+    "value": { "low": "1001.00", "high": "15000.00", "currency": "USD" },
+    "owner": "dependent",
+    "extraction_confidence": 0.9800000190734863,
+    "extracted_by": "us_senate_ptr/html@1",
+    "fingerprint": null,
+    "details": {
+      "report_uuid": "4b69867f-0376-4526-93f2-cd556b1155c9",
+      "row_ordinal": 1,
+      "row_number": "1",
+      "ticker": null,
+      "asset_type_raw": "Corporate Bond",
+      "asset_detail": "Rate/Coupon: 5.5% Matures: 2036-04-15",
+      "amount_band_raw": "$1,001 - $15,000",
+      "transaction_type_raw": "Purchase",
+      "partial_sale": false,
+      "comment": null,
+      "amendment_number": null,
+      "filed_at_raw": "06/12/2026 @ 1:23 PM"
+    }
+  }
+]

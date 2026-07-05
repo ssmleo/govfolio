@@ -1,0 +1,23 @@
+[
+  {
+    "payload": {
+      "report_uuid": "4b69867f-0376-4526-93f2-cd556b1155c9",
+      "row_ordinal": 1,
+      "row_number_raw": "1",
+      "report_title_raw": "Periodic Transaction Report for 06/12/2026",
+      "filer_name_raw": "The Honorable John Fetterman (Fetterman, John)",
+      "filed_at_raw": "06/12/2026 @ 1:23 PM",
+      "owner_raw": "Child",
+      "ticker_raw": null,
+      "asset_name_raw": "EXPEDIA GROUP INC NOTE",
+      "asset_detail_raw": "Rate/Coupon: 5.5% Matures: 2036-04-15",
+      "asset_type_raw": "Corporate Bond",
+      "transaction_type_raw": "Purchase",
+      "transaction_date_raw": "05/06/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 0.9800000190734863
+  }
+]

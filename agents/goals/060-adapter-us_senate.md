@@ -15,7 +15,7 @@ cargo run -p pipeline --bin conformance -- us_senate
 ```
 
 ## Checklist
-- [x] regime doc (2026-07-05, spec leg: docs/regimes/us_senate.md + evidence archived same commit under docs/regimes/us_senate/evidence/; fixture pins + pinning rule in its §7)  - [ ] fixtures  - [ ] expected (auto, see below)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
+- [x] regime doc (2026-07-05, spec leg: docs/regimes/us_senate.md + evidence archived same commit under docs/regimes/us_senate/evidence/; fixture pins + pinning rule in its §7)  - [x] fixtures (2026-07-05, test-designer leg B: 4 cases under crates/adapters/us_senate/fixtures/, all §7 pins re-verified byte-identical at capture; minimal us_senate crate scaffolded in the same commit — workspace glob)  - [x] expected (2026-07-05, leg B: parser-blind two-pass derivation per automation policy; conventions + ULID constants in fixtures/MANIFEST.json)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
 
 ## BLOCKED (human)
 - ~~expected.*.json completion~~ SUPERSEDED 2026-07-05 by docs/decisions/automation-policy.md

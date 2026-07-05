@@ -1,0 +1,65 @@
+[
+  {
+    "payload": {
+      "report_uuid": "4aa0094d-d9da-4a05-aa13-6d9f5d376105",
+      "row_ordinal": 1,
+      "row_number_raw": "3",
+      "report_title_raw": "Periodic Transaction Report for 06/02/2026",
+      "filer_name_raw": "The Honorable Sheldon Whitehouse (Whitehouse, Sheldon)",
+      "filed_at_raw": "06/02/2026 @ 12:56 PM",
+      "owner_raw": "Self",
+      "ticker_raw": "ORCL",
+      "asset_name_raw": "Oracle Corporation Common Stock",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/07/2026",
+      "amount_raw": "$15,001 - $50,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "4aa0094d-d9da-4a05-aa13-6d9f5d376105",
+      "row_ordinal": 2,
+      "row_number_raw": "2",
+      "report_title_raw": "Periodic Transaction Report for 06/02/2026",
+      "filer_name_raw": "The Honorable Sheldon Whitehouse (Whitehouse, Sheldon)",
+      "filed_at_raw": "06/02/2026 @ 12:56 PM",
+      "owner_raw": "Self",
+      "ticker_raw": "NVDA",
+      "asset_name_raw": "NVIDIA Corporation - Common Stock",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/08/2026",
+      "amount_raw": "$100,001 - $250,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "4aa0094d-d9da-4a05-aa13-6d9f5d376105",
+      "row_ordinal": 3,
+      "row_number_raw": "1",
+      "report_title_raw": "Periodic Transaction Report for 06/02/2026",
+      "filer_name_raw": "The Honorable Sheldon Whitehouse (Whitehouse, Sheldon)",
+      "filed_at_raw": "06/02/2026 @ 12:56 PM",
+      "owner_raw": "Spouse",
+      "ticker_raw": "NVDA",
+      "asset_name_raw": "NVIDIA Corporation - Common Stock",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/08/2026",
+      "amount_raw": "$100,001 - $250,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  }
+]

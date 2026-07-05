@@ -1,0 +1,62 @@
+{
+  "evidence_for": "goal 060 leg B (test-designer): conformance fixture capture — re-fetch of the 4 SAF §7 pinned electronic PTRs into crates/adapters/us_senate/fixtures/*/input.html, sha-verified against the pins (fail closed on drift)",
+  "retrieved_at_utc": "2026-07-05T12:14:00Z through 2026-07-05T12:16:49Z",
+  "hosts": ["efdsearch.senate.gov"],
+  "protocol": "docs/regimes/us_senate.md §2.1 session dance + §2.5 client-fingerprint constraint, verbatim",
+  "client": {
+    "engine": "Playwright chromium r1228 (Chromium 149.0.7827.55), headed, real browser",
+    "user_agent": "stock Chromium 149 UA, untouched (identified-UA strings are mechanically 403'd — §2.5/E13)",
+    "identification": "From: ssm.leo@outlook.com on every request to senate.gov hosts, injected at the network layer (route interception) — see incident below for why it must be host-scoped"
+  },
+  "politeness": {
+    "concurrency": 1,
+    "min_interval_ms": 2200,
+    "app_requests_total": 12,
+    "sessions": 3,
+    "incidents": "none at the origin: zero 403s, zero 429s. Two aborted sessions (2 origin GETs each) ended CLIENT-side before the agreement POST: a context-global `From` extra header leaked onto the page's third-party CDN script loads (code.jquery.com, cdn.datatables.net, cdnjs.cloudflare.com); `From` is not a CORS-safelisted request header, the forced preflights failed, jQuery never loaded, and the agreement form's checkbox->submit handler never bound. Each abort was followed by a configuration change (never a blind retry): final config scopes the header to senate.gov hosts. LOAD-BEARING for the builder's fetch stage if it embeds a browser engine."
+  },
+  "session_dance_observed": [
+    {"step": "GET https://efdsearch.senate.gov/search/", "result": "302 -> /search/home/ (fresh session), landed 200 agreement page"},
+    {"step": "check #agree_statement (page JS POSTs prohibition_agreement=1 + csrfmiddlewaretoken)", "result": "302 -> /search/, landed 200 search page — agreement flag stored server-side"}
+  ],
+  "fixture_gets": [
+    {
+      "at": "2026-07-05T12:16:40.296Z",
+      "url": "https://efdsearch.senate.gov/search/view/ptr/4b69867f-0376-4526-93f2-cd556b1155c9/",
+      "status": 200,
+      "bytes": 12721,
+      "sha256": "bd2d1df73361210360e1c4b4c0fdb72d1b646497352975a4b2dcb562aaaea80e",
+      "sha256_matches_saf_pin": true,
+      "written_to": "crates/adapters/us_senate/fixtures/single_row_child_bond/input.html"
+    },
+    {
+      "at": "2026-07-05T12:16:43.208Z",
+      "url": "https://efdsearch.senate.gov/search/view/ptr/4aa0094d-d9da-4a05-aa13-6d9f5d376105/",
+      "status": 200,
+      "bytes": 15188,
+      "sha256": "abbbdd79d5bc33ff07f880398cd9c6ee985df3b45d17ef22a83649cd2e5a6ef2",
+      "sha256_matches_saf_pin": true,
+      "written_to": "crates/adapters/us_senate/fixtures/multi_row_sale_partial/input.html"
+    },
+    {
+      "at": "2026-07-05T12:16:46.141Z",
+      "url": "https://efdsearch.senate.gov/search/view/ptr/727b4eb6-d8c7-4792-aa5b-c651c2d72f9c/",
+      "status": 200,
+      "bytes": 33985,
+      "sha256": "9c53a91cce5db4e201889fb580df5e4d43db4df9157fefbece42e7a1019dd5e7",
+      "sha256_matches_saf_pin": true,
+      "written_to": "crates/adapters/us_senate/fixtures/amendment_restatement_18row/input.html"
+    },
+    {
+      "at": "2026-07-05T12:16:49.079Z",
+      "url": "https://efdsearch.senate.gov/search/view/ptr/a9754ff5-901a-4877-b7be-a647bd361c52/",
+      "status": 200,
+      "bytes": 33645,
+      "sha256": "b1a9c78d5b059909f5944a8dc5d5fd6b19851f3b43ad0c9d31faf9b27d9fb487",
+      "sha256_matches_saf_pin": true,
+      "written_to": "crates/adapters/us_senate/fixtures/amended_original_3row_delta/input.html"
+    }
+  ],
+  "pin_verdict": "4/4 byte-identical to the SAF §7 pins and to the sha-named archives already in this directory (E4-E7) — third independent confirmation of raw-byte pin stability (after the spec leg's within-session and cross-session variance tests, E13)",
+  "expected_outputs_provenance": "expected.silver.json / expected.gold.json authored parser-blind per docs/decisions/automation-policy.md: Pass A = test-designer hand transcription from the raw HTML; Pass B = independent fresh-context model transcription of the same bytes; cell-by-cell diff clean across all 40 rows (sole divergence: Pass B left `&amp;` undecoded — markup-vs-text artifact, resolved to decoded text per SAF §6 text-node semantics). Mappings applied from SAF §3.2-§3.5/§5.1 tables; conventions in crates/adapters/us_senate/fixtures/MANIFEST.json."
+}

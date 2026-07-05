@@ -1,0 +1,90 @@
+{
+  "adapter": "us_senate",
+  "captured_by": "test-designer (goal 060 leg B) — expected.*.json derived INDEPENDENTLY of any parser (no us_senate adapter exists at capture time), per docs/decisions/automation-policy.md: hand transcription from the raw fixture HTML (Pass A) cross-checked cell-by-cell against a second, fresh-context model transcription (Pass B); the only divergence was Pass B leaving the `&amp;` entity undecoded (transcription-tool artifact, see conventions.entity_decoding)",
+  "captured_at_utc": "2026-07-05T12:16:49Z",
+  "spec": "docs/regimes/us_senate.md (silver §4, details §5, mapping tables §3.2-§3.5, confidence §6, fixture selection + pins §7)",
+  "politeness": {
+    "protocol": "docs/regimes/us_senate.md §2.5 verbatim: real Chromium (Playwright chromium r1228, v149.0.7827.55, headed), STOCK UA untouched, contact identification via `From: ssm.leo@outlook.com` header on every request to senate.gov hosts, session dance §2.1, concurrency 1, >=2.2s spacing",
+    "user_agent": "stock Chromium 149 UA (identified-UA strings are mechanically 403'd by the Akamai bot manager — §2.5/E13; identification rides the From header instead)",
+    "from_header": "ssm.leo@outlook.com",
+    "concurrency": 1,
+    "min_interval_seconds": 2.2,
+    "requests_this_capture": 12,
+    "breakdown": "3 short sessions: 2 aborted client-config probes (2 origin GETs each; ended CLIENT-side — no origin 4xx: a context-global From header leaked onto third-party CDN script loads, whose CORS preflights failed and killed the page's jQuery, so the agreement form never submitted) + 1 capture session (agreement dance GET+POST+redirect = 4, then 4 pinned view GETs). Fix between sessions: scope the From header to senate.gov hosts via route interception. Zero 403s, zero 429s.",
+    "full_log": "docs/regimes/us_senate/evidence/2026-07-05-efd-fixture-capture-060b.retrieval.json"
+  },
+  "cases": {
+    "single_row_child_bond": {
+      "report_uuid": "4b69867f-0376-4526-93f2-cd556b1155c9",
+      "url": "https://efdsearch.senate.gov/search/view/ptr/4b69867f-0376-4526-93f2-cd556b1155c9/",
+      "sha256": "bd2d1df73361210360e1c4b4c0fdb72d1b646497352975a4b2dcb562aaaea80e",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "The Honorable John Fetterman (Fetterman, John)",
+      "filed": "06/12/2026 @ 1:23 PM",
+      "rows": 1,
+      "notes": "happy path + Child owner (gold `dependent`), null ticker (`--` sentinel), Corporate Bond -> `bond`, asset-detail sub-line (Rate/Coupon + Matures) => the only sub-1.0 confidence row (§6: 1.00 - 0.02)"
+    },
+    "multi_row_sale_partial": {
+      "report_uuid": "4aa0094d-d9da-4a05-aa13-6d9f5d376105",
+      "url": "https://efdsearch.senate.gov/search/view/ptr/4aa0094d-d9da-4a05-aa13-6d9f5d376105/",
+      "sha256": "abbbdd79d5bc33ff07f880398cd9c6ee985df3b45d17ef22a83649cd2e5a6ef2",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "The Honorable Sheldon Whitehouse (Whitehouse, Sheldon)",
+      "filed": "06/02/2026 @ 12:56 PM",
+      "rows": 3,
+      "notes": "multi-row document order = printed # DESCENDING (3,2,1 => row_ordinal 1,2,3); ticker anchors (ORCL/NVDA); Sale (Partial) -> sell + partial_sale true; Self + Spouse owners; two bands"
+    },
+    "amendment_restatement_18row": {
+      "report_uuid": "727b4eb6-d8c7-4792-aa5b-c651c2d72f9c",
+      "url": "https://efdsearch.senate.gov/search/view/ptr/727b4eb6-d8c7-4792-aa5b-c651c2d72f9c/",
+      "sha256": "9c53a91cce5db4e201889fb580df5e4d43db4df9157fefbece42e7a1019dd5e7",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "The Honorable John Boozman (Boozman, John)",
+      "filed": "06/16/2026 @ 10:27 AM",
+      "rows": 18,
+      "notes": "title suffix `(Amendment 1)` => details.amendment_number 1 on every row; NO supersession linkage exists in the document (SAF §3.6) so filing/record supersedes stay NULL — the promotion machinery (outside GoldCandidate, not asserted here) opens review_task `ptr_amendment_unlinked` per amended record; 18 Joint rows incl. one Sale (Full) ($50,001 - $100,000 band); restates the amended original with exactly 3 Ticker cells fixed (SPYM/FTGC/ACN)"
+    },
+    "amended_original_3row_delta": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "url": "https://efdsearch.senate.gov/search/view/ptr/a9754ff5-901a-4877-b7be-a647bd361c52/",
+      "sha256": "b1a9c78d5b059909f5944a8dc5d5fd6b19851f3b43ad0c9d31faf9b27d9fb487",
+      "sha256_matches_regime_doc_pin": true,
+      "filer": "The Honorable John Boozman (Boozman, John)",
+      "filed": "06/16/2026 @ 10:19 AM",
+      "rows": 18,
+      "notes": "the amended ORIGINAL (same day, 8 min before the amendment; note Boozman also filed a THIRD same-titled 15-row original at 9:46 AM — E8 — so (filer, for-date) never identifies a document); rows #11/#4/#1 carry the name-embedded-ticker quirk: Ticker cell `--` (=> ticker_raw null) while asset_name_raw starts `SPYM - `/`FTGC - `/`ACN - ` — asset_name_raw stays VERBATIM, never split (invariant 3: no entity guessing)"
+    }
+  },
+  "conformance_conventions": {
+    "silver_shape": "expected.silver.json is the serialization of Vec<pipeline StagingRow>: [{payload, confidence}] — same wrapper as us_house. payload carries every docs/regimes/us_senate.md §4 field EXCEPT confidence, which lives at the wrapper's top-level `confidence` (f32); no duplication inside payload.",
+    "confidence_literals": "f32 scored per SAF §6, serialized through serde_json's f32->f64 cast: rows with an asset_detail sub-line score 1.00 - 0.02 = 0.98f32 whose exact f64 image is 0.9800000190734863 (same convention as us_house T8b — do NOT 'fix' the literal); all other fixture rows score 1.00 and MUST be the JSON float literal 1.0 — never integer 1, which serde_json parses as a PosInt Number that deep-compares UNEQUAL to Float 1.0.",
+    "details_nulls": "Optional details fields are serialized as explicit nulls (no skip_serializing_if) so the (us_senate, transaction) contract surface is fully visible in every candidate: ticker, asset_detail, comment, amendment_number are null when absent.",
+    "entity_decoding": "Silver stores TEXT, not markup: HTML entities decode during text extraction (html5ever text nodes, SAF §6), so `iShares Core S&amp;P 500 ETF` in the raw bytes is `iShares Core S&P 500 ETF` in asset_name_raw. The `--` empty-cell sentinel maps to null (ticker_raw, comment_raw); it never appears verbatim in Silver.",
+    "row_order": "row_ordinal is 1-based DOCUMENT order (top-to-bottom); the printed # cell descends N..1 and is kept verbatim in row_number_raw / details.row_number (SAF §3.1; contiguity is a §3.7 parse-time integrity check, not asserted in expecteds).",
+    "notified_date": "null on every gold row — the Senate electronic PTR has NO notification-date column (SAF §5.1; divergence from us_house).",
+    "extractor": "us_senate_ptr/html@1 (deterministic scraper path; the LLM seam tag us_senate_ptr/llm@1 is reserved for paper filings, not fixtured on the green path)",
+    "conformance_ids": {
+      "rationale": "View pages carry no ULIDs and conformance runs with pool: None, so filing/politician/regime ids cannot be resolved from a roster. These fixed Crockford-valid ULID constants are the contract the adapter must emit in conformance mode (production resolves real ids from Postgres). Filing ids embed the report UUID's first hex group (uppercased — hex digits are Crockford-valid) for auditability, mirroring us_house's DocID embedding.",
+      "regime_id": "0SENREG0000000000000000001",
+      "politician_ids": {
+        "Fetterman, John": "0SENMBR0000000000000000001",
+        "Whitehouse, Sheldon": "0SENMBR0000000000000000002",
+        "Boozman, John": "0SENMBR0000000000000000003"
+      },
+      "politician_key_note": "keys are the h2.filedReport parenthetical `(Last, First)` verbatim — the SAF §2.4 resolution input; pool-backed runs resolve via politician_alias within the US Senate mandate roster",
+      "filing_ids": {
+        "4b69867f-0376-4526-93f2-cd556b1155c9": "0SENFNG000000000004B69867F",
+        "4aa0094d-d9da-4a05-aa13-6d9f5d376105": "0SENFNG000000000004AA0094D",
+        "727b4eb6-d8c7-4792-aa5b-c651c2d72f9c": "0SENFNG00000000000727B4EB6",
+        "a9754ff5-901a-4877-b7be-a647bd361c52": "0SENFNG00000000000A9754FF5"
+      }
+    }
+  },
+  "builder_notes": {
+    "input_bytes": "input.html files are the RAW response bytes of GET /search/view/ptr/{uuid}/ — byte-identical to the docs/regimes/us_senate/evidence/ archives and to the SAF §7 pins (re-verified live at this capture); parse from raw bytes, no DOM re-serialization.",
+    "report_uuid_threading": "the page never prints its own UUID — conformance mode must thread report_uuid from the fixture case (production: FilingRef.external_id). The four UUIDs are in cases.*.report_uuid above.",
+    "conformance_registry": "crates/pipeline/src/conformance.rs details_schema() has NO (us_senate, transaction) arm yet — the harness fails closed on it. Builder leg: add the arm + snapshot-commit crates/pipeline/schemas/details/us_senate.transaction.json (schema-contracts skill bootstrap order), and ship a `conformance_entry` bin (unique name — Windows exe-clobber lesson) so `cargo run -p pipeline --bin conformance -- us_senate` dispatches.",
+    "fetch_client": "SAF §2.5: plain reqwest is 403-bound on view GETs. Capture-time addendum: if the fetch engine is a browser sidecar, scope the From header to senate.gov hosts (network-layer injection) — a context-global extra header leaks onto third-party CDN loads and their CORS preflights kill the page's jQuery (breaks the agreement dance)."
+  },
+  "evidence": "docs/regimes/us_senate/evidence/ — fixture bytes archived sha-named (E4-E7) in the spec-leg commit; this capture's session/politeness record: 2026-07-05-efd-fixture-capture-060b.retrieval.json"
+}

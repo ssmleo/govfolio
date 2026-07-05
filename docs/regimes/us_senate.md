@@ -558,3 +558,11 @@ Archived under `docs/regimes/us_senate/evidence/` **in this commit**, sha-named
   robots ×1), concurrency 1, ≥2 s spacing — zero 429s, zero throttling observed.
 - 2026-07-05 · efd-media-public.senate.gov (paper GIFs): anonymous 200, no session, no
   fingerprint gate observed.
+- 2026-07-05 · Fixture capture (goal 060 leg B): 4/4 §7 pins re-verified byte-identical
+  (third confirmation of raw-byte pin stability). Client incident, browser-engine
+  relevant: the `From:` identification header must be SCOPED to senate.gov hosts —
+  applied context-globally it rides third-party CDN script loads (jquery/datatables/
+  cdnjs), whose CORS preflights fail (non-safelisted header), jQuery dies, and the
+  agreement dance's checkbox→submit handler never binds. Two client-side aborts
+  (zero origin errors), fixed by network-layer host-scoped injection; full record in
+  `evidence/2026-07-05-efd-fixture-capture-060b.retrieval.json`.

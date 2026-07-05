@@ -1,0 +1,380 @@
+[
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 1,
+      "row_number_raw": "18",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "VEA",
+      "asset_name_raw": "Vanguard Developed Markets Index Fund - ETF Shares",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/27/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 2,
+      "row_number_raw": "17",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "VNQI",
+      "asset_name_raw": "Vanguard Global ex-U.S. Real Estate Index Fund - ETF Shares",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/27/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 3,
+      "row_number_raw": "16",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "LITP",
+      "asset_name_raw": "Sprott Lithium Miners ETF",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/27/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 4,
+      "row_number_raw": "15",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "IVV",
+      "asset_name_raw": "iShares Core S&P 500 ETF",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/27/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 5,
+      "row_number_raw": "14",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "SCHP",
+      "asset_name_raw": "Schwab U.S. TIPS ETF",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/13/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 6,
+      "row_number_raw": "13",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "RNWGX",
+      "asset_name_raw": "NEW WORLD FUND INC - Class R-6",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/27/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 7,
+      "row_number_raw": "12",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "JMBS",
+      "asset_name_raw": "Janus Henderson Mortgage-Backed Securities ETF",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/13/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 8,
+      "row_number_raw": "11",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": null,
+      "asset_name_raw": "SPYM - Tradr 2X Long SPY Monthly ETF",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/27/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 9,
+      "row_number_raw": "10",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "IWM",
+      "asset_name_raw": "iShares Russell 2000 ETF",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/27/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 10,
+      "row_number_raw": "9",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "EFA",
+      "asset_name_raw": "iShares MSCI EAFE ETF",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/27/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 11,
+      "row_number_raw": "8",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "CMBS",
+      "asset_name_raw": "iShares CMBS ETF",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/13/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 12,
+      "row_number_raw": "7",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "IEI",
+      "asset_name_raw": "iShares 3-7 Year Treasury Bond ETF",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Full)",
+      "transaction_date_raw": "05/13/2026",
+      "amount_raw": "$50,001 - $100,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 13,
+      "row_number_raw": "6",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "MBB",
+      "asset_name_raw": "iShares MBS ETF",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/13/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 14,
+      "row_number_raw": "5",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "GEM",
+      "asset_name_raw": "Goldman Sachs ActiveBeta(R) Emerging Markets Equity ETF",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/27/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 15,
+      "row_number_raw": "4",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": null,
+      "asset_name_raw": "FTGC - First Trust Global Tactical Commodity Strategy Fund",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/27/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 16,
+      "row_number_raw": "3",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "EIPI",
+      "asset_name_raw": "FT Energy Income Partners Enhanced Income ETF",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/27/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 17,
+      "row_number_raw": "2",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": "ECL",
+      "asset_name_raw": "Ecolab Inc. Common Stock",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/15/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "report_uuid": "a9754ff5-901a-4877-b7be-a647bd361c52",
+      "row_ordinal": 18,
+      "row_number_raw": "1",
+      "report_title_raw": "Periodic Transaction Report for 06/16/2026",
+      "filer_name_raw": "The Honorable John Boozman (Boozman, John)",
+      "filed_at_raw": "06/16/2026 @ 10:19 AM",
+      "owner_raw": "Joint",
+      "ticker_raw": null,
+      "asset_name_raw": "ACN - Accenture plc Class A Ordinary Shares (Ireland)",
+      "asset_detail_raw": null,
+      "asset_type_raw": "Stock",
+      "transaction_type_raw": "Sale (Partial)",
+      "transaction_date_raw": "05/15/2026",
+      "amount_raw": "$1,001 - $15,000",
+      "comment_raw": null,
+      "extractor": "us_senate_ptr/html@1"
+    },
+    "confidence": 1.0
+  }
+]
