@@ -7,6 +7,8 @@ export type DisclosureRecord = Schemas["DisclosureRecord"];
 export type PoliticianProfile = Schemas["PoliticianProfile"];
 export type RecordDetail = Schemas["RecordDetail"];
 export type RecordPage = Schemas["RecordPage"];
+export type ReviewTaskDetail = Schemas["ReviewTaskDetail"];
+export type ReviewAuditEntry = Schemas["ReviewAuditEntry"];
 
 export const API_URL = process.env.GOVFOLIO_API_URL ?? "http://localhost:8080";
 

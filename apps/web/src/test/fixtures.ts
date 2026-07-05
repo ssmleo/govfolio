@@ -1,5 +1,14 @@
 // Typed test fixtures built from the GENERATED contract types.
-import type { DisclosureRecord, Provenance } from "@/lib/api";
+import type {
+  DisclosureRecord,
+  ExtractionContext,
+  Provenance,
+  ReviewAuditEntry,
+  ReviewQueueItem,
+  ReviewTask,
+  ReviewTargetSummary,
+  RecordDetail,
+} from "@/lib/api";
 
 export function makeRecord(overrides: Partial<DisclosureRecord> = {}): DisclosureRecord {
   return {
@@ -56,6 +65,90 @@ export function makeProvenance(overrides: Partial<Provenance> = {}): Provenance 
       effective_from: "2012-04-04",
       effective_to: null,
     },
+    ...overrides,
+  };
+}
+
+export function makeRecordDetail(overrides: Partial<RecordDetail> = {}): RecordDetail {
+  return {
+    record: makeRecord(),
+    provenance: makeProvenance(),
+    supersedes: [],
+    superseded_by: [],
+    ...overrides,
+  };
+}
+
+export function makeTask(overrides: Partial<ReviewTask> = {}): ReviewTask {
+  return {
+    id: "01KWRTASK0000000000000001A",
+    target_kind: "disclosure_record",
+    target_id: "01KWQVPG6B08S4VX92NZED3C16",
+    reason: "ptr_amendment_unlinked",
+    priority_score: 4.5,
+    status: "open",
+    assignee: null,
+    resolution: null,
+    created_at: "2026-07-04T22:00:00Z",
+    resolved_at: null,
+    ...overrides,
+  };
+}
+
+export function makeTargetSummary(
+  overrides: Partial<ReviewTargetSummary> = {},
+): ReviewTargetSummary {
+  return {
+    record_id: "01KWQVPG6B08S4VX92NZED3C16",
+    asset_description_raw: "Boeing Company (BA) [ST]",
+    politician_name: "David Rouzer",
+    record_type: "transaction",
+    value: { low: "1001.00", high: "15000.00", currency: "USD" },
+    verification_state: "unverified",
+    extraction_confidence: 0.98,
+    extracted_by: "us_house_ptr/text@1",
+    ...overrides,
+  };
+}
+
+export function makeQueueItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueItem {
+  return {
+    task: makeTask(),
+    record: makeTargetSummary(),
+    ...overrides,
+  };
+}
+
+export function makeExtraction(
+  overrides: Partial<ExtractionContext> = {},
+): ExtractionContext {
+  return {
+    extracted_by: "us_house_ptr/llm@1",
+    extraction_confidence: 0.83,
+    cache: {
+      model_id: "model-a-2026",
+      cached_at: "2026-07-04T21:00:00Z",
+      // The provenance payload is contract-opaque (serde_json::Value on the
+      // wire); tests feed a realistic cross-check shape through the same
+      // narrow door the API uses.
+      provenance: JSON.parse(
+        '{"source":"live","cross_checked":"agree","models":["model-a-2026","model-b-2026"]}',
+      ) as NonNullable<ExtractionContext["cache"]>["provenance"],
+    },
+    ...overrides,
+  };
+}
+
+export function makeAuditEntry(overrides: Partial<ReviewAuditEntry> = {}): ReviewAuditEntry {
+  return {
+    id: "01KWRAUDIT000000000000001A",
+    review_task_id: "01KWRTASK0000000000000001A",
+    reviewer: "reviewer-jane",
+    verdict: "confirm",
+    outcome: "applied",
+    note: "matches the source document",
+    affected_record_ids: ["01KWQVPG6B08S4VX92NZED3C16"],
+    created_at: "2026-07-04T23:00:00Z",
     ...overrides,
   };
 }

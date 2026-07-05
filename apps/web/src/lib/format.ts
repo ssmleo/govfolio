@@ -68,3 +68,20 @@ export function formatDateTime(isoDateTime: string): string {
 export function formatConfidence(confidence: number): string {
   return `${Math.round(confidence * 100)}%`;
 }
+
+/**
+ * Formats how long ago `isoDateTime` was, coarsely (`12m`, `5h`, `3d`).
+ * `now` is a parameter so renders are deterministic under test.
+ */
+export function formatAge(isoDateTime: string, now: Date): string {
+  const elapsedMs = now.getTime() - new Date(isoDateTime).getTime();
+  const minutes = Math.max(0, Math.floor(elapsedMs / 60_000));
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) {
+    return `${hours}h`;
+  }
+  return `${Math.floor(hours / 24)}d`;
+}

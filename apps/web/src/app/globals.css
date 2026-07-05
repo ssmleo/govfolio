@@ -514,6 +514,195 @@ details.payload pre {
   padding: 0.5rem 0;
 }
 
+/* ---------- reviewer console (goal 041; internal, noindexed) ---------- */
+
+.reviewer-banner {
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule-strong);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin: 0;
+  padding: 0.3rem 0 0.3rem;
+  text-align: center;
+}
+
+.queue-filters {
+  display: flex;
+  gap: 1rem;
+  margin: 1.25rem 0 1rem;
+}
+
+.queue-filters a {
+  text-transform: capitalize;
+  color: var(--muted);
+}
+
+.queue-filters a[aria-current="page"] {
+  color: var(--seal-deep);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+.cell-priority {
+  white-space: nowrap;
+}
+
+.target-politician {
+  font-weight: 600;
+}
+
+.review-split {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+  gap: 2rem;
+  margin-top: 1.5rem;
+  align-items: start;
+}
+
+.doc-frame {
+  width: 100%;
+  height: 70vh;
+  border: 1px solid var(--rule-strong);
+  background: var(--surface);
+}
+
+.doc-fallback,
+.doc-integrity {
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.pre-review,
+.resolve-panel,
+.audit-log {
+  margin-top: 2rem;
+}
+
+.cache-provenance {
+  font-family: var(--font-data);
+  font-size: 0.8125rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 0.6rem;
+  margin: 0;
+  overflow-x: auto;
+}
+
+.badge-task-open {
+  color: var(--v-unverified-ink);
+  background: var(--v-unverified-bg);
+  border-color: var(--v-unverified-rule);
+}
+
+.badge-task-resolved {
+  color: var(--v-verified-ink);
+  background: var(--v-verified-bg);
+  border-color: var(--v-verified-rule);
+}
+
+.badge-task-dismissed {
+  color: var(--v-disputed-ink);
+  background: var(--v-disputed-bg);
+  border-color: var(--v-disputed-rule);
+}
+
+.task-meta .badge-task-open,
+.task-meta .badge-task-resolved,
+.task-meta .badge-task-dismissed {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 2px;
+  border: 1px solid;
+  padding: 0.05rem 0.45rem;
+  white-space: nowrap;
+}
+
+.resolve-shared,
+.edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.resolve-panel label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+  color: var(--muted);
+}
+
+.resolve-panel input,
+.resolve-panel select,
+.resolve-panel textarea {
+  font: inherit;
+  color: var(--ink);
+  background: var(--paper, #fff);
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  padding: 0.35rem 0.5rem;
+}
+
+.resolve-panel textarea.mono {
+  font-family: var(--font-data);
+  font-size: 0.8125rem;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: 0.75rem;
+}
+
+.resolve-actions {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.resolve-panel button {
+  font: inherit;
+  font-weight: 600;
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0.4rem 1rem;
+  cursor: pointer;
+}
+
+.resolve-panel button:hover:enabled {
+  border-color: var(--seal);
+  color: var(--seal-deep);
+}
+
+.resolve-panel button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.edit-form button[type="submit"] {
+  align-self: flex-start;
+}
+
+.notice-applied {
+  border-color: var(--v-verified-rule);
+  background: var(--v-verified-bg);
+  color: var(--v-verified-ink);
+}
+
+.notice-error {
+  border-color: var(--v-disputed-rule);
+  background: var(--v-disputed-bg);
+  color: var(--v-disputed-ink);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   a,
   button[type="submit"] {
