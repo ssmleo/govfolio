@@ -36,4 +36,11 @@ Learnings (dated):
   against a garbage body — a silently unresolved ref validates everything. Deterministic emit
   for the committed openapi.json: recursive explicit key sort (never the map backing — see
   rust-tdd preserve_order learning) + trailing newline; verify by double-emit sha compare.
+- 2026-07-05: TS side of the one-door — openapi-typescript 7 output is deterministic
+  (no timestamps), so commit `packages/contracts/src/api.d.ts` and gate CI with
+  `pnpm --filter @govfolio/contracts generate && git diff --exit-code packages/contracts/`
+  (mirror of the Rust regen gate). In the consumer, derive per-endpoint types with
+  conditional types over the generated `paths` (`GetOk<P>`/`GetQuery<P>` infer from the
+  200 json content / query params) — the fetch wrapper then has ZERO hand-rolled
+  response shapes and drifts loudly at typecheck instead of silently at runtime.
 Write-back: deepen this file when the procedure teaches you something; same PR.

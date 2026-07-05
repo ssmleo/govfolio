@@ -1,0 +1,7 @@
+packages:
+  - apps/*
+  - packages/*
+# sharp is next's optional image-optimizer; the site uses no next/image, so
+# its native build script stays disallowed (fail closed on postinstall scripts).
+allowBuilds:
+  sharp: false

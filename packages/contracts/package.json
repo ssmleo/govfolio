@@ -1,0 +1,18 @@
+{
+  "name": "@govfolio/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GENERATED contract package: openapi.json is emitted by `cargo run -p api --bin openapi`; src/api.d.ts is emitted by `pnpm generate`. Never hand-edit either.",
+  "exports": {
+    ".": {
+      "types": "./src/api.d.ts"
+    }
+  },
+  "scripts": {
+    "generate": "openapi-typescript openapi.json -o src/api.d.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.13.0",
+    "typescript": "^5.9.3"
+  }
+}

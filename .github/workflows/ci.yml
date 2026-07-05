@@ -49,8 +49,19 @@ jobs:
   web:
     runs-on: ubuntu-latest
     steps:
-      # Placeholder — real lint/typecheck/test wiring lands in goal 040.
-      - run: echo "web job placeholder (activates in goal 040)"
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web lint
+      - run: pnpm --filter web typecheck
+      - run: pnpm --filter web test
+      # Contract drift gate, TS side (design §6.1): the committed generated
+      # client must match openapi.json; regeneration must be a no-op.
+      - run: pnpm --filter @govfolio/contracts generate && git diff --exit-code packages/contracts/
 
   # Enforces docs/decisions/automation-policy.md: destructive migrations and
   # over-budget terraform destroys must fail closed, not merge.

@@ -15,6 +15,13 @@ tfplan
 tfplan.json
 *.tfvars
 
+# Node / web
+node_modules/
+.next/
+*.tsbuildinfo
+apps/web/playwright-report/
+apps/web/test-results/
+
 # IDE
 .idea/
 .vscode/

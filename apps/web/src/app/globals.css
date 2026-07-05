@@ -1,0 +1,523 @@
+/* govfolio public site — design tokens.
+ *
+ * Direction: a public register, not a SaaS dashboard. Cool paper (not the
+ * cream default), engraving-green brand (currency intaglio / official seals),
+ * bookish serif for display, monospace wherever bytes are evidence (hashes,
+ * ULIDs, amounts). The one signature element is the provenance ledger block
+ * on record pages: the audit trail rendered like an archival catalog card.
+ */
+
+:root {
+  --bg: #f5f7f6;
+  --surface: #ffffff;
+  --ink: #16211c;
+  --muted: #51605a;
+  --rule: #d7deda;
+  --rule-strong: #a9b6b0;
+  --seal: #176a4f;
+  --seal-deep: #0e4a37;
+
+  --v-unverified-ink: #4a5550;
+  --v-unverified-bg: #eef1ef;
+  --v-unverified-rule: #c5ccc8;
+  --v-verified-ink: #14573f;
+  --v-verified-bg: #e3f0e9;
+  --v-verified-rule: #9dc4b2;
+  --v-corrected-ink: #7a4a00;
+  --v-corrected-bg: #f7eddc;
+  --v-corrected-rule: #d8be92;
+  --v-disputed-ink: #8f1d12;
+  --v-disputed-bg: #f9e7e4;
+  --v-disputed-rule: #dfa79f;
+
+  --font-display: "Iowan Old Style", "Palatino Linotype", Palatino,
+    "Book Antiqua", Georgia, serif;
+  --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-data: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Consolas,
+    Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.55;
+}
+
+.shell {
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+a {
+  color: var(--seal);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: var(--seal-deep);
+}
+
+:focus-visible {
+  outline: 2px solid var(--seal);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.2;
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  margin: 0 0 0.5rem;
+}
+
+h2 {
+  font-size: 1.25rem;
+  margin: 2.5rem 0 0.75rem;
+}
+
+h3 {
+  font-size: 1.05rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+p {
+  max-width: 70ch;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.empty {
+  color: var(--muted);
+  border-top: 1px solid var(--rule);
+  padding-top: 0.75rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------- header / footer ---------- */
+
+.site-header {
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+}
+
+.site-header-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 1rem 1.5rem;
+  padding-top: 0.9rem;
+  padding-bottom: 0.9rem;
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.wordmark::after {
+  content: ".";
+  color: var(--seal);
+}
+
+.site-header nav a {
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid var(--rule-strong);
+  padding-bottom: 1px;
+}
+
+.site-header nav a:hover {
+  border-bottom-color: var(--seal);
+  color: var(--seal-deep);
+}
+
+.header-search {
+  margin-left: auto;
+  display: flex;
+  gap: 0.4rem;
+}
+
+input[type="search"] {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--rule-strong);
+  border-radius: 2px;
+  padding: 0.3rem 0.55rem;
+  min-width: 15rem;
+}
+
+input[type="search"]::placeholder {
+  color: var(--muted);
+}
+
+button[type="submit"] {
+  font: inherit;
+  color: var(--surface);
+  background: var(--seal);
+  border: 1px solid var(--seal-deep);
+  border-radius: 2px;
+  padding: 0.3rem 0.9rem;
+  cursor: pointer;
+}
+
+button[type="submit"]:hover {
+  background: var(--seal-deep);
+}
+
+.site-footer {
+  margin-top: 4rem;
+  border-top: 1px solid var(--rule);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.site-footer p {
+  padding: 1rem 0;
+  margin: 0;
+}
+
+/* ---------- home ---------- */
+
+.hero {
+  padding: 2.75rem 0 1.5rem;
+  border-bottom: 1px solid var(--rule);
+}
+
+.hero p {
+  color: var(--muted);
+  font-size: 1.05rem;
+  margin: 0.25rem 0 1.5rem;
+}
+
+.hero-search {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.hero-search input[type="search"] {
+  flex: 1 1 18rem;
+  font-size: 1.05rem;
+  padding: 0.55rem 0.75rem;
+}
+
+.hero-search button {
+  font-size: 1.05rem;
+  padding: 0.55rem 1.2rem;
+}
+
+/* ---------- tables ---------- */
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+
+th {
+  font-family: var(--font-body);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-align: left;
+  border-bottom: 1px solid var(--rule-strong);
+  padding: 0.45rem 0.75rem 0.45rem 0;
+  white-space: nowrap;
+}
+
+td {
+  border-bottom: 1px solid var(--rule);
+  padding: 0.55rem 0.75rem 0.55rem 0;
+  vertical-align: top;
+}
+
+.cell-date,
+.cell-value {
+  font-family: var(--font-data);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.cell-action {
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.cell-asset a {
+  color: var(--ink);
+}
+
+.cell-asset a:hover {
+  color: var(--seal-deep);
+}
+
+/* ---------- verification badges ---------- */
+
+.badge {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 2px;
+  border: 1px solid;
+  padding: 0.05rem 0.45rem;
+  white-space: nowrap;
+}
+
+.badge-unverified {
+  color: var(--v-unverified-ink);
+  background: var(--v-unverified-bg);
+  border-color: var(--v-unverified-rule);
+}
+
+.badge-verified {
+  color: var(--v-verified-ink);
+  background: var(--v-verified-bg);
+  border-color: var(--v-verified-rule);
+}
+
+.badge-corrected {
+  color: var(--v-corrected-ink);
+  background: var(--v-corrected-bg);
+  border-color: var(--v-corrected-rule);
+}
+
+.badge-disputed {
+  color: var(--v-disputed-ink);
+  background: var(--v-disputed-bg);
+  border-color: var(--v-disputed-rule);
+}
+
+/* ---------- record page ---------- */
+
+.record-head {
+  padding-top: 2rem;
+}
+
+.record-head .kind {
+  color: var(--muted);
+  margin: 0 0 0.35rem;
+}
+
+.record-facts {
+  margin-top: 1.5rem;
+}
+
+dl.facts {
+  display: grid;
+  grid-template-columns: minmax(9rem, max-content) 1fr;
+  gap: 0.4rem 1.5rem;
+  margin: 0;
+}
+
+dl.facts dt {
+  color: var(--muted);
+  font-size: 0.875rem;
+  padding-top: 0.1rem;
+}
+
+dl.facts dd {
+  margin: 0;
+}
+
+.mono {
+  font-family: var(--font-data);
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+
+.notice {
+  border: 1px solid var(--v-corrected-rule);
+  background: var(--v-corrected-bg);
+  color: var(--v-corrected-ink);
+  border-radius: 2px;
+  padding: 0.6rem 0.9rem;
+  margin: 1.25rem 0;
+}
+
+.notice a {
+  color: inherit;
+  font-weight: 600;
+}
+
+/* The signature element: provenance as an archival catalog card. */
+.provenance {
+  margin-top: 2.5rem;
+  border-top: 3px double var(--seal);
+  border-bottom: 1px solid var(--rule);
+  background: var(--surface);
+  padding: 1rem 1.25rem 1.25rem;
+}
+
+.provenance h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.1rem;
+  color: var(--seal-deep);
+}
+
+.provenance-grid {
+  display: grid;
+  grid-template-columns: minmax(8.5rem, max-content) 1fr;
+  gap: 0.5rem 1.5rem;
+  margin: 0;
+}
+
+.provenance-grid dt {
+  color: var(--muted);
+  font-size: 0.875rem;
+  padding-top: 0.1rem;
+}
+
+.provenance-grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.sha {
+  display: block;
+  font-family: var(--font-data);
+  font-size: 0.8125rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+  margin-top: 0.2rem;
+}
+
+details.payload {
+  margin-top: 1.5rem;
+}
+
+details.payload summary {
+  cursor: pointer;
+  color: var(--seal);
+}
+
+details.payload pre {
+  font-family: var(--font-data);
+  font-size: 0.8125rem;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+  padding: 0.9rem;
+  overflow-x: auto;
+}
+
+.supersession-arm ol {
+  margin: 0.25rem 0 0;
+  padding-left: 1.25rem;
+}
+
+.supersession-arm li {
+  margin-bottom: 0.35rem;
+}
+
+/* ---------- profile ---------- */
+
+.profile-head {
+  padding-top: 2rem;
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 1.25rem;
+}
+
+.mandates {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.mandates li {
+  color: var(--muted);
+}
+
+.mandates .role {
+  color: var(--ink);
+}
+
+.pager {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+/* ---------- jurisdictions ---------- */
+
+.jurisdiction {
+  margin-top: 2rem;
+}
+
+.jurisdiction-meta {
+  color: var(--muted);
+  font-size: 0.9375rem;
+  margin: 0.15rem 0 0.75rem;
+}
+
+/* ---------- search ---------- */
+
+.search-arms {
+  display: grid;
+  gap: 2rem;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  margin-top: 1.5rem;
+}
+
+.hits {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hits li {
+  border-bottom: 1px solid var(--rule);
+  padding: 0.5rem 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a,
+  button[type="submit"] {
+    transition: color 120ms ease-out, background-color 120ms ease-out,
+      border-color 120ms ease-out;
+  }
+}

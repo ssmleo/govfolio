@@ -1,0 +1,8 @@
+{
+  "name": "govfolio",
+  "private": true,
+  "packageManager": "pnpm@11.10.0",
+  "scripts": {
+    "e2e": "pnpm --filter web e2e"
+  }
+}
