@@ -1,0 +1,64 @@
+{
+    "task":  "goal 061 leg B - uk_commons_register fixture capture (test-designer)",
+    "date":  "2026-07-05",
+    "client":  "PowerShell 5.1 System.Net.Http.HttpClient, TLS1.2 (mirrors leg-A client for byte comparability)",
+    "identification":  "User-Agent: govfolio.io research (contact: ssm.leo@outlook.com) + From: ssm.leo@outlook.com on every request",
+    "politeness":  "concurrency 1; \u003e=2.2s enforced spacing between requests; no retries; 5 requests total",
+    "requests":  [
+                     {
+                         "at":  "2026-07-05T14:32:39.2476228Z",
+                         "url":  "https://interests-api.parliament.uk/api/v1/Interests/15475",
+                         "case":  "shareholding_open_ended",
+                         "interest_id":  15475,
+                         "status":  200,
+                         "bytes":  1982,
+                         "sha256":  "8b8613ade949e0b718eb0e7a9640d5d67a9d750ac2d62854edadc6a6ba7d5086",
+                         "content_type":  "application/json; charset=utf-8",
+                         "etag":  null
+                     },
+                     {
+                         "at":  "2026-07-05T14:32:42.5798754Z",
+                         "url":  "https://interests-api.parliament.uk/api/v1/Interests/15923",
+                         "case":  "donation_exact",
+                         "interest_id":  15923,
+                         "status":  200,
+                         "bytes":  3162,
+                         "sha256":  "402b3712abb121993f32491f257fc2cadc3cfe382803c2ad2e01bdfe1b105e73",
+                         "content_type":  "application/json; charset=utf-8",
+                         "etag":  null
+                     },
+                     {
+                         "at":  "2026-07-05T14:32:46.2995377Z",
+                         "url":  "https://interests-api.parliament.uk/api/v1/Interests/15854",
+                         "case":  "land_no_value",
+                         "interest_id":  15854,
+                         "status":  200,
+                         "bytes":  3002,
+                         "sha256":  "e461b7be25dc05be4319011409ca81c99a65014221947d20fae4dac84311dc60",
+                         "content_type":  "application/json; charset=utf-8",
+                         "etag":  null
+                     },
+                     {
+                         "at":  "2026-07-05T14:32:49.3321472Z",
+                         "url":  "https://interests-api.parliament.uk/api/v1/Interests/15914",
+                         "case":  "employment_pair_parent",
+                         "interest_id":  15914,
+                         "status":  200,
+                         "bytes":  2528,
+                         "sha256":  "f15d0e13f9a93eb451d951a61062180ae09a5697ec117de906f1b8128183243a",
+                         "content_type":  "application/json; charset=utf-8",
+                         "etag":  null
+                     },
+                     {
+                         "at":  "2026-07-05T14:32:52.3304558Z",
+                         "url":  "https://interests-api.parliament.uk/api/v1/Interests/15915",
+                         "case":  "employment_pair_child",
+                         "interest_id":  15915,
+                         "status":  200,
+                         "bytes":  3787,
+                         "sha256":  "2f50d45ee0c0f70ec5abb1b092ff27551f5db37245508707109e66a0427a79b6",
+                         "content_type":  "application/json; charset=utf-8",
+                         "etag":  null
+                     }
+                 ]
+}

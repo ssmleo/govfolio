@@ -1,0 +1,174 @@
+[
+  {
+    "filing_id": "0GBRFNG0000000000000015915",
+    "politician_id": "0GBRMBR0000000000000000004",
+    "regime_id": "0GBRREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Payment expected for services on 14 June 2026 - £500.00",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-06-26",
+    "value": { "low": "500.00", "high": "500.00", "currency": "GBP" },
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "uk_commons_register/api@1",
+    "fingerprint": null,
+    "details": {
+      "interest_id": 15915,
+      "version": 0,
+      "parent_interest_id": 15914,
+      "category_id": 1,
+      "category_number": "1.1",
+      "category_name": "Employment and earnings - Ad hoc payments",
+      "member_id": 4521,
+      "registration_date": "2026-06-26",
+      "published_date": "2026-06-29",
+      "updated_dates": [],
+      "rectified": false,
+      "rectified_details": null,
+      "shareholding_threshold_raw": null,
+      "value_source": "value_field",
+      "fields": [
+        {
+          "name": "PaymentReceived",
+          "description": "Whether payment has been received",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": false,
+          "values": null
+        },
+        {
+          "name": "ReceivedDate",
+          "description": "Date the payment was received or date the services were completed or provided on, if payment not received",
+          "type": "DateOnly",
+          "currency_code": null,
+          "value": "2026-06-14",
+          "values": null
+        },
+        {
+          "name": "JobTitle",
+          "description": "Type of work or service being provided, if different to the nature of the work provided in parent interest",
+          "type": "String",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "PaymentType",
+          "description": "Whether the payment was monetary or in kind",
+          "type": "String",
+          "currency_code": null,
+          "value": "Monetary",
+          "values": null
+        },
+        {
+          "name": "PaymentDescription",
+          "description": "Description of payment",
+          "type": "String",
+          "currency_code": null,
+          "value": "To provide one speech as part of the David Lloyd George Memorial Lecture at the annual Gŵyl Cricieth Festival",
+          "values": null
+        },
+        {
+          "name": "Value",
+          "description": "Amount or value of the payment",
+          "type": "Decimal",
+          "currency_code": "GBP",
+          "value": "500.00",
+          "values": null
+        },
+        {
+          "name": "HoursWorked",
+          "description": "Number of hours worked. If a regular payment, this is hours worked per period",
+          "type": "Decimal",
+          "currency_code": null,
+          "value": "5.00",
+          "values": null
+        },
+        {
+          "name": "HoursDetails",
+          "description": "Additional information about the hours worked",
+          "type": "String",
+          "currency_code": null,
+          "value": "Estimated, including providing the lecture and preparation",
+          "values": null
+        },
+        {
+          "name": "IsUltimatePayerDifferent",
+          "description": "Whether the ultimate payer is different to the payer specified in linked parent interest",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": false,
+          "values": null
+        },
+        {
+          "name": "UltimatePayerName",
+          "description": "Name of the ultimate payer (if different to parent interest)",
+          "type": "String",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "UltimatePayerProtectedByConfidentiality",
+          "description": "Whether the ultimate payer details are confidential (if different to parent interest)",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": false,
+          "values": null
+        },
+        {
+          "name": "UltimatePayerAddress",
+          "description": "Address of the ultimate payer, if this can be publicly shared (if different to parent interest)",
+          "type": "String",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "UltimatePayerNatureOfBusiness",
+          "description": "Brief description of the ultimate payer's business (if different to parent interest)",
+          "type": "String",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "IsPaymentDonated",
+          "description": "Whether the payment was donated to a third party, or will be",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": true,
+          "values": null
+        },
+        {
+          "name": "DonateePaidBy",
+          "description": "Whether the payment was donated by the Member, or direct from the payer (if donated)",
+          "type": "String",
+          "currency_code": null,
+          "value": "Paid direct to the recipient by the payer",
+          "values": null
+        },
+        {
+          "name": "DonateeType",
+          "description": "Type of third-party the payment was, or will be, donated to (if donated)",
+          "type": "String",
+          "currency_code": null,
+          "value": "Charity",
+          "values": null
+        },
+        {
+          "name": "DonateeDetails",
+          "description": "Name of the recipient, if donatee type is 'Other' (if donated)",
+          "type": "String",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        }
+      ]
+    }
+  }
+]

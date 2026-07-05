@@ -1,0 +1,148 @@
+[
+  {
+    "payload": {
+      "interest_id": 15923,
+      "row_ordinal": 1,
+      "version": 0,
+      "parent_interest_id": null,
+      "category_id": 3,
+      "category_number_raw": "2",
+      "category_name_raw": "Donations and other support (including loans) for activities as an MP",
+      "member_id": 4651,
+      "member_name_raw": "Dan Carden",
+      "member_list_name_raw": "Carden, Dan",
+      "member_from_raw": "Liverpool Walton",
+      "party_raw": "Labour",
+      "house_raw": "Commons",
+      "summary_raw": "Arab Investments Limited - £3,400.00",
+      "registration_date_raw": "2026-06-28",
+      "published_date_raw": "2026-06-29",
+      "updated_dates_raw": [],
+      "rectified": false,
+      "rectified_details_raw": null,
+      "fields_raw": [
+        {
+          "name": "DonationSource",
+          "description": "How the donation was received",
+          "type": "String",
+          "typeInfo": null,
+          "value": "(b) Any other support not included in Category 2(a)"
+        },
+        {
+          "name": "PaymentType",
+          "description": "Whether the benefit was monetary or in kind",
+          "type": "String",
+          "typeInfo": null,
+          "value": "In kind"
+        },
+        {
+          "name": "PaymentDescription",
+          "description": "Description of the payment",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Sponsoring a dinner in central London for 40 guests"
+        },
+        {
+          "name": "Value",
+          "description": "Value of the benefit",
+          "type": "Decimal",
+          "typeInfo": { "currencyCode": "GBP" },
+          "value": "3400.00"
+        },
+        {
+          "name": "ReceivedDate",
+          "description": "Date on which the benefit was received",
+          "type": "DateOnly",
+          "typeInfo": null,
+          "value": "2026-06-04"
+        },
+        {
+          "name": "AcceptedDate",
+          "description": "Date on which the benefit was accepted",
+          "type": "DateOnly",
+          "typeInfo": null,
+          "value": "2026-06-04"
+        },
+        {
+          "name": "ReceivedEndDate",
+          "description": "End date, if the benefit was received over time",
+          "type": "DateOnly",
+          "typeInfo": null,
+          "value": null
+        },
+        {
+          "name": "IsSoleBeneficiary",
+          "description": "Whether Member is the sole beneficiary",
+          "type": "Boolean",
+          "typeInfo": null,
+          "value": true
+        },
+        {
+          "name": "DonorName",
+          "description": "Name of the donor",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Arab Investments Limited"
+        },
+        {
+          "name": "DonorPublicAddress",
+          "description": "Address of the donor, if this can be publicly shared",
+          "type": "String",
+          "typeInfo": null,
+          "value": "11 Berkeley Street, London W1J 8DS"
+        },
+        {
+          "name": "DonorStatus",
+          "description": "Status of the donor",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Company"
+        },
+        {
+          "name": "DonorCompanyName",
+          "description": "Name of the donor company",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Arab Investments Limited"
+        },
+        {
+          "name": "DonorCompanyUrl",
+          "description": "URL of the donor company",
+          "type": "String",
+          "typeInfo": null,
+          "value": null
+        },
+        {
+          "name": "DonorCompanyIdentifier",
+          "description": "Company registration number",
+          "type": "String",
+          "typeInfo": null,
+          "value": "01671921"
+        },
+        {
+          "name": "DonorCompanyIdentifierSource",
+          "description": "Source of company identifier",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Companies House"
+        },
+        {
+          "name": "DonorTrustDetails",
+          "description": "Details of the trust",
+          "type": "String",
+          "typeInfo": null,
+          "value": null
+        },
+        {
+          "name": "DonorOtherDetails",
+          "description": "Description of donor status, where this could not be covered by defined options",
+          "type": "String",
+          "typeInfo": null,
+          "value": null
+        }
+      ],
+      "extractor": "uk_commons_register/api@1"
+    },
+    "confidence": 1.0
+  }
+]

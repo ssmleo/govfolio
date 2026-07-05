@@ -1,0 +1,166 @@
+[
+  {
+    "filing_id": "0GBRFNG0000000000000015854",
+    "politician_id": "0GBRMBR0000000000000000003",
+    "regime_id": "0GBRREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Property in Anglesea",
+    "record_type": "interest",
+    "asset_class": "real_estate",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-06-24",
+    "value": null,
+    "owner": "joint",
+    "extraction_confidence": 1.0,
+    "extracted_by": "uk_commons_register/api@1",
+    "fingerprint": null,
+    "details": {
+      "interest_id": 15854,
+      "version": 0,
+      "parent_interest_id": null,
+      "category_id": 7,
+      "category_number": "6",
+      "category_name": "Land and property (within or outside the UK)",
+      "member_id": 5403,
+      "registration_date": "2026-06-24",
+      "published_date": "2026-06-24",
+      "updated_dates": [],
+      "rectified": false,
+      "rectified_details": null,
+      "shareholding_threshold_raw": null,
+      "value_source": "none",
+      "fields": [
+        {
+          "name": "StartDate",
+          "description": "Date on which the land or property was acquired, or achieved registrable value",
+          "type": "DateOnly",
+          "currency_code": null,
+          "value": "2026-06-17",
+          "values": null
+        },
+        {
+          "name": "EndDate",
+          "description": "Date on which interest in the property ended",
+          "type": "DateOnly",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "IsSoleOwner",
+          "description": "Whether the Member is the sole owner of the property",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": false,
+          "values": null
+        },
+        {
+          "name": "Location",
+          "description": "Location of the land or property",
+          "type": "String",
+          "currency_code": null,
+          "value": "Anglesea",
+          "values": null
+        },
+        {
+          "name": "PropertyDescription",
+          "description": "A description of the property",
+          "type": "String",
+          "currency_code": null,
+          "value": "House",
+          "values": null
+        },
+        {
+          "name": "PropertyOwnerDetails",
+          "description": "Details about the ownership arrangements",
+          "type": "String",
+          "currency_code": null,
+          "value": "Co-owned with husband",
+          "values": null
+        },
+        {
+          "name": "RegistrableRentalIncome",
+          "description": "Property has a rental income exceeding registrable threshold",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": false,
+          "values": null
+        },
+        {
+          "name": "RentalIncomeDetails",
+          "description": "Details of any other recipients of rental income",
+          "type": "String",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "RentalIncomeStartDate",
+          "description": "Date on which the property began generating rental income",
+          "type": "DateOnly",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "RentalIncomeEndDate",
+          "description": "Date the rental income ended",
+          "type": "DateOnly",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "NumberOfProperties",
+          "description": "The number of properties this interest relates to",
+          "type": "Int",
+          "currency_code": null,
+          "value": 1,
+          "values": null
+        },
+        {
+          "name": "IsLand",
+          "description": "Whether the interest relates to land or property",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": false,
+          "values": null
+        },
+        {
+          "name": "IsAnyRentalIncomePaidToAnotherPerson",
+          "description": "Whether any rental income is paid to another person or organisation",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": false,
+          "values": null
+        },
+        {
+          "name": "Country",
+          "description": "Country in which the land or property is located",
+          "type": "String",
+          "currency_code": null,
+          "value": "United Kingdom",
+          "values": null
+        },
+        {
+          "name": "LandUse",
+          "description": "Use of the land",
+          "type": "String",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "PropertyType",
+          "description": "The type of property",
+          "type": "String",
+          "currency_code": null,
+          "value": "Residential",
+          "values": null
+        }
+      ]
+    }
+  }
+]

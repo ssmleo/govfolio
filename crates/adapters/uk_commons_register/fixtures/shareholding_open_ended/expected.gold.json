@@ -1,0 +1,94 @@
+[
+  {
+    "filing_id": "0GBRFNG0000000000000015475",
+    "politician_id": "0GBRMBR0000000000000000001",
+    "regime_id": "0GBRREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Shares in Lockhouse Systems Limited",
+    "record_type": "interest",
+    "asset_class": "equity",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-06-17",
+    "value": { "low": "70000.00", "high": null, "currency": "GBP" },
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "uk_commons_register/api@1",
+    "fingerprint": null,
+    "details": {
+      "interest_id": 15475,
+      "version": 0,
+      "parent_interest_id": null,
+      "category_id": 8,
+      "category_number": "7",
+      "category_name": "Shareholdings",
+      "member_id": 4051,
+      "registration_date": "2026-06-17",
+      "published_date": "2026-06-17",
+      "updated_dates": [],
+      "rectified": false,
+      "rectified_details": null,
+      "shareholding_threshold_raw": "(ii) Other shareholdings, valued at more than £70,000",
+      "value_source": "shareholding_threshold",
+      "fields": [
+        {
+          "name": "ShareholdingThreshold",
+          "description": "Registrable threshold for this shareholding interest",
+          "type": "String",
+          "currency_code": null,
+          "value": "(ii) Other shareholdings, valued at more than £70,000",
+          "values": null
+        },
+        {
+          "name": "RegistrableDate",
+          "description": "Date on which the holding was acquired, or achieved registrable value",
+          "type": "DateOnly",
+          "currency_code": null,
+          "value": "2026-06-17",
+          "values": null
+        },
+        {
+          "name": "EndDate",
+          "description": "Date on which interest in the holding ended",
+          "type": "DateOnly",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "OrganisationName",
+          "description": "Name of the company or partnership",
+          "type": "String",
+          "currency_code": null,
+          "value": "Lockhouse Systems Limited",
+          "values": null
+        },
+        {
+          "name": "OrganisationDescription",
+          "description": "Nature of the company or partnership's business",
+          "type": "String",
+          "currency_code": null,
+          "value": "Lockhouse Systems Limited is an active UK-registered company (Company No. 16772680) specializing in intelligence software for policing and national security.",
+          "values": null
+        },
+        {
+          "name": "HeldOnBehalfOf",
+          "description": "Held jointly or on behalf of a spouse, partner, or dependent child",
+          "type": "String",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "ManagedBy",
+          "description": "Managed by trust or delegated management",
+          "type": "String",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        }
+      ]
+    }
+  }
+]

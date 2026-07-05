@@ -575,3 +575,9 @@ sha-named (`{sha256}.{slug}.{ext}`).
   /Interests/15475 and /Interests/15854 byte-identical (2/2, E24) — first
   confirmation for the §7 pinning rule; cross-session confirmation falls to the
   capture leg.
+- 2026-07-05 · Capture leg (061b): all five §7 fixtures re-fetched in a NEW
+  session (5 requests, concurrency 1, ≥2.2 s spacing, identified UA + From,
+  zero 429s) — 5/5 sha256 byte-identical to the pins. Cross-session byte
+  stability CONFIRMED; the raw-byte pinning rule stands, normalized-hash
+  fallback not needed. Retrieval record:
+  `evidence/2026-07-05-uk-fixture-capture-061b.retrieval.json`.

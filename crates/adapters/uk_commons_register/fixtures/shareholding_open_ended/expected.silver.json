@@ -1,0 +1,78 @@
+[
+  {
+    "payload": {
+      "interest_id": 15475,
+      "row_ordinal": 1,
+      "version": 0,
+      "parent_interest_id": null,
+      "category_id": 8,
+      "category_number_raw": "7",
+      "category_name_raw": "Shareholdings",
+      "member_id": 4051,
+      "member_name_raw": "John Glen",
+      "member_list_name_raw": "Glen, John",
+      "member_from_raw": "Salisbury",
+      "party_raw": "Conservative",
+      "house_raw": "Commons",
+      "summary_raw": "Shares in Lockhouse Systems Limited",
+      "registration_date_raw": "2026-06-17",
+      "published_date_raw": "2026-06-17",
+      "updated_dates_raw": [],
+      "rectified": false,
+      "rectified_details_raw": null,
+      "fields_raw": [
+        {
+          "name": "ShareholdingThreshold",
+          "description": "Registrable threshold for this shareholding interest",
+          "type": "String",
+          "typeInfo": null,
+          "value": "(ii) Other shareholdings, valued at more than £70,000"
+        },
+        {
+          "name": "RegistrableDate",
+          "description": "Date on which the holding was acquired, or achieved registrable value",
+          "type": "DateOnly",
+          "typeInfo": null,
+          "value": "2026-06-17"
+        },
+        {
+          "name": "EndDate",
+          "description": "Date on which interest in the holding ended",
+          "type": "DateOnly",
+          "typeInfo": null,
+          "value": null
+        },
+        {
+          "name": "OrganisationName",
+          "description": "Name of the company or partnership",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Lockhouse Systems Limited"
+        },
+        {
+          "name": "OrganisationDescription",
+          "description": "Nature of the company or partnership's business",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Lockhouse Systems Limited is an active UK-registered company (Company No. 16772680) specializing in intelligence software for policing and national security."
+        },
+        {
+          "name": "HeldOnBehalfOf",
+          "description": "Held jointly or on behalf of a spouse, partner, or dependent child",
+          "type": "String",
+          "typeInfo": null,
+          "value": null
+        },
+        {
+          "name": "ManagedBy",
+          "description": "Managed by trust or delegated management",
+          "type": "String",
+          "typeInfo": null,
+          "value": null
+        }
+      ],
+      "extractor": "uk_commons_register/api@1"
+    },
+    "confidence": 1.0
+  }
+]

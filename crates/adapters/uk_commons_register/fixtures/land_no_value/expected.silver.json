@@ -1,0 +1,141 @@
+[
+  {
+    "payload": {
+      "interest_id": 15854,
+      "row_ordinal": 1,
+      "version": 0,
+      "parent_interest_id": null,
+      "category_id": 7,
+      "category_number_raw": "6",
+      "category_name_raw": "Land and property (within or outside the UK)",
+      "member_id": 5403,
+      "member_name_raw": "Sarah Pochin",
+      "member_list_name_raw": "Pochin, Sarah",
+      "member_from_raw": "Runcorn and Helsby",
+      "party_raw": "Reform UK",
+      "house_raw": "Commons",
+      "summary_raw": "Property in Anglesea",
+      "registration_date_raw": "2026-06-24",
+      "published_date_raw": "2026-06-24",
+      "updated_dates_raw": [],
+      "rectified": false,
+      "rectified_details_raw": null,
+      "fields_raw": [
+        {
+          "name": "StartDate",
+          "description": "Date on which the land or property was acquired, or achieved registrable value",
+          "type": "DateOnly",
+          "typeInfo": null,
+          "value": "2026-06-17"
+        },
+        {
+          "name": "EndDate",
+          "description": "Date on which interest in the property ended",
+          "type": "DateOnly",
+          "typeInfo": null,
+          "value": null
+        },
+        {
+          "name": "IsSoleOwner",
+          "description": "Whether the Member is the sole owner of the property",
+          "type": "Boolean",
+          "typeInfo": null,
+          "value": false
+        },
+        {
+          "name": "Location",
+          "description": "Location of the land or property",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Anglesea"
+        },
+        {
+          "name": "PropertyDescription",
+          "description": "A description of the property",
+          "type": "String",
+          "typeInfo": null,
+          "value": "House"
+        },
+        {
+          "name": "PropertyOwnerDetails",
+          "description": "Details about the ownership arrangements",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Co-owned with husband"
+        },
+        {
+          "name": "RegistrableRentalIncome",
+          "description": "Property has a rental income exceeding registrable threshold",
+          "type": "Boolean",
+          "typeInfo": null,
+          "value": false
+        },
+        {
+          "name": "RentalIncomeDetails",
+          "description": "Details of any other recipients of rental income",
+          "type": "String",
+          "typeInfo": null,
+          "value": null
+        },
+        {
+          "name": "RentalIncomeStartDate",
+          "description": "Date on which the property began generating rental income",
+          "type": "DateOnly",
+          "typeInfo": null,
+          "value": null
+        },
+        {
+          "name": "RentalIncomeEndDate",
+          "description": "Date the rental income ended",
+          "type": "DateOnly",
+          "typeInfo": null,
+          "value": null
+        },
+        {
+          "name": "NumberOfProperties",
+          "description": "The number of properties this interest relates to",
+          "type": "Int",
+          "typeInfo": null,
+          "value": 1
+        },
+        {
+          "name": "IsLand",
+          "description": "Whether the interest relates to land or property",
+          "type": "Boolean",
+          "typeInfo": null,
+          "value": false
+        },
+        {
+          "name": "IsAnyRentalIncomePaidToAnotherPerson",
+          "description": "Whether any rental income is paid to another person or organisation",
+          "type": "Boolean",
+          "typeInfo": null,
+          "value": false
+        },
+        {
+          "name": "Country",
+          "description": "Country in which the land or property is located",
+          "type": "String",
+          "typeInfo": null,
+          "value": "United Kingdom"
+        },
+        {
+          "name": "LandUse",
+          "description": "Use of the land",
+          "type": "String",
+          "typeInfo": null,
+          "value": null
+        },
+        {
+          "name": "PropertyType",
+          "description": "The type of property",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Residential"
+        }
+      ],
+      "extractor": "uk_commons_register/api@1"
+    },
+    "confidence": 1.0
+  }
+]

@@ -1,0 +1,108 @@
+{
+  "adapter": "uk_commons_register",
+  "captured_by": "test-designer (goal 061 leg B) — expected.*.json derived INDEPENDENTLY of any parser (no uk_commons_register adapter exists at capture time), per docs/decisions/automation-policy.md: hand transcription from the raw fixture JSON + SAF mapping rules (Pass A) cross-checked cell-by-cell against a second, fresh-context model derivation (Pass B, spec+inputs only); zero divergences. A third mechanical pass (node stdlib re-derivation of every Silver/Gold cell from input.json per SAF §3.4/§3.5/§4/§5.1) also green, plus a raw-byte scan for the float-literal convention.",
+  "captured_at_utc": "2026-07-05T14:32:52Z",
+  "spec": "docs/regimes/uk_commons_register.md (silver §4, details §5, mapping §5.1, value rules §3.4, owner §3.5, dates §3.6, confidence §6, fixture selection + version-scoped pins §7)",
+  "politeness": {
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "from_header": "ssm.leo@outlook.com",
+    "concurrency": 1,
+    "min_interval_seconds": 2.2,
+    "requests_this_capture": 5,
+    "breakdown": "5 GETs of /api/v1/Interests/{id}, all 200, zero 429s, zero challenges; client mirrors the leg-A capture (PowerShell 5.1 System.Net.Http.HttpClient, TLS1.2) for byte comparability",
+    "full_log": "docs/regimes/uk_commons_register/evidence/2026-07-05-uk-fixture-capture-061b.retrieval.json"
+  },
+  "cases": {
+    "shareholding_open_ended": {
+      "interest_id": 15475,
+      "version": 0,
+      "url": "https://interests-api.parliament.uk/api/v1/Interests/15475",
+      "sha256": "8b8613ade949e0b718eb0e7a9640d5d67a9d750ac2d62854edadc6a6ba7d5086",
+      "sha256_matches_regime_doc_pin": true,
+      "member": "John Glen (MNIS 4051), Salisbury, Conservative",
+      "category": "7 Shareholdings (api id 8)",
+      "rows": 1,
+      "notes": "SAF §3.4 R2a: ShareholdingThreshold '(ii) Other shareholdings, valued at more than £70,000' → open-ended 70000.00–NULL GBP (value_source shareholding_threshold); owner self (HeldOnBehalfOf null); asset_class equity; OrganisationName is the future instrument-resolution input, instrument_id stays NULL (invariant 3)"
+    },
+    "donation_exact": {
+      "interest_id": 15923,
+      "version": 0,
+      "url": "https://interests-api.parliament.uk/api/v1/Interests/15923",
+      "sha256": "402b3712abb121993f32491f257fc2cadc3cfe382803c2ad2e01bdfe1b105e73",
+      "sha256_matches_regime_doc_pin": true,
+      "member": "Dan Carden (MNIS 4651), Liverpool Walton, Labour",
+      "category": "2 Donations and other support (api id 3)",
+      "rows": 1,
+      "notes": "SAF §3.4 R1: typed Value '3400.00' GBP → exact 3400.00–3400.00 (value_source value_field); the summary's '- £3,400.00' suffix is a display artifact, never parsed; owner self; donor company + Companies House id ride fields_raw/details.fields"
+    },
+    "land_no_value": {
+      "interest_id": 15854,
+      "version": 0,
+      "url": "https://interests-api.parliament.uk/api/v1/Interests/15854",
+      "sha256": "e461b7be25dc05be4319011409ca81c99a65014221947d20fae4dac84311dc60",
+      "sha256_matches_regime_doc_pin": true,
+      "member": "Sarah Pochin (MNIS 5403), Runcorn and Helsby, Reform UK",
+      "category": "6 Land and property (api id 7)",
+      "rows": 1,
+      "notes": "SAF §3.4 R4: no money field → value NULL (value_source none; registrability booleans stay in fields_raw, never inferred into a value); §3.5: IsSoleOwner=false → owner joint (PropertyOwnerDetails 'Co-owned with husband' raw); asset_class real_estate"
+    },
+    "employment_pair_parent": {
+      "interest_id": 15914,
+      "version": 0,
+      "url": "https://interests-api.parliament.uk/api/v1/Interests/15914",
+      "sha256": "f15d0e13f9a93eb451d951a61062180ae09a5697ec117de906f1b8128183243a",
+      "sha256_matches_regime_doc_pin": true,
+      "member": "Liz Saville Roberts (MNIS 4521), Dwyfor Meirionnydd, Plaid Cymru",
+      "category": "1 Employment and earnings (api id 12)",
+      "rows": 1,
+      "notes": "payer PARENT of the 1→1.1 join (SAF §7 fixture #4): no money field → value NULL (R4, value_source none); owner self (the Member's own employment, NOT category 9 family employment); child 15915 is its own case/document — the SAF's employment pair is two Bronze documents, one StagingRow each (§3.8 check 5)"
+    },
+    "employment_pair_child": {
+      "interest_id": 15915,
+      "version": 0,
+      "url": "https://interests-api.parliament.uk/api/v1/Interests/15915",
+      "sha256": "2f50d45ee0c0f70ec5abb1b092ff27551f5db37245508707109e66a0427a79b6",
+      "sha256_matches_regime_doc_pin": true,
+      "member": "Liz Saville Roberts (MNIS 4521), Dwyfor Meirionnydd, Plaid Cymru",
+      "category": "1.1 Employment and earnings - Ad hoc payments (api id 1)",
+      "rows": 1,
+      "notes": "ad hoc payment CHILD: parentInterestId=15914 (silver parent_interest_id + details.parent_interest_id); R1 exact 500.00–500.00 GBP; HoursWorked '5.00' is Decimal WITHOUT typeInfo.currencyCode → NOT money (§3.2 disambiguator, stays a string in fields); non-ASCII 'Gŵyl' exercises UTF-8 end to end; IsPaymentDonated=true does not change owner (self — the earning is the Member's)"
+    }
+  },
+  "conformance_conventions": {
+    "silver_shape": "expected.silver.json is the serialization of Vec<pipeline StagingRow>: [{payload, confidence}] — same wrapper as us_house/us_senate. payload carries every docs/regimes/uk_commons_register.md §4 field EXCEPT confidence, which lives at the wrapper's top-level `confidence` (f32); no duplication inside payload. Exactly one row per document (§3.8 check 5).",
+    "confidence_literals": "every fixture row scores 1.00 per SAF §6 (registration_date_raw present on all five; no sum_of_donors) and MUST be the JSON float literal 1.0 — never integer 1, which serde_json parses as a PosInt Number that deep-compares UNEQUAL to Float 1.0 (us_senate MANIFEST rule). No sub-1.0 image appears in this adapter's fixtures, so no f32→f64 cast literals here; if a future case scores below 1.00, pin the exact f64 image of the f32 (us_house 0.98 → 0.9800000190734863 precedent).",
+    "fields_raw_verbatim": "silver `fields_raw` is the source `fields` array VERBATIM: `typeInfo` kept as null or {currencyCode}, `value` in its source JSON type (Decimal→string, Boolean→bool, Int→number, DateOnly→string, null), source order, human typos ('resigtered') and non-ASCII ('Gŵyl', '£') untouched. The five pinned documents carry NO `values` key on any field (the nested Donor[]/VisitLocation[] shape is not in these categories) — fields_raw therefore has no `values` key either; raw is sacred.",
+    "details_fields_flatten": "details.fields is the §5 flattened Field shape {name, description, type, currency_code, value, values}: currency_code = typeInfo.currencyCode (null when typeInfo null — money ⇔ currency_code present, never the field name/type alone), value verbatim, values = explicit null on these flat documents (details-nulls convention below; the array-of-array-of-Field shape is reserved for Donor[]/VisitLocation[] categories, not fixtured here).",
+    "details_nulls": "Optional details fields are serialized as explicit nulls (no skip_serializing_if) so the (uk_commons_register, interest) contract surface is fully visible in every candidate: parent_interest_id, registration_date, rectified_details, shareholding_threshold_raw, and every fields[].currency_code/value/values are null when absent.",
+    "money_strings": "all Gold value bounds are decimal STRINGS end to end (invariant 7): '70000.00', '3400.00', '500.00'; open-ended = low set, high JSON null, currency 'GBP'.",
+    "interest_gold_shape": "first `interest` record_type adapter: side/transaction_date/as_of_date NULL on every row (GoldCandidate::validate() requires nothing for Interest); notified_date = registrationDate (§3.6 — NEVER publishedDate); instrument_id NULL (invariant 3); fingerprint NULL (computed at promotion, Task 6).",
+    "extractor": "uk_commons_register/api@1 (§4 — deterministic serde_json path; no LLM seam on this adapter's green path, SAF §6)",
+    "conformance_ids": {
+      "rationale": "API documents carry no ULIDs and conformance runs with pool: None, so filing/politician/regime ids cannot be resolved from a roster. These fixed Crockford-valid ULID constants are the contract the adapter must emit in conformance mode (production resolves real ids from Postgres). Prefix is 0GBR* — NOT 0UK*: 'U' is outside the Crockford base32 alphabet and would not parse. Filing ids embed the interest id digits for auditability (mirroring us_house DocID / us_senate UUID-group embedding); all pinned fixtures are version 0, so the version is not embedded — an update-case fixture ({id}@{n}, §2.5) would need its own constant.",
+      "regime_id": "0GBRREG0000000000000000001",
+      "politician_ids": {
+        "4051": "0GBRMBR0000000000000000001",
+        "4651": "0GBRMBR0000000000000000002",
+        "5403": "0GBRMBR0000000000000000003",
+        "4521": "0GBRMBR0000000000000000004"
+      },
+      "politician_key_note": "keys are the numeric MNIS member.id as strings — the SAF §2.4 resolution input (exact id join, no name matching); pool-backed runs resolve via the politician external-id roster",
+      "filing_ids": {
+        "15475": "0GBRFNG0000000000000015475",
+        "15923": "0GBRFNG0000000000000015923",
+        "15854": "0GBRFNG0000000000000015854",
+        "15914": "0GBRFNG0000000000000015914",
+        "15915": "0GBRFNG0000000000000015915"
+      }
+    }
+  },
+  "builder_notes": {
+    "input_bytes": "input.json files are the RAW response bytes of GET /api/v1/Interests/{id} — byte-identical to the docs/regimes/uk_commons_register/evidence/ archives and to the SAF §7 pins (re-verified live at this capture, 5/5 sha match; this second session also CONFIRMS cross-session byte stability, closing that SAF §7 open question). Parse from raw bytes as UTF-8; no re-serialization.",
+    "id_threading": "unlike us_house/us_senate pages, the document DOES print its own id (top-level `id`) — §3.8 check 1 still requires the pipeline to thread the requested id and reject a mismatch. version = updatedDates.length must equal the FilingRef version (§3.8 check 4); all fixtures are version 0.",
+    "conformance_registry": "crates/pipeline/src/conformance.rs details_schema() has NO (uk_commons_register, interest) arm yet — the harness fails closed on it (checked at capture time). Builder leg: add the arm + snapshot-commit crates/pipeline/schemas/details/uk_commons_register.interest.json from the schemars type in crates/adapters/uk_commons_register/src/details.rs (seed `{}` placeholder first — schema-contracts bootstrap order), and ship a `conformance_entry` bin (constant name per the dispatcher contract) so `cargo run -p pipeline --bin conformance -- uk_commons_register` dispatches.",
+    "harness_blast_radius": "verified at capture time: nothing globs across adapter fixture roots — e2e_local/promote/extraction/contract tests and the worker local bin are all scoped to fixtures_dir(\"us_house\") or fixture_fake, and role evals hardcode us_house. The scaffold crate (Cargo.toml + empty lib.rs) keeps the crates/adapters/* workspace glob valid (us_house CI-red lesson, commit c6dceb7).",
+    "eol_pinning": ".gitattributes already covers these paths (crates/adapters/*/fixtures/** -text, docs/regimes/*/evidence/** -text) — verify `git ls-files --eol` shows i/w agreement before any future push touching pinned bytes (evidence-archiving skill learning)."
+  },
+  "evidence": "docs/regimes/uk_commons_register/evidence/ — fixture bytes archived sha-named in the spec-leg commit (E16–E20); this capture's politeness/retrieval record: 2026-07-05-uk-fixture-capture-061b.retrieval.json"
+}

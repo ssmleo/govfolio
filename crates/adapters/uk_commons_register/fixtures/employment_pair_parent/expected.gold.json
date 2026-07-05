@@ -1,0 +1,118 @@
+[
+  {
+    "filing_id": "0GBRFNG0000000000000015914",
+    "politician_id": "0GBRMBR0000000000000000004",
+    "regime_id": "0GBRREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Speaking engagement - Criccieth Arts Association, known as Gŵyl Cricieth Festival",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-06-26",
+    "value": null,
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "uk_commons_register/api@1",
+    "fingerprint": null,
+    "details": {
+      "interest_id": 15914,
+      "version": 0,
+      "parent_interest_id": null,
+      "category_id": 12,
+      "category_number": "1",
+      "category_name": "Employment and earnings",
+      "member_id": 4521,
+      "registration_date": "2026-06-26",
+      "published_date": "2026-06-29",
+      "updated_dates": [],
+      "rectified": false,
+      "rectified_details": null,
+      "shareholding_threshold_raw": null,
+      "value_source": "none",
+      "fields": [
+        {
+          "name": "JobTitle",
+          "description": "Type of work or service being provided",
+          "type": "String",
+          "currency_code": null,
+          "value": "Speaking engagement",
+          "values": null
+        },
+        {
+          "name": "StartDate",
+          "description": "Date the agreement started",
+          "type": "DateOnly",
+          "currency_code": null,
+          "value": "2026-06-14",
+          "values": null
+        },
+        {
+          "name": "EndDate",
+          "description": "Date the agreement ended",
+          "type": "DateOnly",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "IsUntilFurtherNotice",
+          "description": "Whether the agreement is until further notice",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": false,
+          "values": null
+        },
+        {
+          "name": "PayerName",
+          "description": "Name of the payer",
+          "type": "String",
+          "currency_code": null,
+          "value": "Criccieth Arts Association, known as Gŵyl Cricieth Festival",
+          "values": null
+        },
+        {
+          "name": "PayerIsPrivateIndividual",
+          "description": "Whether the payer is a private individual",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": false,
+          "values": null
+        },
+        {
+          "name": "IsPaidAsDirectorOfPayer",
+          "description": "Whether the Member is a director of the payment source",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": false,
+          "values": null
+        },
+        {
+          "name": "PayerNatureOfBusiness",
+          "description": "Brief description of the payer's business",
+          "type": "String",
+          "currency_code": null,
+          "value": "A resigtered charity (no. 700947) which aims to promote and organise musical and visual arts at an annual festival in Cricieth",
+          "values": null
+        },
+        {
+          "name": "PayerPublicAddress",
+          "description": "Address of the payer, if this can be publicly shared",
+          "type": "String",
+          "currency_code": null,
+          "value": "Thomas Buildings, New Street, Pwllheli, Gwynedd LL53 5HH",
+          "values": null
+        },
+        {
+          "name": "HasSoughtAcobaAdvice",
+          "description": "Has the Member consulted the Advisory Committee on Business Appointments (ACOBA). Only relevant if they have been a minister in the two years preceding this interest.",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        }
+      ]
+    }
+  }
+]

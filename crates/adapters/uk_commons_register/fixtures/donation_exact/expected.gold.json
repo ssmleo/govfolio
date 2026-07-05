@@ -1,0 +1,174 @@
+[
+  {
+    "filing_id": "0GBRFNG0000000000000015923",
+    "politician_id": "0GBRMBR0000000000000000002",
+    "regime_id": "0GBRREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Arab Investments Limited - £3,400.00",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-06-28",
+    "value": { "low": "3400.00", "high": "3400.00", "currency": "GBP" },
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "uk_commons_register/api@1",
+    "fingerprint": null,
+    "details": {
+      "interest_id": 15923,
+      "version": 0,
+      "parent_interest_id": null,
+      "category_id": 3,
+      "category_number": "2",
+      "category_name": "Donations and other support (including loans) for activities as an MP",
+      "member_id": 4651,
+      "registration_date": "2026-06-28",
+      "published_date": "2026-06-29",
+      "updated_dates": [],
+      "rectified": false,
+      "rectified_details": null,
+      "shareholding_threshold_raw": null,
+      "value_source": "value_field",
+      "fields": [
+        {
+          "name": "DonationSource",
+          "description": "How the donation was received",
+          "type": "String",
+          "currency_code": null,
+          "value": "(b) Any other support not included in Category 2(a)",
+          "values": null
+        },
+        {
+          "name": "PaymentType",
+          "description": "Whether the benefit was monetary or in kind",
+          "type": "String",
+          "currency_code": null,
+          "value": "In kind",
+          "values": null
+        },
+        {
+          "name": "PaymentDescription",
+          "description": "Description of the payment",
+          "type": "String",
+          "currency_code": null,
+          "value": "Sponsoring a dinner in central London for 40 guests",
+          "values": null
+        },
+        {
+          "name": "Value",
+          "description": "Value of the benefit",
+          "type": "Decimal",
+          "currency_code": "GBP",
+          "value": "3400.00",
+          "values": null
+        },
+        {
+          "name": "ReceivedDate",
+          "description": "Date on which the benefit was received",
+          "type": "DateOnly",
+          "currency_code": null,
+          "value": "2026-06-04",
+          "values": null
+        },
+        {
+          "name": "AcceptedDate",
+          "description": "Date on which the benefit was accepted",
+          "type": "DateOnly",
+          "currency_code": null,
+          "value": "2026-06-04",
+          "values": null
+        },
+        {
+          "name": "ReceivedEndDate",
+          "description": "End date, if the benefit was received over time",
+          "type": "DateOnly",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "IsSoleBeneficiary",
+          "description": "Whether Member is the sole beneficiary",
+          "type": "Boolean",
+          "currency_code": null,
+          "value": true,
+          "values": null
+        },
+        {
+          "name": "DonorName",
+          "description": "Name of the donor",
+          "type": "String",
+          "currency_code": null,
+          "value": "Arab Investments Limited",
+          "values": null
+        },
+        {
+          "name": "DonorPublicAddress",
+          "description": "Address of the donor, if this can be publicly shared",
+          "type": "String",
+          "currency_code": null,
+          "value": "11 Berkeley Street, London W1J 8DS",
+          "values": null
+        },
+        {
+          "name": "DonorStatus",
+          "description": "Status of the donor",
+          "type": "String",
+          "currency_code": null,
+          "value": "Company",
+          "values": null
+        },
+        {
+          "name": "DonorCompanyName",
+          "description": "Name of the donor company",
+          "type": "String",
+          "currency_code": null,
+          "value": "Arab Investments Limited",
+          "values": null
+        },
+        {
+          "name": "DonorCompanyUrl",
+          "description": "URL of the donor company",
+          "type": "String",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "DonorCompanyIdentifier",
+          "description": "Company registration number",
+          "type": "String",
+          "currency_code": null,
+          "value": "01671921",
+          "values": null
+        },
+        {
+          "name": "DonorCompanyIdentifierSource",
+          "description": "Source of company identifier",
+          "type": "String",
+          "currency_code": null,
+          "value": "Companies House",
+          "values": null
+        },
+        {
+          "name": "DonorTrustDetails",
+          "description": "Details of the trust",
+          "type": "String",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        },
+        {
+          "name": "DonorOtherDetails",
+          "description": "Description of donor status, where this could not be covered by defined options",
+          "type": "String",
+          "currency_code": null,
+          "value": null,
+          "values": null
+        }
+      ]
+    }
+  }
+]

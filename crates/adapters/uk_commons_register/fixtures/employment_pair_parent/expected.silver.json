@@ -1,0 +1,99 @@
+[
+  {
+    "payload": {
+      "interest_id": 15914,
+      "row_ordinal": 1,
+      "version": 0,
+      "parent_interest_id": null,
+      "category_id": 12,
+      "category_number_raw": "1",
+      "category_name_raw": "Employment and earnings",
+      "member_id": 4521,
+      "member_name_raw": "Liz Saville Roberts",
+      "member_list_name_raw": "Saville Roberts, Liz",
+      "member_from_raw": "Dwyfor Meirionnydd",
+      "party_raw": "Plaid Cymru",
+      "house_raw": "Commons",
+      "summary_raw": "Speaking engagement - Criccieth Arts Association, known as Gŵyl Cricieth Festival",
+      "registration_date_raw": "2026-06-26",
+      "published_date_raw": "2026-06-29",
+      "updated_dates_raw": [],
+      "rectified": false,
+      "rectified_details_raw": null,
+      "fields_raw": [
+        {
+          "name": "JobTitle",
+          "description": "Type of work or service being provided",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Speaking engagement"
+        },
+        {
+          "name": "StartDate",
+          "description": "Date the agreement started",
+          "type": "DateOnly",
+          "typeInfo": null,
+          "value": "2026-06-14"
+        },
+        {
+          "name": "EndDate",
+          "description": "Date the agreement ended",
+          "type": "DateOnly",
+          "typeInfo": null,
+          "value": null
+        },
+        {
+          "name": "IsUntilFurtherNotice",
+          "description": "Whether the agreement is until further notice",
+          "type": "Boolean",
+          "typeInfo": null,
+          "value": false
+        },
+        {
+          "name": "PayerName",
+          "description": "Name of the payer",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Criccieth Arts Association, known as Gŵyl Cricieth Festival"
+        },
+        {
+          "name": "PayerIsPrivateIndividual",
+          "description": "Whether the payer is a private individual",
+          "type": "Boolean",
+          "typeInfo": null,
+          "value": false
+        },
+        {
+          "name": "IsPaidAsDirectorOfPayer",
+          "description": "Whether the Member is a director of the payment source",
+          "type": "Boolean",
+          "typeInfo": null,
+          "value": false
+        },
+        {
+          "name": "PayerNatureOfBusiness",
+          "description": "Brief description of the payer's business",
+          "type": "String",
+          "typeInfo": null,
+          "value": "A resigtered charity (no. 700947) which aims to promote and organise musical and visual arts at an annual festival in Cricieth"
+        },
+        {
+          "name": "PayerPublicAddress",
+          "description": "Address of the payer, if this can be publicly shared",
+          "type": "String",
+          "typeInfo": null,
+          "value": "Thomas Buildings, New Street, Pwllheli, Gwynedd LL53 5HH"
+        },
+        {
+          "name": "HasSoughtAcobaAdvice",
+          "description": "Has the Member consulted the Advisory Committee on Business Appointments (ACOBA). Only relevant if they have been a minister in the two years preceding this interest.",
+          "type": "Boolean",
+          "typeInfo": null,
+          "value": null
+        }
+      ],
+      "extractor": "uk_commons_register/api@1"
+    },
+    "confidence": 1.0
+  }
+]

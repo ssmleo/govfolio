@@ -15,7 +15,7 @@ cargo run -p pipeline --bin conformance -- uk_commons_register
 ```
 
 ## Checklist
-- [x] regime doc (2026-07-05, docs/regimes/uk_commons_register.md + evidence, spec leg)  - [ ] fixtures  - [ ] expected (test-designer, see below)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
+- [x] regime doc (2026-07-05, docs/regimes/uk_commons_register.md + evidence, spec leg)  - [x] fixtures (2026-07-05, 061b: 5 cases, 5/5 sha = doc pins)  - [x] expected (2026-07-05, 061b test-designer: two independent passes + mechanical check, zero divergences; publishes `unverified` per policy)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
 
 ## BLOCKED (human) — SUPERSEDED 2026-07-05 per docs/decisions/automation-policy.md
 - ~~expected.*.json completion~~ → test-designer authors expecteds (high-confidence
