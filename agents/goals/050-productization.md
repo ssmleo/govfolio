@@ -24,9 +24,11 @@ cargo test -p api tiers   # free sees nothing < 24h old; pro sees realtime; quot
   (env `ADMIN_TOKEN`; unset = surface disabled, fail closed).
 - "Everywhere records flow" also closed two back doors: review surface is now
   admin-token-gated (real-time record context) and alert-rules require a pro/data key
-  (alerts are the paid fast path). FOLLOW-UP: apps/web reviewer UI must forward the
-  admin token (one server-side header) — web untouched per goal scope, so reviewer
-  e2e is red until then.
+  (alerts are the paid fast path). FOLLOW-UP CLOSED (2026-07-05, web-builder): the
+  reviewer UI forwards `X-Admin-Token` from server env `GOVFOLIO_ADMIN_TOKEN` on
+  review-surface calls only (never client-bundled); absent env → pages render the
+  API's 401/403 envelope honestly. Env pair documented in goal 041; reviewer e2e
+  green again with `ADMIN_TOKEN=govfolio-e2e-admin-dummy` on the local API.
 - Anonymous traffic: per-IP per-minute in-memory backstop only (default 600/min;
   `UNAUTH_REQUESTS_PER_MINUTE`). Authoritative anonymous limits belong to the CDN
   edge (design §6.4); the SSR origin shares one IP, hence the generous ceiling.

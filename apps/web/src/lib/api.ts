@@ -122,10 +122,27 @@ interface EtagEntry {
 const ETAG_CACHE_MAX = 500;
 const etagCache = new Map<string, EtagEntry>();
 
+/**
+ * Admin bootstrap header for the review surface (goal 050): the API gates
+ * `/v1/review-tasks*` behind `X-Admin-Token`. The token comes from the
+ * SERVER-SIDE env `GOVFOLIO_ADMIN_TOKEN` — deliberately not `NEXT_PUBLIC_*`,
+ * so it is never inlined into the client bundle (this module only runs in
+ * server components / server actions). Absent env → no header sent → the
+ * API's 401/403 envelope surfaces honestly as `ApiError` (fail closed, no
+ * fake state).
+ */
+function adminHeaders(): Record<string, string> {
+  const token = process.env.GOVFOLIO_ADMIN_TOKEN;
+  return token !== undefined && token !== "" ? { "x-admin-token": token } : {};
+}
+
 /** GET with If-None-Match; a 304 is served from the process-local body cache. */
-async function conditionalGet(url: string): Promise<{ status: number; body: string }> {
+async function conditionalGet(
+  url: string,
+  extraHeaders: Record<string, string> = {},
+): Promise<{ status: number; body: string }> {
   const cached = etagCache.get(url);
-  const headers = new Headers({ accept: "application/json" });
+  const headers = new Headers({ accept: "application/json", ...extraHeaders });
   if (cached) {
     headers.set("if-none-match", cached.etag);
   }
@@ -177,9 +194,10 @@ async function apiGet<P extends GetPath>(
   path: P,
   pathParams: Record<string, string> = {},
   query: GetQuery<P> | Record<string, never> = {},
+  extraHeaders: Record<string, string> = {},
 ): Promise<GetOk<P>> {
   const url = buildUrl(path, pathParams, query as Record<string, string | number | undefined>);
-  const { status, body } = await conditionalGet(url);
+  const { status, body } = await conditionalGet(url, extraHeaders);
   if (status >= 200 && status < 300) {
     return JSON.parse(body) as GetOk<P>;
   }
@@ -242,15 +260,15 @@ export function search(q: string): Promise<SearchResults> {
 export function listReviewTasks(
   query: GetQuery<"/v1/review-tasks"> = {},
 ): Promise<ReviewQueuePage> {
-  return apiGet("/v1/review-tasks", {}, query);
+  return apiGet("/v1/review-tasks", {}, query, adminHeaders());
 }
 
 export function getReviewTask(id: string): Promise<ReviewTaskDetail> {
-  return apiGet("/v1/review-tasks/{id}", { id });
+  return apiGet("/v1/review-tasks/{id}", { id }, {}, adminHeaders());
 }
 
 export function reviewTaskAudit(id: string): Promise<ReviewAuditEntry[]> {
-  return apiGet("/v1/review-tasks/{id}/audit", { id });
+  return apiGet("/v1/review-tasks/{id}/audit", { id }, {}, adminHeaders());
 }
 
 type ResolveOk =
@@ -268,7 +286,11 @@ export async function resolveReviewTask(
   const url = buildUrl("/v1/review-tasks/{id}/resolve", { id }, {});
   const res = await fetch(url, {
     method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json" },
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json",
+      ...adminHeaders(),
+    },
     body: JSON.stringify(input),
     cache: "no-store",
   });

@@ -4,14 +4,16 @@
 import { expect, test } from "@playwright/test";
 
 import type { RecordDetail, ReviewAuditEntry, ReviewTaskDetail } from "./api";
-import { API_URL, apiGet } from "./api";
+import { ADMIN_TOKEN, API_URL, apiGet } from "./api";
 import { seedReviewCase } from "./reviewer-db";
 
 test("queue → task → confirm flow, with side-by-side and audit log", async ({
   page,
 }) => {
   const { taskId, recordId } = await seedReviewCase({ priority: 9.7 });
-  const detail = await apiGet<ReviewTaskDetail>(`/v1/review-tasks/${taskId}`);
+  const detail = await apiGet<ReviewTaskDetail>(`/v1/review-tasks/${taskId}`, {
+    admin: true,
+  });
   const record = detail.record;
   expect(record).toBeTruthy();
   if (!record) return;
@@ -77,7 +79,9 @@ test("edit flow: correction supersedes through promote and the chain appears", a
   page,
 }) => {
   const { taskId, recordId } = await seedReviewCase({ priority: 9.6 });
-  const before = await apiGet<ReviewTaskDetail>(`/v1/review-tasks/${taskId}`);
+  const before = await apiGet<ReviewTaskDetail>(`/v1/review-tasks/${taskId}`, {
+    admin: true,
+  });
   const original = before.record;
   expect(original).toBeTruthy();
   if (!original) return;
@@ -145,7 +149,9 @@ test("reject flow: the record becomes disputed and the verdict is audited", asyn
   const after = await apiGet<RecordDetail>(`/v1/records/${recordId}`);
   expect(after.record.verification_state).toBe("disputed");
 
-  const audit = await apiGet<ReviewAuditEntry[]>(`/v1/review-tasks/${taskId}/audit`);
+  const audit = await apiGet<ReviewAuditEntry[]>(`/v1/review-tasks/${taskId}/audit`, {
+    admin: true,
+  });
   expect(audit).toHaveLength(1);
   expect(audit[0]?.verdict).toBe("reject");
   expect(audit[0]?.outcome).toBe("applied");
@@ -163,7 +169,7 @@ test("409 already-resolved is handled honestly: nothing changes, state reloads",
   // Another reviewer wins the race — through the same resolve endpoint.
   const raced = await fetch(`${API_URL}/v1/review-tasks/${taskId}/resolve`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-admin-token": ADMIN_TOKEN },
     body: JSON.stringify({ reviewer: "e2e-race", verdict: "confirm" }),
   });
   expect(raced.status).toBe(200);

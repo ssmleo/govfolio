@@ -1,6 +1,8 @@
 import Link from "next/link";
 
-import { listReviewTasks } from "@/lib/api";
+import type { ReviewQueuePage as ReviewQueue } from "@/lib/api";
+import { ApiError, listReviewTasks } from "@/lib/api";
+import { AccessNotice } from "@/components/reviewer/AccessNotice";
 import { QueueTable } from "@/components/reviewer/QueueTable";
 
 // The review queue (design §7.2): open tasks in the API's ranking order
@@ -28,7 +30,17 @@ function queueHref(status: string, cursor?: string): string {
 
 export default async function ReviewQueuePage({ searchParams }: Search) {
   const { status = "open", cursor } = await searchParams;
-  const page = await listReviewTasks({ status, cursor, limit: 50 });
+  let page: ReviewQueue;
+  try {
+    page = await listReviewTasks({ status, cursor, limit: 50 });
+  } catch (error) {
+    // Admin gate (goal 050): surface the API's 401/403 envelope honestly
+    // instead of a generic 500 — no fake (empty-queue) state.
+    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+      return <AccessNotice error={error} />;
+    }
+    throw error;
+  }
 
   return (
     <>

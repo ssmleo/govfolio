@@ -12,16 +12,26 @@ export type ReviewAuditEntry = Schemas["ReviewAuditEntry"];
 
 export const API_URL = process.env.GOVFOLIO_API_URL ?? "http://localhost:8080";
 
-export async function apiGet<T>(path: string): Promise<T> {
+// The review surface is X-Admin-Token-gated (goal 050). OBVIOUS DUMMY test
+// value — the locally running API must be started with the SAME token:
+//   ADMIN_TOKEN=govfolio-e2e-admin-dummy cargo run -p api
+// The playwright webServer forwards it to the web process as
+// GOVFOLIO_ADMIN_TOKEN (see playwright.config.ts).
+export const ADMIN_TOKEN = process.env.GOVFOLIO_ADMIN_TOKEN ?? "govfolio-e2e-admin-dummy";
+
+export async function apiGet<T>(path: string, options?: { admin?: boolean }): Promise<T> {
+  const headers: Record<string, string> = options?.admin
+    ? { "x-admin-token": ADMIN_TOKEN }
+    : {};
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`);
+    res = await fetch(`${API_URL}${path}`, { headers });
   } catch (error) {
     throw new Error(
       `govfolio API unreachable at ${API_URL}. Start it first:\n` +
         `  scripts/dev/pg-local.ps1 start\n` +
         `  cargo run -p worker --bin local   (seed)\n` +
-        `  cargo run -p api                  (:8080)`,
+        `  ADMIN_TOKEN=govfolio-e2e-admin-dummy cargo run -p api   (:8080)`,
       { cause: error },
     );
   }

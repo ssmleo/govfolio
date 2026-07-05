@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import type { ReviewAuditEntry, ReviewTaskDetail } from "@/lib/api";
 import { ApiError, getReviewTask, reviewTaskAudit } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
+import { AccessNotice } from "@/components/reviewer/AccessNotice";
 import { AuditLog } from "@/components/reviewer/AuditLog";
 import { BronzeDocument } from "@/components/reviewer/BronzeDocument";
 import { PreReviewNote } from "@/components/reviewer/PreReviewNote";
@@ -39,7 +40,18 @@ async function fetchTaskOr404(
 
 export default async function ReviewTaskPage({ params }: Params) {
   const { id } = await params;
-  const { detail, audit } = await fetchTaskOr404(id);
+  let loaded: { detail: ReviewTaskDetail; audit: ReviewAuditEntry[] };
+  try {
+    loaded = await fetchTaskOr404(id);
+  } catch (error) {
+    // Admin gate (goal 050): surface the API's 401/403 envelope honestly
+    // instead of a generic 500 — no fake task state.
+    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+      return <AccessNotice error={error} />;
+    }
+    throw error;
+  }
+  const { detail, audit } = loaded;
   const { task, record, extraction } = detail;
 
   return (

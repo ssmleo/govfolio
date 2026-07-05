@@ -61,3 +61,11 @@ pnpm --filter web test -- reviewer && pnpm e2e -- reviewer
   - pnpm 11 forwards the literal `--`, so the verbatim acceptance commands run the full
     (green) web suites as a superset; `vitest run reviewer` / `playwright test reviewer`
     select exactly the reviewer tests.
+- 2026-07-05 (050 follow-up, web-builder): the review surface is now ADMIN-TOKEN-GATED
+  (goal 050). Env pair: the API reads `ADMIN_TOKEN`; the web server reads
+  `GOVFOLIO_ADMIN_TOKEN` (server-side only, never `NEXT_PUBLIC_*`) and forwards it as
+  `X-Admin-Token` on review-surface calls only (`src/lib/api.ts adminHeaders()`). Absent
+  or wrong token → the reviewer pages render the API's 401/403 envelope verbatim
+  (`AccessNotice`), no fake state. E2E: start the API with the dummy
+  `ADMIN_TOKEN=govfolio-e2e-admin-dummy` (see `e2e/api.ts` / `playwright.config.ts`);
+  the playwright webServer injects the same value as `GOVFOLIO_ADMIN_TOKEN`.
