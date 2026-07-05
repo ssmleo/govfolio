@@ -10,7 +10,7 @@
 - [x] 040 public website SSR (profiles, records, jurisdictions, search, sitemap) (done 2026-07-05, commits 75ccb91+e87a342; /v1 read surface completed; Playwright 11/11; CI web job live w/ TS drift gate)
 - [x] 041 reviewer UI (queue, side-by-side, promote/edit/reject) (done 2026-07-05, commits 8722fb6+cea2b05; promote.rs sole write authority; audit log; e2e 15/15)
 - [x] 050 productization (auth, API keys, quotas→Stripe, 24h free-tier delay) (done 2026-07-05, commits c103f91+9f6a337; delay in ONE query place on discovered_at; tiers 8/8; stripe seam mock-proven; signup + price values = founder TODO)
-- [ ] 060 adapter: us_senate            (E1)
+- [x] 060 adapter: us_senate            (E1) (done 2026-07-05, commits 94f0dd6+f07f5eb+4dc47c1; conformance 4/4; auditor cross-check PASS 70fb61c 40/40 rows; TLS-impersonation fetch + runner-binding = recorded follow-ups)
 - [ ] 061 adapter: uk_commons_register  (E1 diversity seed)
 - [ ] 062 adapter: canada_ciec          (E1 diversity seed)
 - [ ] 063 adapter: australia_register   (E1 diversity seed)
