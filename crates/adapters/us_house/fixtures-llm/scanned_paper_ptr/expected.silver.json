@@ -1,0 +1,29 @@
+[
+  {
+    "payload": {
+      "doc_id": "9115811",
+      "row_ordinal": 1,
+      "filer_name_raw": "Diana Harshbarger",
+      "filer_status_raw": "Member",
+      "state_district_raw": "TN01",
+      "row_id_raw": null,
+      "owner_code_raw": null,
+      "asset_raw": "Black Belt Energy Gas DI SR C RV BE/R/, Municipal Bond",
+      "asset_type_code_raw": null,
+      "transaction_type_raw": "P",
+      "transaction_date_raw": "4/17/2026",
+      "notification_date_raw": "4/29/2026",
+      "amount_raw": "$15,001 - $50,000",
+      "cap_gains_over_200": null,
+      "filing_status_raw": "New",
+      "subholding_of_raw": null,
+      "description_raw": null,
+      "comments_raw": null,
+      "vehicle_owner_code_raw": null,
+      "vehicle_location_raw": null,
+      "signed_date_raw": "2026 MAY -6",
+      "extractor": "us_house_ptr/llm@1"
+    },
+    "confidence": 0.8999999761581421
+  }
+]

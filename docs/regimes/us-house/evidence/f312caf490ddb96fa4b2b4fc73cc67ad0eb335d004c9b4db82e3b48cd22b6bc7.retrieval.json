@@ -1,0 +1,36 @@
+{
+  "evidence_for": "goal 021 first leg — scanned paper-PTR fixture (crates/adapters/us_house/fixtures-llm/scanned_paper_ptr/, capture record in fixtures-llm/MANIFEST.json); resolves docs/regimes/us-house.md open question 'Do paper PTRs (7-digit DocIDs) have any text layer?' (answer: no — SAF amendment pending the E1 lock v2 supersede, see agents/goals/021-llm-extraction.md)",
+  "slice_file": "f312caf490ddb96fa4b2b4fc73cc67ad0eb335d004c9b4db82e3b48cd22b6bc7.2026FD-slice-9115811.xml",
+  "slice_sha256": "f312caf490ddb96fa4b2b4fc73cc67ad0eb335d004c9b4db82e3b48cd22b6bc7",
+  "slice_contents": "the 2026FD.xml <Member> element for paper PTR DocID 9115811 (verbatim; source BOM not reproduced)",
+  "source": {
+    "url": "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2026FD.zip",
+    "method": "conditional GET first (If-None-Match + If-Modified-Since against the E1 pin) -> 304 Not Modified; full GET 2 s later for the body",
+    "retrieved_at_utc": "2026-07-05T04:28:24Z",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "zip_sha256": "e5419282df7a96daa8aed108b72072a57bf909bb2a6c6333c938144f6898ba0d",
+    "etag": "\"3e8597f0ebadd1:0\"",
+    "last_modified": "Fri, 03 Jul 2026 13:00:36 GMT",
+    "cache_control": "max-age=30998"
+  },
+  "verification": {
+    "regime_doc_pin": "E1 sha256 e5419282df7a96daa8aed108b72072a57bf909bb2a6c6333c938144f6898ba0d",
+    "result": "MATCH — 304 on the conditional GET, then full body byte-identical to the E1 pin; ETag and Last-Modified unchanged; no drift",
+    "paper_pdf_pin": {
+      "9115811.pdf": "2f4b2b6e98e044e6368a072275804bc61dda52f6f1e15c09ddb9074ea1b8952c (fetched once; bytes archived at crates/adapters/us_house/fixtures-llm/scanned_paper_ptr/input.pdf — fixture inputs double as evidence per us-house.md §8 note)"
+    },
+    "text_layer_probe": "xpdf pdftotext 4.06 over 9115811.pdf exits 0 and emits exactly 1 byte: a single form-feed page separator, zero text characters — the scan carries NO text layer. This absence is why the case routes to the goal 021 LLM-extraction seam (us-house.md §6.3)."
+  },
+  "candidate_survey": {
+    "paper_p_rows_in_index": 28,
+    "docid_shapes": "7x 7-digit 8xxxxxx + 21x 7-digit 9xxxxxx (matches us-house.md §2.3 census)",
+    "head_probe": "8 HEAD requests for Content-Length to find a small scan: 9115809=33021, 9115811=24960, 9115901=35859, 9116197=55695, 9115816=26772, 9115704=44149, 9115821=46134, 8221321=45954; smallest (9115811, 1 page, 1 row) selected"
+  },
+  "politeness": {
+    "requests_to_host_this_task": 11,
+    "breakdown": "1 conditional GET (304) + 1 full zip GET + 8 HEADs + 1 PDF GET",
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — all 200/304"
+  }
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "filing_id": "0HSEFNG0000000000009115811",
+    "politician_id": "0HSEMBR0000000000000000005",
+    "regime_id": "0HSEREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Black Belt Energy Gas DI SR C RV BE/R/, Municipal Bond",
+    "record_type": "transaction",
+    "asset_class": "other",
+    "side": "buy",
+    "transaction_date": "2026-04-17",
+    "as_of_date": null,
+    "notified_date": "2026-04-29",
+    "value": { "low": "15001.00", "high": "50000.00", "currency": "USD" },
+    "owner": "self",
+    "extraction_confidence": 0.8999999761581421,
+    "extracted_by": "us_house_ptr/llm@1",
+    "fingerprint": null,
+    "details": {
+      "doc_id": "9115811",
+      "row_ordinal": 1,
+      "row_id": null,
+      "asset_type_code": null,
+      "amount_band_raw": "$15,001 - $50,000",
+      "transaction_type_raw": "P",
+      "partial_sale": false,
+      "cap_gains_over_200": null,
+      "filing_status_raw": "New",
+      "owner_source": "default_self",
+      "subholding_of": null,
+      "vehicle_owner_code": null,
+      "vehicle_location": null,
+      "description": null,
+      "comments": null,
+      "signed_date": "2026-05-06"
+    }
+  }
+]
