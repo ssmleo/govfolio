@@ -1,0 +1,173 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AustraliaRegisterChangeNotificationDetailsV1",
+  "description": "`details` payload of one Notification-of-Alteration entry (regime doc §5):\nevery interest field PLUS the alteration axis, the notified date, and the\nraw Parliament stamp.",
+  "type": "object",
+  "properties": {
+    "addition_deletion": {
+      "description": "`ADDITION`/`DELETION` axis, normalized (regime doc §3.3).",
+      "$ref": "#/$defs/AdditionDeletion"
+    },
+    "category_name": {
+      "description": "Canonical §3.2 category heading (normalized across form-version wordings).",
+      "type": "string"
+    },
+    "category_number": {
+      "description": "Registrable-interest category number 1..14 (regime doc §3.2 census).",
+      "type": "integer",
+      "format": "uint32",
+      "maximum": 14,
+      "minimum": 1
+    },
+    "document_filename": {
+      "description": "Member document key, e.g. `Buchholz_48P` (threaded from the fetch URL).",
+      "type": "string"
+    },
+    "electoral_division": {
+      "description": "Form-header `ELECTORAL DIVISION` verbatim — the §2.4 resolution key.",
+      "type": "string"
+    },
+    "entry_fields": {
+      "description": "Column-labelled parts of a multi-column grid (`{}` when single-column /\nunresolved) — lossless (regime doc §4 `entry_fields`).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "entry_text": {
+      "description": "The cell / `Details` text verbatim (regime doc §4, invariant 2).",
+      "type": "string"
+    },
+    "language": {
+      "description": "Ingestion language: always `en` in v1 (regime doc §1).",
+      "type": "string"
+    },
+    "owner_band": {
+      "description": "Owner band, normalized (regime doc §3.5); null when unresolvable.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/OwnerBand"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "page_ordinal": {
+      "description": "1-based source page the row was read from.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    },
+    "parliament_no": {
+      "description": "Parliament number (e.g. `48`) from the URL `{np}`; the form stamp is raw.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0
+    },
+    "parliament_stamp": {
+      "description": "The `{NN}TH PARLIAMENT` stamp on the page, verbatim; null when the page\nbears no header (regime doc §3.3 mis-stamp quirk — stamp raw, URL wins).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "row_ordinal": {
+      "description": "1-based row position across the whole compound document.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    },
+    "source_flavour": {
+      "description": "Which §6 extraction path produced the row.",
+      "$ref": "#/$defs/SourceFlavour"
+    },
+    "state": {
+      "description": "Form-header `STATE` verbatim.",
+      "type": "string"
+    },
+    "statement_date": {
+      "description": "Statement completion date when legible (`DD/MM/YYYY` → ISO); null on\nalteration rows and when illegible (fail-soft, regime doc §3.7).",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "submitted_date": {
+      "description": "`Submitted Date`/legible `Date:` parsed `DD/MM/YYYY` (or `D/M/YY`) → ISO;\nnull when handwritten-illegible (fail-soft, regime doc §3.7).",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    }
+  },
+  "required": [
+    "document_filename",
+    "parliament_no",
+    "row_ordinal",
+    "page_ordinal",
+    "category_number",
+    "category_name",
+    "electoral_division",
+    "state",
+    "entry_text",
+    "entry_fields",
+    "language",
+    "source_flavour",
+    "addition_deletion"
+  ],
+  "$defs": {
+    "AdditionDeletion": {
+      "description": "The alteration axis of a Notification of Alteration (regime doc §3.3).",
+      "oneOf": [
+        {
+          "description": "A newly notified interest.",
+          "type": "string",
+          "const": "addition"
+        },
+        {
+          "description": "A notified removal of a prior interest.",
+          "type": "string",
+          "const": "deletion"
+        }
+      ]
+    },
+    "OwnerBand": {
+      "description": "Owner band of a Form A category entry, or the owner derived from an\nalteration `Spouse -`/`Spouse gift -` marker (regime doc §3.5). Never\n`joint` — the register records joint interests as the Member's own (§3.5).",
+      "oneOf": [
+        {
+          "description": "The Member's own interest (`Self` band, or an unmarked alteration line).",
+          "type": "string",
+          "const": "self"
+        },
+        {
+          "description": "The `Spouse/Partner` band, or a `Spouse -`/`Spouse gift -` alteration line.",
+          "type": "string",
+          "const": "spouse"
+        },
+        {
+          "description": "The `Dependent Children` band.",
+          "type": "string",
+          "const": "dependent"
+        }
+      ]
+    },
+    "SourceFlavour": {
+      "description": "Which §6 extraction path produced the row (provenance). The whole document\nis one flavour: a clean text layer (deterministic cross-check available) or\nscanned/vision-only (regime doc §3.9).",
+      "oneOf": [
+        {
+          "description": "Clean, machine-readable text layer confirmed field-for-field (§3.9 case 2).",
+          "type": "string",
+          "const": "text_layer"
+        },
+        {
+          "description": "Scanned image / vision-only extraction (§3.9 cases 1 & 3).",
+          "type": "string",
+          "const": "scanned_vision"
+        }
+      ]
+    }
+  }
+}

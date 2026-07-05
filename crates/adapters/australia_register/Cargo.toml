@@ -6,10 +6,18 @@ edition = "2024"
 [lints]
 workspace = true
 
-# Scaffold-only workspace member (goal 063 leg B). Committed so the
-# `crates/adapters/*` workspace glob stays valid and `cargo test --workspace`
-# is green BEFORE the build leg starts (us_house CI-red lesson, commit c6dceb7).
-# No dependencies and no logic; the builder (leg C) replaces src/lib.rs with the
-# real adapter/parse/normalize/details/seed modules and adds a `conformance_entry`
-# bin. Until then `cargo run -p pipeline --bin conformance -- australia_register`
-# is intentionally not wired.
+[dependencies]
+anyhow = "1.0.103"
+async-trait = "0.1.89"
+chrono = { version = "0.4.45", features = ["serde"] }
+core = { version = "0.1.0", path = "../../core" }
+pipeline = { version = "0.1.0", path = "../../pipeline" }
+schemars = "1.2.1"
+# Regime doc §2.3: the register index is a server-rendered alphabetical HTML
+# table linking one per-member PDF each — html5ever DOM + CSS selectors.
+scraper = "0.27.0"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+
+[dev-dependencies]
+tokio = { version = "1.52.3", features = ["macros", "rt"] }

@@ -82,6 +82,12 @@ pub fn details_schema(regime: &str, record_type: RecordType) -> anyhow::Result<O
         ("canada_ciec", RecordType::ChangeNotification) => {
             include_str!("../schemas/details/canada_ciec.change_notification.json")
         }
+        ("australia_register", RecordType::Interest) => {
+            include_str!("../schemas/details/australia_register.interest.json")
+        }
+        ("australia_register", RecordType::ChangeNotification) => {
+            include_str!("../schemas/details/australia_register.change_notification.json")
+        }
         _ => return Ok(None),
     };
     serde_json::from_str(doc)
@@ -366,6 +372,30 @@ mod tests {
                 .unwrap()
                 .contains(&json!("value_source")),
             "value provenance must be contractually required: {schema}"
+        );
+    }
+
+    #[test]
+    fn registry_has_australia_register_interest_and_change_notification_schemas() {
+        let interest = details_schema("australia_register", RecordType::Interest)
+            .unwrap()
+            .unwrap();
+        assert!(
+            interest["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("source_flavour")),
+            "extraction provenance must be contractually required: {interest}"
+        );
+        let change = details_schema("australia_register", RecordType::ChangeNotification)
+            .unwrap()
+            .unwrap();
+        assert!(
+            change["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("addition_deletion")),
+            "the alteration axis must be contractually required: {change}"
         );
     }
 

@@ -15,7 +15,29 @@ cargo run -p pipeline --bin conformance -- australia_register
 ```
 
 ## Checklist
-- [x] regime doc  - [x] fixtures  - [x] expected (test-designer, 063b)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
+- [x] regime doc  - [x] fixtures  - [x] expected (test-designer, 063b)  - [x] discover  - [x] fetch  - [x] parse  - [x] normalize  - [x] green
+
+Build leg C (rust-builder, 2026-07-05): conformance 4/4 GREEN OFFLINE (no ANTHROPIC_API_KEY)
+— `cargo run -p pipeline --bin conformance -- australia_register`. Adapter is LLM-vision-first
+(§6): `parse` routes every doc through the goal-021 extraction seam
+(`crates/adapters/australia_register/src/extractor.rs`), reading the committed offline file
+cache primed MECHANICALLY from each `expected.silver.json` via
+`pipeline::extraction::prime_from_expected_silver` (4 × `fixtures/<case>/extraction.cache.json`,
+enforced by `tests/extraction_cache_snapshot.rs`; us_house scanned_paper precedent). Two details
+contracts snapshot-committed: `crates/pipeline/schemas/details/australia_register.{interest,change_notification}.json`
+(+ registry arms in `crates/pipeline/src/conformance.rs`). No regressions (us_house 5/5,
+us_senate 4/4, uk_commons_register 5/5, canada_ciec 7/7, fixture_fake 1/1). Follow-ups recorded:
+(a) **browser-engine fetch seam** — the Azure WAF 403-blocks plain `reqwest` (§2.3); `fetch`
+implements the polite-GET protocol but the headless-Chromium transport (us_senate §2.5) is
+unwired, so live fetch fails closed rather than evades. (b) **live vision transcription** — the
+tier-3 live LLM path is `needs_llm_extraction` fail-closed pending (a); conformance/e2e run
+offline from the cache. (c) **runner id binding** — normalize emits fixed MANIFEST ULIDs in
+conformance (`pool: None`) and nil/unbound ids under a pool for the publish stage to bind from
+the `(electoral division, state)` roster (§2.4). (d) spec-corrections the auditor should fold
+back into `docs/regimes/australia_register.md` (founder/methodology-gated, NOT edited here):
+§7/§8 Bronze pins now ESTABLISHED (MANIFEST `cases.*.sha256`); the "45 TH PARLIAMENT" mis-stamp
+is an OCR artifact absent from the pinned Albanese bytes; Albanese fixture is compound
+statement+alterations (33 interest + 43 change_notification), not alterations-only.
 
 regime doc: `docs/regimes/australia_register.md` (063 leg A, spec-writer, 2026-07-05).
 Scoped to the House of Representatives register (per-member scanned PDFs); Senate register

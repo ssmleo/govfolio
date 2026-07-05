@@ -1,20 +1,26 @@
 //! Australia — House of Representatives Register of Members' Interests adapter
-//! (regime code `australia_register`, goal 063). SCAFFOLD ONLY — no logic yet.
+//! (regime code `australia_register`, goal 063). govfolio's FIRST
+//! LLM-vision-first regime: the Bronze document is a scanned, often-handwritten,
+//! multi-column paper form (regime doc §3.9), so every document routes through
+//! the goal-021 extraction seam (offline cache for conformance/e2e).
 //!
-//! The authoritative methodology is `docs/regimes/australia_register.md`:
-//! §2 discovery + the Azure-WAF browser-engine fetch seam, §3 document anatomy
-//! (compound Form A statement + Notification-of-Alteration pages; 14-category
-//! grid; Self/Spouse/Dependent owner bands; `value` NULL always), §4 Silver
-//! `StagingRow`, §5 the two `details` contracts (`interest`,
-//! `change_notification`), §6 the LLM-vision-first extraction strategy.
+//! Two record types coexist in ONE compound per-member document: the initial
+//! Statement of Registrable Interests (`record_type = interest`, §3.5) and the
+//! appended Notification(s) of Alteration (`record_type = change_notification`,
+//! §3.5). No record carries a monetary value (`value` NULL always, §3.6) — the
+//! register is descriptive. The Senate register is a separate regime (§2.6).
 //!
-//! Fixtures + the test-designer's independent expected outputs, the sha256
-//! Bronze pins, the browser-fetch method, and the conformance conventions
-//! (ULID constants, confidence literals, `entry_fields`/`category_name`
-//! normalization, DD/MM/YYYY dates, owner map) live in
+//! The authoritative methodology is `docs/regimes/australia_register.md`: §2
+//! discovery + the Azure-WAF browser-engine fetch seam, §3 document anatomy,
+//! §4 Silver `StagingRow`, §5 the two `details` contracts, §6 the extraction
+//! strategy + confidence. Fixtures + conformance conventions (ULID constants,
+//! confidence literals, `entry_fields`/`category_name` normalization, DD/MM
+//! day-first dates, owner map, cache priming) live in
 //! `crates/adapters/australia_register/fixtures/MANIFEST.json`.
-//!
-//! Leg C (rust-builder) replaces this file with the real
-//! adapter/parse/normalize/details/seed modules, registers the two details
-//! schema arms in `crates/pipeline/src/conformance.rs`, snapshot-commits the
-//! schema files, and ships a `conformance_entry` bin.
+
+pub mod adapter;
+pub mod details;
+pub(crate) mod extractor;
+pub(crate) mod normalize;
+
+pub use adapter::AustraliaRegisterAdapter;

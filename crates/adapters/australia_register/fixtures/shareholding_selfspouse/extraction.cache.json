@@ -1,0 +1,1290 @@
+{
+  "key": {
+    "document_sha256": "cf09599e7c2aa71786c349c35b8afbafeddb6a46d8050a545b1528d2bc4c39bb",
+    "extractor_tag": "australia_register/llm@1",
+    "model_id": "claude-haiku-4-5-20251001"
+  },
+  "rows": [
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Shareholdings in public and private companies",
+        "category_number": 1,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "company": "Canungra & District Community Finance Group Ltd"
+        },
+        "entry_text_raw": "Canungra & District Community Finance Group Ltd",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 2,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 1,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Shareholdings in public and private companies",
+        "category_number": 1,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "company": "GD & SB Pty Ltd"
+        },
+        "entry_text_raw": "GD & SB Pty Ltd",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 2,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 2,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Shareholdings in public and private companies",
+        "category_number": 1,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "company": "Telstra"
+        },
+        "entry_text_raw": "Telstra",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 2,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 3,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Family and business trusts and nominee companies",
+        "category_number": 2,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "beneficial_interest": "Investor",
+          "nature_of_operation": "Cattle",
+          "trust_or_nominee_company": "Junction Trust"
+        },
+        "entry_text_raw": "Junction Trust — Cattle — Investor",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 2,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 4,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Family and business trusts and nominee companies",
+        "category_number": 2,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "beneficial_interest": "Investor",
+          "nature_of_operation": "Cattle",
+          "trust_or_nominee_company": "Junction Trust"
+        },
+        "entry_text_raw": "Junction Trust — Cattle — Investor",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 2,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 5,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Real estate",
+        "category_number": 3,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "location": "Dugandan, QLD",
+          "purpose": "Residential"
+        },
+        "entry_text_raw": "Dugandan, QLD — Residential",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 3,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 6,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Real estate",
+        "category_number": 3,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "location": "Barton, ACT",
+          "purpose": "Second Residential"
+        },
+        "entry_text_raw": "Barton, ACT — Second Residential",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 3,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 7,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Real estate",
+        "category_number": 3,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "location": "Woolloongabba, QLD",
+          "purpose": "Joint Investment"
+        },
+        "entry_text_raw": "Woolloongabba, QLD — Joint Investment",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 3,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 8,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Real estate",
+        "category_number": 3,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "location": "Woolloongabba, QLD",
+          "purpose": "Joint Investment"
+        },
+        "entry_text_raw": "Woolloongabba, QLD — Joint Investment",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 3,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 9,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Directorships of companies",
+        "category_number": 4,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "activities": "Cattle Production",
+          "company": "Glenapp Cattle Company Pty Ltd"
+        },
+        "entry_text_raw": "Glenapp Cattle Company Pty Ltd — Cattle Production",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 3,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 10,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Partnerships",
+        "category_number": 5,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "activities": "Cattle Production",
+          "name": "S.A Buchholz & C.P Hills & The Trustee for Kay Tent Cee Trust",
+          "nature_of_interest": "Financial"
+        },
+        "entry_text_raw": "S.A Buchholz & C.P Hills & The Trustee for Kay Tent Cee Trust — Financial — Cattle Production",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 3,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 11,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Partnerships",
+        "category_number": 5,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "activities": "Cattle Production",
+          "name": "S.A Buchholz & C.P Hills & The Trustee for Kay Tent Cee Trust",
+          "nature_of_interest": "Financial"
+        },
+        "entry_text_raw": "S.A Buchholz & C.P Hills & The Trustee for Kay Tent Cee Trust — Financial — Cattle Production",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 3,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 12,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Liabilities",
+        "category_number": 6,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "creditor": "CLAAS Financial Services",
+          "nature_of_liability": "Equipment Lease"
+        },
+        "entry_text_raw": "Equipment Lease — CLAAS Financial Services",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 4,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 13,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Liabilities",
+        "category_number": 6,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "creditor": "QCB",
+          "nature_of_liability": "Mortgage on Property"
+        },
+        "entry_text_raw": "Mortgage on Property — QCB",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 4,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 14,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Liabilities",
+        "category_number": 6,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "creditor": "QCB",
+          "nature_of_liability": "Mortgage on Property"
+        },
+        "entry_text_raw": "Mortgage on Property — QCB",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 4,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 15,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Liabilities",
+        "category_number": 6,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "creditor": "QCB",
+          "nature_of_liability": "Mortgage on Investment Property"
+        },
+        "entry_text_raw": "Mortgage on Investment Property — QCB",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 4,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 16,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Liabilities",
+        "category_number": 6,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "creditor": "BOQ",
+          "nature_of_liability": "Vehicle Lease"
+        },
+        "entry_text_raw": "Vehicle Lease — BOQ",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 4,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 17,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Liabilities",
+        "category_number": 6,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "creditor": "BOQ",
+          "nature_of_liability": "Irrigation Equipment Lease"
+        },
+        "entry_text_raw": "Irrigation Equipment Lease — BOQ",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 4,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 18,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Liabilities",
+        "category_number": 6,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "creditor": "CLAAS Financial Services",
+          "nature_of_liability": "Equipment Lease"
+        },
+        "entry_text_raw": "Equipment Lease — CLAAS Financial Services",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 4,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 19,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Liabilities",
+        "category_number": 6,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "creditor": "QCB",
+          "nature_of_liability": "Mortgage on Investment Property"
+        },
+        "entry_text_raw": "Mortgage on Investment Property — QCB",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 4,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 20,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Bonds, debentures and like investments",
+        "category_number": 7,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "body": "BT Panorama Managed Investments",
+          "type_of_investment": "Managed Fund"
+        },
+        "entry_text_raw": "Managed Fund — BT Panorama Managed Investments",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 4,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 21,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Bonds, debentures and like investments",
+        "category_number": 7,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "body": "BT Panorama Managed Investments",
+          "type_of_investment": "Managed Fund"
+        },
+        "entry_text_raw": "Managed Fund — BT Panorama Managed Investments",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 4,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 22,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Saving or investment accounts",
+        "category_number": 8,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "institution": "Heritage Bank",
+          "nature_of_account": "Savings"
+        },
+        "entry_text_raw": "Savings — Heritage Bank",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 23,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Saving or investment accounts",
+        "category_number": 8,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "institution": "ANZ Bank",
+          "nature_of_account": "Savings"
+        },
+        "entry_text_raw": "Savings — ANZ Bank",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 24,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Saving or investment accounts",
+        "category_number": 8,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "institution": "QCB",
+          "nature_of_account": "Savings"
+        },
+        "entry_text_raw": "Savings — QCB",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 25,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Saving or investment accounts",
+        "category_number": 8,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {
+          "institution": "Westpac",
+          "nature_of_account": "Savings"
+        },
+        "entry_text_raw": "Savings — Westpac",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 26,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Other assets each valued over $7,500",
+        "category_number": 9,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Superannuation",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 27,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Other assets each valued over $7,500",
+        "category_number": 9,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Life Insurance",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 28,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Other assets each valued over $7,500",
+        "category_number": 9,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Assorted Farm Equipment",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 29,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Other assets each valued over $7,500",
+        "category_number": 9,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Irrigation Equipment",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 30,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Other assets each valued over $7,500",
+        "category_number": 9,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Vehicles",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 31,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Other assets each valued over $7,500",
+        "category_number": 9,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Cattle",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 32,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Other assets each valued over $7,500",
+        "category_number": 9,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Life Insurance",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 33,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Other assets each valued over $7,500",
+        "category_number": 9,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Superannuation",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 34,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Other assets each valued over $7,500",
+        "category_number": 9,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Cattle",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 5,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 35,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Other substantial sources of income",
+        "category_number": 10,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Sole Trader - Farming Operations",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 6,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 36,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Other substantial sources of income",
+        "category_number": 10,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Teacher - Department of Education",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 6,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 37,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Other substantial sources of income",
+        "category_number": 10,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "AirBNB Host",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 6,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 38,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Qantas Chairman's Lounge",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 39,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Beyond - Virgin Australia",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 40,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Boonah Golf Club",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 41,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Fassifern Rotary",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 42,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Fassifern Sports Club",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 43,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Australian Parliamentary Sports Club",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 44,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Standardbred Association of Queensland",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 45,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "St Brendan's Old Boys Club",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 46,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Liberal National Party of Queensland",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Self",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 47,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Qantas Chairman's Lounge",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 48,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Beyond - Virgin Australia",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 49,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Harvard Club of Australia",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 50,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": null,
+        "category_name_raw": "Membership of any organisation",
+        "category_number": 13,
+        "date_raw": null,
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "Honorary Ambassador for Adopt Change",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": "Spouse/Partner",
+        "page_ordinal": 7,
+        "parliament_no": 48,
+        "parliament_stamp_raw": null,
+        "row_ordinal": 51,
+        "section_kind": "statement",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    },
+    {
+      "payload": {
+        "addition_deletion_raw": "ADDITION",
+        "category_name_raw": "Sponsored travel or hospitality",
+        "category_number": 12,
+        "date_raw": "25/02/2026",
+        "document_filename": "Buchholz_48P",
+        "electoral_division_raw": "Wright",
+        "entry_fields_raw": {},
+        "entry_text_raw": "General Admission Tickets to the Military Tattoo provided by Suncorp.",
+        "extractor": "australia_register/llm@1",
+        "family_name_raw": "Buchholz",
+        "given_names_raw": "Scott",
+        "owner_band_raw": null,
+        "page_ordinal": 10,
+        "parliament_no": 48,
+        "parliament_stamp_raw": "48TH PARLIAMENT",
+        "row_ordinal": 52,
+        "section_kind": "alteration",
+        "state_raw": "Queensland"
+      },
+      "confidence": 1.0
+    }
+  ],
+  "provenance": {
+    "derived_by": "pipeline::extraction::prime_from_expected_silver (mechanical transform, NOT a live LLM call)",
+    "enforced_by": "cargo test -p australia_register --test extraction_cache_snapshot",
+    "ground_truth": "test-designer goal 063 leg B — independent transcription (pdftotext -layout + WinRT render), commit d3ed1a8",
+    "primed_from": "expected.silver.json"
+  }
+}
