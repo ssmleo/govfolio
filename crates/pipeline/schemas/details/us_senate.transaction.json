@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UsSenatePtrTransactionDetailsV1",
+  "description": "`details` payload of one US Senate eFD PTR transaction record (regime doc §5).\nOptional fields serialize as explicit nulls so the contract surface is\nfully visible in every candidate (fixtures `MANIFEST.json` convention).",
+  "type": "object",
+  "properties": {
+    "amendment_number": {
+      "description": "`N` from the title suffix `(Amendment N)`; null on originals. No\nsupersession linkage exists in the document (regime doc §3.6).",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0
+    },
+    "amount_band_raw": {
+      "description": "Amount band string verbatim as filed.",
+      "type": "string"
+    },
+    "asset_detail": {
+      "description": "Asset Name sub-line (`div.text-muted`), whitespace-collapsed\n(e.g. `Rate/Coupon: 5.5% Matures: 2036-04-15`); null when absent.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "asset_type_raw": {
+      "description": "Asset Type cell verbatim (`Stock`, `Corporate Bond`, …) — kept so\nreclassification never needs a reparse (regime doc §3.5).",
+      "type": "string"
+    },
+    "comment": {
+      "description": "Comment cell text; null when the cell is the `--` sentinel.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "filed_at_raw": {
+      "description": "Filed stamp minus the `Filed` label, collapsed\n(`06/12/2026 @ 1:23 PM`; timezone unresolved — raw survives).",
+      "type": "string"
+    },
+    "partial_sale": {
+      "description": "True only for the `Sale (Partial)` token (regime doc §3.3).",
+      "type": "boolean"
+    },
+    "report_uuid": {
+      "description": "eFD report UUID from the view URL — the page never prints it; the\npipeline threads it (regime doc §4).",
+      "type": "string"
+    },
+    "row_number": {
+      "description": "Printed `#` cell verbatim (descends `N..1` in document order, regime doc §3.1).",
+      "type": "string"
+    },
+    "row_ordinal": {
+      "description": "1-based row position in document order (top-to-bottom).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    },
+    "ticker": {
+      "description": "Ticker anchor text; null when the cell is the `--` sentinel. The\ninstrument-resolution waterfall starts here (design §5.4).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "transaction_type_raw": {
+      "description": "Type cell verbatim (`Purchase`/`Sale (Partial)`/`Sale (Full)`/`Exchange`).",
+      "type": "string"
+    }
+  },
+  "required": [
+    "report_uuid",
+    "row_ordinal",
+    "row_number",
+    "asset_type_raw",
+    "amount_band_raw",
+    "transaction_type_raw",
+    "partial_sale",
+    "filed_at_raw"
+  ]
+}

@@ -27,4 +27,13 @@ Learnings (dated):
   against a bit-identical actual. Harness-side fix, not a fixture edit: enable
   serde_json's `float_roundtrip` feature in pipeline (serialize side was already
   exact). Diff smell: expected/actual differ only in a float's last digit.
+- 2026-07-05: with 3+ adapters the shared `conformance_entry` bin name emits cargo's
+  output-filename-collision warning (`target/debug/conformance_entry.exe`) — benign under
+  the dispatcher (each `cargo run -p <adapter> --bin conformance_entry` relinks its own
+  package's bin) and pre-existing since fixture_fake+us_house; do not "fix" by renaming,
+  the dispatcher contract requires the constant bin name.
+- 2026-07-05: when a page never prints its own external id (us_senate view pages), thread
+  it into `parse` via a conformance-mode `sha256 → id` constant table mirroring the
+  MANIFEST pins (pool-backed runs resolve from `raw_document.source_url`); unknown sha
+  fails closed — same never-guess posture as the us_house politician table.
 Write-back: deepen this file when the procedure teaches you something; same PR.

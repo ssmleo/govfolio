@@ -70,6 +70,9 @@ pub fn details_schema(regime: &str, record_type: RecordType) -> anyhow::Result<O
         ("us_house", RecordType::Transaction) => {
             include_str!("../schemas/details/us_house.transaction.json")
         }
+        ("us_senate", RecordType::Transaction) => {
+            include_str!("../schemas/details/us_senate.transaction.json")
+        }
         _ => return Ok(None),
     };
     serde_json::from_str(doc)
@@ -318,6 +321,20 @@ mod tests {
     #[test]
     fn registry_has_us_house_transaction_schema() {
         let schema = details_schema("us_house", RecordType::Transaction)
+            .unwrap()
+            .unwrap();
+        assert!(
+            schema["required"]
+                .as_array()
+                .unwrap()
+                .contains(&json!("amount_band_raw")),
+            "raw band must be contractually required: {schema}"
+        );
+    }
+
+    #[test]
+    fn registry_has_us_senate_transaction_schema() {
+        let schema = details_schema("us_senate", RecordType::Transaction)
             .unwrap()
             .unwrap();
         assert!(

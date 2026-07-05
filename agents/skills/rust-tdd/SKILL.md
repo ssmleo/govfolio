@@ -98,4 +98,19 @@ Learnings (dated):
   system cannot catch positional-bind drift, only the suites can. An internal-only filter
   field (`#[serde(skip)]` + private + builder) keeps grammar contracts byte-identical:
   schemars, utoipa ToSchema AND IntoParams all honor serde(skip).
+- 2026-07-05: clippy pedantic `struct_field_names` denies a struct whose fields ALL share
+  one postfix — Silver-contract drafts where every field is `*_raw` need a scoped
+  `#[allow(clippy::struct_field_names)]` with a comment saying the postfix IS the regime-doc
+  vocabulary (us_house's SilverRow escaped only because `doc_id`/`extractor` broke the run).
+  Related doc_markdown trap: bare `us_house`/`us_senate.md` in doc comments needs backticks.
+- 2026-07-05: session-gated sources in reqwest 0.13 — features `cookies` + `form`, builder
+  `.cookie_store(true)`; read a just-set cookie's value (csrf echo headers) via
+  `response.cookies().find(|c| c.name() == "csrftoken")` on the response that set it, and
+  cache it (later responses don't re-set it). Redirect-following collapses a 302 dance
+  step: detect the agreement page by body marker, not by status.
+- 2026-07-05: scraper 0.27 subtree-exclusion text extraction (cell main text vs a
+  `div.text-muted` sub-line): walk `element.descendants()`, keep text nodes unless
+  `node.ancestors().any(|a| a.id() == excluded.id())`; entities decode for free in
+  html5ever text nodes. `Selector::parse` errors don't convert to anyhow — map with
+  `anyhow!("{e}")`.
 Write-back: deepen this file when the procedure teaches you something; same PR.

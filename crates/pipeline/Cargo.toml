@@ -14,7 +14,10 @@ base64 = "0.22.1"
 chrono = "0.4.45"
 core = { version = "0.1.0", path = "../core" }
 jsonschema = { version = "0.46.9", default-features = false }
-reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no-provider"] }
+# cookies + form: session-gated sources (us_senate eFD agreement dance,
+# regime doc §2.1) hold their agreement flag against an opaque session cookie
+# and are driven by form POSTs.
+reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no-provider", "cookies", "form"] }
 rustls = { version = "0.23.41", default-features = false, features = ["ring", "logging", "std", "tls12"] }
 serde = { version = "1.0.228", features = ["derive"] }
 # float_roundtrip: expected.*.json fixtures pin exact f64 images of f32

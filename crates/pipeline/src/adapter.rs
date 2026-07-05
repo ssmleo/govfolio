@@ -240,6 +240,10 @@ impl PoliteClient {
         }
         let inner = reqwest::Client::builder()
             .user_agent(cfg.user_agent())
+            // Session-gated sources (e.g. the us_senate eFD agreement dance)
+            // store server-side flags against opaque session cookies; a polite
+            // client keeps them like any browser would.
+            .cookie_store(true)
             .build()
             .context("building reqwest client")?;
         Ok(Self {
@@ -277,6 +281,26 @@ impl PoliteClient {
             request = request.header(reqwest::header::IF_MODIFIED_SINCE, stamp);
         }
         request.send().await.with_context(|| format!("GET {url}"))
+    }
+
+    /// Polite form POST: throttled and identified, with per-request extra
+    /// headers (session dances need `Referer`/`X-CSRFToken`-style headers —
+    /// `us_senate` regime doc §2.1/§2.2).
+    ///
+    /// # Errors
+    /// Transport failure (non-2xx statuses are returned, not errors).
+    pub async fn post_form(
+        &self,
+        url: &str,
+        form: &[(&str, &str)],
+        headers: &[(&str, &str)],
+    ) -> anyhow::Result<reqwest::Response> {
+        let _slot = self.throttle.ready().await?;
+        let mut request = self.inner.post(url).form(form);
+        for (name, value) in headers {
+            request = request.header(*name, *value);
+        }
+        request.send().await.with_context(|| format!("POST {url}"))
     }
 }
 
