@@ -4,7 +4,7 @@
 - [x] 015 coverage factory setup (validators + registry columns; then standing loop) (setup done 2026-07-04, commit c9fa7b8; standing loop runs via orchestration step 2d from E2)
 - [x] 016 role evals + E1 calibration (epoch gate) (done 2026-07-05, commit 1da4a91; E2 gate correctly BLOCKED on missing scout/surveyor/sampler refs)
 - [x] 019 skill-imports gateway (impeccable + rust/ts packs; superpowers leg already done) (done 2026-07-05, commits ea986e1+961edf8; line-audit waived by founder; impeccable DOCS-ONLY; 2 fail-closed skips → bespoke-planned)
-- [ ] 020 cloud substrate (terraform + deploy skeleton)
+- [ ] 020 cloud substrate (terraform + deploy skeleton) — 3/4 done 2026-07-05 commit 5064d4c (modules+deploy.yml+runbook, validate green); HALT on `plan`: founder must run `gcloud auth application-default login` once, then re-run goal acceptance
 - [ ] 021 LLM extraction fallback (schema-constrained, sha-cached, confidence)
 - [ ] 030 alerts (outbox dispatcher, email, HMAC webhooks, rules CRUD)
 - [ ] 040 public website SSR (profiles, records, jurisdictions, search, sitemap)
