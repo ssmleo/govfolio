@@ -11,4 +11,11 @@ Learnings (dated):
   touch. Pair with re-hashing inputs against the SAF pins, then re-derive via a
   THIRD extraction path the authors didn't use (e.g. visual PDF render when they
   used two text extractors) so shared-tool blind spots can't align.
+- 2026-07-05: serialization CONVENTIONS need a raw-text scan, not a parsed
+  compare — JSON.parse/serde erase the `1.0`-float vs `1`-integer literal
+  distinction, so a deep-compare can pass while the committed literal violates
+  the MANIFEST convention. Scan the bytes for the literal form separately.
+  Also: no python on host ≠ no third path — a hand-rolled tag tokenizer in
+  node stdlib is disjoint from any spec-compliant DOM parser and doubles as
+  an independent §3.7-style integrity re-computation.
 Write-back: deepen this file when the procedure teaches you something; same PR.
