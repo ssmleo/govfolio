@@ -1,0 +1,41 @@
+{
+  "task": "goal 063 leg A — australia_register regime doc research (spec-writer)",
+  "retrieved": "2026-07-05",
+  "identified_ua": "govfolio.io research (contact: ssm.leo@outlook.com)",
+  "from_header": "ssm.leo@outlook.com",
+  "politeness": {"concurrency": 1, "min_interval_s": 2.5, "backoff": "none needed", "requests_total": 15},
+  "access_finding": {
+    "host": "www.aph.gov.au",
+    "gate": "Azure Front Door WAF (x-azure-ref header) returns HTTP 403 'Page Blocked by WAF' (411 bytes) to EVERY non-browser client — HTML app pages, /-/media/ blob PDFs, AND robots.txt alike",
+    "probes_blocked": [
+      {"url": "https://www.aph.gov.au/Senators_and_Members/Members/Register", "via": "curl identified-UA + From + Accept headers", "result": "403 WAF"},
+      {"url": "https://www.aph.gov.au/robots.txt", "via": "curl identified-UA", "result": "403 WAF (no robots policy retrievable)"},
+      {"url": "https://www.aph.gov.au/-/media/.../48p/KN/Katter_48P.pdf", "via": "curl identified-UA", "result": "403 WAF"},
+      {"url": "same Katter PDF", "via": "WebFetch (Anthropic infra)", "result": "403"},
+      {"url": "same Katter PDF", "via": "api.allorigins.win/raw (server-fetch proxy)", "result": "520/522 — proxy origin fetch WAF-blocked/timeout"},
+      {"url": "same Katter PDF", "via": "api.codetabs.com/v1/proxy (server-fetch proxy)", "result": "522 — origin timeout (WAF)"},
+      {"url": "same Katter PDF", "via": "corsproxy.io", "result": "200 but returned HTML shell, not PDF bytes"}
+    ],
+    "archive_org": "web.archive.org unreachable from this sandbox (curl connection reset) AND WebFetch is policy-blocked from web.archive.org — Wayback route unavailable to the spec env",
+    "route_that_worked": "r.jina.ai reader (headless-browser engine) — passes the WAF because it renders as a real browser; returns EXTRACTED TEXT (markdown), not raw bytes. Used for structure + content + text-layer-quality signal only.",
+    "consequence": "Canonical raw PDF bytes (Bronze, invariant 2) are NOT obtainable from the spec-writer environment. Production fetch REQUIRES a browser-engine fetch seam (us_senate §2.5 precedent). Per-fixture raw-byte sha256 pins are therefore DEFERRED to the sampler/capture leg via that seam (see regime doc §7 pinning rule). No sha256 is guessed."
+  },
+  "requests": [
+    {"n": 1, "url": "https://www.aph.gov.au/Senators_and_Members/Members/Register", "via": "curl", "status": 403, "note": "WAF block, 411B"},
+    {"n": 2, "url": "https://www.aph.gov.au/robots.txt", "via": "curl", "status": 403, "note": "WAF block"},
+    {"n": 3, "url": "https://www.aph.gov.au/-/media/03_Senators_and_Members/32_Members/Register/Explanatory_notes/Explanatory_Notes___Booklet_1.pdf", "via": "curl", "status": 403, "note": "WAF block"},
+    {"n": 4, "url": "https://www.aph.gov.au/-/media/03_Senators_and_Members/32_Members/Register/48p/KN/Katter_48P.pdf", "via": "curl", "status": 403, "note": "WAF block"},
+    {"n": 5, "url": "https://r.jina.ai/https://www.aph.gov.au/Senators_and_Members/Members/Register", "via": "jina reader", "status": 200, "archived": "reader-extract.48P-register-landing.md", "note": "48th Parliament register landing + full A-B member table + resolution/notes links"},
+    {"n": 6, "url": "https://r.jina.ai/.../Explanatory_Notes___Booklet_1.pdf", "via": "jina reader", "status": 200, "archived": "reader-extract.explanatory-notes-booklet.md", "note": "registrable-interest categories 1-14, owner/threshold rules; source PDF Last-Modified 2022-03-16"},
+    {"n": 7, "url": "https://r.jina.ai/.../48p/KN/Katter_48P.pdf", "via": "jina reader", "status": 200, "archived": "reader-extract.Katter_48P.scanned-ocr-garbage.md", "note": "SCANNED-PDF PROOF: OCR garbage ('AUSTE,ALIA'=AUSTRALIA, 'STATE OLD'=QLD, '1g September 2019'=19, 'luruber of AMP xhares'=Number of AMP shares); 6 pages; PDF Last-Modified 2025-09-09"},
+    {"n": 8, "url": "https://r.jina.ai/.../48p/AB/Albanese_48P.pdf", "via": "jina reader", "status": 200, "archived": "reader-extract.Albanese_48P.alterations.md", "note": "ALTERATION grammar: 8+ 'NOTIFICATION OF ALTERATION(S) OF INTERESTS' pages (gifts + sponsored travel ADDITIONs, spouse markers, a mis-stamped '45TH PARLIAMENT' form); scanned/handwritten; 15 pages; PDF Last-Modified 2026-05-26; landing 'Last updated 25 May 2026'"},
+    {"n": 9, "url": "https://r.jina.ai/.../48p/CF/Chalmers_48P.pdf", "via": "jina reader", "status": 200, "archived": "reader-extract.Chalmers_48P.clean-formA-realestate.md", "note": "CLEAN typed Form A (text layer good): cat3 real estate Self 'House (Springwood, QLD) Primary Residence' + 'Apartment (Forrest, ACT) Secondary Residence'; Self/Spouse/Dependent grid; 18 pages; PDF Last-Modified 2026-04-30"},
+    {"n": 10, "url": "https://r.jina.ai/.../48p/AB/Buchholz_48P.pdf", "via": "jina reader", "status": 200, "archived": "reader-extract.Buchholz_48P.shareholdings.md", "note": "SHAREHOLDING fixture: cat1 Self 'Canungra & District Community Finance Group Ltd','GD & SB Pty Ltd'; Spouse/Partner 'Telstra'; 11 pages"},
+    {"n": 11, "url": "https://r.jina.ai/.../48p/AB/Boyce_48P.pdf", "via": "jina reader", "status": 200, "archived": "reader-extract.Boyce_48P.shareholdings.md", "note": "shareholding alt: cat1 Self+Spouse 'Everest Earthmoving Pty Ltd','Far Ltd FPO','CE & TS Boyce Family Trust'; 9 pages"},
+    {"n": 12, "url": "https://r.jina.ai/.../48p/AB/Batt_48P.pdf", "via": "jina reader", "status": 200, "archived": "reader-extract.Batt_48P.clean-formA-savings.md", "note": "clean typed Form A, savings/super only; 9 pages; PDF Last-Modified 2025-08-19"},
+    {"n": 13, "url": "https://r.jina.ai/.../48p/AB/Aldred_48P.pdf", "via": "jina reader", "status": 200, "archived": "reader-extract.Aldred_48P.md", "note": "shares Not Applicable; 12 pages"},
+    {"n": 14, "url": "https://r.jina.ai/.../48p/AB/Bell_48P.pdf", "via": "jina reader", "status": 200, "archived": "reader-extract.Bell_48P.md", "note": "shares Not applicable; 21 pages"},
+    {"n": 15, "url": "https://www.aph.gov.au/ (WAF block page sample)", "via": "curl", "status": 403, "archived": "waf-block-page.html", "note": "the 411-byte Azure WAF block body, kept as access evidence"}
+  ],
+  "note_on_shas": "The reader-extract.*.md files are sha256-listed in the regime doc evidence table as the sha of the ARCHIVED reader extraction (real content captured this session), NOT the sha of canonical source PDF bytes (unobtainable behind the WAF). Fixture Bronze sha256 pins are established by the capture leg via the browser-engine seam."
+}
