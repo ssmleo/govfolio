@@ -61,4 +61,16 @@ Learnings (dated):
 - 2026-07-05: `cargo test --workspace -- --ignored` RUNS ignored tests — an
   `#[ignore = "needs SECRET"]` live test must ALSO early-return (loudly) when the env var is
   absent, or the offline gate goes red on hosts without the secret.
+- 2026-07-05: composing shared SQL fragments across crates under `SqlSafeStr`: user
+  macro_rules can't nest inside `concat!` (eager expansion is builtin-only) — export the
+  fragment as a `pub const &'static str` and compose with `const_format::concatcp!`
+  (accepts const paths incl. associated consts, nests fine); the result is still a
+  compile-time `&'static str`, so the injection guarantee holds structurally. Fixed-slot
+  convention makes fragments reusable: the shared predicate owns `$1..=$N`, callers bind
+  `$N+1`+ (bind ORDER is positional — fragment binds must come first).
+- 2026-07-05: clippy pedantic in async tests: a `MutexGuard` from a mock's
+  `.lock().unwrap()` held across a later `.await` is denied — `.lock().unwrap().clone()`
+  the captured Vec instead. Related: `similar_names` denies `status` next to `stats`.
+  `hmac::Hmac::new_from_slice` structurally cannot fail (RFC 2104 any-length keys) —
+  `let Ok(..) = .. else { unreachable!(..) }` satisfies the unwrap ban with a reason.
 Write-back: deepen this file when the procedure teaches you something; same PR.

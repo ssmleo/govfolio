@@ -10,7 +10,7 @@ pub mod routes;
 
 use anyhow::Context as _;
 use axum::Router;
-use axum::routing::get;
+use axum::routing::{get, post, put};
 use sqlx::PgPool;
 use utoipa::OpenApi;
 
@@ -30,6 +30,15 @@ pub fn app(pool: PgPool) -> Router {
             "/v1/politicians/{id}/records",
             get(routes::politicians::politician_records),
         )
+        .route(
+            "/v1/alert-rules",
+            post(routes::alert_rules::create_alert_rule).get(routes::alert_rules::list_alert_rules),
+        )
+        .route(
+            "/v1/alert-rules/{id}",
+            put(routes::alert_rules::update_alert_rule)
+                .delete(routes::alert_rules::delete_alert_rule),
+        )
         .with_state(AppState { pool })
 }
 
@@ -46,10 +55,16 @@ pub fn app(pool: PgPool) -> Router {
     paths(
         routes::records::list_records,
         routes::politicians::politician_records,
+        routes::alert_rules::create_alert_rule,
+        routes::alert_rules::list_alert_rules,
+        routes::alert_rules::update_alert_rule,
+        routes::alert_rules::delete_alert_rule,
     ),
     tags(
         (name = "records", description = "Canonical disclosure records (Gold)"),
         (name = "politicians", description = "Politician-scoped views"),
+        (name = "alert-rules", description = "Alert rules over the shared record \
+         filter grammar (design §6.3). Auth arrives with accounts (goal 050)."),
     )
 )]
 pub struct ApiDoc;

@@ -58,6 +58,25 @@ macro_rules! define_ulid_id {
                 })
             }
         }
+
+        // Same string-with-pattern schema on the OpenAPI surface (mirrors the
+        // JsonSchema impl above — one shape, two documents).
+        #[cfg(feature = "utoipa")]
+        impl utoipa::PartialSchema for $name {
+            fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+                utoipa::openapi::schema::Schema::Object(
+                    utoipa::openapi::schema::ObjectBuilder::new()
+                        .schema_type(utoipa::openapi::schema::Type::String)
+                        .description(Some("ULID (26-char Crockford base32, time-sortable)"))
+                        .pattern(Some("^[0-7][0-9A-HJKMNP-TV-Z]{25}$"))
+                        .build(),
+                )
+                .into()
+            }
+        }
+
+        #[cfg(feature = "utoipa")]
+        impl utoipa::ToSchema for $name {}
     };
 }
 

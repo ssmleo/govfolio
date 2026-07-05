@@ -65,6 +65,14 @@ impl From<sqlx::Error> for ApiError {
     }
 }
 
+impl From<govfolio_core::query::QueryError> for ApiError {
+    fn from(err: govfolio_core::query::QueryError) -> Self {
+        // Grammar values arrive pre-validated by serde; a token failure is
+        // internal misuse, never client input.
+        Self::Internal(err.into())
+    }
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, code, message) = match self {

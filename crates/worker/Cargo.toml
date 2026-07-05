@@ -8,8 +8,31 @@ workspace = true
 
 [dependencies]
 anyhow = "1.0.103"
+async-trait = "0.1.89"
+chrono = { version = "0.4.45", features = ["serde"] }
+# const-composes SQL from the shared grammar fragment while staying a
+# compile-time &'static str (sqlx SqlSafeStr holds structurally).
+const_format = "0.2.35"
 core = { version = "0.1.0", path = "../core" }
+hex = "0.4.3"
+hmac = "0.12.1"
+# SMTP email sender (config-gated via SMTP_* env; no creds on hosts).
+# tokio1-rustls-tls selects ring + webpki-roots — aws-lc-rs stays out of the
+# graph on this gnu host (see rust-tdd skill learnings).
+lettre = { version = "0.11.22", default-features = false, features = ["smtp-transport", "builder", "tokio1", "tokio1-rustls-tls"] }
 pipeline = { version = "0.1.0", path = "../pipeline" }
-sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres"] }
-tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
+# Same rustls-no-provider + ring pattern as pipeline (keeps aws-lc-rs out).
+reqwest = { version = "0.13.4", default-features = false, features = ["rustls-no-provider"] }
+rust_decimal = "1.42.1"
+rustls = { version = "0.23.41", default-features = false, features = ["ring", "logging", "std", "tls12"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+sha2 = "0.10.9"
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "chrono", "rust_decimal", "json"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "time"] }
+ulid = "1.2.1"
 us_house = { version = "0.1.0", path = "../adapters/us_house" }
+
+[dev-dependencies]
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros"] }
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "time", "test-util"] }

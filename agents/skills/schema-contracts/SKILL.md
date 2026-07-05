@@ -22,6 +22,14 @@ Learnings (dated):
   on the enums/ValueInterval; the derive honors serde attrs (`rename_all`, `rename = "self"`),
   so SQL CHECK tokens and money-as-strings stay single-sourced. `#[schema(pattern = ...)]`
   takes only string LITERALS (a `const` is "expected string literal").
+- 2026-07-05: one struct, two doors with different strictness: a filter type reused as BOTH
+  a query-string extractor (must tolerate foreign params like `cursor`) and a stored jsonb
+  contract (must reject unknown keys) keeps serde lenient and makes the SCHEMA strict via
+  `#[schemars(extend("additionalProperties" = false))]`; enforce at the write door by
+  validating the raw JSON against the committed snapshot (jsonschema) BEFORE serde. Related
+  utoipa: `ToSchema` + `IntoParams` derives coexist on one struct (feature-gated cfg_attr);
+  hand-impl `PartialSchema`/`ToSchema` on newtypes to mirror a manual `JsonSchema` impl
+  (string + pattern) so both documents stay one shape.
 - 2026-07-04: contract-testing OpenAPI 3.1 responses with `jsonschema`: build the validation
   doc as `{"$schema": 2020-12, "allOf": [<response schema node>], "components": doc.components}`
   so internal `#/components/schemas/...` pointers resolve; then PROVE the validator has teeth

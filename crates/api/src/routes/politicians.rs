@@ -3,6 +3,7 @@
 
 use axum::Json;
 use axum::extract::{Path, State};
+use const_format::concatcp;
 use serde::Deserialize;
 use utoipa::IntoParams;
 
@@ -10,7 +11,7 @@ use crate::AppState;
 use crate::dto::{RecordPage, RecordRow, build_page, validate_page_params};
 use crate::error::{ApiError, ErrorBody};
 use crate::extract::ApiQuery;
-use crate::routes::record_select;
+use crate::routes::RECORD_COLUMNS;
 
 /// Query parameters of `GET /v1/politicians/{id}/records`.
 #[derive(Debug, Deserialize, IntoParams)]
@@ -60,7 +61,8 @@ pub async fn politician_records(
             message: format!("politician {id} not found"),
         });
     }
-    let rows: Vec<RecordRow> = sqlx::query_as(record_select!(
+    let rows: Vec<RecordRow> = sqlx::query_as(concatcp!(
+        RECORD_COLUMNS,
         "where politician_id = $1 \
            and ($2::text is null or id > $2) \
          order by id \

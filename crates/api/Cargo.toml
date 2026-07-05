@@ -13,7 +13,12 @@ workspace = true
 anyhow = "1.0.103"
 axum = "0.8.9"
 chrono = { version = "0.4.45", features = ["serde"] }
+# const-composes SQL from the shared grammar fragment while staying a
+# compile-time &'static str (sqlx SqlSafeStr holds structurally).
+const_format = "0.2.35"
 core = { version = "0.1.0", path = "../core", features = ["utoipa"] }
+# Strict alert_rule.filter validation against the committed grammar schema.
+jsonschema = { version = "0.46.9", default-features = false }
 rust_decimal = "1.42.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
@@ -24,7 +29,6 @@ utoipa = { version = "5.5.0", features = ["axum_extras", "chrono", "decimal"] }
 
 [dev-dependencies]
 http-body-util = "0.1.3"
-jsonschema = { version = "0.46.9", default-features = false }
 # The contract test seeds Gold through the real Task 9 pipeline over the
 # us_house fixtures — same legal dev-dep pattern as pipeline's e2e suite.
 pipeline = { path = "../pipeline" }

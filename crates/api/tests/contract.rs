@@ -112,15 +112,15 @@ fn openapi_doc() -> Value {
     serde_json::from_str(&api::openapi_json().unwrap()).unwrap()
 }
 
-/// Standalone JSON Schema for one path's `200` response: the response schema
+/// Standalone JSON Schema for one operation's response: the response schema
 /// node (a `$ref`) wrapped in `allOf`, with the doc's `components` carried
 /// along so internal `#/components/schemas/...` pointers resolve.
-fn response_schema(doc: &Value, path: &str, status: &str) -> Value {
+fn response_schema(doc: &Value, method: &str, path: &str, status: &str) -> Value {
     let node =
-        &doc["paths"][path]["get"]["responses"][status]["content"]["application/json"]["schema"];
+        &doc["paths"][path][method]["responses"][status]["content"]["application/json"]["schema"];
     assert!(
         node.is_object(),
-        "contract must declare a JSON response schema for GET {path} {status}"
+        "contract must declare a JSON response schema for {method} {path} {status}"
     );
     json!({
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -130,7 +130,11 @@ fn response_schema(doc: &Value, path: &str, status: &str) -> Value {
 }
 
 fn validator_for(doc: &Value, path: &str, status: &str) -> jsonschema::Validator {
-    jsonschema::validator_for(&response_schema(doc, path, status)).unwrap()
+    validator_for_op(doc, "get", path, status)
+}
+
+fn validator_for_op(doc: &Value, method: &str, path: &str, status: &str) -> jsonschema::Validator {
+    jsonschema::validator_for(&response_schema(doc, method, path, status)).unwrap()
 }
 
 fn assert_valid(validator: &jsonschema::Validator, body: &Value) {
@@ -155,6 +159,28 @@ async fn get(app: &Router, uri: &str) -> (StatusCode, Value) {
     let bytes = response.into_body().collect().await.unwrap().to_bytes();
     let body = serde_json::from_slice(&bytes)
         .unwrap_or_else(|e| panic!("GET {uri} returned non-JSON ({status}): {e}"));
+    (status, body)
+}
+
+/// Sends a JSON-bodied request (POST/PUT/DELETE); `None` body for DELETE.
+/// Returns `Value::Null` for empty response bodies (204).
+async fn send(app: &Router, method: &str, uri: &str, body: Option<&Value>) -> (StatusCode, Value) {
+    let request = Request::builder().method(method).uri(uri);
+    let request = match body {
+        Some(json) => request
+            .header("content-type", "application/json")
+            .body(Body::from(json.to_string())),
+        None => request.body(Body::empty()),
+    }
+    .unwrap();
+    let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    if bytes.is_empty() {
+        return (status, Value::Null);
+    }
+    let body = serde_json::from_slice(&bytes)
+        .unwrap_or_else(|e| panic!("{method} {uri} returned non-JSON ({status}): {e}"));
     (status, body)
 }
 
@@ -315,4 +341,159 @@ async fn politician_timeline_pages_and_matches_the_contract(pool: PgPool) {
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert_valid(&err, &body);
     assert_eq!(body["error"]["code"], "not_found");
+}
+
+/// `/v1/records` filter parameters ARE the shared grammar (design §6.3):
+/// results must equal an independently written SQL predicate with the same
+/// documented semantics.
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn records_filter_through_the_shared_grammar(pool: PgPool) {
+    seed_via_pipeline(&pool).await;
+    let app = api::app(pool.clone());
+    let doc = openapi_doc();
+    let ok = validator_for(&doc, "/v1/records", "200");
+
+    // asset_class filter.
+    let expected: Vec<String> = sqlx::query_scalar(
+        "select id from disclosure_record where asset_class = 'equity' order by id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert!(!expected.is_empty(), "fixtures carry equity rows");
+    let (status, page) = get(&app, "/v1/records?asset_class=equity&limit=200").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &page);
+    assert_eq!(item_ids(&page), expected);
+
+    // value_min: band-overlap semantics (open-ended bands can always reach).
+    let expected: Vec<String> = sqlx::query_scalar(
+        "select id from disclosure_record \
+         where value_low is not null \
+           and (value_high is null or value_high >= 50000.00) \
+         order by id",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    let (status, page) = get(&app, "/v1/records?value_min=50000.00&limit=200").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &page);
+    assert_eq!(item_ids(&page), expected);
+
+    // An out-of-vocabulary filter value rejects in the error envelope.
+    let err = validator_for(&doc, "/v1/records", "400");
+    let (status, body) = get(&app, "/v1/records?record_type=bogus").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_valid(&err, &body);
+    assert_eq!(body["error"]["code"], "invalid_query");
+}
+
+/// Alert-rules CRUD: contract-valid round trip, strict filter validation
+/// (unknown keys reject — the schema is the committed grammar snapshot),
+/// and the one-channel-per-type rule.
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn alert_rules_crud_round_trip_matches_the_contract(pool: PgPool) {
+    govfolio_core::db::migrate(&pool).await.unwrap();
+    let app = api::app(pool.clone());
+    let doc = openapi_doc();
+    let path = "/v1/alert-rules";
+    let id_path = "/v1/alert-rules/{id}";
+
+    // POST: created, contract-valid, filter normalized through the grammar.
+    let spec = json!({
+        "user_id": "user-030",
+        "filter": { "record_type": "transaction", "value_min": "1000.00" },
+        "channels": [
+            { "type": "email", "to": "alerts@example.org" },
+            { "type": "webhook", "url": "https://example.org/hook", "secret": "s3cret" },
+        ],
+    });
+    let created_ok = validator_for_op(&doc, "post", path, "201");
+    let (status, rule) = send(&app, "POST", path, Some(&spec)).await;
+    assert_eq!(status, StatusCode::CREATED);
+    assert_valid(&created_ok, &rule);
+    assert_eq!(rule["filter"], spec["filter"]);
+    assert_eq!(rule["digest"], json!(false));
+    assert_eq!(rule["active"], json!(true));
+    let rule_id = rule["id"].as_str().unwrap().to_owned();
+
+    // POST with a typo'd filter key: the committed schema rejects it
+    // (a silently ignored key would match everything — fail closed).
+    let bad = json!({
+        "user_id": "user-030",
+        "filter": { "recordtype": "transaction" },
+        "channels": [{ "type": "email", "to": "a@example.org" }],
+    });
+    let err = validator_for_op(&doc, "post", path, "400");
+    let (status, body) = send(&app, "POST", path, Some(&bad)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_valid(&err, &body);
+    assert_eq!(body["error"]["code"], "invalid_filter");
+
+    // POST with two channels of one type: rejected (dedup key is per type).
+    let bad = json!({
+        "user_id": "user-030",
+        "filter": {},
+        "channels": [
+            { "type": "webhook", "url": "https://a.example.org", "secret": "s1" },
+            { "type": "webhook", "url": "https://b.example.org", "secret": "s2" },
+        ],
+    });
+    let (status, body) = send(&app, "POST", path, Some(&bad)).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(body["error"]["code"], "invalid_channels");
+
+    // GET list: contract-valid; user_id filter works.
+    let list_ok = validator_for(&doc, path, "200");
+    let (status, list) = get(&app, "/v1/alert-rules?user_id=user-030").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&list_ok, &list);
+    assert_eq!(list.as_array().unwrap().len(), 1);
+    let (_, other) = get(&app, "/v1/alert-rules?user_id=someone-else").await;
+    assert_eq!(other.as_array().unwrap().len(), 0);
+
+    // PUT: replaces, contract-valid, updated_at advances.
+    let update = json!({
+        "user_id": "user-030",
+        "filter": { "asset_class": "equity" },
+        "channels": [{ "type": "email", "to": "alerts@example.org" }],
+        "digest": true,
+    });
+    let updated_ok = validator_for_op(&doc, "put", id_path, "200");
+    let (status, updated) = send(
+        &app,
+        "PUT",
+        &format!("/v1/alert-rules/{rule_id}"),
+        Some(&update),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&updated_ok, &updated);
+    assert_eq!(updated["digest"], json!(true));
+    assert_eq!(updated["filter"], update["filter"]);
+    assert!(updated["updated_at"].as_str().unwrap() >= rule["created_at"].as_str().unwrap());
+
+    // PUT/DELETE on an unknown id: 404 envelope.
+    let missing = "01ARZ3NDEKTSV4RRFFQ69G5FAV";
+    let (status, body) = send(
+        &app,
+        "PUT",
+        &format!("/v1/alert-rules/{missing}"),
+        Some(&update),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(body["error"]["code"], "not_found");
+
+    // DELETE: 204, then gone.
+    let (status, body) = send(&app, "DELETE", &format!("/v1/alert-rules/{rule_id}"), None).await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(body, Value::Null);
+    let (status, _) = send(&app, "DELETE", &format!("/v1/alert-rules/{rule_id}"), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (_, list) = get(&app, "/v1/alert-rules").await;
+    assert_eq!(list.as_array().unwrap().len(), 0);
 }

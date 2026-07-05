@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RecordFilter",
+  "description": "A conjunctive filter over `disclosure_record` (design §6.1 filter list:\njurisdiction, type, `asset_class`, instrument, politician, date range,\nvalue bounds, `verification_state`). Every field is optional; an empty\nfilter matches everything.\n\nValue-bound semantics: a record matches when its declared band\n`[value_low, value_high|∞]` OVERLAPS `[value_min, value_max]`; records\nwithout a declared value never match a value bound.",
+  "type": "object",
+  "properties": {
+    "asset_class": {
+      "description": "Only records of this asset class.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AssetClass"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "event_date_from": {
+      "description": "Only records with `event_date` on or after this date.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "event_date_to": {
+      "description": "Only records with `event_date` on or before this date.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "format": "date"
+    },
+    "instrument_id": {
+      "description": "Only records resolved to this instrument (below-threshold matches are\nNULL and never match — invariant 3).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/InstrumentId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "jurisdiction_id": {
+      "description": "Only records filed under a regime of this jurisdiction\n(`jurisdiction.id`, e.g. `us`).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "politician_id": {
+      "description": "Only records concerning this politician.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/PoliticianId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "record_type": {
+      "description": "Only records of this type.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RecordType"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "value_max": {
+      "description": "Only records whose declared value band can stay at this amount or less\n(decimal string — invariant 7).",
+      "type": [
+        "string",
+        "number",
+        "null"
+      ],
+      "pattern": "^-?\\d+(\\.\\d+)?([eE]\\d+)?$"
+    },
+    "value_min": {
+      "description": "Only records whose declared value band can reach this amount or more\n(decimal string — invariant 7).",
+      "type": [
+        "string",
+        "number",
+        "null"
+      ],
+      "pattern": "^-?\\d+(\\.\\d+)?([eE]\\d+)?$"
+    },
+    "verification_state": {
+      "description": "Only records in this verification state.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/VerificationState"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "AssetClass": {
+      "description": "`asset_class` vocabulary (design §4.2 column comment).",
+      "type": "string",
+      "enum": [
+        "equity",
+        "bond",
+        "fund",
+        "option",
+        "crypto",
+        "commodity",
+        "real_estate",
+        "private",
+        "other"
+      ]
+    },
+    "InstrumentId": {
+      "description": "ULID (26-char Crockford base32, time-sortable)",
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "PoliticianId": {
+      "description": "ULID (26-char Crockford base32, time-sortable)",
+      "type": "string",
+      "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$"
+    },
+    "RecordType": {
+      "description": "`record_type` CHECK: the four observation types, one table (design D1).",
+      "type": "string",
+      "enum": [
+        "transaction",
+        "holding",
+        "interest",
+        "change_notification"
+      ]
+    },
+    "VerificationState": {
+      "description": "`verification_state` CHECK: two-stage publication states (design §4.2).",
+      "type": "string",
+      "enum": [
+        "unverified",
+        "verified",
+        "corrected",
+        "disputed"
+      ]
+    }
+  }
+}

@@ -1,6 +1,144 @@
 {
   "components": {
     "schemas": {
+      "AlertChannel": {
+        "description": "One delivery channel of an alert rule (`alert_rule.channels` element).",
+        "oneOf": [
+          {
+            "description": "Email delivery (instant or digest).",
+            "properties": {
+              "to": {
+                "description": "Destination address.",
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "email"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "to",
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "HMAC-SHA256-signed webhook (design §6.4): the dispatcher POSTs JSON\nand signs the exact body with `secret` in the\n`X-Govfolio-Signature: sha256=<hex>` header.",
+            "properties": {
+              "secret": {
+                "description": "Per-rule shared secret for the HMAC signature.",
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "webhook"
+                ],
+                "type": "string"
+              },
+              "url": {
+                "description": "POST target URL.",
+                "type": "string"
+              }
+            },
+            "required": [
+              "url",
+              "secret",
+              "type"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "AlertRule": {
+        "description": "One alert rule.",
+        "properties": {
+          "active": {
+            "description": "Inactive rules never match.",
+            "type": "boolean"
+          },
+          "channels": {
+            "description": "Delivery channels; at most one per channel type.",
+            "items": {
+              "$ref": "#/components/schemas/AlertChannel"
+            },
+            "type": "array"
+          },
+          "created_at": {
+            "description": "When the rule was created.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "digest": {
+            "description": "Digest mode: matches accumulate and ship as one periodic summary\ninstead of instant per-record sends.",
+            "type": "boolean"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/RecordFilter",
+            "description": "Filter in the shared record grammar — identical to `/v1/records`\nquery parameters (design §6.3: one grammar, learned once)."
+          },
+          "id": {
+            "description": "Rule ULID.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "When the rule was last updated.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "user_id": {
+            "description": "Owning user (free text until accounts land — goal 050).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "filter",
+          "channels",
+          "digest",
+          "active",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "AlertRuleSpec": {
+        "description": "Create/replace body for an alert rule (`POST` and `PUT` share it).",
+        "properties": {
+          "active": {
+            "description": "Whether the rule matches at all (defaults to active).",
+            "type": "boolean"
+          },
+          "channels": {
+            "description": "Delivery channels; at least one, at most one per channel type.",
+            "items": {
+              "$ref": "#/components/schemas/AlertChannel"
+            },
+            "type": "array"
+          },
+          "digest": {
+            "description": "Digest mode (defaults to instant).",
+            "type": "boolean"
+          },
+          "filter": {
+            "$ref": "#/components/schemas/RecordFilter",
+            "description": "Filter in the shared record grammar; unknown keys are rejected."
+          },
+          "user_id": {
+            "description": "Owning user (free text until accounts land — goal 050).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "filter",
+          "channels"
+        ],
+        "type": "object"
+      },
       "AssetClass": {
         "description": "`asset_class` vocabulary (design §4.2 column comment).",
         "enum": [
@@ -221,6 +359,11 @@
         ],
         "type": "object"
       },
+      "InstrumentId": {
+        "description": "ULID (26-char Crockford base32, time-sortable)",
+        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "type": "string"
+      },
       "Owner": {
         "description": "`owner` CHECK: whose asset the record concerns. `self` is a Rust keyword,\nhence the `Self_` variant with an explicit wire rename.",
         "enum": [
@@ -231,6 +374,109 @@
           "unknown"
         ],
         "type": "string"
+      },
+      "PoliticianId": {
+        "description": "ULID (26-char Crockford base32, time-sortable)",
+        "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+        "type": "string"
+      },
+      "RecordFilter": {
+        "description": "A conjunctive filter over `disclosure_record` (design §6.1 filter list:\njurisdiction, type, `asset_class`, instrument, politician, date range,\nvalue bounds, `verification_state`). Every field is optional; an empty\nfilter matches everything.\n\nValue-bound semantics: a record matches when its declared band\n`[value_low, value_high|∞]` OVERLAPS `[value_min, value_max]`; records\nwithout a declared value never match a value bound.",
+        "properties": {
+          "asset_class": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AssetClass",
+                "description": "Only records of this asset class."
+              }
+            ]
+          },
+          "event_date_from": {
+            "description": "Only records with `event_date` on or after this date.",
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_date_to": {
+            "description": "Only records with `event_date` on or before this date.",
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "instrument_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/InstrumentId",
+                "description": "Only records resolved to this instrument (below-threshold matches are\nNULL and never match — invariant 3)."
+              }
+            ]
+          },
+          "jurisdiction_id": {
+            "description": "Only records filed under a regime of this jurisdiction\n(`jurisdiction.id`, e.g. `us`).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "politician_id": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/PoliticianId",
+                "description": "Only records concerning this politician."
+              }
+            ]
+          },
+          "record_type": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/RecordType",
+                "description": "Only records of this type."
+              }
+            ]
+          },
+          "value_max": {
+            "description": "Only records whose declared value band can stay at this amount or less\n(decimal string — invariant 7).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "value_min": {
+            "description": "Only records whose declared value band can reach this amount or more\n(decimal string — invariant 7).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verification_state": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/VerificationState",
+                "description": "Only records in this verification state."
+              }
+            ]
+          }
+        },
+        "type": "object"
       },
       "RecordPage": {
         "description": "One page of records; `next_cursor` is the last item's ULID, `null` when\nthe listing is exhausted (design §6.1: cursor pagination on ULIDs).",
@@ -316,6 +562,219 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/alert-rules": {
+      "get": {
+        "description": "# Errors\n`500` on backend failure.",
+        "operationId": "list_alert_rules",
+        "parameters": [
+          {
+            "description": "Only rules owned by this user.",
+            "in": "query",
+            "name": "user_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AlertRule"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "All matching rules"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Lists alert rules (optionally one user's).",
+        "tags": [
+          "alert-rules"
+        ]
+      },
+      "post": {
+        "description": "# Errors\n`400` on a body outside the contracts; `500` on backend failure.",
+        "operationId": "create_alert_rule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertRuleSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRule"
+                }
+              }
+            },
+            "description": "The created rule"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Body violates the filter/channel contracts"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Creates an alert rule.",
+        "tags": [
+          "alert-rules"
+        ]
+      }
+    },
+    "/v1/alert-rules/{id}": {
+      "delete": {
+        "description": "# Errors\n`404` for an unknown rule; `500` on backend failure.",
+        "operationId": "delete_alert_rule",
+        "parameters": [
+          {
+            "description": "Rule ULID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown rule"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Deletes an alert rule (its delivery ledger rows cascade with it).",
+        "tags": [
+          "alert-rules"
+        ]
+      },
+      "put": {
+        "description": "# Errors\n`400` on a body outside the contracts; `404` for an unknown rule; `500`\non backend failure.",
+        "operationId": "update_alert_rule",
+        "parameters": [
+          {
+            "description": "Rule ULID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AlertRuleSpec"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertRule"
+                }
+              }
+            },
+            "description": "The updated rule"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Body violates the filter/channel contracts"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown rule"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Replaces an alert rule.",
+        "tags": [
+          "alert-rules"
+        ]
+      }
+    },
     "/v1/politicians/{id}/records": {
       "get": {
         "description": "# Errors\n`400` on a malformed cursor or limit; `404` for an unknown politician;\n`500` on backend failure — all in the consistent error envelope.",
@@ -429,12 +888,86 @@
             }
           },
           {
+            "description": "Only records filed under a regime of this jurisdiction\n(`jurisdiction.id`, e.g. `us`).",
+            "in": "query",
+            "name": "jurisdiction_id",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Only records of this type.",
             "in": "query",
             "name": "record_type",
             "required": false,
             "schema": {
               "$ref": "#/components/schemas/RecordType"
+            }
+          },
+          {
+            "description": "Only records of this asset class.",
+            "in": "query",
+            "name": "asset_class",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/AssetClass"
+            }
+          },
+          {
+            "description": "Only records concerning this politician.",
+            "in": "query",
+            "name": "politician_id",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PoliticianId"
+            }
+          },
+          {
+            "description": "Only records resolved to this instrument (below-threshold matches are\nNULL and never match — invariant 3).",
+            "in": "query",
+            "name": "instrument_id",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/InstrumentId"
+            }
+          },
+          {
+            "description": "Only records with `event_date` on or after this date.",
+            "in": "query",
+            "name": "event_date_from",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only records with `event_date` on or before this date.",
+            "in": "query",
+            "name": "event_date_to",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only records whose declared value band can reach this amount or more\n(decimal string — invariant 7).",
+            "in": "query",
+            "name": "value_min",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only records whose declared value band can stay at this amount or less\n(decimal string — invariant 7).",
+            "in": "query",
+            "name": "value_max",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           },
           {
@@ -494,6 +1027,10 @@
     {
       "description": "Politician-scoped views",
       "name": "politicians"
+    },
+    {
+      "description": "Alert rules over the shared record filter grammar (design §6.3). Auth arrives with accounts (goal 050).",
+      "name": "alert-rules"
     }
   ]
 }

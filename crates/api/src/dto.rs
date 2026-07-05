@@ -173,17 +173,6 @@ impl TryFrom<RecordRow> for DisclosureRecord {
     }
 }
 
-/// Serializes a closed-vocabulary filter value to its SQL wire token.
-///
-/// # Errors
-/// A value that does not serialize to a plain string (internal misuse).
-pub fn to_token<T: Serialize>(value: &T) -> Result<String, ApiError> {
-    match serde_json::to_value(value).context("serializing wire token")? {
-        serde_json::Value::String(s) => Ok(s),
-        other => Err(anyhow::anyhow!("expected a string wire token, got {other}").into()),
-    }
-}
-
 /// Page size bounds (design §6.1 keeps pages small and cacheable).
 pub const DEFAULT_LIMIT: u32 = 50;
 /// Hard ceiling on `limit`.

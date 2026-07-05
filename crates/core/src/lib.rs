@@ -1,6 +1,8 @@
+pub mod alerts;
 pub mod db;
 pub mod domain;
 pub mod ids;
+pub mod query;
 pub mod schemas;
 
 #[must_use]
