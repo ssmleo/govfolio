@@ -312,9 +312,15 @@ Zero rows parsed from a fetched P document ⇒ freeze adapter + review_task
 
 ## 5. `details` contract — (us_house, transaction)
 
-Schemars type `UsHousePtrTransactionDetailsV1` in `crates/core/src/schemas/`
-(schema snapshot-committed; doc comments are contract surface — schema-contracts
-skill learnings apply). Field list (no Rust here by task rule):
+Schemars type `UsHousePtrTransactionDetailsV1` in
+`crates/adapters/us_house/src/details.rs`, snapshot committed at
+`crates/pipeline/schemas/details/us_house.transaction.json` (T8d audit ruling
+2026-07-04: adapter-local placement wins — design §5.1 "core never changes when
+coverage grows" + §9 crate map `crates/adapters/<x>/ … schemas/` supersede
+§4.3's `crates/core/src/schemas/` wording for regime-specific types; both
+placements are Rust, so the language boundary is untouched; promotion-time
+validation stays central via the pipeline registry). Doc comments are contract
+surface — schema-contracts skill learnings apply. Field list (no Rust here by task rule):
 
 | Field | JSON type | Req | Source |
 |---|---|---|---|

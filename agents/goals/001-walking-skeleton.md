@@ -46,7 +46,25 @@ docker compose up -d && cargo test --workspace -- --ignored
     parse must be exact — see conformance-diffing skill learning).
   - Evidence: cargo run -p pipeline --bin conformance -- us_house → 4/4 green;
     fixture_fake still 1/1; fmt/clippy -D warnings/test --workspace green.
-- [ ] T8d adversarial cross-check pass (auditor; policy's second-model check)
+- [x] T8d adversarial cross-check pass (auditor; policy's second-model check) — PASS
+  - Ground truth re-derived 12/12 rows across all 4 fixtures via an independent third
+    extraction path (visual PDF render, distinct from pdftotext and pdf-extract):
+    zero substantive mismatches in silver or gold (asset text, bands, dates, owner,
+    side, sub-lines, confidence arithmetic all confirmed).
+  - Integrity: fixtures touched by exactly one commit (8a6c9a6), which predates the
+    adapter (5681073) — expected.*.json provably not regenerated from parser output;
+    all 4 PDFs re-hash to the §7 pins.
+  - Invariant sweep clean (2, 3, 6, 7, 8, 10); acceptance re-run independently:
+    conformance 4/4, fmt/clippy/test green, ignored sqlx suites green on PG 5433.
+  - Adjudication: details type placement ruled adapter-local (regime doc §5 updated);
+    design §4.3's core/src/schemas wording superseded by §5.1 + §9 for regime types.
+  - Pelosi UBER `D :` "strike price of $50": verbatim-faithful — the PDF itself
+    repeats the INTC description on the UBER row (filer copy-paste, not transcription).
+  - Non-blocking notes: regime doc §3.6 says "46-code legend" but buckets list 48
+    codes (E2 snapshot not committed, so count unverifiable); E2/E3/E9/E10 evidence
+    snapshots never landed under docs/regimes/us-house/evidence/ despite the §8
+    same-PR note (only the index slice did) — hygiene gap for a future pass, pins
+    remain sha256-re-verifiable.
 
 ## Environment note (2026-07-04)
 Host has no Docker/admin: acceptance line `docker compose up -d` is satisfied by portable
