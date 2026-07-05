@@ -19,12 +19,29 @@ serde = { version = "1.0.228", features = ["derive"] }
 # confidences (MANIFEST convention); default best-effort float parsing lands
 # 1 ulp off and breaks the deep-compare. Exact parsing is contract here.
 serde_json = { version = "1.0.150", features = ["float_roundtrip"] }
+# Coverage-factory artifacts (sources.yaml, AUTHORITY.md front-matter) are YAML.
+# serde_yaml is archived/deprecated; serde_norway is its maintained continuation.
+serde_norway = "0.9.42"
 sha2 = "0.11.0"
 similar = "3.1.1"
 rust_decimal = "1.42.1"
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "chrono", "rust_decimal", "json"] }
 tokio = { version = "1.52.3", features = ["rt", "macros", "time", "sync"] }
 ulid = "1.2.1"
+
+# Coverage-factory phase gates (goal 015): hyphenated bin names per the
+# `cargo run -p pipeline --bin validate-survey -- <jurisdiction>` convention.
+[[bin]]
+name = "validate-sources"
+path = "src/bin/validate_sources.rs"
+
+[[bin]]
+name = "validate-survey"
+path = "src/bin/validate_survey.rs"
+
+[[bin]]
+name = "validate-manifest"
+path = "src/bin/validate_manifest.rs"
 
 [dev-dependencies]
 fixture_fake = { path = "../adapters/fixture_fake" }
@@ -33,3 +50,4 @@ fixture_fake = { path = "../adapters/fixture_fake" }
 us_house = { path = "../adapters/us_house" }
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros"] }
 tokio = { version = "1.52.3", features = ["test-util", "macros", "time", "rt"] }
+tempfile = "3.27.0"

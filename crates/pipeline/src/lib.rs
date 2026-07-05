@@ -4,6 +4,7 @@
 
 pub mod adapter;
 pub mod conformance;
+pub mod factory;
 pub mod promote;
 pub mod run;
 pub mod stages;
