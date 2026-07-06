@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "EuParliamentDpiInterestDetailsV1",
+  "description": "`details` payload of one DPI row (§EU.5). Optional fields serialize as\nexplicit nulls so the full contract surface is visible on every candidate.",
+  "type": "object",
+  "properties": {
+    "benefit_nature": {
+      "description": "`Nature of the benefit` cell verbatim; null when absent.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "declaration_date": {
+      "description": "Footer declaration date (`DD/MM/YYYY` → ISO).",
+      "type": "string",
+      "format": "date"
+    },
+    "dpi_uuid": {
+      "description": "DPI document id (threaded from the URL).",
+      "type": "string"
+    },
+    "entry_text": {
+      "description": "The occupation/activity/holding text, verbatim in the filing language.",
+      "type": "string"
+    },
+    "income_amount_raw": {
+      "description": "`Income amount` cell verbatim (`11000 EUR`, `4940 PLN`, null).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "income_currency": {
+      "description": "Parsed ISO currency code (`EUR`/`PLN`); null when the row has no amount.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "language": {
+      "description": "Detected form language (ISO 639-1 or `mul`).",
+      "type": "string"
+    },
+    "mep_id": {
+      "description": "European Parliament MEP id — the §EU.2 resolution key.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "parliamentary_term": {
+      "description": "Parliamentary term from the URL (e.g. `10`).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    },
+    "periodicity": {
+      "description": "Parsed cadence; null when the row has no periodicity cell.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Periodicity"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "row_ordinal": {
+      "description": "1-based row position across the document.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    },
+    "section": {
+      "description": "Article-keyed section letter `A`..`G` (§EU.3).",
+      "type": "string"
+    },
+    "value_source": {
+      "description": "§EU.6 value provenance.",
+      "$ref": "#/$defs/EuValueSource"
+    },
+    "version_ts": {
+      "description": "Filename `{ts}` millis — the version key (§EU.2).",
+      "type": "string"
+    }
+  },
+  "required": [
+    "dpi_uuid",
+    "version_ts",
+    "mep_id",
+    "parliamentary_term",
+    "section",
+    "row_ordinal",
+    "entry_text",
+    "declaration_date",
+    "language",
+    "value_source"
+  ],
+  "$defs": {
+    "EuValueSource": {
+      "description": "§3.4 value-rule provenance for a DPI row.",
+      "oneOf": [
+        {
+          "description": "EUR income figure promoted to an exact `ValueInterval`.",
+          "type": "string",
+          "const": "income_amount"
+        },
+        {
+          "description": "No monetary income on the row — `value` NULL.",
+          "type": "string",
+          "const": "none"
+        },
+        {
+          "description": "Income declared in a currency the `Currency` enum does not hold (PLN, …)\n— fail closed to `value` NULL, raw amount + code kept (§0.1).",
+          "type": "string",
+          "const": "unmapped_currency"
+        }
+      ]
+    },
+    "Periodicity": {
+      "description": "Periodicity of a declared income figure (rides `details`, never annualised\ninto `value` — §0.1).",
+      "oneOf": [
+        {
+          "description": "Recurring monthly.",
+          "type": "string",
+          "const": "monthly"
+        },
+        {
+          "description": "Recurring quarterly.",
+          "type": "string",
+          "const": "quarterly"
+        },
+        {
+          "description": "Recurring annually.",
+          "type": "string",
+          "const": "annual"
+        },
+        {
+          "description": "A single one-off benefit.",
+          "type": "string",
+          "const": "one_off"
+        },
+        {
+          "description": "Any other cadence (hourly, per-session, …).",
+          "type": "string",
+          "const": "other"
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,434 @@
+{
+  "key": {
+    "document_sha256": "098b372beb85049b5cae2531abbfe8545b6f11e0c295af126500fc914bbffe07",
+    "extractor_tag": "eu_parliament_dpi/llm@1",
+    "model_id": "claude-haiku-4-5-20251001"
+  },
+  "rows": [
+    {
+      "payload": {
+        "benefit_nature_raw": "informacja publiczna",
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Poseł do Parlamentu Europejskiego",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": null,
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "miesięcznie",
+        "row_ordinal": 1,
+        "section": "A",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.98
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Komisja Prawa Morskiego PAN",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": null,
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": true,
+        "parliamentary_term": 10,
+        "periodicity_raw": null,
+        "row_ordinal": 2,
+        "section": "A",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.98
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Polskie Stowarzyszenie Prawa Morskiego PMLA",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": null,
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": true,
+        "parliamentary_term": 10,
+        "periodicity_raw": null,
+        "row_ordinal": 3,
+        "section": "A",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.98
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Międzynarodowy Ruch Europejski",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": null,
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": true,
+        "parliamentary_term": 10,
+        "periodicity_raw": null,
+        "row_ordinal": 4,
+        "section": "A",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.98
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Fundacja Instytut Pawła Adamowicza Gdańsk",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": null,
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": true,
+        "parliamentary_term": 10,
+        "periodicity_raw": null,
+        "row_ordinal": 5,
+        "section": "A",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.98
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Wykladowca akademicki - Uniwersystet Gdański",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": "4940 PLN",
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "miesięcznie",
+        "row_ordinal": 6,
+        "section": "A",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.93
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Wykladowca akademicki - AWFiS Gdańsk",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": "4382 PLN",
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "miesięcznie",
+        "row_ordinal": 7,
+        "section": "A",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.93
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Członkostwo w radzie nadzorczej - TUW Warszawa",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": "5062 PLN",
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "kwartalnie",
+        "row_ordinal": 8,
+        "section": "A",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.93
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Członkostwo w radzie nadzorczej - Transrem sp. z o.o.",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": "3535 PLN",
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "miesięcznie",
+        "row_ordinal": 9,
+        "section": "A",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.93
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Dochód z najmu",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": "17608 PLN",
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "miesięcznie",
+        "row_ordinal": 10,
+        "section": "A",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.93
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Wykladowca akademicki - Uniwersystet Gdański",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": "6750 PLN",
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "miesięcznie",
+        "row_ordinal": 11,
+        "section": "B",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.93
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Wykladowca akademicki - AWFiS Gdańsk",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": "5695 PLN",
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "miesięcznie",
+        "row_ordinal": 12,
+        "section": "B",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.93
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Członkostwo w radzie nadzorczej - TUW Warszawa",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": "1887 PLN",
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "miesięcznie",
+        "row_ordinal": 13,
+        "section": "B",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.93
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Członkostwo w radzie nadzorczej - Transrem sp. z o.o.",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": "3535 PLN",
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "miesięcznie",
+        "row_ordinal": 14,
+        "section": "B",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.93
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Dochód z najmu - Najem",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": "20000 PLN",
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "miesięcznie",
+        "row_ordinal": 15,
+        "section": "B",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.93
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Fundacja Instytut Pawła Adamowicza Gdańsk",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": null,
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": true,
+        "parliamentary_term": 10,
+        "periodicity_raw": null,
+        "row_ordinal": 16,
+        "section": "C",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.98
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Międzynarodowy Ruch Europejski",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": null,
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": true,
+        "parliamentary_term": 10,
+        "periodicity_raw": null,
+        "row_ordinal": 17,
+        "section": "C",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.98
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Komisja Prawa Morskiego PAN",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": null,
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": true,
+        "parliamentary_term": 10,
+        "periodicity_raw": null,
+        "row_ordinal": 18,
+        "section": "C",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.98
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "Polskie Stowarzyszenie Prawa Morskiego PMLA",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": null,
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": true,
+        "parliamentary_term": 10,
+        "periodicity_raw": null,
+        "row_ordinal": 19,
+        "section": "C",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.98
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "12/06/2024",
+        "dpi_uuid": "37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e",
+        "entry_text_raw": "udziałowiec spółki z ograniczoną odpowiedzialnością",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Magdalena",
+        "income_amount_raw": null,
+        "lang": "pl",
+        "mep_id": 197490,
+        "none_flag": true,
+        "parliamentary_term": 10,
+        "periodicity_raw": null,
+        "row_ordinal": 20,
+        "section": "D",
+        "surname_raw": "ADAMOWICZ",
+        "version_ts": "1720532466901"
+      },
+      "confidence": 0.98
+    }
+  ],
+  "provenance": {
+    "case": "eu_pln_multilingual",
+    "method": "prime_from_expected_silver (no LLM call)",
+    "primed_from": "expected.silver.json ground truth"
+  }
+}

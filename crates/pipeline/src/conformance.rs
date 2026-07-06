@@ -88,6 +88,15 @@ pub fn details_schema(regime: &str, record_type: RecordType) -> anyhow::Result<O
         ("australia_register", RecordType::ChangeNotification) => {
             include_str!("../schemas/details/australia_register.change_notification.json")
         }
+        ("eu_parliament_dpi", RecordType::Interest) => {
+            include_str!("../schemas/details/eu_parliament_dpi.interest.json")
+        }
+        ("fr_hatvp_dia", RecordType::Interest) => {
+            include_str!("../schemas/details/fr_hatvp_dia.interest.json")
+        }
+        ("de_bundestag", RecordType::Interest) => {
+            include_str!("../schemas/details/de_bundestag.interest.json")
+        }
         _ => return Ok(None),
     };
     serde_json::from_str(doc)

@@ -12,6 +12,7 @@ async-trait = "0.1.89"
 chrono = { version = "0.4.45", features = ["serde"] }
 core = { version = "0.1.0", path = "../../core" }
 pipeline = { version = "0.1.0", path = "../../pipeline" }
+quick-xml = "0.41.0"
 rust_decimal = "1.38.0"
 schemars = "1.2.1"
 serde = { version = "1.0.228", features = ["derive"] }

@@ -1,0 +1,56 @@
+{
+  "key": {
+    "document_sha256": "aca0b7327e3aebf36e75daf7997b7979c2d8f281b7b5a5e3c62121513965adbb",
+    "extractor_tag": "eu_parliament_dpi/llm@1",
+    "model_id": "claude-haiku-4-5-20251001"
+  },
+  "rows": [
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "18/06/2024",
+        "dpi_uuid": "c8d42e82-1191-49d7-864e-52631d292544",
+        "entry_text_raw": "Δημοσιογράφος τηλεοπτικού σταθμού ΣΚΑΙ",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Georgios",
+        "income_amount_raw": "11000 EUR",
+        "lang": "el",
+        "mep_id": 256820,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "Μηνιαίως",
+        "row_ordinal": 1,
+        "section": "A",
+        "surname_raw": "AFTIAS",
+        "version_ts": "1721085706142"
+      },
+      "confidence": 0.98
+    },
+    {
+      "payload": {
+        "benefit_nature_raw": null,
+        "declaration_date_raw": "18/06/2024",
+        "dpi_uuid": "c8d42e82-1191-49d7-864e-52631d292544",
+        "entry_text_raw": "Καθηγητής δημοσιογραφίας στο Ιδιωτικό ΙΕΚ Όμηρος",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Georgios",
+        "income_amount_raw": "50 EUR",
+        "lang": "el",
+        "mep_id": 256820,
+        "none_flag": false,
+        "parliamentary_term": 10,
+        "periodicity_raw": "Ωριαία αποζημίωση",
+        "row_ordinal": 2,
+        "section": "A",
+        "surname_raw": "AFTIAS",
+        "version_ts": "1721085706142"
+      },
+      "confidence": 0.98
+    }
+  ],
+  "provenance": {
+    "case": "eu_eur_exact",
+    "method": "prime_from_expected_silver (no LLM call)",
+    "primed_from": "expected.silver.json ground truth"
+  }
+}

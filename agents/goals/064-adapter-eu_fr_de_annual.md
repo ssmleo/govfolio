@@ -15,7 +15,36 @@ cargo run -p pipeline --bin conformance -- eu_fr_de_annual
 ```
 
 ## Checklist
-- [x] regime doc  - [x] fixtures  - [x] expected (test-designer, 064b)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
+- [x] regime doc  - [x] fixtures  - [x] expected (test-designer, 064b)  - [x] discover  - [x] fetch  - [x] parse  - [x] normalize  - [x] green
+
+## Build leg (064 leg C, rust-builder) — DONE
+- ONE crate `eu_fr_de_annual`, source-dispatching `Adapter` (detects DPI PDF / HATVP XML /
+  Bundestag HTML from Bronze bytes → `src/{eu,fr,de}` sub-modules; `regime()` returns the
+  per-fixture source slug). Conformance: `cargo run -p pipeline --bin conformance --
+  eu_fr_de_annual` → **9/9 green OFFLINE** (EU via primed `extraction.cache.json`, no API key).
+  No regressions: us_house 5/5, us_senate 4/4, uk_commons 5/5, canada_ciec 7/7,
+  australia_register 4/4, fixture_fake 1/1.
+- EU: LLM-vision seam reusing `pipeline::extraction`; 3 `eu_*/extraction.cache.json` primed
+  mechanically from `expected.silver.json` via `prime_from_expected_silver` (key
+  `eu_parliament_dpi/llm@1` + default primary model). PLN income → value NULL +
+  `value_source=unmapped_currency` (Currency enum NOT extended this leg — founder/core call).
+- FR: deterministic `quick-xml` DOM; latest-year `montant` exact EUR; spouse for
+  `activProfConjointDto`; equity for `participationFinanciereDto` (evaluation NOT → value);
+  `activCollaborateursDto`/`observationInteretDto` excluded; DIA/DIAM from stem.
+- DE: deterministic light `quick-xml` DOM (NO scraper/html5ever — CI link-footprint /
+  australia SIGBUS lesson) over the `m-biography__infos` fragment; first regular euro amount →
+  value, `zuzüglich` supplements ride `amount_raw` only.
+- 3 snapshot-committed schemas `crates/pipeline/schemas/details/{eu_parliament_dpi,fr_hatvp_dia,
+  de_bundestag}.interest.json` + 3 `conformance.rs details_schema()` arms.
+
+### Follow-ups (documented, out of this leg)
+- **Live discover/fetch per source** (runner-binding): EU europarl per-MEP DPI GET, FR HATVP
+  `liste.csv` GET, DE browser-engine seam behind the Enodia gate (§DE.2, never evasion). The
+  adapter wires the offline conformance path and FAILS CLOSED on the live path; conformance
+  identity (FR stem, DE mdb/name/WP, all filing/politician ULIDs) is bound by sha256 constants.
+- **Currency enum extension** (EUR→+PLN/HUF/… ) — snapshot-visible core change, founder/core.
+- **DE §DE.6 10-Stufen backfill** + webarchiv boundary pin (historical WP; OUT of 21. WP green).
+- **§DE.8 raw-byte pins** now established (3 sha256) — methodology page backfill is founder-gated.
 
 ## BLOCKED (human)
 - ~~expected.*.json completion~~ SUPERSEDED per automation-policy (no human gate):

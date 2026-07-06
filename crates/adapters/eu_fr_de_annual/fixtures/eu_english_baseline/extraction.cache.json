@@ -1,0 +1,35 @@
+{
+  "key": {
+    "document_sha256": "317354d259f28f9e8cde021989905cb7bc094b28aad8dd9aaa0c13e15cc818fe",
+    "extractor_tag": "eu_parliament_dpi/llm@1",
+    "model_id": "claude-haiku-4-5-20251001"
+  },
+  "rows": [
+    {
+      "payload": {
+        "benefit_nature_raw": "The income I receive as Member of the European Parliament is public information",
+        "declaration_date_raw": "13/11/2023",
+        "dpi_uuid": "f4c30b56-86cb-4242-91e3-72b31bf8267c",
+        "entry_text_raw": "Member of the European Parliament",
+        "extractor": "eu_parliament_dpi/llm@1",
+        "first_name_raw": "Maria",
+        "income_amount_raw": null,
+        "lang": "en",
+        "mep_id": 125064,
+        "none_flag": false,
+        "parliamentary_term": 9,
+        "periodicity_raw": "Monthly",
+        "row_ordinal": 1,
+        "section": "A",
+        "surname_raw": "SPYRAKI",
+        "version_ts": "1700040002003"
+      },
+      "confidence": 0.98
+    }
+  ],
+  "provenance": {
+    "case": "eu_english_baseline",
+    "method": "prime_from_expected_silver (no LLM call)",
+    "primed_from": "expected.silver.json ground truth"
+  }
+}

@@ -894,6 +894,7 @@ dependencies = [
  "chrono",
  "core",
  "pipeline",
+ "quick-xml",
  "rust_decimal",
  "schemars",
  "serde",

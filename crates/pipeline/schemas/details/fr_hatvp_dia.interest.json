@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FrHatvpDiaInterestDetailsV1",
+  "description": "`details` payload of one DIA item (§FR.5).",
+  "type": "object",
+  "properties": {
+    "brut_net": {
+      "description": "`remuneration/brutNet` (`Net`/`Brut`); null when no remuneration array.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "declaration_stem": {
+      "description": "Open-data filename stem (external id).",
+      "type": "string"
+    },
+    "declaration_uuid": {
+      "description": "`<uuid>` verbatim.",
+      "type": "string"
+    },
+    "entry_fields": {
+      "description": "The item's scalar child elements, verbatim whitespace-normalized (the\nper-section heterogeneous children; `australia` `entry_fields` precedent).",
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "is_modificative": {
+      "description": "`declarationModificative` bool.",
+      "type": "boolean"
+    },
+    "language": {
+      "description": "Ingestion language: always `fr`.",
+      "type": "string"
+    },
+    "montants": {
+      "description": "Per-year remuneration amounts (decimal strings); empty when the item\ncarries no `remuneration` year array.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Montant"
+      }
+    },
+    "motif": {
+      "description": "Item motif.",
+      "$ref": "#/$defs/Motif"
+    },
+    "organe": {
+      "description": "`general/organe/labelOrgane` (département); null when absent.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "row_ordinal": {
+      "description": "1-based document order.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    },
+    "section_tag": {
+      "description": "The `<...Dto>` section tag (§FR.3 vocab).",
+      "type": "string"
+    },
+    "type_declaration": {
+      "description": "`DIA` or `DIAM` (from the filename stem).",
+      "type": "string"
+    },
+    "value_source": {
+      "description": "§FR.5 value provenance.",
+      "$ref": "#/$defs/FrValueSource"
+    }
+  },
+  "required": [
+    "declaration_stem",
+    "declaration_uuid",
+    "type_declaration",
+    "is_modificative",
+    "section_tag",
+    "row_ordinal",
+    "motif",
+    "entry_fields",
+    "montants",
+    "language",
+    "value_source"
+  ],
+  "$defs": {
+    "FrValueSource": {
+      "description": "§FR.5 value-rule provenance.",
+      "oneOf": [
+        {
+          "description": "`value` = the latest declared year's `montant` (exact EUR).",
+          "type": "string",
+          "const": "montant_latest_year"
+        },
+        {
+          "description": "No positive remuneration on the item — `value` NULL.",
+          "type": "string",
+          "const": "none"
+        }
+      ]
+    },
+    "Montant": {
+      "description": "One declared year's remuneration, amount normalized to a decimal string.",
+      "type": "object",
+      "properties": {
+        "amount": {
+          "description": "Amount as a decimal string (space thousands stripped; invariant 7).",
+          "type": "string"
+        },
+        "year": {
+          "description": "Declared year.",
+          "type": "integer",
+          "format": "int64"
+        }
+      },
+      "required": [
+        "year",
+        "amount"
+      ]
+    },
+    "Motif": {
+      "description": "Item motif (§FR.3).",
+      "oneOf": [
+        {
+          "description": "A newly created declaration item.",
+          "type": "string",
+          "const": "CREATION"
+        },
+        {
+          "description": "A modification of a prior item.",
+          "type": "string",
+          "const": "MODIFICATION"
+        },
+        {
+          "description": "A suppression of a prior item.",
+          "type": "string",
+          "const": "SUPPRESSION"
+        }
+      ]
+    }
+  }
+}

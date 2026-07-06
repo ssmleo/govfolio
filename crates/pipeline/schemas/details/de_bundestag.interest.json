@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "DeBundestagInterestDetailsV1",
+  "description": "`details` payload of one Bundestag disclosure entry (§DE.5).",
+  "type": "object",
+  "properties": {
+    "amount_raw": {
+      "description": "Published income string verbatim (`monatlich, 1.250,43 EUR, …`); null when\nthe entry carries no income.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "amount_year": {
+      "description": "Year prefix of a one-off amount; null otherwise.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "int64"
+    },
+    "category_name": {
+      "description": "Category heading verbatim.",
+      "type": "string"
+    },
+    "category_number": {
+      "description": "§DE.3 category number 1..8.",
+      "type": "integer",
+      "format": "uint32",
+      "maximum": 8,
+      "minimum": 1
+    },
+    "ehrenamtlich": {
+      "description": "Honorary marker.",
+      "type": "boolean"
+    },
+    "entry_text": {
+      "description": "Entity + role line(s), verbatim German.",
+      "type": "string"
+    },
+    "language": {
+      "description": "Ingestion language: always `de`.",
+      "type": "string"
+    },
+    "mdb_id": {
+      "description": "Biografien numeric id — the §DE.2 person key.",
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0
+    },
+    "non_quantifiable": {
+      "description": "Non-quantifiable position (`Rechtsposition`) — value NULL, raw kept.",
+      "type": "boolean"
+    },
+    "partner": {
+      "description": "Anonymised contract-partner list (`Mandant N, sector, years`), joined\n`; `; null when the entry has no partner sub-list.",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "period": {
+      "description": "Parsed cadence of the regular amount; null when no amount.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Period"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "profit_before_tax": {
+      "description": "The `Gewinn vor Steuern` profit variant.",
+      "type": "boolean"
+    },
+    "row_ordinal": {
+      "description": "1-based order across the member's disclosures.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    },
+    "value_source": {
+      "description": "§DE.5 value provenance.",
+      "$ref": "#/$defs/DeValueSource"
+    },
+    "wahlperiode": {
+      "description": "Wahlperiode (e.g. `21`).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "mdb_id",
+    "wahlperiode",
+    "category_number",
+    "category_name",
+    "row_ordinal",
+    "entry_text",
+    "profit_before_tax",
+    "non_quantifiable",
+    "ehrenamtlich",
+    "language",
+    "value_source"
+  ],
+  "$defs": {
+    "DeValueSource": {
+      "description": "§DE.5 value-rule provenance.",
+      "oneOf": [
+        {
+          "description": "Exact euro/cent figure (current, 21. WP).",
+          "type": "string",
+          "const": "betragsgenau"
+        },
+        {
+          "description": "Backfilled 10-Stufen band (18./19. WP; OUT of this green path).",
+          "type": "string",
+          "const": "stufe_historical"
+        },
+        {
+          "description": "No published amount — `value` NULL.",
+          "type": "string",
+          "const": "none"
+        }
+      ]
+    },
+    "Period": {
+      "description": "Published income cadence (§DE.3).",
+      "oneOf": [
+        {
+          "description": "`monatlich` regular monthly income.",
+          "type": "string",
+          "const": "monthly"
+        },
+        {
+          "description": "`jährlich` regular annual income.",
+          "type": "string",
+          "const": "annual"
+        },
+        {
+          "description": "`einmalig` / year-prefixed one-off income.",
+          "type": "string",
+          "const": "one_off"
+        }
+      ]
+    }
+  }
+}
