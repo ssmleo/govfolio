@@ -173,6 +173,16 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   reported 0 for both years under the old filter). Command-form for the new test, exact name
   at the implementer's discretion matching existing `us_house`/`worker` test conventions, e.g.
   `cargo test -p us_house -- --nocapture` (whichever suite the fix's test lives in).
+  **Closed 2026-07-06** (commit `393cda2`): fix is correct, proven deterministically against
+  real sha256-pinned 2012 evidence (0→3 discovered under the fixed filter vs. the old one);
+  independently audited PASS. The live dry-run command shows 2013=8 (nonzero, confirms the fix
+  fires) but 2012=0 today — confirmed via direct re-fetch to be genuine same-day upstream
+  content drift on the Clerk's site (index zips regenerate server-side, not static archival;
+  today's live `2012FD.zip` genuinely carries zero PTR-taggable rows under either convention),
+  not a code defect. See `agents/JOURNAL.md` for the full investigation. **Implication for
+  Task 5:** live per-year discovered counts at execution time may not match goal 080's original
+  snapshot or this task's own findings — that's expected given the source's volatility, not a
+  regression signal.
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres
