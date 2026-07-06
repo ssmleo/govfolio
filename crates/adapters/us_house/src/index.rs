@@ -20,6 +20,11 @@ pub(crate) struct IndexMember {
     pub(crate) last: String,
     pub(crate) suffix: String,
     pub(crate) state_dst: String,
+    /// Pre-2015 schema only (goal 081 Task 4.5 — AUTHORITY.md's schema-fork
+    /// finding): `"PTR"` or `"FD"`, disambiguating `FilingType` `O`/`A` rows.
+    /// Absent (empty) from the 2015+ schema, where `FilingType == "P"` alone
+    /// identifies a PTR.
+    pub(crate) disclosure_type: String,
 }
 
 /// `https://…/financial-pdfs/{year}FD.zip` (regime doc §1).
@@ -87,6 +92,7 @@ pub(crate) fn parse_index_xml(xml: &str) -> anyhow::Result<Vec<IndexMember>> {
                         "Last" => Some(&mut member.last),
                         "Suffix" => Some(&mut member.suffix),
                         "StateDst" => Some(&mut member.state_dst),
+                        "DisclosureType" => Some(&mut member.disclosure_type),
                         _ => None,
                     };
                     if let Some(target) = target {
@@ -137,11 +143,35 @@ mod tests {
                 last: "Begich".to_owned(),
                 suffix: String::new(),
                 state_dst: "AK00".to_owned(),
+                disclosure_type: String::new(),
             }
         );
         assert_eq!(members[1].filing_type, "W");
         assert_eq!(members[1].doc_id, "8068");
         assert_eq!(members[1].state_dst, "", "blank W-row fields tolerated");
+    }
+
+    #[test]
+    fn disclosure_type_is_captured_for_the_pre_2015_schema() {
+        // Real 2012FD.zip records (docs/regimes/us_house/AUTHORITY.md
+        // historical_depth; evidence archive
+        // 3ef175309c99f036fe053814fb2a8939e5adb7e3cf33ab00cfd1c11667036251):
+        // pre-2015 PTRs carry a DisclosureType field absent from the 2026
+        // schema, tagged under FilingType O (original) or A (amended).
+        let xml = "<FinancialDisclosure>\
+              <Member><Prefix /><Last>ABERNATHY</Last><First>SARAH L.</First><Suffix />\
+                <FilingType>O</FilingType><StateDst>BU00</StateDst><Year>2012</Year>\
+                <FilingYear>2012</FilingYear><FilingDate>8/1/2012</FilingDate>\
+                <DocID>2000077</DocID><DisclosureType>PTR</DisclosureType></Member>\
+              <Member><Prefix /><Last>ABBOTT</Last><First>JESSICA A.</First><Suffix />\
+                <FilingType>O</FilingType><StateDst>AO00</StateDst><Year>2012</Year>\
+                <FilingYear>2011</FilingYear><FilingDate>5/14/2012</FilingDate>\
+                <DocID>9101116</DocID><DisclosureType>FD</DisclosureType></Member>\
+            </FinancialDisclosure>";
+        let members = parse_index_xml(xml).unwrap();
+        assert_eq!(members[0].filing_type, "O");
+        assert_eq!(members[0].disclosure_type, "PTR");
+        assert_eq!(members[1].disclosure_type, "FD");
     }
 
     #[test]

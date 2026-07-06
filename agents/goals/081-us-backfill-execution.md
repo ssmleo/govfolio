@@ -141,7 +141,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   BACKFILL_BUDGET replacing the founder-diff-review step.
   Acceptance: `cargo test -p worker --test backfill_budget_gate -- --nocapture` — a
   synthetic/mocked high-count year halts cleanly; a low-count year proceeds to a real write.
-- [ ] **Task 4.5 — pre-2015 PTR discovery-filter fix (blocks Task 5's full-range run).** Real
+- [x] **Task 4.5 — pre-2015 PTR discovery-filter fix (blocks Task 5's full-range run).** Real
   finding, discovered concurrently on this branch by the standing loop's Stage 0 role-eval
   calibration work (`docs/regimes/us_house/AUTHORITY.md`, surveyor artifact, commit `cd2c706`,
   independently audited PASS — see its `open_questions` entry on the filing-index schema flip):

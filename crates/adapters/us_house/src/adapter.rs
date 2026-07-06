@@ -29,7 +29,8 @@ struct IndexValidators {
     last_modified: Option<String>,
 }
 
-/// The US House PTR adapter (`FilingType == "P"` only).
+/// The US House PTR adapter (`FilingType == "P"`, 2015+; `DisclosureType ==
+/// "PTR"` + `FilingType` `O`/`A`, pre-2015 — see [`is_ptr`]).
 #[derive(Debug, Default)]
 pub struct UsHouseAdapter {
     /// Conditional-GET validators keyed BY ARCHIVE YEAR (regime doc §2.4). Each
@@ -196,12 +197,12 @@ impl UsHouseAdapter {
     /// the current year. Validators are cached PER YEAR (see the struct field):
     /// each year is fetched once unconditionally, so a backfill sweep never
     /// false-304s, while a live re-poll of the same year still sends conditional
-    /// headers. Early archive years legitimately hold zero `FilingType == "P"`
-    /// rows (PTR e-filing post-dates the 2012 STOCK Act; verified empty for
-    /// 2012 — goal 080) — that is a valid empty result, not a failure. If a
-    /// historical index's shape ever diverges from the current `Member` layout,
-    /// the XML parse fails HERE for that year and the caller fails it closed,
-    /// continuing the range.
+    /// headers. The index schema forks before ~2015 (goal 081 Task 4.5 —
+    /// AUTHORITY.md's `open_questions`/Quirks log): [`is_ptr`] recognizes both
+    /// eras, so pre-2015 archive years are no longer silently read as empty.
+    /// If a historical index's shape ever diverges from the current `Member`
+    /// layout, the XML parse fails HERE for that year and the caller fails it
+    /// closed, continuing the range.
     ///
     /// # Errors
     /// Index GET transport failure, a non-success (non-304) status, or an
@@ -210,17 +211,93 @@ impl UsHouseAdapter {
         let Some(xml) = self.fetch_index_xml(year, ctx).await? else {
             return Ok(Vec::new()); // index unchanged — nothing new
         };
-        // Filter FilingType == "P"; publish-time dedup by (regime, external_id)
-        // also captures amended PTRs, which arrive as NEW DocIDs (§2.4).
+        // is_ptr() recognizes both schema eras; publish-time dedup by
+        // (regime, external_id) also captures amended PTRs, which arrive as
+        // NEW DocIDs (§2.4).
         Ok(index::parse_index_xml(&xml)?
             .into_iter()
-            .filter(|member| {
-                member.filing_type == "P" && !member.doc_id.is_empty() && !member.year.is_empty()
-            })
+            .filter(|member| is_ptr(member) && !member.doc_id.is_empty() && !member.year.is_empty())
             .map(|member| FilingRef {
                 url: index::ptr_pdf_url(&member.year, &member.doc_id),
                 external_id: member.doc_id,
             })
             .collect())
+    }
+}
+
+/// Whether an index `Member` row is a PTR filing, under either era the
+/// Clerk's index schema uses (goal 081 Task 4.5 —
+/// `docs/regimes/us_house/AUTHORITY.md`'s schema-fork finding): 2015+ tags
+/// `FilingType == "P"`; pre-2015 has no `P` code at all and instead tags
+/// `DisclosureType == "PTR"` under `FilingType` `O` (original) or `A`
+/// (amended). Filtering on `FilingType == "P"` alone silently drops every
+/// pre-2015 PTR (not fail-closed — the bug this fixes).
+fn is_ptr(member: &index::IndexMember) -> bool {
+    member.filing_type == "P"
+        || (member.disclosure_type == "PTR"
+            && (member.filing_type == "O" || member.filing_type == "A"))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    // Real 2012FD.zip records (docs/regimes/us_house/AUTHORITY.md
+    // historical_depth; evidence archive
+    // 3ef175309c99f036fe053814fb2a8939e5adb7e3cf33ab00cfd1c11667036251) mixing
+    // pre-2015 PTRs (`DisclosureType==PTR` under `FilingType` `O`/`A`) with a
+    // non-PTR annual-FD row, plus one 2015+-style `FilingType==P` row (no
+    // `DisclosureType`) proving both schema eras are recognized side by side.
+    const MIXED_ERA_SLICE: &str = "<FinancialDisclosure>\
+          <Member><Prefix /><Last>ABERNATHY</Last><First>SARAH L.</First><Suffix />\
+            <FilingType>O</FilingType><StateDst>BU00</StateDst><Year>2012</Year>\
+            <FilingDate>8/1/2012</FilingDate><DocID>2000077</DocID>\
+            <DisclosureType>PTR</DisclosureType></Member>\
+          <Member><Prefix /><Last>ANDRES</Last><First>GARY J.</First><Suffix />\
+            <FilingType>A</FilingType><StateDst>CM00</StateDst><Year>2012</Year>\
+            <FilingDate>11/29/2012</FilingDate><DocID>2000655</DocID>\
+            <DisclosureType>PTR</DisclosureType></Member>\
+          <Member><Prefix /><Last>ABBOTT</Last><First>JESSICA A.</First><Suffix />\
+            <FilingType>O</FilingType><StateDst>AO00</StateDst><Year>2012</Year>\
+            <FilingDate>5/14/2012</FilingDate><DocID>9101116</DocID>\
+            <DisclosureType>FD</DisclosureType></Member>\
+          <Member><Prefix>Hon.</Prefix><Last>Begich</Last><First>Nicholas</First>\
+            <FilingType>P</FilingType><StateDst>AK00</StateDst><Year>2026</Year>\
+            <FilingDate>6/12/2026</FilingDate><DocID>20020055</DocID></Member>\
+        </FinancialDisclosure>";
+
+    #[test]
+    fn pre_2015_and_current_schema_ptrs_are_both_discovered() {
+        let members = index::parse_index_xml(MIXED_ERA_SLICE).unwrap();
+        // The old, pre-fix filter (`FilingType == "P"` only) finds ONLY the
+        // 2015+-style row — reproducing goal 080's dry run reporting 0 PTRs
+        // for 2012/2013 (the exact bug goal 081 Task 4.5 fixes).
+        let old_filter_count = members.iter().filter(|m| m.filing_type == "P").count();
+        assert_eq!(
+            old_filter_count, 1,
+            "old FilingType=='P'-only filter silently misses both pre-2015 PTRs"
+        );
+        let discovered = members.iter().filter(|m| is_ptr(m)).count();
+        assert_eq!(
+            discovered, 3,
+            "both pre-2015 PTRs (FilingType O/A + DisclosureType PTR) and the \
+             2015+-style FilingType=='P' PTR must be discovered; the non-PTR FD \
+             row must not be"
+        );
+    }
+
+    #[test]
+    fn non_ptr_filing_type_o_without_disclosure_type_ptr_is_excluded() {
+        let member = index::parse_index_xml(
+            "<FinancialDisclosure><Member><Last>X</Last><FilingType>O</FilingType>\
+             <StateDst>AO00</StateDst><Year>2012</Year><DocID>1</DocID>\
+             <DisclosureType>FD</DisclosureType></Member></FinancialDisclosure>",
+        )
+        .unwrap();
+        assert!(
+            !is_ptr(&member[0]),
+            "FilingType O with DisclosureType FD is not a PTR"
+        );
     }
 }

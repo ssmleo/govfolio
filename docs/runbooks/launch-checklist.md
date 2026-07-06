@@ -32,12 +32,14 @@ backfill re-points it at the Clerk's historical `{YYYY}FD.zip` indexes.
   inserts nothing; an amendment (a new `DocID` with an `Amended` row) is surfaced as a
   supersession for review. The diff fingerprints reproduce the publish stage's exactly (parity
   test green).
-  - **Verified live scope:** 7,544 PTRs discovered 2012→2026. Historical `{YYYY}FD.zip` exists
-    and parses back to 2012; **PTR (FilingType `P`) e-filing begins ~2015** — 2012–2014 hold zero
-    P rows (a real, valid empty result, not a failure; answers the us-house SAF historical-depth
-    open question — a SAF re-freeze to record it is a goal-016 follow-up, since the SAF is a
-    frozen eval reference). PTR counts rise to a mid-decade peak (2018 ≈ 830) and taper
-    (2026 partial = 274).
+  - **Verified live scope:** 7,544 PTRs discovered 2012→2026 under goal 080's original
+    `FilingType == 'P'`-only filter. Historical `{YYYY}FD.zip` exists and parses back to 2012;
+    **goal 081 Task 4.5 found the index schema forks before ~2015** — pre-2015 PTRs tag
+    `DisclosureType == "PTR"` under `FilingType` `O`/`A` instead of `FilingType == 'P'` (which
+    only appears from ~2015 on), so the original filter silently read 2012–2013 as empty when
+    real PTR-shaped data exists there. The discovery filter now recognizes both conventions
+    (2014 remains a genuine, unexplained near-empty anomaly — see AUTHORITY.md `open_questions`).
+    PTR counts rise to a mid-decade peak (2018 ≈ 830) and taper (2026 partial = 274).
 - [ ] **Adapter hardening against archive-surfaced edge cases** — buildable follow-up (file as a
   new goal). The bounded dry-run over live 2026 data already fail-closed two real filings the
   five-fixture adapter does not yet handle: (a) a `LOCATION` (`L:`) sub-line appearing INSIDE the
