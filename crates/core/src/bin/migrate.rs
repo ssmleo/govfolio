@@ -13,5 +13,11 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed to apply migrations")?;
     println!("migrations up to date");
+    // Seed the worldwide jurisdiction registry (design §5.7/§5.8; goal 065).
+    // Idempotent (ON CONFLICT DO NOTHING) — safe on every deploy.
+    govfolio_core::seed::seed_registry(&pool)
+        .await
+        .context("failed to seed jurisdiction registry")?;
+    println!("jurisdiction registry seeded");
     Ok(())
 }

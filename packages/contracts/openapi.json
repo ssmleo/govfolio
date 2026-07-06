@@ -592,6 +592,18 @@
       "Jurisdiction": {
         "description": "One jurisdiction with its disclosure regimes — the scorecard row.",
         "properties": {
+          "coverage_phase": {
+            "description": "Coverage-factory phase (design §5.8): `stub` | `scouted` | `surveyed` |\n`sampled` | `specced` | `built` | `live` | `blocked`. `live` = a built\nadapter is ingesting; a jurisdiction whose only regime is `type = 'none'`\nis a `stub` awaiting research.",
+            "type": "string"
+          },
+          "epoch": {
+            "description": "Rollout epoch (`agents/EPOCHS.md`): 1 = launch set, 2 = Brazil, …;\n`null` for the un-scheduled long tail the factory orders by\n`priority_score`.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "id": {
             "description": "Stable jurisdiction id (ISO 3166-1 alpha-2 lowercase by convention).",
             "type": "string"
@@ -618,8 +630,16 @@
               "null"
             ]
           },
+          "priority_score": {
+            "description": "Coverage-factory work-ordering score within the epoch (design §5.8);\n`null` until the factory scores it.",
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
           "regimes": {
-            "description": "Disclosure regimes of this jurisdiction, in id order — the\ntransparency-scorecard metadata (design §7.3).",
+            "description": "Disclosure regimes of this jurisdiction, in id order — the\ntransparency-scorecard metadata (design §7.3). A `regime_type = 'none'`\nrow is a stub (no researched regime yet); any other type is live.",
             "items": {
               "$ref": "#/components/schemas/Regime"
             },
@@ -630,6 +650,7 @@
           "id",
           "name",
           "level",
+          "coverage_phase",
           "regimes"
         ],
         "type": "object"

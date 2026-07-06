@@ -25,8 +25,21 @@ pub struct Jurisdiction {
     pub level: String,
     /// Parent jurisdiction for subnational entries.
     pub parent_id: Option<String>,
+    /// Coverage-factory phase (design §5.8): `stub` | `scouted` | `surveyed` |
+    /// `sampled` | `specced` | `built` | `live` | `blocked`. `live` = a built
+    /// adapter is ingesting; a jurisdiction whose only regime is `type = 'none'`
+    /// is a `stub` awaiting research.
+    pub coverage_phase: String,
+    /// Rollout epoch (`agents/EPOCHS.md`): 1 = launch set, 2 = Brazil, …;
+    /// `null` for the un-scheduled long tail the factory orders by
+    /// `priority_score`.
+    pub epoch: Option<i16>,
+    /// Coverage-factory work-ordering score within the epoch (design §5.8);
+    /// `null` until the factory scores it.
+    pub priority_score: Option<f32>,
     /// Disclosure regimes of this jurisdiction, in id order — the
-    /// transparency-scorecard metadata (design §7.3).
+    /// transparency-scorecard metadata (design §7.3). A `regime_type = 'none'`
+    /// row is a stub (no researched regime yet); any other type is live.
     pub regimes: Vec<Regime>,
 }
 
@@ -47,31 +60,47 @@ pub async fn list_jurisdictions(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<Jurisdiction>>, ApiError> {
     #[allow(clippy::type_complexity)]
-    let rows: Vec<(String, String, Option<String>, String, Option<String>)> =
-        sqlx::query_as("select id, name, iso_code, level, parent_id from jurisdiction order by id")
-            .fetch_all(&state.pool)
-            .await?;
+    let rows: Vec<(
+        String,
+        String,
+        Option<String>,
+        String,
+        Option<String>,
+        String,
+        Option<i16>,
+        Option<f32>,
+    )> = sqlx::query_as(
+        "select id, name, iso_code, level, parent_id, coverage_phase, epoch, priority_score \
+         from jurisdiction order by id",
+    )
+    .fetch_all(&state.pool)
+    .await?;
     let mut regime_rows: Vec<Regime> = sqlx::query_as(concatcp!(REGIME_COLUMNS, "order by id"))
         .fetch_all(&state.pool)
         .await?;
 
     let jurisdictions = rows
         .into_iter()
-        .map(|(id, name, iso_code, level, parent_id)| {
-            // Both lists are id-ordered and small (design volumes: hundreds at
-            // most); extract_if keeps each regime attached exactly once.
-            let regimes = regime_rows
-                .extract_if(.., |regime| regime.jurisdiction_id == id)
-                .collect();
-            Jurisdiction {
-                id,
-                name,
-                iso_code,
-                level,
-                parent_id,
-                regimes,
-            }
-        })
+        .map(
+            |(id, name, iso_code, level, parent_id, coverage_phase, epoch, priority_score)| {
+                // Both lists are id-ordered and small (design volumes: hundreds
+                // at most); extract_if keeps each regime attached exactly once.
+                let regimes = regime_rows
+                    .extract_if(.., |regime| regime.jurisdiction_id == id)
+                    .collect();
+                Jurisdiction {
+                    id,
+                    name,
+                    iso_code,
+                    level,
+                    parent_id,
+                    coverage_phase,
+                    epoch,
+                    priority_score,
+                    regimes,
+                }
+            },
+        )
         .collect();
     Ok(Json(jurisdictions))
 }

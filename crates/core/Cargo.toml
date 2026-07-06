@@ -27,7 +27,7 @@ serde_json = "1.0.150"
 sha2 = "0.10.9"
 # chrono + rust_decimal: the shared filter grammar (core::query) binds dates
 # and money bounds directly.
-sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros", "chrono", "rust_decimal"] }
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros", "chrono", "rust_decimal", "json"] }
 thiserror = "2.0.18"
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
 ulid = { version = "1.2.1", features = ["serde"] }

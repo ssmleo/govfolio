@@ -700,6 +700,20 @@ export interface components {
         InstrumentId: string;
         /** @description One jurisdiction with its disclosure regimes — the scorecard row. */
         Jurisdiction: {
+            /**
+             * @description Coverage-factory phase (design §5.8): `stub` | `scouted` | `surveyed` |
+             *     `sampled` | `specced` | `built` | `live` | `blocked`. `live` = a built
+             *     adapter is ingesting; a jurisdiction whose only regime is `type = 'none'`
+             *     is a `stub` awaiting research.
+             */
+            coverage_phase: string;
+            /**
+             * Format: int32
+             * @description Rollout epoch (`agents/EPOCHS.md`): 1 = launch set, 2 = Brazil, …;
+             *     `null` for the un-scheduled long tail the factory orders by
+             *     `priority_score`.
+             */
+            epoch?: number | null;
             /** @description Stable jurisdiction id (ISO 3166-1 alpha-2 lowercase by convention). */
             id: string;
             /** @description ISO 3166-1 alpha-2 where applicable. */
@@ -711,8 +725,15 @@ export interface components {
             /** @description Parent jurisdiction for subnational entries. */
             parent_id?: string | null;
             /**
+             * Format: float
+             * @description Coverage-factory work-ordering score within the epoch (design §5.8);
+             *     `null` until the factory scores it.
+             */
+            priority_score?: number | null;
+            /**
              * @description Disclosure regimes of this jurisdiction, in id order — the
-             *     transparency-scorecard metadata (design §7.3).
+             *     transparency-scorecard metadata (design §7.3). A `regime_type = 'none'`
+             *     row is a stub (no researched regime yet); any other type is live.
              */
             regimes: components["schemas"]["Regime"][];
         };

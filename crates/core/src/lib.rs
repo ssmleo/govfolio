@@ -4,6 +4,7 @@ pub mod domain;
 pub mod ids;
 pub mod query;
 pub mod schemas;
+pub mod seed;
 pub mod stripe;
 
 #[must_use]
