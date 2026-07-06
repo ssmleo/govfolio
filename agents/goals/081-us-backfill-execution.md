@@ -114,7 +114,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   Acceptance: `cargo test -p pipeline --test backfill_suppression -- --nocapture` — a
   backfill-mode run over existing us_house fixtures yields `gold_inserted > 0` AND a subsequent
   `match_pass` returns `matched.events == 0`.
-- [ ] **Task 3 — archive-to-Runner real write bin.** New bin
+- [x] **Task 3 — archive-to-Runner real write bin.** New bin
   `crates/worker/src/bin/backfill-real.rs` (kept separate from the existing `--dry-run`-only
   `bin/backfill.rs`, which must keep refusing to run without `--dry-run`). For a given year
   range: call `UsHouseAdapter::discover_year(year, &ctx)` directly (full list, no

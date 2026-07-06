@@ -136,6 +136,10 @@ pub struct Runner<'a> {
     regime: RegimeBinding,
     ctx: RunCtx,
     pool: PgPool,
+    /// Historical backfill run (goal 081 Task 2/3): threaded into every
+    /// publish through this runner as `FilingSpec::backfill`. `false` for
+    /// ordinary live/local runs (see [`Runner::with_backfill`]).
+    backfill: bool,
 }
 
 impl<'a> Runner<'a> {
@@ -160,7 +164,19 @@ impl<'a> Runner<'a> {
             regime,
             ctx,
             pool,
+            backfill: false,
         })
+    }
+
+    /// Marks this runner as a historical backfill (goal 081 Task 3): every
+    /// filing published through it writes its `outbox_event` already
+    /// `dispatched_at`-stamped (Task 2's suppression), so no real subscriber
+    /// alert ever fires for a historical filing. Gold rows and `review_task`s
+    /// are unaffected.
+    #[must_use]
+    pub fn with_backfill(mut self, backfill: bool) -> Self {
+        self.backfill = backfill;
+        self
     }
 
     /// Runs the pipeline over local files (offline mode: fixtures, backfill
@@ -183,14 +199,28 @@ impl<'a> Runner<'a> {
         Ok(report)
     }
 
-    /// Runs the full live chain: `discover` then per-filing processing.
+    /// Runs the full live chain: `discover` then per-filing processing (via
+    /// [`Runner::run_over`] — zero behavior change for existing callers).
     ///
     /// # Errors
     /// Discovery failure; per-filing failures land in [`RunReport::failed`].
     pub async fn run_live(&self) -> anyhow::Result<RunReport> {
         let refs = self.adapter.discover(&self.ctx).await.context("discover")?;
+        self.run_over(&refs).await
+    }
+
+    /// Runs the identical real write chain (fetch → parse → normalize →
+    /// resolve → publish) over an explicit set of `FilingRef`s instead of
+    /// `discover()`'s current-year set — the historical archive backfill
+    /// (goal 081 Task 3) drives its full per-year `FilingRef` list through
+    /// here.
+    ///
+    /// # Errors
+    /// Per-filing failures land in [`RunReport::failed`]; the run continues
+    /// past them (fail closed per filing, not per run).
+    pub async fn run_over(&self, refs: &[FilingRef]) -> anyhow::Result<RunReport> {
         let mut report = RunReport::default();
-        for filing_ref in &refs {
+        for filing_ref in refs {
             report.filings += 1;
             if let Err(e) = self.process_remote(filing_ref, &mut report).await {
                 report
@@ -506,9 +536,10 @@ impl<'a> Runner<'a> {
             raw_document_id,
             identity: &identity,
             discovered_at: self.ctx.clock.now(),
-            // Runner-driven live/local runs are never backfill (goal 081
-            // Task 3 wires the historical write path through its own call).
-            backfill: false,
+            // goal 081 Task 3: backfill mode is a property of this Runner
+            // instance (see `with_backfill`) — ordinary live/local runs never
+            // set it, so they are unaffected.
+            backfill: self.backfill,
         };
         publish_filing(&self.pool, &spec, &candidates, &|candidate| {
             self.binding.review_reasons(candidate)

@@ -1,0 +1,167 @@
+//! Real (write-to-prod) US House archive backfill (goal 081 Task 3): "backfill
+//! = the same pipeline pointed at archives" — but ACTUALLY WRITING, unlike
+//! `bin/backfill.rs`'s dry-run-only half (kept separate, untouched — it still
+//! hard-refuses to run without `--dry-run`).
+//!
+//! For each year in `--from..=--to`: [`UsHouseAdapter::discover_year`] (the
+//! FULL per-year `FilingRef` list — no `--limit`/sampling) then every
+//! discovered filing through the real write chain
+//! ([`pipeline::run::Runner::run_over`], reused as-is), in backfill mode
+//! (goal 081 Task 2's `FilingSpec::backfill` flag): Gold rows are real, but
+//! each `outbox_event` is written already `dispatched_at`-stamped, so the
+//! matcher never fires a real subscriber alert for a historical filing.
+//! `pipeline_run` claim/idempotency makes a kill-and-resume, or a repeat
+//! invocation, safe — an already-fetched/parsed/published filing replays
+//! instead of rewriting (invariant 4).
+//!
+//! The historical politician roster for the year range must already be
+//! seeded (`us_house::seed::seed_historical_rosters`, goal 081 Task 1) —
+//! this bin does not seed it. An unresolved filer fails that ONE filing
+//! closed (`review_task` opened, invariant 3: never guess) without sinking
+//! the rest of the range.
+//!
+//! Usage:
+//! ```text
+//! cargo run -p worker --bin backfill-real -- --from 2012 [--to <year>]
+//! ```
+//!
+//! Env: `DATABASE_URL` (required — this bin writes Bronze/Silver/Gold, unlike
+//! `bin/backfill.rs`'s optional connection for its no-write dry run).
+
+use anyhow::Context as _;
+use chrono::Datelike as _;
+
+use pipeline::adapter::{BronzeStore, Clock, FilingRef, JurisdictionAdapter as _, RunCtx};
+use pipeline::run::{RunReport, Runner};
+use pipeline::stages::seed::seed_regime;
+use us_house::UsHouseAdapter;
+use us_house::binding::UsHouseBinding;
+
+struct Args {
+    from: i32,
+    to: i32,
+}
+
+fn parse_args() -> anyhow::Result<Args> {
+    let current_year = chrono::Utc::now().year();
+    let mut from: Option<i32> = None;
+    let mut to: Option<i32> = None;
+
+    let mut cli = std::env::args().skip(1);
+    while let Some(flag) = cli.next() {
+        let mut value = |name: &str| {
+            cli.next()
+                .with_context(|| format!("{name} requires a value"))
+        };
+        match flag.as_str() {
+            "--from" => {
+                from = Some(value("--from")?.parse().context("--from must be a year")?);
+            }
+            "--to" => to = Some(value("--to")?.parse().context("--to must be a year")?),
+            other => anyhow::bail!("unknown argument {other:?} (expected --from/--to)"),
+        }
+    }
+
+    let from = from.context("--from is required (e.g. --from 2012)")?;
+    let to = to.unwrap_or(current_year);
+    anyhow::ensure!(from <= to, "--from {from} is after --to {to}");
+    anyhow::ensure!(
+        (2012..=current_year + 1).contains(&from),
+        "--from {from} is outside the archived range (2012..={current_year})"
+    );
+    Ok(Args { from, to })
+}
+
+/// Accumulates one run's totals across every year processed.
+fn add_report(total: &mut RunReport, year: i32, report: RunReport) {
+    total.filings += report.filings;
+    total.published += report.published;
+    total.replayed += report.replayed;
+    total.gold_inserted += report.gold_inserted;
+    total.outbox_written += report.outbox_written;
+    total.review_tasks += report.review_tasks;
+    total
+        .failed
+        .extend(report.failed.into_iter().map(|f| format!("[{year}] {f}")));
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let args = parse_args()?;
+    let database_url =
+        std::env::var("DATABASE_URL").context("DATABASE_URL must point at Postgres")?;
+    let pool = sqlx::PgPool::connect(&database_url)
+        .await
+        .context("connecting to Postgres")?;
+    govfolio_core::db::migrate(&pool)
+        .await
+        .context("applying migrations")?;
+    seed_regime(&pool, &us_house::seed::regime_seed()).await?;
+
+    let adapter = UsHouseAdapter::default();
+    let bronze =
+        std::env::temp_dir().join(format!("govfolio-backfill-real-{}", std::process::id()));
+    let ctx = RunCtx::new(
+        BronzeStore::open(bronze)?,
+        Some(pool.clone()),
+        Clock::System,
+        &adapter.politeness(),
+    )?;
+
+    // Discover FIRST, over every year, sharing this ONE `ctx` (one politeness
+    // throttle, invariant 10) — `ctx` moves into the `Runner` below, so every
+    // year's full `FilingRef` list is collected before any real write starts.
+    let mut by_year: Vec<(i32, Vec<FilingRef>)> = Vec::new();
+    for year in args.from..=args.to {
+        let refs = adapter
+            .discover_year(year, &ctx)
+            .await
+            .with_context(|| format!("discovering {year}"))?;
+        println!("{year}: {} filing(s) discovered", refs.len());
+        by_year.push((year, refs));
+    }
+
+    let binding = UsHouseBinding;
+    let runner =
+        Runner::new(&adapter, &binding, us_house::seed::regime_binding(), ctx)?.with_backfill(true);
+
+    let mut total = RunReport::default();
+    for (year, refs) in by_year {
+        let report = runner
+            .run_over(&refs)
+            .await
+            .with_context(|| format!("real write pass for {year}"))?;
+        println!(
+            "{year}: published {} | replayed {} | gold inserted {} | outbox written {} | \
+             review tasks {} | failed {}",
+            report.published,
+            report.replayed,
+            report.gold_inserted,
+            report.outbox_written,
+            report.review_tasks,
+            report.failed.len()
+        );
+        add_report(&mut total, year, report);
+    }
+
+    println!(
+        "TOTAL {}..={}: filings {} | published {} | replayed {} | gold inserted {} | \
+         outbox written {} | review tasks {} | failed {}",
+        args.from,
+        args.to,
+        total.filings,
+        total.published,
+        total.replayed,
+        total.gold_inserted,
+        total.outbox_written,
+        total.review_tasks,
+        total.failed.len()
+    );
+    if !total.failed.is_empty() {
+        // Fail-closed per filing, not per run (invariant 6): loud, non-fatal.
+        for failure in &total.failed {
+            eprintln!("FAILED {failure}");
+        }
+    }
+    Ok(())
+}
