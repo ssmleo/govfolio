@@ -52,3 +52,25 @@ sha256 pins deferred to the capture leg via the seam (WAF-gated from spec env; �
   (`docs/decisions/automation-policy.md`): test-designer authors expecteds independently
   (schema-constrained vision extraction + second-model cross-check), records publish
   `unverified`, sampling-audit queue. No human gate.
+
+## DOC-UPDATE WORK ITEMS (methodology-gated — founder lane; NOT applied by auditor)
+Audit 063 (cross-check gate, PASS) confirmed three spec-corrections that warrant a
+`docs/regimes/australia_register.md` update. That page is founder/methodology-gated
+(residual human lane: methodology PUBLIC copy), so they are recorded here as work items,
+NOT applied by the auditor:
+1. **§7/§8 Bronze pins ESTABLISHED** — replace the `_capture leg (§7)_` placeholders with
+   the raw-byte pins (verified byte-exact: worktree == `git cat-file blob HEAD` == MANIFEST):
+   Buchholz_48P `cf09599e…bc4c39bb` @2026-02-26, Chalmers_48P `f1822e24…308ca21f0` @2026-04-30,
+   Albanese_48P `b632987b…8a35b68b` @2026-05-26, Katter_48P `625134ad…6b996806` @2025-09-09.
+   The media `Last-Modified` date is the authoritative `@version`; Buchholz/Albanese media is
+   +1 day vs the index "Last updated" date (§2.5).
+2. **§3.3/§7 "45 TH PARLIAMENT mis-stamp" is an OCR ARTIFACT** absent from the pinned Albanese
+   bytes — every header-bearing page renders `48TH PARLIAMENT` (auditor confirmed:
+   `parliament_stamp` is only `{null, "48TH PARLIAMENT"}` across all 76 rows). The genuine
+   mis-stamp quirk / DELETION alteration / populated Dependent band remain UNEXERCISED by
+   these fixtures (evidence-only, later legs).
+3. **§7/§3.9 Albanese is a COMPOUND statement+alterations doc** (33 `interest` + 43
+   `change_notification`), not alterations-only as E4 implied; and the Katter/Albanese
+   "OCR-garbage" is a garbage embedded TEXT LAYER over typed-and-legible page renders
+   (not handwriting) — `source_flavour = scanned_vision` for the right reason (pdftotext
+   unreliable), but the underlying forms are typed.
