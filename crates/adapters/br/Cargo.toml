@@ -21,6 +21,9 @@ rust_decimal = "1.42.1"
 schemars = "1.2.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
+# stg_br staging + RunnerBinding (binding.rs) — us_house precedent.
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "macros"] }
+ulid = "1.2.1"
 # TSE ships one nationwide ZIP per dataset per year (fetch(), production).
 zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
 

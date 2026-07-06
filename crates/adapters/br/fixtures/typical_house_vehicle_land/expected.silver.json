@@ -2,6 +2,8 @@
   {
     "payload": {
       "sq_candidato": "10001595344",
+      "nm_candidato": "ROGÉRIO DA SILVA E SILVA",
+      "sg_uf": "AC",
       "dt_eleicao_raw": "02/10/2022",
       "election_year_raw": "2022",
       "line_item_ordinal_raw": "3",
@@ -18,6 +20,8 @@
   {
     "payload": {
       "sq_candidato": "10001595344",
+      "nm_candidato": "ROGÉRIO DA SILVA E SILVA",
+      "sg_uf": "AC",
       "dt_eleicao_raw": "02/10/2022",
       "election_year_raw": "2022",
       "line_item_ordinal_raw": "1",
@@ -34,6 +38,8 @@
   {
     "payload": {
       "sq_candidato": "10001595344",
+      "nm_candidato": "ROGÉRIO DA SILVA E SILVA",
+      "sg_uf": "AC",
       "dt_eleicao_raw": "02/10/2022",
       "election_year_raw": "2022",
       "line_item_ordinal_raw": "2",

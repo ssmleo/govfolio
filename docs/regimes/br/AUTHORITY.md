@@ -337,9 +337,97 @@ prose rather than a replaced CSV row, that would need re-evaluating.
   `-- us_house` both still green; `cargo test -p pipeline --test role_evals` re-confirmed
   11/11. This was the sole blocker recorded against advancing `br` past
   `coverage_phase = built`; it is now clear for a future `RunnerBinding`/live-wiring pass.
-
-## Operational notes (politeness incidents, outages)
-
+- 2026-07-06 · **`RunnerBinding` built (rust-builder) — a real, auditable revision to the
+  committed `SilverRow`/`expected.silver.json` ground truth, flagged prominently per this
+  log's own convention.** `crates/adapters/br/src/binding.rs` (`BrBinding`) is the second
+  `RunnerBinding` this project has ever built (`us_house` is the only prior instance) and
+  the direct precondition for running `br` through the real `pipeline::run::Runner`.
+  `RunnerBinding::filing_identity()` needs a `filer_name`/district-equivalent, which the
+  Phase 3/4 `SilverRow` (test-designer's deliberately minimal conformance pass) did not
+  carry at all. Resolved by adding two new REQUIRED (non-`Option`) fields to `SilverRow`:
+  `nm_candidato` (`consulta_cand.NM_CANDIDATO`) and `sg_uf` (`consulta_cand.SG_UF`) — both
+  PUBLIC disclosure content, not PII (this file's own front-matter is explicit that
+  candidate identity is the disclosure's whole point, unlike CPF/Titulo/DOB, which
+  correctly stay gated). `sg_uf` (the candidate's state) stands in for `us_house`'s
+  `state_district_raw`: Brazilian federal deputies/senators are elected per-state, not
+  per-single-member-district, so state is this regime's natural district-equivalent for
+  roster resolution (design §5.4). Considered and rejected: deriving identity from
+  something other than `SilverRow` — `RunnerBinding::filing_identity(rows: &[StagingRow])`
+  only ever sees silver rows by trait contract, and no existing `SilverRow` field (e.g.
+  `sq_candidato` alone) carries a human name or a roster-matchable location, so there was
+  no way to satisfy this without adding fields.
+  **Consequence, called out explicitly**: `crates/adapters/br/fixtures/typical_house_vehicle_land/expected.silver.json`
+  and `crates/adapters/br/fixtures/amendment_post_election_2026/expected.silver.json`
+  (both previously committed, audited ground truth) were edited to add
+  `nm_candidato`/`sg_uf` to every row (values: `"ROGÉRIO DA SILVA E SILVA"`/`"AC"` and
+  `"ANA MARIA PEREIRA HORA"`/`"AL"` respectively, read straight from each case's own
+  `input.json`). `zero_asset_deputado/expected.silver.json` is unchanged (still `[]`, no
+  rows to update). `cargo run -p pipeline --bin conformance -- br` re-verified 3/3 green
+  after the edit — proof the revision is additive and doesn't change any previously
+  asserted value, only adds two new always-present columns. `crates/core/migrations/0010_silver_br.sql`
+  adds `stg_br` (mirrors `SilverRow` field for field, `us_house`/`stg_us_house` staging
+  convention: `id text primary key`, `unique (raw_document_id, row_ordinal)`,
+  `nr_titulo_eleitoral_candidato`/`nr_cpf_candidato` nullable, everything else `not null`);
+  applied cleanly and idempotently against the local dev DB. `review_reasons()` returns an
+  empty `Vec` unconditionally: unlike `us_house`'s "Amended" filing-status trigger, this
+  regime's own resolved edge case 2 (above) already establishes that
+  `DT_ULT_ATUAL_BEM_CANDIDATO` is not a trustworthy per-item signal, and the one other
+  candidate trigger considered (an unmapped `CD_TIPO_BEM_CANDIDATO` code) already surfaces
+  via a lowered `extraction_confidence` on the Gold row itself with no established
+  cross-regime convention linking a confidence penalty to a separate `review_task` — none
+  invented. `row_ordinal` (the `stg_br` staging-table plumbing column) is assigned by
+  `binding.rs` from each row's position in the `Vec<StagingRow>` `parse()` emits
+  (`SilverRow` itself carries no `row_ordinal` field, unlike `us_house`'s) — a
+  binding-local implementation choice, not a fixture-asserted value.
+- 2026-07-06 · **FINDING, not fixed here: `pipeline::run::Runner`'s parse-stage zero-row
+  check is NOT scoped for `br`'s legitimate zero-asset case, unlike the conformance
+  harness's already-fixed equivalent (rust-builder, `RunnerBinding` build)** — discovered
+  while building `binding.rs` above, this is the real-Runner analogue of the conformance
+  defect fixed earlier in this log. `crates/pipeline/src/run.rs`'s `parse_and_stage()` runs
+  `anyhow::ensure!(!rows.is_empty(), "parse produced zero rows for {} — fail closed
+  (invariant 6)", ...)` unconditionally for every adapter, with no per-adapter override —
+  unlike `conformance.rs`'s `run_case_inner`, which was fixed to permit a zero-row result
+  exactly when the fixture's own expected output is also `[]`. `br`'s own `adapter.rs` doc
+  comment and `plan.md` edge case 1 are explicit that `discover()` legitimately mints a
+  `FilingRef` for a zero-asset candidate (a real "no assets declared" affirmation, not a
+  fetch failure), so a real backfill run over such a candidate would hit this
+  `anyhow::ensure!` and be recorded as a per-filing failure in `RunReport::failed` — not a
+  silent drop, but also not the "legitimate outcome" plan.md's edge case 1 describes.
+  NOT fixed here: this task's scope was `binding.rs` + the `stg_br` migration only: the
+  backfill-bin invocation that would actually exercise this path is explicitly the next
+  step (out of scope for this pass), and a proper fix needs a cross-regime design decision
+  (e.g. an adapter-declared "empty parse is legitimate" flag, mirroring the
+  `fingerprint_content`/`redaction`/`check_details` per-regime-hook idiom already
+  established in `publish.rs`) rather than a single-adapter patch to shared `run.rs`.
+  Flagged here, in the same style as the (now-resolved) fingerprint-content gap above, for
+  whoever next wires `br` into a real backfill run.
+- 2026-07-06 · **Runner zero-row gate above RESOLVED (rust-builder, cross-cutting fix)** —
+  `crates/pipeline/src/zero_rows.rs` now provides the per-regime "zero-row parse is
+  legitimate" hook this log's previous entry called for, following the same
+  `regime_code: &str` dispatch idiom as `fingerprint_content`/`redact`/`check_details`: a
+  small `REGIMES_ALLOWING_ZERO_ROWS` allow-list (`br` only) behind `zero_rows::allowed()`.
+  `crates/pipeline/src/run.rs`'s two invariant-6 `anyhow::ensure!` sites
+  (`parse_and_stage`'s fresh parse and `parse_stage`'s replay branch) now read
+  `!rows.is_empty() || crate::zero_rows::allowed(code)` — same error text, same behavior,
+  for every regime not in the allow-list (zero blast radius; proven by
+  `zero_rows.rs`'s own `every_other_launch_regime_is_not_allowed` unit test, which
+  enumerates every real launch regime code including `us_house`). Traced the full
+  downstream consequence of letting `br` through with `rows: vec![]`, per this log's own
+  prior finding: `BrBinding::filing_identity` still fails closed on an empty slice by
+  design (`no_rows_fails_closed`, `binding.rs` — intentionally NOT relaxed), so
+  `Runner::publish_document` gained an early return for `rows.is_empty()` BEFORE calling
+  `filing_identity`/`normalize` at all, returning a manually-built all-zero `PublishStats`
+  (no `filing`/Gold/outbox/review_task writes). This early return is unreachable for every
+  non-opted-in regime (their `rows` can never be empty by the time `publish_document` runs,
+  since the two `ensure!`s above already gate it), so it changes nothing for `us_house` or
+  any other regime either. New DB-gated tests
+  (`crates/pipeline/tests/zero_row_parse.rs`, a synthetic adapter/binding pair — no real
+  adapter/fixture touched) prove both sides end to end: a `br`-coded zero-row parse
+  succeeds with `gold_inserted/outbox_written/review_tasks == 0` and no `filing` row, while
+  any other regime code still fails closed with the byte-identical pre-existing message.
+  `cargo run -p pipeline --bin conformance -- br`/`-- us_house`, `cargo clippy --all-targets
+  -- -D warnings`, and `cargo test -p pipeline --test role_evals` (11/11) all re-verified
+  green after this change.
 - 2026-07-06 · `divulgacandcontas.tse.jus.br`: root and `/divulga/` both 302 to
   `cdn.tse.jus.br/indisponivel.html` on every probe this session, identical to the
   Phase-0 scout's 2026-07-06 finding — re-probed independently at survey time via a fresh

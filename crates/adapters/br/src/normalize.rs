@@ -151,8 +151,10 @@ fn normalize_row(staged: &StagingRow, mode: IdentityMode) -> anyhow::Result<Gold
 }
 
 /// `DD/MM/YYYY` (plan.md "Date parsing" — first non-ISO date format in this
-/// codebase).
-fn parse_br_date(raw: &str) -> anyhow::Result<NaiveDate> {
+/// codebase). `pub(crate)`: also used by `crate::binding` to derive
+/// `RunnerBinding::filing_identity()`'s `filed_date` from `dt_eleicao_raw`
+/// (this task's own instruction — mirrors `us_house::normalize::parse_source_date`).
+pub(crate) fn parse_br_date(raw: &str) -> anyhow::Result<NaiveDate> {
     NaiveDate::parse_from_str(raw, "%d/%m/%Y")
         .with_context(|| format!("unparseable DD/MM/YYYY date {raw:?}"))
 }
@@ -222,6 +224,8 @@ mod tests {
     fn house_payload() -> serde_json::Value {
         json!({
             "sq_candidato": "10001595344",
+            "nm_candidato": "ROGÉRIO DA SILVA E SILVA",
+            "sg_uf": "AC",
             "dt_eleicao_raw": "02/10/2022",
             "election_year_raw": "2022",
             "line_item_ordinal_raw": "1",

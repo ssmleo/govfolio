@@ -2,6 +2,8 @@
   {
     "payload": {
       "sq_candidato": "20001716829",
+      "nm_candidato": "ANA MARIA PEREIRA HORA",
+      "sg_uf": "AL",
       "dt_eleicao_raw": "02/10/2022",
       "election_year_raw": "2022",
       "line_item_ordinal_raw": "1",
@@ -18,6 +20,8 @@
   {
     "payload": {
       "sq_candidato": "20001716829",
+      "nm_candidato": "ANA MARIA PEREIRA HORA",
+      "sg_uf": "AL",
       "dt_eleicao_raw": "02/10/2022",
       "election_year_raw": "2022",
       "line_item_ordinal_raw": "2",
@@ -34,6 +38,8 @@
   {
     "payload": {
       "sq_candidato": "20001716829",
+      "nm_candidato": "ANA MARIA PEREIRA HORA",
+      "sg_uf": "AL",
       "dt_eleicao_raw": "02/10/2022",
       "election_year_raw": "2022",
       "line_item_ordinal_raw": "3",

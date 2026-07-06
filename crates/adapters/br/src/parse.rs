@@ -46,6 +46,14 @@ pub(crate) struct SourceDoc {
 pub(crate) struct ConsultaCand {
     #[serde(rename = "SQ_CANDIDATO")]
     pub(crate) sq_candidato: String,
+    /// Candidate name — public disclosure content, not PII (see
+    /// [`SilverRow::nm_candidato`]).
+    #[serde(rename = "NM_CANDIDATO")]
+    pub(crate) nm_candidato: String,
+    /// Candidate's state — this regime's district-equivalent (see
+    /// [`SilverRow::sg_uf`]).
+    #[serde(rename = "SG_UF")]
+    pub(crate) sg_uf: String,
     #[serde(rename = "DS_CARGO")]
     pub(crate) ds_cargo: String,
     #[serde(rename = "NR_TITULO_ELEITORAL_CANDIDATO")]
@@ -92,6 +100,19 @@ pub(crate) struct BemCandidato {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) struct SilverRow {
     pub(crate) sq_candidato: String,
+    /// Verbatim `NM_CANDIDATO` (candidate name) — PUBLIC disclosure content,
+    /// not PII (AUTHORITY.md is explicit that candidate identity is the
+    /// disclosure's whole point, unlike CPF/Titulo/DOB, which correctly stay
+    /// gated). Always present: required for `RunnerBinding::filing_identity()`'s
+    /// `filer_name` (design §5.4 roster resolution) — a real production need
+    /// this regime's original conformance-only pass did not carry.
+    pub(crate) nm_candidato: String,
+    /// Verbatim `SG_UF` (candidate's state) — this regime's
+    /// district-equivalent for roster resolution (`FilingIdentity.district`):
+    /// Brazilian federal deputies/senators are elected per-state, unlike
+    /// `us_house`'s single-member districts. Always present, same rationale
+    /// as `nm_candidato` above.
+    pub(crate) sg_uf: String,
     pub(crate) dt_eleicao_raw: String,
     pub(crate) election_year_raw: String,
     pub(crate) line_item_ordinal_raw: String,
@@ -166,6 +187,8 @@ pub(crate) fn parse_document(text: &str, include_pii: bool) -> anyhow::Result<Ve
             Ok(ScoredRow {
                 row: SilverRow {
                     sq_candidato: item.sq_candidato,
+                    nm_candidato: doc.consulta_cand.nm_candidato.clone(),
+                    sg_uf: doc.consulta_cand.sg_uf.clone(),
                     dt_eleicao_raw: item.dt_eleicao,
                     election_year_raw: item.ano_eleicao,
                     line_item_ordinal_raw: item.nr_ordem_bem_candidato,
@@ -198,6 +221,8 @@ mod tests {
         json!({
             "consulta_cand": {
                 "SQ_CANDIDATO": "10001595344",
+                "NM_CANDIDATO": "MARIA TESTE CANDIDATA",
+                "SG_UF": "AC",
                 "DS_CARGO": "DEPUTADO FEDERAL",
                 "NR_TITULO_ELEITORAL_CANDIDATO": "[SYNTHETIC-TITULO]",
                 "NR_CPF_CANDIDATO": "[SYNTHETIC-CPF]"
@@ -226,12 +251,14 @@ mod tests {
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].confidence, 1.0);
         assert_eq!(rows[0].row.sq_candidato, "10001595344");
+        assert_eq!(rows[0].row.nm_candidato, "MARIA TESTE CANDIDATA");
+        assert_eq!(rows[0].row.sg_uf, "AC");
         assert_eq!(rows[0].row.extractor, EXTRACTOR);
         assert_eq!(rows[0].row.nr_titulo_eleitoral_candidato, None);
         assert_eq!(rows[0].row.nr_cpf_candidato, None);
         let payload = serde_json::to_value(&rows[0].row).unwrap();
         assert!(
-            payload.as_object().unwrap().len() == 11,
+            payload.as_object().unwrap().len() == 13,
             "PII fields must be absent, not null, in conformance mode: {payload}"
         );
     }
@@ -248,7 +275,7 @@ mod tests {
             Some("[SYNTHETIC-CPF]")
         );
         let payload = serde_json::to_value(&rows[0].row).unwrap();
-        assert_eq!(payload.as_object().unwrap().len(), 13);
+        assert_eq!(payload.as_object().unwrap().len(), 15);
     }
 
     #[test]

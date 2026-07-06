@@ -9,6 +9,7 @@
 //! `crates/adapters/br/fixtures/MANIFEST.json`.
 
 pub mod adapter;
+pub mod binding;
 pub mod details;
 pub(crate) mod normalize;
 pub(crate) mod parse;
