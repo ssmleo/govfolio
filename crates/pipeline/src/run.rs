@@ -429,7 +429,7 @@ impl<'a> Runner<'a> {
                     .load_silver(&self.pool, raw_document_id)
                     .await?;
                 anyhow::ensure!(
-                    !rows.is_empty(),
+                    !rows.is_empty() || crate::zero_rows::allowed(code),
                     "parse recorded as succeeded but no silver rows staged for {} — fail closed",
                     doc.sha256
                 );
@@ -454,10 +454,13 @@ impl<'a> Runner<'a> {
         raw_document_id: &str,
         run_id: &str,
     ) -> anyhow::Result<Vec<StagingRow>> {
+        let code = self.adapter.regime().code;
         let rows = self.adapter.parse(doc, &self.ctx).await?;
-        // Zero rows never publish silently (invariant 6).
+        // Zero rows never publish silently (invariant 6) — unless this
+        // regime has declared a zero-row parse legitimate (see
+        // `crate::zero_rows`, e.g. `br`'s zero-asset candidates).
         anyhow::ensure!(
-            !rows.is_empty(),
+            !rows.is_empty() || crate::zero_rows::allowed(code),
             "parse produced zero rows for {} — fail closed (invariant 6)",
             doc.sha256
         );
@@ -490,6 +493,23 @@ impl<'a> Runner<'a> {
         raw_document_id: &str,
         expect_external: Option<&str>,
     ) -> anyhow::Result<PublishStats> {
+        if rows.is_empty() {
+            // A zero-row parse only ever reaches here for a regime that
+            // opted in via `crate::zero_rows::allowed` — `parse_stage`'s and
+            // `parse_and_stage`'s `ensure!`s fail closed on an empty `rows`
+            // for every other regime before this function is ever called.
+            // For an opted-in regime (`br`'s zero-asset candidate) this is a
+            // legitimate, terminal empty result: there is no silver row to
+            // derive a filing identity from, and nothing to publish.
+            return Ok(PublishStats {
+                filing_id: String::new(),
+                candidates: 0,
+                gold_inserted: 0,
+                outbox_written: 0,
+                review_tasks: 0,
+                suppressed: 0,
+            });
+        }
         let code = self.adapter.regime().code;
         let identity = self.binding.filing_identity(rows)?;
         if let Some(expected) = expect_external {

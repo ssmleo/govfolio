@@ -12,3 +12,4 @@ pub mod promote;
 pub mod redaction;
 pub mod run;
 pub mod stages;
+pub mod zero_rows;
