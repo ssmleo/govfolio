@@ -46,11 +46,20 @@ backfill re-points it at the Clerk's historical `{YYYY}FD.zip` indexes.
   (invariant 6) — but a real backfill will surface these at scale, so widen fixtures + parser
   FIRST. The dry run is the tool that enumerates them (raise `--limit`, review the FAIL-CLOSED
   list). Recorded in the us-house SAF quirks log (2026-07-06).
-- [ ] **Real (write-to-prod) backfill run** — **infra-blocked + human-lane (HALT)**. See
-  `agents/goals/080-backfill-launch.md` "## HALT (human/infra)". Order: ADC → apply substrate →
-  `backfill … --from 2012` WITHOUT `--dry-run` → **founder reviews the diff and gives go/no-go**
-  before any mass supersession is promoted (design §5.6: human-gated for mass changes). The bin
-  refuses to run without `--dry-run` and prints these preconditions.
+- [ ] **Real (write-to-prod) backfill run** — **infra-blocked** (no longer human-lane/HALT on the
+  mechanical side — see below). `bin backfill-real` (goal 081) drives the real write chain, and
+  the founder diff-review + go/no-go this section used to require is now a mechanical guardrail:
+  every archive year is gated through `BACKFILL_BUDGET` (env var, default 500 Gold rows/year —
+  goal 081 Task 4), mirroring `scripts/check-tf-plan.sh`'s numeric-count-vs-env-var-budget shape.
+  Before each year's real write, it calls the existing dry-run and reads that year's
+  `record_delta`; `<= BACKFILL_BUDGET` proceeds autonomously, `> BACKFILL_BUDGET` skips the year
+  (logged to `agents/JOURNAL.md`, nothing blocks — a later invocation retries it) instead of
+  halting for a human diff review. Historical-roster seeding (Task 1) and backfill-mode alert
+  suppression (Task 2, every `outbox_event` pre-dispatched — zero real subscriber alerts for
+  historical filings) are wired in the same bin. **Still infra-blocked**: the actual 2012–2026
+  production run (goal 081 Task 5) needs the minimal Cloud SQL IAM/connectivity fix goal 081
+  scopes (§6 does not cover this — that section is entity/billing, not DB access) and a local
+  full-scale rehearsal first; tracked in `agents/goals/081-us-backfill-execution.md`.
 
 **Backfill audit trail — decision (goal 080):** no new table. A backfill is the same pipeline
 pointed at more years, so its runs already land in `pipeline_run` (per-stage rows keyed by a
@@ -122,13 +131,46 @@ Each needs a human author + legal review before go-live (design §7.5):
 - [ ] **Takedown / redaction contact** — a reachable channel for redaction/right-of-reply
   requests (design §7.5); wire it to the review queue.
 - [ ] **Pricing copy** — the paid tiers/prices (goal 050 built the metering + Stripe seam;
-  the price VALUES + public pricing copy are human-lane, `/CLAUDE.md`).
+  the price VALUES + public pricing copy are human-lane, `/CLAUDE.md`). Tier structure +
+  price values decided 2026-07-05: Free ($0) / Individual ($15mo, $120yr) / API ($49mo,
+  $499yr) / Enterprise (custom quote). Stripe direct confirmed over a Merchant of Record.
+  Rationale, comp benchmarks, and VAT/GST posture: `docs/decisions/incorporation/README.md`
+  and `stripe-config-and-vat-posture.md` in that folder. Public pricing-page copy itself
+  still human-lane, not written here.
 
-## 6. Go / no-go gate — human-lane
+## 6. Entity formation & billing readiness — human-lane
 
-- [ ] **Launch go/no-go** — human decision. Preconditions: §1 real backfill diff reviewed +
-  approved; §2 SLO dashboards live and Tier-1 p50 < 10 min observed in prod; §3 monitoring +
-  budget alerts green; §5 all legal/methodology pages published + legal-reviewed. Automated
-  against acceptance where one exists (automation-policy: "LAUNCH: automated against acceptance
-  commands"), but the final public-facing legal/pricing sign-off and the go/no-go call remain the
-  residual human lane.
+Founder decision 2026-07-05: incorporate as a Wyoming single-member LLC, keep the
+already-shipped Stripe-direct billing (not a Merchant of Record). Full rationale,
+comp research, and adversarially-verified Brazilian tax-risk findings (2026-07-06):
+`docs/decisions/incorporation/README.md`. None of the items below are loop-executable —
+entity filing, EIN, and bank-account opening all require the founder's own
+signature/passport/tax-ID as a hard external constraint, independent of automation
+policy.
+
+- [ ] **Accountant / cross-border tax lawyer consult** — before filing anything.
+  `docs/decisions/incorporation/accountant-briefing.md`.
+- [ ] **File WY Articles of Organization + registered agent.**
+- [ ] **Apply for EIN** (no SSN/ITIN route).
+  `docs/decisions/incorporation/ein-prep.md`.
+- [ ] **Operating Agreement** — draft ready, needs review + signing.
+  `docs/decisions/incorporation/operating-agreement-draft.md`.
+- [ ] **US business bank account** (Mercury primary, Wise backup).
+- [ ] **Annual compliance calendar** — WY Annual Report + Form 5472/pro-forma 1120
+  ($25k penalty risk, uncapped continuing failure, if missed/late — CPA-prepared, not
+  best-effort).
+- [ ] **Media liability / E&O insurance quote.**
+  `docs/decisions/incorporation/insurance-shortlist.md`.
+- [ ] **Configure Stripe pricing tiers + confirm VAT/GST posture.**
+  `docs/decisions/incorporation/stripe-config-and-vat-posture.md`.
+
+## 7. Go / no-go gate — human-lane
+
+- [ ] **Launch go/no-go** — human decision. Preconditions: §1 real backfill run complete
+  (mechanically gated by `BACKFILL_BUDGET` per year, goal 081 Task 4 — no founder diff review
+  needed; any skipped-for-budget years retried and cleared) and the minimal prod DB connectivity
+  it needs stood up; §2 SLO dashboards live and Tier-1 p50 < 10 min observed in prod; §3
+  monitoring + budget alerts green; §5 all legal/methodology pages published + legal-reviewed;
+  §6 entity formed + bank account + Stripe tiers configured. Automated against acceptance where
+  one exists (automation-policy: "LAUNCH: automated against acceptance commands"), but the final
+  public-facing legal/pricing sign-off and the go/no-go call remain the residual human lane.

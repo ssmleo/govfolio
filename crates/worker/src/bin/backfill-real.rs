@@ -14,6 +14,15 @@
 //! invocation, safe — an already-fetched/parsed/published filing replays
 //! instead of rewriting (invariant 4).
 //!
+//! Goal 081 Task 4: before each year's real write pass, a `BACKFILL_BUDGET`
+//! gate (`worker::backfill::gate_year`) reads the EXISTING dry-run's
+//! `record_delta` for that year (no new prediction/classification code) and
+//! either proceeds (`record_delta <= BACKFILL_BUDGET`, default 500) or skips
+//! that year — logged to `agents/JOURNAL.md`, nothing blocks the range, a
+//! later invocation naturally retries the skipped year. This mirrors
+//! `scripts/check-tf-plan.sh`'s numeric-count-vs-env-var-budget shape and
+//! replaces the founder go/no-go goal 080 left as a HALT.
+//!
 //! The historical politician roster for the year range must already be
 //! seeded (`us_house::seed::seed_historical_rosters`, goal 081 Task 1) —
 //! this bin does not seed it. An unresolved filer fails that ONE filing
@@ -125,8 +134,38 @@ async fn main() -> anyhow::Result<()> {
     let runner =
         Runner::new(&adapter, &binding, us_house::seed::regime_binding(), ctx)?.with_backfill(true);
 
+    // Goal 081 Task 4: BACKFILL_BUDGET gate. A SEPARATE ClerkArchive + real Gold
+    // baseline (its own scratch Bronze + adapter instance, own conditional-GET
+    // cache) drives the EXISTING dry_run per year to read record_delta before
+    // committing to that year's real write.
+    let budget = worker::backfill::backfill_budget();
+    let gate_scratch = std::env::temp_dir().join(format!(
+        "govfolio-backfill-real-gate-{}",
+        std::process::id()
+    ));
+    let gate_source = worker::backfill::ClerkArchive::new(Some(pool.clone()), gate_scratch)?;
+    let gate_baseline =
+        worker::backfill::PgBaseline::new(pool.clone(), us_house::seed::REGIME_ID.to_owned());
+    let journal_root = worker::backfill::workspace_root();
+
     let mut total = RunReport::default();
     for (year, refs) in by_year {
+        let record_delta =
+            match worker::backfill::gate_year(&gate_source, &gate_baseline, year, budget).await? {
+                worker::backfill::BudgetVerdict::Skip { record_delta } => {
+                    println!(
+                        "{year}: SKIPPED — record_delta {record_delta} exceeds BACKFILL_BUDGET \
+                         {budget}; logged to agents/JOURNAL.md, continuing (nothing blocks)"
+                    );
+                    worker::backfill::log_budget_skip(&journal_root, year, record_delta, budget)?;
+                    continue;
+                }
+                worker::backfill::BudgetVerdict::Proceed { record_delta } => record_delta,
+            };
+        println!(
+            "{year}: budget OK (record_delta {record_delta} <= BACKFILL_BUDGET {budget}) — \
+             proceeding to the real write"
+        );
         let report = runner
             .run_over(&refs)
             .await

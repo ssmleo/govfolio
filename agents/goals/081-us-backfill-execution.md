@@ -125,7 +125,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   Acceptance: `cargo test -p worker --test backfill_real -- --ignored --nocapture` over a small
   real year slice — filings land in Gold, a second run is idempotent (0 new rows), every
   `outbox_event` from the run has `dispatched_at` set.
-- [ ] **Task 4 — BACKFILL_BUDGET-bounded autonomous go-ahead (replaces founder go/no-go).**
+- [x] **Task 4 — BACKFILL_BUDGET-bounded autonomous go-ahead (replaces founder go/no-go).**
   Mirror `scripts/check-tf-plan.sh`'s numeric-count-vs-env-var-budget shape. Chunk by archive
   year. Before Task 3's real write pass for a year, call the existing
   `worker::backfill::dry_run(source, pg_baseline, year, year, usize::MAX)` and read

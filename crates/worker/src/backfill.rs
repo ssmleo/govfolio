@@ -19,12 +19,15 @@
 //! immutable PDF under the *same* extractor produces identical fingerprints
 //! (unchanged); an amended filing arrives as a NEW `DocID` (`us_house` regime doc
 //! §3.7) and is surfaced as a *supersession* for human review. The **real**
-//! (write-to-prod) backfill is a HALT — it needs the cloud substrate applied
-//! (goal 020 ADC) and a founder diff-approval + go/no-go (see
-//! `agents/goals/080-backfill-launch.md`).
+//! (write-to-prod) backfill (`bin/backfill-real.rs`) no longer needs a founder
+//! diff-approval + go/no-go: goal 081 Task 4's `BACKFILL_BUDGET` gate (below)
+//! is the mechanical guardrail that replaces it, per-year, mirroring
+//! `scripts/check-tf-plan.sh`'s numeric-count-vs-env-var-budget shape.
 
 use std::collections::HashSet;
 use std::fmt;
+use std::io::Write as _;
+use std::path::{Path, PathBuf};
 
 use anyhow::Context as _;
 use async_trait::async_trait;
@@ -625,6 +628,122 @@ mod live {
 }
 
 pub use live::{ClerkArchive, NoBaseline, PgBaseline};
+
+// ---------------------------------------------------------------------------
+// Goal 081 Task 4: BACKFILL_BUDGET — the mechanical guardrail that replaces
+// goal 080's founder go/no-go HALT. Mirrors `scripts/check-tf-plan.sh`'s
+// numeric-count-vs-env-var-budget shape, chunked by archive year: no new
+// prediction/classification code — just a plain compare against the record
+// delta the EXISTING `dry_run` already computes.
+// ---------------------------------------------------------------------------
+
+/// Default `BACKFILL_BUDGET` (Gold-row cap per year) — an explicit starting
+/// point per goal 080's peak-year finding (2018 ≈ 830 filings/year),
+/// widenable later via the env var.
+pub const DEFAULT_BACKFILL_BUDGET: usize = 500;
+
+/// Reads `BACKFILL_BUDGET` (default [`DEFAULT_BACKFILL_BUDGET`]) — mirrors
+/// `scripts/check-tf-plan.sh`'s `DESTROY_BUDGET` env-var shape.
+#[must_use]
+pub fn backfill_budget() -> usize {
+    std::env::var("BACKFILL_BUDGET")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(DEFAULT_BACKFILL_BUDGET)
+}
+
+/// This crate's own workspace root, resolved from its manifest (same
+/// pattern as `pipeline::conformance::workspace_root`) — used only to locate
+/// `agents/JOURNAL.md` for [`log_budget_skip`].
+#[must_use]
+pub fn workspace_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
+}
+
+/// One archive year's go/no-go verdict against `BACKFILL_BUDGET`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BudgetVerdict {
+    /// `record_delta <= budget` — proceed to the real write for this year.
+    Proceed {
+        /// The dry run's `record_delta` for this year.
+        record_delta: usize,
+    },
+    /// `record_delta > budget` — skip this year; nothing blocks the range, a
+    /// later invocation naturally retries it.
+    Skip {
+        /// The dry run's `record_delta` for this year.
+        record_delta: usize,
+    },
+}
+
+/// The gate itself: a plain numeric compare, mirroring
+/// `scripts/check-tf-plan.sh`'s `[ "$DELETES" -gt "$BUDGET" ]`.
+#[must_use]
+pub fn budget_verdict(record_delta: usize, budget: usize) -> BudgetVerdict {
+    if record_delta > budget {
+        BudgetVerdict::Skip { record_delta }
+    } else {
+        BudgetVerdict::Proceed { record_delta }
+    }
+}
+
+/// Runs the budget gate for ONE archive year: calls the EXISTING [`dry_run`]
+/// over `year..=year` with no sample bound (`usize::MAX` — every filing
+/// dry-processed) and reads `report.years[0].record_delta` (already
+/// computed — no new prediction/classification code), then applies
+/// [`budget_verdict`].
+///
+/// # Errors
+/// The underlying `dry_run` call fails (a baseline DB failure — an
+/// infrastructure error, not a per-year skip), or it produced no year entry
+/// (cannot happen for a `year..=year` sweep; surfaced defensively rather
+/// than indexed/unwrapped).
+pub async fn gate_year(
+    source: &dyn ArchiveSource,
+    baseline: &dyn GoldBaseline,
+    year: i32,
+    budget: usize,
+) -> anyhow::Result<BudgetVerdict> {
+    let report = dry_run(source, baseline, year, year, usize::MAX).await?;
+    let record_delta = report
+        .years
+        .first()
+        .with_context(|| format!("dry_run produced no year entry for {year}"))?
+        .record_delta;
+    Ok(budget_verdict(record_delta, budget))
+}
+
+/// Appends one skip line to `<root>/agents/JOURNAL.md`, matching the
+/// existing halt-entry convention: `date | item | outcome | blockers`.
+/// Called only on [`BudgetVerdict::Skip`] — nothing blocks the range, so this
+/// is a log line, not a `## BLOCKED (human)` halt.
+///
+/// # Errors
+/// The journal file cannot be created/appended (filesystem failure).
+pub fn log_budget_skip(
+    root: &Path,
+    year: i32,
+    record_delta: usize,
+    budget: usize,
+) -> anyhow::Result<()> {
+    let agents_dir = root.join("agents");
+    std::fs::create_dir_all(&agents_dir)
+        .with_context(|| format!("creating {}", agents_dir.display()))?;
+    let path = agents_dir.join("JOURNAL.md");
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .with_context(|| format!("opening {}", path.display()))?;
+    let date = chrono::Utc::now().date_naive();
+    writeln!(
+        file,
+        "{date} | 081/T4 | BACKFILL_BUDGET skip: us_house {year} record_delta={record_delta} \
+         exceeds budget={budget} | none — nothing blocks; a later invocation retries {year}"
+    )
+    .with_context(|| format!("appending to {}", path.display()))?;
+    Ok(())
+}
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
