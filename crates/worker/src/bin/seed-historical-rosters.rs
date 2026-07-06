@@ -1,17 +1,20 @@
 //! Historical `us_house` roster seeding CLI (goal 081 Task 5 prerequisite):
 //! a thin wrapper around the already-fully-tested
-//! [`us_house::seed::seed_historical_rosters`] (goal 081 Task 1, unchanged) —
-//! no new business logic here, just the CLI/DB wiring
-//! `crates/worker/src/bin/backfill-real.rs`'s own doc comment says is left
-//! for whoever wires Task 5's full rehearsal/execution.
+//! [`us_house::seed::seed_historical_rosters`] (goal 081 Task 1; per-member
+//! isolation added Task 5) — no new business logic here, just the CLI/DB
+//! wiring `crates/worker/src/bin/backfill-real.rs`'s own doc comment says is
+//! left for whoever wires Task 5's full rehearsal/execution.
 //!
 //! For each year in `--from..=--to`, fetches that year's Clerk index XML via
 //! [`us_house::seed::LiveIndexSource`] (the SAME conditional-GET fetch filing
 //! discovery uses, invariant 10) and seeds the roster
 //! (`roster_from_index_xml` + `seed_roster`). Each year fails closed
-//! INDEPENDENTLY — an ambiguous/unreachable year is printed and counted, but
-//! never sinks the rest of the range (mirrors `bin/backfill-real.rs`'s
-//! per-year isolation).
+//! INDEPENDENTLY — an unreachable/unparseable year is printed and counted,
+//! but never sinks the rest of the range (mirrors `bin/backfill-real.rs`'s
+//! per-year isolation). WITHIN a year, each roster member is seeded
+//! independently too: an ambiguous member is printed/counted as a skip, not
+//! a whole-year failure, and every other real member in that year still
+//! seeds.
 //!
 //! Usage:
 //! ```text
@@ -102,15 +105,28 @@ async fn main() -> anyhow::Result<()> {
     let results = seed_historical_rosters(&source, &pool, &regime, args.from, args.to).await;
 
     let mut total_inserted = 0u32;
+    let mut total_skipped_members = 0usize;
     let mut failed_years = 0usize;
     for result in &results {
         match &result.error {
             None => {
                 println!(
-                    "{}: seeded {} roster member(s)",
-                    result.year, result.inserted
+                    "{}: seeded {} roster member(s), {} skipped (ambiguous)",
+                    result.year,
+                    result.inserted,
+                    result.member_errors.len()
                 );
+                for member_error in &result.member_errors {
+                    eprintln!(
+                        "{}: SKIPPED {:?} ({}) — {}",
+                        result.year,
+                        member_error.filed_alias,
+                        member_error.district,
+                        member_error.error
+                    );
+                }
                 total_inserted += result.inserted;
+                total_skipped_members += result.member_errors.len();
             }
             Some(error) => {
                 eprintln!("{}: FAILED CLOSED — {error}", result.year);
@@ -119,11 +135,13 @@ async fn main() -> anyhow::Result<()> {
         }
     }
     println!(
-        "TOTAL {}..={}: seeded {} roster member(s) across {} year(s), {} year(s) failed closed",
+        "TOTAL {}..={}: seeded {} roster member(s) across {} year(s), {} member(s) skipped \
+         (ambiguous), {} year(s) failed closed",
         args.from,
         args.to,
         total_inserted,
         results.len(),
+        total_skipped_members,
         failed_years
     );
     Ok(())

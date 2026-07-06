@@ -156,7 +156,25 @@ impl IndexXmlSource for LiveIndexSource<'_> {
     }
 }
 
-/// One archive year's historical-roster-seeding outcome (goal 081 Task 1).
+/// One roster member that failed to seed WITHIN an otherwise-good year (goal
+/// 081 Task 5: per-member isolation) — e.g. `seed_roster` found the roster
+/// ambiguous for this one member (two politicians already match its
+/// `(alias, district)`). Recorded instead of sinking the year: every other
+/// real member in the same year still seeds.
+#[derive(Debug, Clone)]
+pub struct MemberSeedError {
+    /// The member's as-filed alias (`RosterMember::filed_alias`).
+    pub filed_alias: String,
+    /// The member's district (`RosterMember::district`).
+    pub district: String,
+    /// `seed_roster`'s own error for this one member (its bail-the-batch
+    /// contract is unchanged — invoking it on a 1-element slice makes the
+    /// "batch" it can bail exactly this one member).
+    pub error: String,
+}
+
+/// One archive year's historical-roster-seeding outcome (goal 081 Task 1;
+/// per-member isolation added Task 5).
 #[derive(Debug, Clone)]
 pub struct YearSeedResult {
     /// The archive year.
@@ -164,11 +182,19 @@ pub struct YearSeedResult {
     /// Roster members newly inserted this year (0 on a 304, or an
     /// already-seeded replay).
     pub inserted: u32,
-    /// Set when the YEAR itself failed — index unreachable/unparseable, or
-    /// `seed_roster` bailed on an ambiguous roster. Fail closed per year,
-    /// the range continues (mirrors `worker::backfill::dry_run`'s per-year
-    /// isolation): an ambiguous roster on one year must not sink the rest.
+    /// Set when the YEAR itself failed BEFORE any per-member seeding could
+    /// run — the index was unreachable, unparseable, or empty (invariant 6).
+    /// Fail closed per year, the range continues (mirrors
+    /// `worker::backfill::dry_run`'s per-year isolation). Does NOT cover an
+    /// individual ambiguous member within an otherwise-good year — see
+    /// `member_errors`.
     pub error: Option<String>,
+    /// Individual members within this year that `seed_roster` rejected (e.g.
+    /// an ambiguous roster match) — recorded per member so ONE bad member
+    /// does not sink any other real member in the same year (goal 081 Task
+    /// 5). Empty when every member in the year seeded (or was already
+    /// seeded) cleanly.
+    pub member_errors: Vec<MemberSeedError>,
 }
 
 /// Seeds the historical `us_house` roster across every archive year in
@@ -176,9 +202,11 @@ pub struct YearSeedResult {
 /// findings). Loops the EXISTING, unchanged [`roster_from_index_xml`] +
 /// `seed_roster` over each year's index (`index_zip_url(year)`, fetched via
 /// `source`). Each year fails closed INDEPENDENTLY: an unreachable/
-/// unparseable index or an ambiguous roster on one year is recorded in that
-/// year's [`YearSeedResult`] and the sweep continues — never sinking the
-/// rest of the range.
+/// unparseable/empty index is recorded in that year's [`YearSeedResult`] and
+/// the sweep continues — never sinking the rest of the range. WITHIN a year,
+/// each roster member is seeded independently too (goal 081 Task 5): an
+/// ambiguous match for one member is recorded in `member_errors` and does
+/// not stop the rest of that year's members from seeding.
 pub async fn seed_historical_rosters(
     source: &dyn IndexXmlSource,
     pool: &PgPool,
@@ -189,15 +217,17 @@ pub async fn seed_historical_rosters(
     let mut results = Vec::new();
     for year in from..=to {
         results.push(match seed_one_year(source, pool, regime, year).await {
-            Ok(inserted) => YearSeedResult {
+            Ok((inserted, member_errors)) => YearSeedResult {
                 year,
                 inserted,
                 error: None,
+                member_errors,
             },
             Err(error) => YearSeedResult {
                 year,
                 inserted: 0,
                 error: Some(format!("{error:#}")),
+                member_errors: Vec::new(),
             },
         });
     }
@@ -205,18 +235,35 @@ pub async fn seed_historical_rosters(
 }
 
 /// Fetches, rosters, and seeds ONE year — the unit [`seed_historical_rosters`]
-/// isolates failures around.
+/// isolates YEAR-level failures around (index fetch/parse/empty). Within the
+/// year, seeds each roster member via its OWN `seed_roster` call — a
+/// 1-element slice — so `seed_roster`'s existing bail-the-batch contract
+/// (`crates/pipeline/src/stages/roster.rs`, unchanged) only ever bails that
+/// one member's "batch", never the rest of the year's real members (goal 081
+/// Task 5).
 async fn seed_one_year(
     source: &dyn IndexXmlSource,
     pool: &PgPool,
     regime: &RegimeBinding,
     year: i32,
-) -> anyhow::Result<u32> {
+) -> anyhow::Result<(u32, Vec<MemberSeedError>)> {
     let Some(xml) = source.fetch_year(year).await? else {
-        return Ok(0); // index unchanged since the last poll — nothing new
+        return Ok((0, Vec::new())); // index unchanged since the last poll — nothing new
     };
     let roster = roster_from_index_xml(&xml)?;
-    seed_roster(pool, regime, &roster).await
+    let mut inserted = 0u32;
+    let mut member_errors = Vec::new();
+    for member in &roster {
+        match seed_roster(pool, regime, std::slice::from_ref(member)).await {
+            Ok(newly_inserted) => inserted += newly_inserted,
+            Err(error) => member_errors.push(MemberSeedError {
+                filed_alias: member.filed_alias.clone(),
+                district: member.district.clone(),
+                error: format!("{error:#}"),
+            }),
+        }
+    }
+    Ok((inserted, member_errors))
 }
 
 #[cfg(test)]
