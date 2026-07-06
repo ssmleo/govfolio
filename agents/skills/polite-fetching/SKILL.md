@@ -22,4 +22,12 @@ Learnings (dated):
   body is the site's home page is NOT a robots policy (and not permission either).
   Verify the body looks like robots grammar before treating any robots response as
   policy; absence means self-imposed limits govern (invariant 10), same as a 404.
+- 2026-07-06 (br TSE DivulgaCandContas): a CDN-level redirect to a generic
+  "indisponivel"/maintenance page, reproduced identically under both an identified
+  UA and a stock browser UA, reads as a genuine outage rather than a bot-block
+  (contrast the canada_ciec/us_senate cases where only non-browser UAs were
+  blocked). Same host's robots.txt was also just this catch-all page (echoes the
+  canada_ciec robots lesson) — don't treat it as policy. Corroborate official
+  status via the org's other live subdomains when the primary portal is down;
+  re-probe before committing to "unavailable" as a durable finding.
 Write-back: deepen this file when the procedure teaches you something; same PR.

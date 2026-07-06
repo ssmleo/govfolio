@@ -1,0 +1,113 @@
+jurisdiction: br
+candidates:
+  - url: https://divulgacandcontas.tse.jus.br/
+    contains: >
+      Public, searchable asset declarations (declaração de bens) submitted by every
+      registered candidate for federal, state, and municipal elective office —
+      including candidates for Câmara dos Deputados (federal deputy) and Senado
+      Federal (senator) — as part of mandatory candidacy registration with the
+      Tribunal Superior Eleitoral (Justiça Eleitoral). No login required to search.
+      Declarations are a point-in-time snapshot filed at each election cycle, not
+      an annual in-office filing.
+    official_rationale: >
+      TSE (Tribunal Superior Eleitoral) is Brazil's federal electoral court, a
+      constitutionally established organ of the Judiciary responsible for
+      administering elections nationwide (.jus.br domain, the reserved TLD for the
+      Brazilian Judiciary). Lei 9.504/1997 (Lei das Eleições) requires every
+      candidate to submit a signed declaração de bens as a condition of candidacy
+      registration; TSE's own press office (www.tse.jus.br) and its legal-reference
+      site (temasselecionados.tse.jus.br) both describe DivulgaCandContas as the
+      official publication channel for this legally mandated disclosure.
+    evidence:
+      - d3b68e38ddb0d6d3d3df8e81dc965f4992fbe478a2ff8d79363ec6cca70281af.divulgacandcontas-2024-update-news.html
+      - a91c40fbd19fe06258a36f47033cf9375a2932254c36bcac35ef7957ae6ae1af.tse-declaracao-de-bens-doc.html
+      - 72050d888ffd03d7b0a35e8954a6f6b203978ac3264f558ea6786c1f3c73eb9e.divulgacandcontas-root-outage-indisponivel.html
+    notes: >
+      Pages are Portuguese-only; no English version found. IMPORTANT LIVE-SOURCE
+      CAVEAT: at fetch time (2026-07-06), the portal root (divulgacandcontas.tse.jus.br,
+      and its /divulga/ path) redirected — for both an identified UA and a stock
+      browser UA, so this reads as a genuine outage rather than a bot-block — to
+      cdn.tse.jus.br/indisponivel.html ("Serviço temporariamente indisponível").
+      robots.txt on this host is likewise a redirect to the same catch-all page,
+      not real robots grammar (same pattern flagged for canada_ciec: a 200 whose
+      body is a generic page is not a policy). Official status is corroborated via
+      TSE's own separate, live subdomains (www.tse.jus.br news, temasselecionados.tse.jus.br
+      docs) rather than the portal itself. Surveyor should re-probe the portal
+      before building; if still down, this is a sentinel-relevant availability item,
+      not a reason to doubt official status — TSE's own properties confirm the system
+      exists and is the mandated disclosure venue.
+  - url: https://dadosabertos.camara.leg.br/
+    contains: >
+      Official open-data API/portal for Câmara dos Deputados (federal lower house):
+      deputy roster, mandates, legislature history, propositions, votes, committee
+      data — machine-readable (XML/JSON webservices). Does NOT contain asset/wealth
+      declarations; verified no "declaração de bens" dataset is exposed here.
+    official_rationale: >
+      Hosted on camara.leg.br, the Chamber of Deputies' own reserved .leg.br domain
+      (Brazilian TLD segment reserved for legislative bodies), operated directly by
+      the Câmara as its designed-for-reuse open-data service.
+    evidence:
+      - 7b31802174984a016186fcc5723612f01c92d5644231e192b6f5d82f4978d7f1.camara-dados-abertos-portal.html
+      - 5950af8f4a9eacf5aebce41d1d86337d9795764a97703e0190d9724fa5b827eb.camara-webservice-deputados-doc.html
+    notes: >
+      Portuguese-only. Useful as an identifier/entity source (politician roster,
+      mandate dates) to join against TSE asset data, NOT as a disclosure source in
+      its own right — no wealth/asset content is published here. Câmara also runs
+      an internal "DBR" (Declaração de Bens e Rendas) annual filing system for
+      sitting members (www2.camara.leg.br/edbr/inicio), but this is an internal
+      compliance-delivery mechanism (audited by the Chamber's own internal-control
+      office), not a public disclosure portal — the edbr endpoint 502'd on every
+      fetch attempt during this scout pass and no public search/consultation UI for
+      its contents was found. Treat DBR as NOT a public disclosure channel unless a
+      surveyor pass finds otherwise.
+  - url: https://www12.senado.leg.br/transparencia
+    contains: >
+      Official Senado Federal transparency portal: senator roster, remuneration
+      (subsídio), expense/reimbursement data per senator. No asset/wealth
+      declaration content found on this portal.
+    official_rationale: >
+      Operated directly by the Senado Federal (upper house) on its own senado.leg.br
+      domain via its Secretaria de Transparência, the statutory transparency unit
+      created in 2013.
+    evidence:
+      - 7ae98e52b48c654fd0292d28f10eccf327cfb9e728fc4cdc74acae5d63d4b091.senado-transparencia-portal.html
+    notes: >
+      Portuguese-only. Same conclusion as the Câmara open-data portal: identifier
+      and compensation data, not an asset-disclosure source. No evidence found of a
+      public per-senator "bens declarados" view analogous to TSE's.
+notes: >
+  Scout-phase verification of the three EPOCHS.md leads for Brazil (UNVERIFIED,
+  per agents/EPOCHS.md E2):
+
+  1. TSE DivulgaCandContas — CONFIRMED as the official, public asset-disclosure
+     channel for federal legislators, but scoped to CANDIDACY events (election
+     cycles), not annual in-office snapshots. This is the closest Brazilian
+     analogue to a periodic-transaction regime the project has modeled so far;
+     expect record_type coverage to look more like a point-in-time holding/interest
+     snapshot than a continuous transaction feed.
+
+  2. Câmara dos Deputados / Senado Federal open-data portals — CONFIRMED official
+     and machine-readable, but they do NOT carry asset declarations; they are
+     entity/roster sources only. Do not conflate with a disclosure source.
+
+  3. Annual public-servant asset declaration regime (the lead's phrasing) —
+     INVESTIGATED AND NARROWED: the CGU-administered e-Patri system (the federal
+     government's annual asset-declaration platform, Decreto 10.571/2020) explicitly
+     EXCLUDES the Legislative and Judicial branches by its own FAQ text ("aplica-se
+     apenas aos servidores do Poder Executivo Federal... servidores dos Poderes
+     Legislativo e Judiciário não devem apresentar a declaração e-Patri" — see
+     cgu-epatri-faq-legislativo-excluido.html evidence). Sitting federal deputies
+     and senators instead file an internal "DBR" (Declaração de Bens e Rendas) with
+     their own house (Câmara: www2.camara.leg.br/edbr; Senado: an internal
+     equivalent not yet located) — this is a compliance-audit mechanism, not
+     confirmed to be publicly published or searchable. This matches the epoch
+     note's warning about not assuming TSE covers sitting members: TSE only
+     captures the snapshot at candidacy time, and the annual in-office regime
+     appears to be closed/internal rather than a second public source. A surveyor
+     pass should attempt a formal LAI (Lei de Acesso à Informação) request path or
+     further probing of the DBR/edbr system as an open question, but should not
+     assume it is public without direct evidence.
+
+  Portuguese is the sole language across all sources found; no English-language
+  official pages were located for any candidate — first non-English regime for
+  this project, confirming the epoch's framing.

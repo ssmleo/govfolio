@@ -1,0 +1,9 @@
+{
+  "url": "https://www2.camara.leg.br/transparencia/dados-abertos/dados-abertos-legislativo/webservices/deputados",
+  "fetched_at_utc": "2026-07-06T18:08:58Z",
+  "politeness": {
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "concurrency": 1,
+    "min_interval_seconds": 2
+  }
+}

@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <title>Dados Abertos da Câmara dos Deputados</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Baixe e analise dados sobre deputados, votações, projetos de lei e outros assuntos do Legislativo."/>
+    <meta property="og:title" content="Dados Abertos da Câmara dos Deputados" />
+    <meta property="og:description" content="Baixe e analise dados sobre deputados, votações, projetos de lei e outros assuntos do Legislativo." />
+    <link rel="shortcut icon" href="img/logos/favicon.ico">
+    <!-- <link href="dist/vendors-css/main.css" rel="stylesheet"> -->
+    <link href="https://fonts.googleapis.com/css?family=Open+Sans" rel="stylesheet">
+    <link rel="stylesheet" type="text/css" href="css/components.min.css"/>
+    <link rel="stylesheet" type="text/css" href="css/dadosabertos.min.css"/>
+    <!-- solicitação #73072 -->
+    <script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+    new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+    j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+    'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+    })(window,document,'script','dataLayer','GTM-T3NRZN7V');</script>
+
+</head><body>
+    <p id="portal-atalhos" class="hiddenStructure">
+        <a accesskey="2" href="#documentContent">Ir para o conteúdo.</a>
+    </p>
+
+    <div id="partial-top-menu">        
+        <div class="container-fluid">
+            <nav class="navbar navbar-default navbar-fixed-top">
+                <div class="container">
+                    <!-- Brand and toggle get grouped for better mobile display -->
+                    <div class="navbar-header">
+                        <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1" aria-expanded="false">
+                            <span class="sr-only">Toggle navigation</span>
+                            <span class="icon-bar"></span>
+                            <span class="icon-bar"></span>
+                            <span class="icon-bar"></span>
+                        </button>
+                        <span class="navbar-brand">
+                            <a href="http://www2.camara.leg.br/" class="navbar-brand"><img src="/img/logos/logo.png" alt="logomarca camara dos deputados"></a>
+                        </span>
+                    </div>
+                    <!-- Collect the nav links, forms, and other content for toggling -->
+                    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                        <ul class="nav navbar-nav"></ul>
+                        <ul class="nav navbar-nav navbar-right" aria-label="Serviço de apoio">
+                            <li><a href="faq/faq-home.html">FAQ</a></li>
+                            <li><a href="contact/contact.html">CONTATO</a></li>
+                        </ul>
+                    </div><!-- /.navbar-collapse -->
+                </div><!-- /.container-fluid -->
+            </nav>
+        </div>    </div>
+
+    <div id="mycontent">
+        <section id="so-banner">
+            <h1 class="sr-only">Dados Abertos da Câmara dos Deputados</h1>
+            <div class="container-fluid" role="heading" aria-level="2">
+                <div class="container">
+                    <div class="row">
+                        <div id="so-bg-banner" class="hide hidden-xs hidden-md hidden-sm"></div>
+                        <div class="col-sm-5">
+                            <img src="./img/logos/dados-abertos.png" alt="Logomarca do Dados Abertos"></img>
+							
+							<div class="so-slogan" id="documentContent">Os dados da Câmara a qualquer hora, ao seu dispor</div>
+                        </div>
+                        <div class="col-sm-7 ipad-banner">
+                            <!-- space image banner incluso em background da classe so-bg-banner acima -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <div id="so-api">
+            <div class="container-fluid">
+                <div class="container">
+                    <section class="so-user-sec">
+                        <a id="a1" href="#a1" class="scroll-link" data-id="so-howtouse">
+                            <div class="so-user-doc col-md-4 col-sm-12">
+                                <i class="sprite sprite-user"></i>
+                                <h2>Saiba como usar</h2>
+                                <p class="so-desc-api">Use os dados abertos em tabelas, listas, gráficos e aplicativos</p>
+                                <i class="sprite sprite-arrow"></i>
+                            </div>
+                        </a>
+                    </section>
+                    <section class="so-api-sec">
+                        <a href="/swagger/api.html">
+                            <div class="so-api-doc col-md-4 col-sm-12">
+                                <i class="sprite sprite-api"></i>
+                                <h2>Os dados disponíveis</h2>
+                                <p class="so-desc-api">Conheça e teste os conjuntos e formatos das informações</p>
+                            </div>
+                        </a>
+                    </section>
+                    <section class="so-com-sec">
+                        <a href="/community/blogger.html">
+                            <div class="so-com-doc col-md-4 col-sm-12">
+                                <i class="sprite sprite-com"></i>
+                                <h2>Projetos da Comunidade</h2>
+                                <p class="so-desc-api">Veja o que já fizeram. Mostre sua criação. Entre em contato. Participe!</p>
+                            </div>
+                        </a>
+                    </section>
+                </div>
+            </div>
+        </div>
+        <section class="so-parallax hidden-xs">
+            <div class="container-fluid">
+                <div class="row myparallax">
+
+                    <div class="bg-1 sprite sprite-parallax-0" data-500="transform:translate3d(0%,0%,0); opacity:1" data-1500="transform:translate3d(-2%,0%,0);opacity:1"></div>
+                    <div class="bg-2 sprite sprite-parallax-1" data-500="transform:translate3d(0%,0%,0); opacity:1" data-1500="transform:translate3d(-3%,0%,0); opacity:1"></div>
+                    <div class="bg-3 sprite sprite-parallax-2" data-500="transform:translate3d(0%,0%,0); opacity:1" data-1500="transform:translate3d(-5%,0%,0); opacity:1"></div>
+                    <div class="bg-4 sprite sprite-parallax-3" data-500="transform:translate3d(0%,0%,0); opacity:1" data-1500="transform:translate3d(-8%,0%,0); opacity:1"></div>
+					
+                    <div class="news">
+                        <section id="carousel">
+                            <div class="col-md-12">
+                                <div class="quote"><i class="fa fa-quote-left fa-4x"></i></div>
+                                <div class="carousel slide" id="fade-quote-carousel" data-ride="carousel">
+                                    <!-- Carousel indicators -->
+                                    <ol class="carousel-indicators">
+                                        <!--<li data-target="#fade-quote-carousel" data-slide-to="0" class="active"></li>-->
+                                        <!--<li data-target="#fade-quote-carousel" data-slide-to="1"></li>-->
+                                    </ol>
+                                    <!-- Carousel items -->
+                                    <div class="carousel-inner">
+                                        <!-- NOTÍCIA EM DESTAQUE -->
+                                        <!-- Atenção: sempre atualizar o link da manchete!! -->
+                                        <div class="active item">
+                                            <!-- Manchete -->
+                                            <div class="profile-tt">
+                                                <h3 class="so-crr-tt"><a href="./news/noticias/2021-06-01-eventosPautaAlteracoes.html">API: alerta de alterações em <em>/eventos/{id}/pauta</em></a>
+                                                </h3>
+                                            </div>
+                                            <!-- Chamada -->
+                                            <blockquote>
+                                                <p>
+                                                    Mudanças nos dados sobre itens de pauta, a partir de 21/06, podem impactar aplicações, mas trazem correções e novidades demandadas por usuários
+                                                </p>
+                                            </blockquote>
+                                        </div>
+                                        <!-- Fim da notícia em destaque -->
+                                    </div>
+                                    <!-- BOTÃO "MAIS NOTÍCIAS" -->
+                                    <div class="so-btn-news-carousel">
+                                        <a class="btn icon-btn btn-warning" href="./news/noticias.html">
+                                            <span class="glyphicon btn-glyphicon glyphicon-share img-circle text-warning"></span> Mais notícias
+                                            <span class="sr-only">Sobre, Lista de notícias</span>
+                                        </a>
+                                    </div>
+                                    <!-- Carousel Buttons Next/Prev
+                                        <a data-slide="prev" href="#fade-quote-carousel" class="left carousel-control"><span class="glyphicon glyphicon-menu-left" aria-hidden="true"></span></a>
+                                        <a data-slide="next" href="#fade-quote-carousel" class="right carousel-control"><span class="glyphicon glyphicon-menu-right" aria-hidden="true"></span></a>-->
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!--visivel apenas para dispositivos móveis - Extra small devices e Small devices-->
+        <section class="so-parallax-mb hidden-md-up">
+            <div class="container-fluid">
+                <div class="row myparallax">
+                    <div class="news">
+                        <section id="carousel">
+                            <div class="col-md-12">
+                                <div class="quote"><i class="fa fa-quote-left fa-4x"></i></div>
+                                <div class="carousel slide" id="fade-quote-carousel" data-ride="carousel">
+                                    <!-- Carousel indicators -->
+                                    <ol class="carousel-indicators"></ol>
+                                    <!-- Carousel items -->
+                                    <div class="carousel-inner">
+                                        <!-- NOTÍCIA EM DESTAQUE -->
+                                        <div class="active item">
+                                            <!-- Manchete -->
+                                            <div class="profile-tt">
+                                                <h3 class="so-crr-tt"><a href="./news/noticias/2021-06-01-eventosPautaAlteracoes.html">API: alerta de alterações em <em>/eventos/{id}/pauta</em></a>
+                                                </h3>
+                                            </div>
+                                            <!-- Chamada -->
+                                            <blockquote>
+                                                <p>
+                                                    Mudanças nos dados sobre itens de pauta, a partir de 21/06, podem impactar aplicações, mas trazem correções e novidades demandadas por usuários
+                                                </p>
+                                            </blockquote>
+                                        </div>
+                                        <!-- Fim da notícia em destaque -->
+										
+                                    </div>
+                                    <!-- BOTÃO "MAIS NOTÍCIAS" -->
+                                    <div class="so-btn-news-carousel">
+                                        <a class="btn icon-btn btn-warning" href="./news/noticias.html">
+                                            <span class="glyphicon btn-glyphicon glyphicon-share img-circle text-warning"></span> Mais notícias
+                                            <span class="sr-only">Sobre, Lista de notícias</span>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="so-howtouse">
+            <div class="container-fluid">
+                <div class="container">
+                    <div class="row">
+                        <h2 class="text-center">Como Usar</h2>
+                        <p class="so-stt-howtouse text-center">
+                            O <strong>Dados Abertos</strong> da Câmara pode ser utilizado para acompanhar a tramitação e as votações de projetos e pareceres, verificar a atuação e os gastos do deputado que você ajudou a eleger, descobrir os eventos realizados
+                            pelas comissões, e muito mais!
+                        </p>
+                        <div id="so-howtouse-bg" class="sprite sprite-howtouse-ilustration">
+                            <div class="col-md-3 ipad-class">
+                                <div class="jumbotron bx-1">
+                                    <h3>Para que serve <br>o Dados Abertos?</h3>
+                                    <hr>
+                                    <p>
+                                        Se você não sabe o que são "dados abertos", para que eles servem, qual a diferença entre isso e os websites da internet, e que papo é esse de "formatos", comece por aqui e pense nas possibilidades!
+                                    </p>
+
+                                    <a class="btn icon-btn btn-success" href="./howtouse/sobre-dados-abertos.html">
+                                        <span class="glyphicon btn-glyphicon glyphicon-share img-circle text-success"></span> Ver mais
+                                        <span class="sr-only">Sobre, Para que serve o Dados Abertos?</span>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="col-md-3 ipad-class">
+                                <div class="jumbotron bx-2">
+                                    <h3 id="tools">Conheça as peças do jogo parlamentar</h3>
+                                    <hr>
+                                    <p id="desc-tools">
+                                        Veja, em explicações rápidas, o que são e como se relacionam no <strong>Dados Abertos</strong> os deputados, os partidos, os blocos, os eventos, as proposições, as votações e tudo mais nas atividades parlamentares
+                                    </p>
+
+                                    <a class="btn icon-btn btn-info scroll-link" href="#colecoes" data-id="so-collections">
+                                        <span class="glyphicon btn-glyphicon glyphicon-share img-circle text-info"></span> Ver mais
+                                        <span class="sr-only">Sobre, Escolha e prepare suas ferramentas</span>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="col-md-3 ipad-class">
+                                <div class="jumbotron bx-3">
+                                    <h3>Escolha e prepare<br> suas ferramentas</h3>
+                                    <hr>
+                                    <p>
+                                        Planilha do Excel?<br>App de celular?<br>Programa de estatística? Nossa <strong>Central de Tutoriais</strong> para iniciantes e iniciados tem vídeos, exemplos de código e dicas para você usar o <strong>Dados Abertos</strong>                                        de várias maneiras
+                                    </p>
+                                    <a class="btn icon-btn btn-seuso" href="/howtouse/central-tutoriais.html">
+                                        <span class="glyphicon btn-glyphicon glyphicon-share img-circle text-seuso"></span> Ver mais
+                                        <span class="sr-only">Sobre, Tutoriais</span>
+                                    </a>
+                                </div>
+                            </div>
+
+                            <div class="col-md-3">
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <section id="so-collections">
+            <div class="container-fluid">
+                <div class="container">
+                    <div class="row">
+                        <h2 class="text-center" id="colecoes">Coleções Disponíveis</h2>
+                        <p class="so-stt-collections text-center">
+                            No <strong>Dados Abertos</strong> você encontra as informações que precisa sobre os trabalhos da Câmara.<br/>Veja aqui como essas informações estão organizadas.
+                        </p>
+                        <ul aria-labelledby="colecoes">
+                            <li class="col-md-offset-1 col-md-2 one" data-toggle="modal" data-target="#legislaturas">
+                                <div class="hovereffect">
+                                    <a class="so-links-collections" href="#">
+                                        <i class="sprite sprite-legislatura"></i>
+                                        <p class="text-center so-des-collections-item">Legislaturas</p>
+                                    </a>
+                                </div>
+                            </li>
+                            <li class="col-md-2 two" data-toggle="modal" data-target="#deputados">
+                                <div class="hovereffect">
+                                    <a class="so-links-collections" href="#">
+                                        <i class="sprite sprite-deputados"></i>
+                                        <p class="text-center">Deputados</p>
+                                    </a>
+                                </div>
+                            </li>
+                            <li class="col-md-2 three" data-toggle="modal" data-target="#partidos">
+                                <div class="hovereffect">
+                                    <a class="so-links-collections" href="#">
+                                        <i class="sprite sprite-partidos"></i>
+                                        <p class="text-center">Partidos</p>
+                                    </a>
+                                </div>
+                            </li>
+                            <li class="col-md-2 four" data-toggle="modal" data-target="#blocos">
+                                <div class="hovereffect">
+                                    <a class="so-links-collections" href="#">
+                                        <i class="sprite sprite-bancadas"></i>
+                                        <p class="text-center">Blocos</p>
+                                    </a>
+                                </div>
+                            </li>
+                            <li class="col-md-2 five" data-toggle="modal" data-target="#orgaos">
+                                <div class="hovereffect">
+                                    <a class="so-links-collections" href="#">
+                                        <i class="sprite sprite-orgaos"></i>
+                                        <p class="text-center">Órgãos</p>
+                                    </a>
+                                </div>
+                            </li>
+                            <li class="col-md-2 six" data-toggle="modal" data-target="#frentes">
+                                <div class="hovereffect">
+                                    <a class="so-links-collections" href="#">
+                                        <i class="sprite sprite-frentes"></i>
+                                        <p class="text-center">Frentes</p>
+                                    </a>
+                                </div>
+                            </li>
+                            <li class="col-md-2 seven" data-toggle="modal" data-target="#eventos">
+                                <div class="hovereffect">
+                                    <a class="so-links-collections" href="#">
+                                        <i class="sprite sprite-eventos"></i>
+                                        <p class="text-center">Eventos</p>
+                                    </a>
+                                </div>
+                            </li>
+                            <li class="col-md-2 eight" data-toggle="modal" data-target="#proposicoes">
+                                <div class="hovereffect">
+                                    <a class="so-links-collections" href="#">
+                                        <i class="sprite sprite-proposicoes"></i>
+                                        <p class="text-center">Proposições</p>
+                                    </a>
+                                </div>
+                            </li>
+                            <li class="col-md-2 nine" data-toggle="modal" data-target="#votacoes">
+                                <div class="hovereffect">
+                                    <a class="so-links-collections" href="#">
+                                        <i class="sprite sprite-votacoes"></i>
+                                        <p class="text-center">Votações</p>
+                                    </a>
+                                </div>
+                            </li>
+                            <li class="col-md-2 ten" data-toggle="modal" data-target="#referencias">
+                                <div class="hovereffect">
+                                    <a class="so-links-collections" href="#">
+                                        <i class="sprite sprite-referencias"></i>
+                                        <p class="text-center">Referências</p>
+                                    </a>
+                                </div>
+                            </li>
+                            <li class="col-md-2 eleven" data-toggle="modal" data-target="#atualizacoes">
+                                <div class="hovereffect">
+                                    <a class="so-links-collections" href="#">
+                                        <i class="sprite sprite-atualizacoes"></i>
+                                        <p class="text-center">Atualizações</p>
+                                    </a>
+                                </div>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <!-- Button trigger modal -->
+
+        <!-- Modals -->
+        <div class="modal fade" id="legislaturas" tabindex="-1" role="dialog" aria-labelledby="myModalLabel-legislaturas">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Fechar"><span aria-hidden="true">&times;</span></button>
+                        <p class="modal-title" id="myModalLabel-legislaturas">Legislaturas</p>
+                    </div>
+                    <div class="modal-body">
+                        <!--<img class="text-center so-icon-collections" src="/dist/img/icons-collections/legislatura.png" alt="">-->
+                        <i class="icon-legislatura"></i>
+                        <p class="so-p-mt">São os períodos de trabalhos legislativos, iniciados no dia da posse dos parlamentares após uma eleição e encerrados na véspera da posse dos deputados seguintes. A duração das legislaturas teve variações entre os diferentes períodos
+                            da história brasileira, mas desde 1988 em se mantido em quatro anos. Cada legislatura é identificada pelo seu número.</p>
+                        <a href="./swagger/api.html">Experimente!</a>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Entendi!</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="deputados" tabindex="-1" role="dialog" aria-labelledby="myModalLabel-deputados">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Fechar"><span aria-hidden="true">&times;</span></button>
+                        <p class="modal-title" id="myModalLabel-deputados">Deputados</p>
+                    </div>
+                    <div class="modal-body">
+                        <!--<img class="text-center so-icon-collections" src="/dist/img/icons-collections/deputados.png" alt="">-->
+                        <i class="icon-deputados"></i>
+                        <p class="so-p-mt">Os representantes do povo são os principais agentes da Câmara &mdash; como autores de proposições, membros de órgãos, etc. A quantidade de votos recebidos nas eleições determinam se eles serão titulares ou suplentes no exercício
+                            dos <em>mandatos</em>, que são as vagas que um partido obtém para cada legislatura. No <strong>Dados Abertos</strong>, cada deputado que exerceu mandato, por um só dia que seja, recebe um número identificador exclusivo.</p>
+                        <a href="./swagger/api.html">Experimente!</a>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Entendi!</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="partidos" tabindex="-1" role="dialog" aria-labelledby="myModalLabel-partidos">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Fechar"><span aria-hidden="true">&times;</span></button>
+                        <p class="modal-title" id="myModalLabel-partidos">Partidos</p>
+                    </div>
+                    <div class="modal-body">
+                        <!--<img class="text-center so-icon-collections" src="/dist/img/icons-collections/partidos.png" alt="">-->
+                        <i class="icon-partidos"></i>
+                        <p class="so-p-mt">São as organizações políticas oficialmente registradas no Tribunal Superior Eleitoral brasileiro, às quais os deputados são filiados. Após cada eleição, um partido pode obter um certo número de vagas de uma legislatura (os mandatos)
+                            para que seus deputados entrem em exercício. Como partidos diferentes podem usar uma mesma sigla, em épocas diversas, no Dados Abertos cada partido é identificado por um número exclusivo &mdash; mas não é o mesmo usado nas
+                            eleições.
+                        </p>
+                        <a href="./swagger/api.html">Experimente!</a>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Entendi!</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="blocos" tabindex="-1" role="dialog" aria-labelledby="myModalLabel-blocos">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Fechar"><span aria-hidden="true">&times;</span></button>
+                        <p class="modal-title" id="myModalLabel-bancadas">Blocos</p>
+                    </div>
+                    <div class="modal-body">
+                        <!--<img class="text-center so-icon-collections" src="/dist/img/icons-collections/bancadas.png" alt="">-->
+                        <i class="icon-bancadas"></i>
+                        <p class="so-p-mt">Quando têm deputados em exercício, os partidos participam das atividades parlamentares como bancadas &mdash; seja atuando sozinhos, seja atuando com outros partidos em um bloco parlamentar. Partidos unidos em bloco contam como
+                            uma só bancada nas discussões e votações da Câmara. Cada bloco só existe, oficialmente, até o fim da legislatura em que ele é formado. Existem ainda dois "superblocos" nas atividades parlamentares: o Governo (ou "Maioria")
+                            e a Minoria.</p>
+                        <a href="./swagger/api.html">Experimente!</a>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Entendi!</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="orgaos" tabindex="-1" role="dialog" aria-labelledby="myModalLabel-orgaos">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Fechar"><span aria-hidden="true">&times;</span></button>
+                        <p class="modal-title" id="myModalLabel-orgaos">Órgãos</p>
+                    </div>
+                    <div class="modal-body">
+                        <!--<img class="text-center so-icon-collections" src="/dist/img/icons-collections/orgaos.png" alt="">-->
+                        <i class="icon-orgaos"></i>
+                        <p class="so-p-mt">Os trabalhos da Câmara são exercidos pelos deputados em diversos órgãos parlamentares: <em>comissões</em> que analisam e votam proposições, <em>CPI</em>s (Comissões Parlamentares de Inquérito) que fazem investigações, a <em>Mesa Diretora</em>                            que organiza os trabalhos e participa da administração de recursos da Câmara, <em>procuradorias</em>, <em>conselhos</em> e o próprio <em>Plenário</em>, integrado por todos os deputados e órgão supremo das decisões da casa.</p>
+                        <a href="./swagger/api.html">Experimente!</a>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Entendi!</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="frentes" tabindex="-1" role="dialog" aria-labelledby="myModalLabel-frentes">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Fechar"><span aria-hidden="true">&times;</span></button>
+                        <p class="modal-title" id="myModalLabel-frentes">Frentes</p>
+                    </div>
+                    <div class="modal-body">
+                        <!--<img class="text-center so-icon-collections" src="/dist/img/icons-collections/frentes.png" alt="">-->
+                        <i class="icon-frentes"></i>
+                        <p class="so-p-mt">Deputados e senadores, de diferentes partidos e estados, podem se juntar para debater e defender uma certa causa, uma proposta ou um setor da sociedade. Esses grupos são as <em>frentes parlamentares</em>, que são oficialmente criadas
+                            e registradas se reunirem pelo menos um terço dos integrantes da casa e tiverem um estatuto. São diferentes dos órgãos por não terem funcionários, nem salas próprias, nem prazo de duração.</p>
+                        <a href="./swagger/api.html">Experimente!</a>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Entendi!</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="eventos" tabindex="-1" role="dialog" aria-labelledby="myModalLabel-eventos">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Fechar"><span aria-hidden="true">&times;</span></button>
+                        <p class="modal-title" id="myModalLabel-eventos">Eventos</p>
+                    </div>
+                    <div class="modal-body">
+                        <!--<img class="text-center so-icon-collections" src="/dist/img/icons-collections/eventos.png" alt="">-->
+                        <i class="icon-eventos"></i>
+                        <p class="so-p-mt">A Câmara e seus órgãos realizam vários tipos de eventos: seminários, reuniões e sessões deliberativas para votar proposições, audiências públicas com especialistas, palestras, diligências externas a diversos lugares do país, entre
+                            outros. Além dos deputados integrantes dos órgãos que promovem esses eventos, também podem participar autoridades e representantes de empresas e instituições da sociedade.</p>
+                        <a href="./swagger/api.html">Experimente!</a>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Entendi!</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="proposicoes" tabindex="-1" role="dialog" aria-labelledby="myModalLabel-proposicoes">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Fechar"><span aria-hidden="true">&times;</span></button>
+                        <p class="modal-title" id="myModalLabel-proposicoes">Proposições</p>
+                    </div>
+                    <div class="modal-body">
+                        <!--<img class="text-center so-icon-collections" src="/dist/img/icons-collections/proposicoes.png" alt="">-->
+                        <i class="icon-proposicoes"></i>
+                        <p class="so-p-mt">Projetos de leis e propostas de emendas à Constituição (PECs) são provavelmente os mais conhecidos produtos das atividades parlamentares. Mas também são <em>proposições</em> alguns outros tipos de documentos legislativos: pareceres
+                            sobre outras proposições, requerimentos, relatórios de CPIs, medidas provisórias do poder Executivo e emendas ao Orçamento da União, apenas para citar alguns.
+                            <p>
+                                <a href="./swagger/api.html">Experimente!</a>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Entendi!</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="votacoes" tabindex="-1" role="dialog" aria-labelledby="myModalLabel-votacoes">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Fechar"><span aria-hidden="true">&times;</span></button>
+                        <p class="modal-title" id="myModalLabel-votacoes">Votações</p>
+                    </div>
+                    <div class="modal-body">
+                        <!--<img class="text-center so-icon-collections" src="/dist/img/icons-collections/votacoes.png" alt="">-->
+                        <i class="icon-votacoes"></i>
+                        <p class="so-p-mt">Proposições de diversos tipos são submetidas a <em>votações</em>, em eventos realizados especificamente para isso em um órgão legislativo. Algumas dessas votações são nominais, com o registro dos votos de cada deputado, mas muitas
+                            são simbólicas, com resultado previamente combinado ou com avaliação das manifestações dos deputados no momento. Frequentemente, a aprovação de uma proposta precisa de várias votações.</p>
+                        <a href="./swagger/api.html">Experimente!</a>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Entendi!</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="referencias" tabindex="-1" role="dialog" aria-labelledby="myModalLabel-referencias">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Fechar"><span aria-hidden="true">&times;</span></button>
+                        <p class="modal-title" id="myModalLabel-referencias">Referências</p>
+                    </div>
+                    <div class="modal-body">
+                        <!--<img class="text-center so-icon-collections" src="/dist/img/icons-collections/referencias.png" alt="">-->
+                        <i class="icon-referencias"></i>
+                        <p class="so-p-mt">As informações da Câmara usam muitas siglas, números identificadores, e conjuntos predeterminados de valores para classificação de tipos de proposições, situações de andamento de eventos, etc. No <strong>Dados Abertos</strong>,
+                            as chamadas <em>referências</em> são como tabelas ou listas com estes valores, para facilitar as buscas, o processamento e a interpretação das informações.</p>
+                        <a href="./swagger/api.html">Experimente!</a>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Entendi!</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="modal fade" id="atualizacoes" tabindex="-1" role="dialog" aria-labelledby="myModalLabel-atualizacoes">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Fechar"><span aria-hidden="true">&times;</span></button>
+                        <p class="modal-title" id="myModalLabel-atualizacoes">Atualizações</p>
+                    </div>
+                    <div class="modal-body">
+                        <!--<img class="text-center so-icon-collections" src="/dist/img/icons-collections/atualizacoes.png" alt="">-->
+                        <i class="icon-atualizacoes"></i>
+                        <p class="so-p-mt">Nas atividades da Câmara, algumas das entidades citadas aqui podem sofrer várias mudanças de estado: uma proposição pode ser aprovada em uma comissão e passar para outra, um deputado pode ser substituído em seu mandato, um evento
+                            pode começar ou ser encerrado. Para facilitar o acompanhamento dessas mudanças, o <strong>Dados Abertos</strong> fornece uma lista de todas as atualizações registradas no sistema em um certo intervalo de tempo.</p>
+                        <a href="./swagger/api.html">Experimente!</a>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Entendi!</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="partial-footer">        
+        <div class="container-fluid footer">
+            <div class="container">
+                <div class="row">
+                    <div class="col-md-12">
+                        <p class="so-p-footer">Câmara dos Deputados - Palácio do Congresso Nacional - Praça dos Três Poderes - Brasília - DF</p>
+                        <p class="so-p-footer">CEP 70160-900 - Telefones: +55 (61) 3216-0000 | Disque Câmara: 08000 619 619</p>
+                    </div>
+                </div>
+            </div>
+        </div>    </div>
+    <script src="js/vendor.js"></script>
+    <noscript>Seu browser não tem suporte a javascript!</noscript>
+    <script src="js/dadosabertos.min.js"></script>
+    <noscript>Seu browser não tem suporte a javascript!</noscript>
+</body>
+
+</html>

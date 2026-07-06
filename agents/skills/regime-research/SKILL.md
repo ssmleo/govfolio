@@ -17,4 +17,12 @@ Learnings (dated):
   GUIDs, display labels. Also read the site's own notices page early: an official
   "temporary website / phased transition" notice is a drift forecast — record it as
   the sentinel's top watch item in the SAF.
+- 2026-07-06 (br scout): don't assume a country's "annual public-servant asset
+  declaration" regime covers legislators — Brazil's CGU-run e-Patri explicitly
+  scopes to Executive branch only (its own FAQ states Legislative/Judicial staff
+  "não devem apresentar"); federal deputies/senators file a separate internal DBR
+  with their own house instead, which reads as compliance-only (no public search UI
+  found). The only confirmed PUBLIC federal asset disclosure is TSE's
+  DivulgaCandContas, and it's candidacy-snapshot (per-election), not annual/in-office
+  — verify cadence explicitly, don't assume "annual" just because a lead says so.
 Write-back: deepen this file when the procedure teaches you something; same PR.
