@@ -1,8 +1,13 @@
 //! Placeholder crate for the `br` (Brazil) jurisdiction adapter.
 //!
-//! Coverage-factory phase: SAMPLED (fixtures + capture manifest under
-//! `fixtures/` — see `MANIFEST.json`). This minimal Cargo.toml/lib.rs exists
-//! only so the workspace (`crates/adapters/*` glob member) can load before
-//! the real adapter is scaffolded; no adapter logic lives here yet. That is
-//! Phase 3 (spec-writer) + Phase 4 (rust-builder) work — see
+//! Coverage-factory phase: SPECCED (fixtures + capture manifest under
+//! `fixtures/` — see `MANIFEST.json`; Phase 3 spec-writer artifacts are
+//! `plan.md`, at the crate root, and `details.rs`, below). `plan.md` carries
+//! the field-mapping table, parse strategy, politeness config, edge-case
+//! list, and open items (notably a blocking one: `Currency::BRL` does not
+//! yet exist in `govfolio_core::domain::enums::Currency`). No adapter logic
+//! (`discover`/`fetch`/`parse`/`normalize`, i.e. the `JurisdictionAdapter`
+//! impl) lives here yet — that is Phase 4 (rust-builder) work, see
 //! `agents/workflows/source-exploration.md`.
+
+pub mod details;

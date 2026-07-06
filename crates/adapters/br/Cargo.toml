@@ -5,3 +5,11 @@ edition = "2024"
 
 [lints]
 workspace = true
+
+[dependencies]
+# AssetClass, for the details contract's (deliberately redundant, plan.md
+# open item) `asset_class` field.
+core = { version = "0.1.0", path = "../../core" }
+schemars = "1.2.1"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"

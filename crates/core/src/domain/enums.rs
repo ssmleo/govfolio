@@ -97,6 +97,7 @@ pub enum Currency {
     EUR,
     GBP,
     USD,
+    BRL,
 }
 
 #[cfg(test)]

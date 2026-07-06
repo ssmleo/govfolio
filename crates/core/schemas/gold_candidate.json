@@ -151,7 +151,8 @@
       "enum": [
         "EUR",
         "GBP",
-        "USD"
+        "USD",
+        "BRL"
       ]
     },
     "FilingId": {
