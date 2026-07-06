@@ -17,6 +17,6 @@
 - [x] 064 adapter: eu_parliament + france_hatvp + germany_bundestag (E1 diversity seeds) (done 2026-07-06, commits 9553390+d09d7b0+0ec6a66+ad26df6; ONE crate 3 sub-adapters, first periodic_declaration; EU LLM-vision+PLN-null, FR deterministic XML, DE Enodia-gated exact-euro; conformance 9/9; auditor PASS)
 - [x] 017 sentinel WATCH (continuous drift defense) (done 2026-07-06, commit 860ff7e; per-source probes→classify→rank→dedup→freeze-capable drift reports, migration 0008, sentinel 16/1, offline-testable via trait seams)
 - [x] 065 worldwide regime registry seed + coverage dashboard endpoint (done 2026-07-06, commit e889320; 196 jurisdictions/197 regimes, 7 live + 189 none-stubs, coverage fields on /v1/jurisdictions, research-regime template; seeded via migrate bin idempotent)
-- [ ] 070 trust hardening (sampling audits, corrections log, redaction, drift response)
+- [x] 070 trust hardening (sampling audits, corrections log, redaction, drift response) (done 2026-07-06, commits 0f36b75+6783487; sampler+precision report, per-regime redaction pre-publication (raw sacred), drift-freeze wired to publish + unfreeze-on-recovery, public /corrections page; both acceptance halves green)
 - [ ] 080 US backfill to 2012 + launch checklist
 - [ ] E2+ Brazil onward: NO hand-written goals — the coverage factory (015) generates work from the registry per agents/EPOCHS.md
