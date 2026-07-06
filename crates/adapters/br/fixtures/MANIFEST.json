@@ -1,0 +1,69 @@
+{
+  "jurisdiction": "br",
+  "captured_by": "sampler",
+  "captured_at_utc": "2026-07-06T19:05:00Z",
+  "spec": "docs/regimes/br/AUTHORITY.md (RegimeSurvey front-matter + body, Phase-1 surveyor artifact)",
+  "packaging_note": "Brazil's natural 'filing' unit is ONE CANDIDATE's full asset declaration for the 2022 federal cycle: one consulta_cand identity/registration row joined via SQ_CANDIDATO to zero-or-more bem_candidato itemized-asset rows. The manifest schema (agents/workflows/source-exploration.md Phase 2) requires exactly one input.* file per case directory, so each case here packages BOTH source tables as a single input.json: {\"consulta_cand\": {...one row as an object...}, \"bem_candidato\": [...that candidate's asset rows, possibly empty...]}. This is a sampler packaging decision, not a source format — spec-writer should treat consulta_cand and bem_candidato as two logically separate source schemas joined at parse time, not a single native TSE format.",
+  "source_urls": {
+    "consulta_cand_2022_nationwide_zip": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_2022.zip",
+    "bem_candidato_2022_nationwide_zip": "https://cdn.tse.jus.br/estatistica/sead/odsele/bem_candidato/bem_candidato_2022.zip",
+    "note": "Per-UF URLs of the documented pattern (.../consulta_cand_2022_AL.zip) 404 — confirmed this session (HTTP 404 body, not a policy block). The per-state CSVs ship INSIDE the single nationwide ZIP as one file per UF (e.g. consulta_cand_2022_AC.csv), not as separately downloadable per-UF ZIPs. AUTHORITY.md's documented '[_{UF}].zip' URL pattern is therefore inaccurate for at least the 2022 dataset as currently hosted; flagged back to the SAF (see uf_zip_pattern_correction below) rather than silently worked around."
+  },
+  "uf_zip_pattern_correction": {
+    "finding": "docs/regimes/br/AUTHORITY.md's Data catalog section documents per-UF ZIP URLs of the form `.../consulta_cand_{YEAR}_{UF}.zip` / `.../bem_candidato_{YEAR}_{UF}.zip`. This session confirmed by direct HTTP request that `consulta_cand_2022_AL.zip` (and by extension the per-UF pattern generally) returns HTTP 404 with a plain Apache-style 'Not Found' body -- not throttling, not a redirect, a genuine 404. The nationwide `consulta_cand_2022.zip` / `bem_candidato_2022.zip` (no UF suffix) download fine (200, ~4.4MB / ~5.6MB) and contain one CSV per UF inside the ZIP (e.g. `consulta_cand_2022_AC.csv`) plus one nationwide `_BR.csv`/`_BRASIL.csv` and a `leiame.pdf`.",
+    "action_needed": "surveyor/write-back: AUTHORITY.md's Data catalog section should be corrected to state the per-UF split is INSIDE the single nationwide ZIP, not a separate downloadable resource per UF. Does not change politeness posture (still 1-2 GETs total per dataset per year) but does change adapter fetch logic: the adapter must download the nationwide ZIP and select the UF-named CSV entries it needs, not construct a per-UF download URL.",
+    "not_yet_amended": "This sampler pass did not edit docs/regimes/br/ (out of scope per task instructions -- read-only reference); recorded here for the next AUTHORITY.md write-back."
+  },
+  "amendment_timestamp_caveat": {
+    "finding": "Checked DT_ULT_ATUAL_BEM_CANDIDATO distribution across all 27 nationwide bem_candidato_2022 UF files this session (not just AL). Every state has only 2-13 DISTINCT update-timestamp values across its entire candidate population, and in every state 85-99% of ALL rows share ONE dominant date (e.g. AL: 1134/1157 rows all stamped exactly 13/05/2026; SP: 13444/13843 rows all stamped 03/07/2026; MG: 8221/8356 rows all stamped 25/10/2023). Within AL specifically, zero candidates have MIXED per-item update dates -- every candidate's own asset rows are either ALL on the state's dominant late date or ALL on the original ~election-time date; no candidate shows a partial/incremental update. This pattern (one shared timestamp covering nearly an entire state's population, ranging anywhere from weeks-after-election to 2026 depending on the state, with zero per-candidate granularity) reads much more like a BULK backend re-timestamp/reindex event per state (e.g. a data migration or scheduled recompute job that happened to touch the DT_ULT_ATUAL_BEM_CANDIDATO column) than genuine, individually-triggered candidate rectifications as AUTHORITY.md's amendment_mechanism claim currently characterizes it. This does not falsify that per-item amendment CAN happen (the mechanism is judicially documented, per AUTHORITY.md's temasselecionados evidence) -- it means the SPECIFIC evidence cited (SQ_CANDIDATO 20001605787's timestamp) may not be proof of an actual candidate-initiated correction, and the case captured here (amendment_post_election_2026, see below) carries the same caveat.",
+    "flag_for_spec_writer": "Before treating a changed DT_ULT_ATUAL_BEM_CANDIDATO as an authoritative supersession trigger (AUTHORITY.md field-mapping table), spec-writer/auditor should decide whether this field is reliable signal at all, given it may reflect an unrelated backend operation rather than a real data change. Recommend treating amendment_post_election_2026 as 'timestamp differs from the file's original ~2022 baseline' rather than 'this candidate personally requested a correction' when writing the parse-strategy edge-case notes. This is an open question, not resolved by this sampler pass -- should be added to AUTHORITY.md's open_questions on next write-back."
+  },
+  "politeness": {
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "requests_this_capture": 4,
+    "breakdown": "1 HEAD on consulta_cand_2022.zip + 1 HEAD on bem_candidato_2022.zip + 1 GET on each nationwide ZIP (2 GETs) = 4 requests total, each >=2s apart; one failed GET attempt at a non-existent per-UF URL (consulta_cand_2022_AL.zip, 404) preceded these and is included in spirit but was a single lightweight 196-byte 404 response, not counted as a data request"
+  },
+  "case_selection_rationale": "Scoped to two states already sampled by the surveyor (AC, AL) per the task's suggestion, to keep the download bounded while building on already-validated regime understanding. AC supplied the typical case (its bem_candidato timestamps cluster near the election date, giving a clean non-amendment baseline) and the zero-asset edge case (AC's zero-asset population was already the surveyor's own evidence for that quirk). AL supplied the amendment case, since essentially its entire bem_candidato population carries a 2026 timestamp far past the election (see amendment_timestamp_caveat above for an important nuance on what that timestamp likely represents). All three candidates were independently selected this session by directly parsing the raw 2022 CSVs (Node.js, not reused from the surveyor's archived evidence excerpts) and screened for PII-safety in DS_BEM_CANDIDATO before selection: none of the three chosen candidates' asset descriptions contain a street address, vehicle plate, or phone number (screened out other otherwise-eligible candidates, e.g. AL's EUCENIA MARIA VIEIRA, purely because her vehicle rows embed real plates QLC-3432/MUR-7372/NMK-9970).",
+  "cases": {
+    "typical_house_vehicle_land": {
+      "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/bem_candidato/bem_candidato_2022.zip",
+      "sha256": "365150735073ef710a540dcb94c582fceb953831cf16692968d4d1e0e501dcd4",
+      "uf": "AC",
+      "sq_candidato": "10001595344",
+      "cargo": "DEPUTADO FEDERAL",
+      "rows": 3,
+      "notes": "Straightforward asset mix (motorcycle, small rural house, rural land parcel); all 3 items timestamped at the original ~election-time date (02/10/2022), i.e. NOT touched by the later bulk-timestamp event described in amendment_timestamp_caveat -- a clean non-amendment baseline. DS_BEM_CANDIDATO text mentions only a municipality name (Xapuri, a public Acre city), no street address/plate/phone."
+    },
+    "amendment_post_election_2026": {
+      "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/bem_candidato/bem_candidato_2022.zip",
+      "sha256": "3c92406906ba043679696eef2c76b9dbb5df3395f6523aeff26ec492c0d11264",
+      "uf": "AL",
+      "sq_candidato": "20001716829",
+      "cargo": "DEPUTADO FEDERAL",
+      "rows": 3,
+      "notes": "Required amendment/correction case -- independently re-derived this session (a DIFFERENT candidate from the surveyor's SQ_CANDIDATO 20001605787 reference instance, per task instructions not to reuse it unverified). All 3 asset items (capital quotas + two VGBL insurance/pension balances) are stamped DT_ULT_ATUAL_BEM_CANDIDATO = 13/05/2026, ~44 months after the 02/10/2022 election. Screened for PII-safety: descriptions reference only company names/CNPJs (not personal data) -- no street address, vehicle plate, or phone. IMPORTANT CAVEAT: see the manifest's amendment_timestamp_caveat block -- AL's bem_candidato file has 1134/1157 rows (98%) sharing this exact same 13/05/2026 date, which reads as a bulk per-state backend re-timestamp event rather than proof this specific candidate personally filed a correction. Captured as the best available real-data instance of a timestamp meaningfully after the election, with this caveat flagged for spec-writer rather than glossed over."
+    },
+    "zero_asset_deputado": {
+      "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/bem_candidato/bem_candidato_2022.zip",
+      "sha256": "050d49aadcf3ec5e97d3434555ebf1db8be4b85807820805743efa00c3994f90",
+      "uf": "AC",
+      "sq_candidato": "10001606131",
+      "cargo": "DEPUTADO FEDERAL",
+      "rows": 0,
+      "notes": "Required edge case: candidate registered as DEPUTADO FEDERAL, candidacy status APTO (not disqualified/inapt -- a genuinely valid candidacy), with ZERO bem_candidato rows. Exercises AUTHORITY.md's Quirks log finding that 'no bem_candidato rows for this SQ_CANDIDATO' is a legitimate affirmative zero-assets declaration, not a fetch failure or missing data (invariant 6, fail-closed semantics must not trip on this case). bem_candidato is an empty array by construction, not a missing key, so the adapter's join step should treat SQ_CANDIDATO absence in the bem_candidato table as normal."
+    }
+  },
+  "pii_handling": {
+    "fields_replaced_in_every_case": {
+      "NR_CPF_CANDIDATO": "[SYNTHETIC-CPF]",
+      "NR_TITULO_ELEITORAL_CANDIDATO": "[SYNTHETIC-TITULO]",
+      "DT_NASCIMENTO": "[SYNTHETIC-DOB]"
+    },
+    "rationale": "Per AUTHORITY.md's personal_data_to_redact and the field-mapping table, CPF is internal-resolution-only and never surfaces past Bronze; voter-registration number and birth date are flagged live PII with no Gold-facing use. None of these three fields are asserted in any future Gold/Silver conformance expectation, so replacing them with clearly-marked synthetic placeholders does not compromise adapter-test meaningfulness while avoiding permanently committing real people's national ID/voter-registration/birth-date data to git history.",
+    "ds_bem_candidato_handling": "No placeholder substitution applied to any DS_BEM_CANDIDATO value in the 3 captured cases -- all three were selected specifically because their real, verbatim asset descriptions are already free of street addresses, vehicle plates, and phone numbers (this field feeds the Gold asset_description_raw column verbatim per invariant 2, so verbatim-safe real text was preferred over any redaction). No synthetic/constructed DS_BEM_CANDIDATO text was used in any of the 3 cases.",
+    "synthetic_case_considered_and_not_added": "The task offered discretion to add a 4th case with a synthetic (non-real-person) address-embedded DS_BEM_CANDIDATO to exercise address-in-free-text parsing. Judgment call: not added this pass -- the three required cases (typical/amendment/edge) are all satisfied with clean real data, and address-embedded descriptions are common enough in the wild (observed directly in AL/AC sampling, e.g. the 'RESIDENCIAL IBIZA, BLOCO B, APTO 206' partial-address style seen in an otherwise-typical AC candidate not selected here) that spec-writer/test-designer can decide, with this open question flagged, whether a dedicated address-parsing fixture is worth constructing later. Recorded as an open item rather than silently resolved."
+  },
+  "sampler_note_scope": "Fixtures only capture the DEPUTADO FEDERAL body this pass (AUTHORITY.md scope also includes SENADOR/suplentes); AC/AL's SENADOR/suplente candidates were screened during selection (see explore.js-equivalent output) but none stood out as more representative than the DEPUTADO FEDERAL picks made. Not a gap in scope coverage -- record_types/body distinction is a DS_CARGO discovery-filter concern per AUTHORITY.md's field mapping, already exercised by the 3 captured DS_CARGO='DEPUTADO FEDERAL' rows; a dedicated SENADOR fixture was judged not required to satisfy the >=3 typical/amendment/edge gate and is left as a builder-discretion addition if the eventual conformance suite wants explicit SENADOR coverage."
+}
