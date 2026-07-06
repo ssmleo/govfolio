@@ -132,7 +132,14 @@ pub async fn publish_filing(
         );
         // Deterministic fingerprint over (filing_id, ordinal, canonical
         // content) — plan Task 6 — computed at this stage, after binding.
-        let content = serde_json::to_value(&bound).context("serializing bound candidate")?;
+        // `fingerprint_content` is the per-regime content-selector hook (same
+        // `regime_code` dispatch idiom as `redact`/`check_details` above): the
+        // default arm is the unchanged bare serialization; `br` excludes its
+        // two backend-re-timestamped raw fields from the hash only (the
+        // stored `details` itself is never touched — see
+        // `crate::fingerprint_content` and `docs/regimes/br/AUTHORITY.md`).
+        let content = crate::fingerprint_content::fingerprint_content(spec.regime_code, &bound)
+            .context("computing fingerprint content")?;
         let fp = fingerprint(&filing_id, ordinal, &content);
         let Some(record_id) = insert_record(&mut tx, &bound, &fp).await? else {
             continue; // fingerprint seen before: replay inserts nothing

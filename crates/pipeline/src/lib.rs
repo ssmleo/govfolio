@@ -7,6 +7,7 @@ pub mod conformance;
 pub mod evals;
 pub mod extraction;
 pub mod factory;
+pub mod fingerprint_content;
 pub mod promote;
 pub mod redaction;
 pub mod run;

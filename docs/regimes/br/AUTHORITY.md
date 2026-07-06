@@ -319,6 +319,24 @@ prose rather than a replaced CSV row, that would need re-evaluating.
   tradeoff that a bulk re-timestamp event DOES currently manufacture a same-content
   "new" Gold row for every affected candidate — the exact outcome edge case 2 set out to
   avoid.
+- 2026-07-06 · **Fingerprint gap above RESOLVED** — `crates/pipeline/src/fingerprint_content.rs`
+  now provides the per-regime selector hook the previous entry called for, following the
+  same `regime_code: &str` dispatch idiom as `crate::redaction::redact`/
+  `crate::conformance::check_details` (both called right next to the fingerprint site in
+  `publish.rs`). Default arm (every regime except `br`): unchanged bare
+  `serde_json::to_value(candidate)`, proven byte-identical to the pre-fix behavior for
+  `us_house` and every other launch regime code (see `fingerprint_content.rs`'s
+  `us_house_fingerprint_content_is_byte_identical_to_the_old_bare_serialization` and
+  `every_non_br_regime_falls_through_to_the_unchanged_default_arm` tests — zero blast
+  radius). `br`'s arm strips `last_updated_date_raw`/`last_updated_time_raw` from the JSON
+  value handed to `fingerprint()` only; the actual stored `candidate.details` (DB row, API
+  response) is never touched, so the committed `br.holding.json` schema contract holds
+  unchanged. `publish.rs` now calls
+  `crate::fingerprint_content::fingerprint_content(spec.regime_code, &bound)` in place of
+  the old bare serialization. `cargo run -p pipeline --bin conformance -- br` and
+  `-- us_house` both still green; `cargo test -p pipeline --test role_evals` re-confirmed
+  11/11. This was the sole blocker recorded against advancing `br` past
+  `coverage_phase = built`; it is now clear for a future `RunnerBinding`/live-wiring pass.
 
 ## Operational notes (politeness incidents, outages)
 
