@@ -50,6 +50,9 @@ pub struct PublishStats {
     pub outbox_written: u64,
     /// Review tasks opened for newly inserted records.
     pub review_tasks: u64,
+    /// Candidates dropped by the redaction pass as un-republishable (design
+    /// §7.5, e.g. FR patrimony) — never reached Gold.
+    pub suppressed: u64,
 }
 
 /// Publishes one filing's Gold candidates atomically. `review_reasons` is the
@@ -66,6 +69,26 @@ pub async fn publish_filing(
     candidates: &[GoldCandidate],
     review_reasons: &(dyn Fn(&GoldCandidate) -> Vec<String> + Sync),
 ) -> anyhow::Result<PublishStats> {
+    // Fail-closed drift gate (design §5.6, goal 070): when the sentinel has
+    // frozen this regime (a layout shift, count-to-zero, or vanished markers —
+    // migration 0008), garbage never reaches Gold. Open/refresh a review_task
+    // and write NOTHING. The publish stage fails (retryable): once the source
+    // recovers and the sentinel unfreezes it, the retry publishes normally.
+    if is_regime_frozen(pool, spec.regime_code).await? {
+        crate::stages::roster::open_review_task_once(
+            pool,
+            "regime",
+            spec.regime_code,
+            "publish_blocked_frozen",
+        )
+        .await?;
+        anyhow::bail!(
+            "regime {} publication is frozen by sentinel drift (design §5.6) — \
+             refusing to publish Gold; review_task opened, nothing written",
+            spec.regime_code
+        );
+    }
+
     let mut tx = pool.begin().await.context("opening publish txn")?;
     let filing_id = ensure_filing(&mut tx, spec).await?;
     let mut stats = PublishStats {
@@ -74,10 +97,25 @@ pub async fn publish_filing(
         gold_inserted: 0,
         outbox_written: 0,
         review_tasks: 0,
+        suppressed: 0,
     };
     for (index, candidate) in candidates.iter().enumerate() {
         let ordinal = u32::try_from(index).context("ordinal overflow")?;
-        let bound = bind_identity(candidate, &filing_id, spec)?;
+        let mut bound = bind_identity(candidate, &filing_id, spec)?;
+        // Pre-publication redaction (design §7.5): strip out-of-scope personal
+        // data / drop un-republishable records BEFORE the contract check and
+        // the Gold insert. Bronze + the staged Silver row keep the raw
+        // (invariant 2 — `bound` is a clone, the source candidate is untouched).
+        match crate::redaction::redact(spec.regime_code, &mut bound) {
+            crate::redaction::Redaction::Suppress { reason } => {
+                // Un-republishable (e.g. FR patrimony): no Gold row. Surface
+                // the belt-and-suspenders catch for audit, then skip it.
+                insert_filing_review_task(&mut tx, &filing_id, &reason).await?;
+                stats.suppressed += 1;
+                continue;
+            }
+            crate::redaction::Redaction::Publish { .. } => {}
+        }
         bound
             .validate()
             .map_err(|e| anyhow::anyhow!("gold[{ordinal}] fails domain validation: {e}"))?;
@@ -104,6 +142,41 @@ pub async fn publish_filing(
     }
     tx.commit().await.context("committing publish txn")?;
     Ok(stats)
+}
+
+/// Whether the regime's publication is frozen by the sentinel (design §5.6;
+/// `sentinel_watch.frozen`, kept in sync with the open freezing `drift_report`
+/// by `worker::sentinel`). A regime never watched (no row) is not frozen.
+///
+/// # Errors
+/// Database failure.
+async fn is_regime_frozen(pool: &PgPool, regime_code: &str) -> anyhow::Result<bool> {
+    let frozen: Option<bool> =
+        sqlx::query_scalar("select frozen from sentinel_watch where regime_code = $1")
+            .bind(regime_code)
+            .fetch_optional(pool)
+            .await
+            .with_context(|| format!("checking freeze state for {regime_code}"))?;
+    Ok(frozen.unwrap_or(false))
+}
+
+/// Opens a filing-scoped `review_task` (used when a record is suppressed by the
+/// redaction pass — the drop must be visible, not silent).
+async fn insert_filing_review_task(
+    tx: &mut Transaction<'_, Postgres>,
+    filing_id: &str,
+    reason: &str,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        "insert into review_task (id, target_kind, target_id, reason) values ($1, 'filing', $2, $3)",
+    )
+    .bind(ulid::Ulid::new().to_string())
+    .bind(filing_id)
+    .bind(reason)
+    .execute(&mut **tx)
+    .await
+    .with_context(|| format!("opening filing review_task {reason} for {filing_id}"))?;
+    Ok(())
 }
 
 /// Inserts the filing row (dedup by `(regime_id, external_id)`, design §5.2)

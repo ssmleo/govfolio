@@ -377,6 +377,18 @@ async fn supersede(
         .map_err(|e| anyhow::anyhow!("regime id {:?}: {e}", original.regime_id))?;
     bound.fingerprint = None; // computed below, like publish
 
+    // Corrections publish public Gold too: apply the same pre-publication
+    // redaction (design §7.5) BEFORE the contract check, exactly like publish.
+    // A correction that lands on an un-republishable record (e.g. FR patrimony)
+    // fails closed — it must never be superseded INTO Gold.
+    if let crate::redaction::Redaction::Suppress { reason } =
+        crate::redaction::redact(regime_code, &mut bound)
+    {
+        anyhow::bail!(
+            "correction is un-republishable ({reason}) — refusing to supersede into public Gold"
+        );
+    }
+
     // A correction clears the same bar as a publish candidate: domain
     // validation (the SQL CHECKs' mirror) + the details contract (invariant 5).
     bound

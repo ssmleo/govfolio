@@ -509,6 +509,16 @@ pub enum DriftOutcome {
     Redetected,
 }
 
+/// Whether a healthy pass cleared a standing freeze (design §5.6 recovery).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecoverOutcome {
+    /// The regime was frozen and is now cleared — its freezing drift report(s)
+    /// and linked `review_task`(s) resolved, publication re-enabled.
+    Recovered,
+    /// The regime was already healthy — nothing to clear.
+    WasHealthy,
+}
+
 /// The persistence seam: baselines + deduped drift reports. Mocked offline in
 /// tests; the live implementation is [`PgWatchStore`].
 #[async_trait]
@@ -532,6 +542,15 @@ pub trait WatchStore: Send + Sync {
     /// # Errors
     /// Storage failure.
     async fn file_drift(&self, report: &DriftReport) -> anyhow::Result<DriftOutcome>;
+
+    /// Clears a standing freeze after a healthy pass (design §5.6 recovery): if
+    /// the regime is frozen, unfreeze it and resolve its open freezing drift
+    /// report(s) + linked `review_task`(s), re-enabling publication. A no-op
+    /// when the regime is not frozen.
+    ///
+    /// # Errors
+    /// Storage failure.
+    async fn recover(&self, regime_code: &str) -> anyhow::Result<RecoverOutcome>;
 }
 
 /// What one WATCH pass did.
@@ -543,6 +562,8 @@ pub struct WatchSummary {
     pub filed: usize,
     /// Drifts re-detected (deduped, not re-filed).
     pub redetected: usize,
+    /// Frozen regimes cleared by a healthy pass this run (recovery, §5.6).
+    pub recovered: usize,
     /// Every drift observed this pass, ranked worst-first.
     pub reports: Vec<DriftReport>,
 }
@@ -592,6 +613,10 @@ pub async fn watch_pass(
                 DriftOutcome::Redetected => summary.redetected += 1,
             }
             reports.push(drift);
+        } else if let RecoverOutcome::Recovered = store.recover(&target.regime_code).await? {
+            // Healthy pass on a regime that was frozen: it recovered — clear the
+            // freeze and resolve the freezing drift, re-enabling publication.
+            summary.recovered += 1;
         }
         summary.checked += 1;
     }
@@ -784,6 +809,51 @@ impl WatchStore for PgWatchStore {
         }
         tx.commit().await.context("committing drift filing")?;
         Ok(DriftOutcome::Filed)
+    }
+
+    async fn recover(&self, regime_code: &str) -> anyhow::Result<RecoverOutcome> {
+        let mut tx = self.pool.begin().await.context("opening recover txn")?;
+        // Only act if the regime is CURRENTLY frozen — a clean pass on a healthy
+        // regime is the common case and must stay a cheap no-op.
+        let unfroze = sqlx::query(
+            "update sentinel_watch set frozen = false, frozen_kind = null, frozen_at = null \
+             where regime_code = $1 and frozen = true",
+        )
+        .bind(regime_code)
+        .execute(&mut *tx)
+        .await
+        .with_context(|| format!("unfreezing {regime_code}"))?
+        .rows_affected();
+        if unfroze == 0 {
+            tx.commit().await.context("committing recover no-op")?;
+            return Ok(RecoverOutcome::WasHealthy);
+        }
+        // Resolve the open freezing drift report(s) and collect their linked
+        // review_task ids.
+        let task_ids: Vec<Option<String>> = sqlx::query_scalar(
+            "update drift_report set status = 'resolved', last_detected_at = now() \
+             where regime_code = $1 and status = 'open' and freezes_publication = true \
+             returning review_task_id",
+        )
+        .bind(regime_code)
+        .fetch_all(&mut *tx)
+        .await
+        .with_context(|| format!("resolving freezing drift reports for {regime_code}"))?;
+        // Resolve each linked review_task (still open).
+        let recovered = serde_json::json!({ "verdict": "drift_recovered" });
+        for task_id in task_ids.into_iter().flatten() {
+            sqlx::query(
+                "update review_task set status = 'resolved', resolved_at = now(), \
+                 resolution = $2 where id = $1 and status = 'open'",
+            )
+            .bind(&task_id)
+            .bind(&recovered)
+            .execute(&mut *tx)
+            .await
+            .with_context(|| format!("resolving recovered review_task {task_id}"))?;
+        }
+        tx.commit().await.context("committing recovery")?;
+        Ok(RecoverOutcome::Recovered)
     }
 }
 

@@ -12,8 +12,8 @@ use std::sync::Mutex;
 use async_trait::async_trait;
 
 use worker::sentinel::{
-    DriftKind, DriftOutcome, DriftReport, ProbeResult, SourceProbe, WatchState, WatchStore,
-    WatchTarget, classify, observe, rank, watch_pass,
+    DriftKind, DriftOutcome, DriftReport, ProbeResult, RecoverOutcome, SourceProbe, WatchState,
+    WatchStore, WatchTarget, classify, observe, rank, watch_pass,
 };
 
 // --------------------------------------------------------------------------
@@ -105,6 +105,13 @@ impl WatchStore for MockStore {
         }
         detections.insert(report.dedup_key.clone(), 1);
         Ok(DriftOutcome::Filed)
+    }
+    async fn recover(&self, regime_code: &str) -> anyhow::Result<RecoverOutcome> {
+        if self.frozen.lock().unwrap().remove(regime_code) {
+            Ok(RecoverOutcome::Recovered)
+        } else {
+            Ok(RecoverOutcome::WasHealthy)
+        }
     }
 }
 
@@ -319,6 +326,39 @@ async fn sentinel_clean_source_files_no_drift() {
     assert!(!store.is_frozen("us_house"));
 }
 
+/// A regime frozen by a layout shift RECOVERS when the source returns to its
+/// known-good structure: the next clean pass clears the freeze (design §5.6
+/// recovery), re-enabling publication.
+#[tokio::test]
+async fn sentinel_recovers_and_unfreezes_after_clean_pass() {
+    let probe = ScriptedProbe::default();
+    // baseline healthy(5) -> restructured(5) freezes -> healthy(5) again recovers.
+    probe.script(
+        &target().url,
+        vec![
+            ok_200(listing(5)),
+            ok_200(restructured(5)),
+            ok_200(listing(5)),
+        ],
+    );
+    let store = MockStore::default();
+    let targets = vec![target()];
+
+    watch_pass(&probe, &store, &targets).await.unwrap(); // baseline
+    let frozen_pass = watch_pass(&probe, &store, &targets).await.unwrap(); // layout shift
+    assert_eq!(frozen_pass.filed, 1);
+    assert!(store.is_frozen("us_house"), "layout shift froze the source");
+
+    // Source reverts to the known-good structure -> clean pass -> recovery.
+    let recover_pass = watch_pass(&probe, &store, &targets).await.unwrap();
+    assert_eq!(recover_pass.filed, 0, "no new drift on the clean pass");
+    assert_eq!(recover_pass.recovered, 1, "the freeze was cleared");
+    assert!(
+        !store.is_frozen("us_house"),
+        "a clean pass unfreezes publication (design §5.6 recovery)"
+    );
+}
+
 /// A 304 Not Modified is not a drift, and it preserves the layout/count baseline
 /// (conditional GETs stay cheap for the source, invariant 10).
 #[tokio::test]
@@ -443,4 +483,69 @@ async fn sentinel_pg_store_dedups_and_freezes(pool: sqlx::PgPool) {
     .await
     .unwrap();
     assert_eq!(review_tasks, 1, "exactly one review_task, not duplicated");
+}
+
+/// Recovery against the real store: a frozen regime, once recovered, clears the
+/// freeze flag AND resolves its freezing drift report + linked `review_task` —
+/// re-enabling publication (design §5.6). Idempotent: a second recover is a
+/// no-op.
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn sentinel_pg_store_recover_unfreezes(pool: sqlx::PgPool) {
+    use worker::sentinel::PgWatchStore;
+    govfolio_core::db::migrate(&pool).await.unwrap();
+    let store = PgWatchStore::new(pool.clone());
+
+    store
+        .save_state(&WatchState {
+            regime_code: "us_house".to_owned(),
+            last_status: Some(200),
+            last_layout_hash: Some("hash-a".to_owned()),
+            last_count: Some(9),
+            last_etag: None,
+            last_modified: None,
+        })
+        .await
+        .unwrap();
+    let baseline = store.load_state("us_house").await.unwrap().unwrap();
+    let drift = classify(
+        "us_house",
+        Some(&baseline),
+        &observe(&ok_200(listing(0)), &target()),
+    )
+    .unwrap();
+    assert!(matches!(
+        store.file_drift(&drift).await.unwrap(),
+        DriftOutcome::Filed
+    ));
+    let frozen: bool =
+        sqlx::query_scalar("select frozen from sentinel_watch where regime_code = 'us_house'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert!(frozen, "count-to-zero froze publication");
+
+    // Recover: clears the freeze, resolves the drift + review_task.
+    assert_eq!(
+        store.recover("us_house").await.unwrap(),
+        RecoverOutcome::Recovered
+    );
+    let (frozen, open_drift, open_tasks): (bool, i64, i64) = sqlx::query_as(
+        "select \
+           (select frozen from sentinel_watch where regime_code = 'us_house'), \
+           (select count(*) from drift_report where regime_code = 'us_house' and status = 'open'), \
+           (select count(*) from review_task where target_id = 'us_house' and status = 'open')",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert!(!frozen, "recovery cleared the freeze");
+    assert_eq!(open_drift, 0, "the freezing drift report was resolved");
+    assert_eq!(open_tasks, 0, "the linked review_task was resolved");
+
+    // Idempotent: recovering an already-healthy regime is a no-op.
+    assert_eq!(
+        store.recover("us_house").await.unwrap(),
+        RecoverOutcome::WasHealthy
+    );
 }
