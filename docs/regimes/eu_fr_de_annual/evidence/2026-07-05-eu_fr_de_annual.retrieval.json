@@ -1,0 +1,57 @@
+{
+  "task": "064 leg A (spec) — regime research: EU Parliament DPI + France HATVP + Germany Bundestag annual declarations",
+  "date": "2026-07-05",
+  "client": {
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "from_header": "ssm.leo@outlook.com",
+    "concurrency": 1,
+    "min_interval_seconds": {"hatvp.fr": 2, "www.europarl.europa.eu": 3, "r.jina.ai": 3},
+    "conditional_get": "declarations.xml carries Last-Modified (HATVP); europarl DPI PDFs and FR per-declaration XML not validator-probed this leg",
+    "tool": "curl 8.x --compressed; PDF text via pdftotext; DE via r.jina.ai browser-engine reader (host bot-gated)"
+  },
+  "per_host_posture": {
+    "www.hatvp.fr": "served identified client 200 on every request (robots, open-data page, liste.csv 3.06MB, per-declaration XML, notice PDF, structure xlsx). robots.txt only disallows /wordpress/wp-admin/. HEAD declarations.xml = 84,157,194 bytes, Content-Type text/xml, Last-Modified Wed 01 Jul 2026 07:30:48 GMT.",
+    "www.europarl.europa.eu": "served identified client 200 for /robots.txt, /meps/en/full-list/all, /meps/en/{id} (redirects to /{NAME}/home), /meps/en/{id}/{NAME}/declarations, and /erpl-app-public/mep-documents/DPI/{term}/{uuid}_{ts}.pdf. robots.txt: crawl-delay 3 for UA '008'; disallows /meps/*/pdf and /meps/*/xml (list generators) but NOT the erpl-app-public DPI path. Bare /meps/en/{id}/declarations (no name slug) 404s.",
+    "data.europarl.europa.eu": "403 to identified client on /en/home (open-data PORTAL host distinct from www; NOT used — DPI PDFs live on www.europarl.europa.eu).",
+    "www.bundestag.de": "BOT-GATED: Enodia (Radware) proof-of-work + cookie challenge returns HTTP 400 /.enodia/challenge?redirect=... to EVERY non-browser client — plain identified UA AND a stock Chrome UA string alike; /static/appdata/*.pdf and /services/opendata equally gated. Only a browser-engine (POW-solving) client passes. Content obtained via r.jina.ai reader (200). Production fetch REQUIRES a browser-engine seam (australia_register / us_senate precedent); canonical raw-byte pins DEFERRED to capture/build leg.",
+    "r.jina.ai": "browser-engine reader; 200 for bundestag nebentaetigkeit landing, Hinweise PDF, Stufen webarchiv page, biografien index, and a member biografien page. NOTE: returns extracted text, NOT canonical source bytes."
+  },
+  "requests": [
+    {"url": "https://www.hatvp.fr/robots.txt", "status": 200, "evidence": "fr/robots-hatvp"},
+    {"url": "https://www.hatvp.fr/open-data/", "status": 200, "evidence": "fr/opendata-page"},
+    {"url": "https://www.hatvp.fr/livraison/opendata/liste.csv", "status": 200, "bytes": 3067185, "evidence": "fr/opendata-liste", "note": "23,459 declaration rows; columns civilite;prenom;nom;classement;type_mandat;qualite;type_document;departement;date_publication;date_depot;nom_fichier;url_dossier;open_data;statut_publication;id_origine;url_photo"},
+    {"url": "https://www.hatvp.fr/livraison/merge/declarations.xml", "method": "HEAD", "status": 200, "bytes": 84157194, "last_modified": "Wed, 01 Jul 2026 07:30:48 GMT", "note": "merged all-declarations XML; conditional-GET target; NOT downloaded whole (per-declaration XML preferred)"},
+    {"url": "https://www.hatvp.fr/livraison/dossiers/lahmar-abdelkader-dia31320-depute-69.xml", "status": 200, "bytes": 3570, "evidence": "fr/dia-lahmar"},
+    {"url": "https://www.hatvp.fr/livraison/dossiers/firmin-le-bodo-agnes-dia30921-depute-76.xml", "status": 200, "bytes": 18128, "evidence": "fr/dia-firmin-le-bodo"},
+    {"url": "https://www.hatvp.fr/livraison/dossiers/pannier-runacher-agnes-dia34763-depute-62.xml", "status": 200, "bytes": 7966, "evidence": "fr/dia-pannier-runacher"},
+    {"url": "https://www.hatvp.fr/livraison/dossiers/lahmar-abdelkader-diam31323-depute-69.xml", "status": 200, "bytes": 5995, "evidence": "fr/diam-lahmar"},
+    {"url": "https://www.hatvp.fr/wordpress/wp-content/uploads/2017/07/notice-open-data.pdf", "status": 200, "bytes": 247133, "evidence": "fr/opendata-notice"},
+    {"url": "https://www.hatvp.fr/wordpress/wp-content/uploads/2017/07/opendata-structure.xlsx", "status": 200, "bytes": 24178, "evidence": "fr/opendata-xml-structure"},
+    {"url": "https://www.hatvp.fr/livraison/xml/lahmar-abdelkader-dia31320-depute-69.xml", "status": 404, "note": "wrong path probe; correct base is /livraison/dossiers/"},
+    {"url": "https://www.europarl.europa.eu/robots.txt", "status": 200, "evidence": "eu/robots-europarl"},
+    {"url": "https://data.europarl.europa.eu/en/home", "status": 403, "evidence": "eu/opendata-portal-403", "note": "open-data portal host blocks plain client; not used"},
+    {"url": "https://www.europarl.europa.eu/meps/en/full-list/all", "status": 200, "bytes": 678694, "evidence": "eu/mep-full-list"},
+    {"url": "https://www.europarl.europa.eu/meps/en/197490", "status": 200, "redirect": "/meps/en/197490/MAGDALENA_ADAMOWICZ/home", "evidence": "eu/mep-home-adamowicz"},
+    {"url": "https://www.europarl.europa.eu/meps/en/197490/MAGDALENA_ADAMOWICZ/declarations", "status": 200, "evidence": "eu/mep-declarations-adamowicz", "note": "embeds DPI/10 + DPI/9 links (current + prior term)"},
+    {"url": "https://www.europarl.europa.eu/meps/en/197490/declarations", "status": 404, "note": "declarations tab requires the {NAME} slug segment"},
+    {"url": "https://www.europarl.europa.eu/meps/en/256820/GEORGIOS_AFTIAS/declarations", "status": 200, "evidence": "eu/mep-declarations-aftias"},
+    {"url": "https://www.europarl.europa.eu/erpl-app-public/mep-documents/DPI/9/f4c30b56-86cb-4242-91e3-72b31bf8267c_1700040002003.pdf", "status": 200, "bytes": 89622, "evidence": "eu/dpi-t9-spyraki-en", "note": "term-9 English DPI form — grammar reference (Spyraki, sections A-G)"},
+    {"url": "https://www.europarl.europa.eu/erpl-app-public/mep-documents/DPI/10/37b6d6f9-8d23-4d6c-8dd0-14bb5472a06e_1720532466901.pdf", "status": 200, "bytes": 91999, "evidence": "eu/dpi-t10-adamowicz-pln", "note": "term-10 DPI filed in POLISH; EXACT amounts in PLN (4940/5062/17608) + periodicity; holding in (D)"},
+    {"url": "https://www.europarl.europa.eu/erpl-app-public/mep-documents/DPI/10/c8d42e82-1191-49d7-864e-52631d292544_1721085706142.pdf", "status": 200, "bytes": 91204, "evidence": "eu/dpi-t10-aftias-eur", "note": "term-10 DPI; EXACT EUR amounts (11000 EUR, 50 EUR)"},
+    {"url": "https://www.bundestag.de/robots.txt", "status": 400, "note": "Enodia challenge (bot-gated)"},
+    {"url": "https://www.bundestag.de/abgeordnete/nebentaetigkeit", "status": 400, "evidence": "de/enodia-challenge-block", "note": "Enodia POW challenge page (6102 bytes) — bot-posture proof; identified UA AND browser UA both blocked"},
+    {"url": "https://www.bundestag.de/static/appdata/Hinweise_zur_Veroeffentlichung.pdf", "status": 400, "note": "static asset also Enodia-gated"},
+    {"url": "https://r.jina.ai/https://www.bundestag.de/static/appdata/Hinweise_zur_Veroeffentlichung.pdf", "status": 200, "evidence": "de/reader-hinweise-veroeffentlichung", "note": "AUTHORITY: current rules — 8 categories (§45/§48 AbgG); 'Einkünfte betragsgenau (nach Euro und Cent)' since Gesetzesnovelle 8 Okt 2021; format examples verbatim"},
+    {"url": "https://r.jina.ai/https://www.bundestag.de/webarchiv/textarchiv/2013/43074864_kw08_pa_geschaeftsordnung-211038", "status": 200, "evidence": "de/reader-stufen-2013", "note": "HISTORICAL: 2013 announcement of the 10-Stufen system (Stufe 1 >=1.000EUR; 2-9 gestaffelt 3.500-250.000; 10 >250.000) — in force 2013->2021, superseded by exact amounts"},
+    {"url": "https://r.jina.ai/https://www.bundestag.de/abgeordnete/biografien", "status": 200, "evidence": "de/reader-biografien-index", "note": "member index: URL pattern /abgeordnete/biografien/{Initial}/{name}-{id}"},
+    {"url": "https://r.jina.ai/https://www.bundestag.de/abgeordnete/biografien/A/al_wazir_tarek-1043422", "status": 200, "evidence": "de/reader-member-alwazir", "note": "member page; Veroeffentlichungspflichtige-Angaben section renders via a dynamic AJAX fragment NOT captured by the reader — exact fragment endpoint + HTML grammar deferred to build leg"}
+  ],
+  "politeness_incidents": "none (zero 429s). Two deliberate tried-log probes recorded: data.europarl.europa.eu 403 (portal host, single probe, no retry); bundestag.de Enodia 400 (bot gate, no fingerprint-evasion attempted — browser-engine seam is the documented production path).",
+  "websearches": [
+    "HATVP open data XML data.gouv.fr",
+    "European Parliament MEP DPI open data",
+    "Bundestag Veroeffentlichungspflichtige Angaben Stufe income tiers",
+    "Bundestag zehn Stufen exact boundaries (S1 1000-3500 ... S10 >250000)",
+    "HATVP declaration situation patrimoniale reuse interdite LO135-2 (45000 EUR fine)"
+  ]
+}

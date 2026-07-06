@@ -15,7 +15,19 @@ cargo run -p pipeline --bin conformance -- eu_fr_de_annual
 ```
 
 ## Checklist
-- [ ] regime doc  - [ ] fixtures  - [ ] expected (human)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
+- [x] regime doc  - [ ] fixtures  - [ ] expected (human)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
 
 ## BLOCKED (human)
-- expected.*.json completion
+- ~~expected.*.json completion~~ SUPERSEDED per automation-policy (no human gate):
+  test-designer authors expecteds independently (FR deterministic XML; EU vision +
+  second-model cross-check; DE HTML via browser-engine seam), records publish
+  `unverified`, sampling-audit queue. See docs/regimes/eu_fr_de_annual.md.
+
+## Notes (064 leg A, spec — 2026-07-05)
+- Architecture: ONE crate `eu_fr_de_annual`, THREE source sub-adapters (eu/fr/de), THREE
+  disclosure_regime rows; conformance dispatches by the single name over source-namespaced
+  fixtures `fixtures/{eu,fr,de}_<case>/`. Full rationale + contracts in the regime doc.
+- Key findings: DE reformed to EXACT euro/cent (2021) — Stufe bands are historical/backfill;
+  EU MEPs declare in national currency (Currency enum needs extension); FR patrimony (dsp)
+  is legally un-republishable (LO 135-2) → out of scope. All fixtures pinned except DE
+  (bot-gated, browser-engine seam, pins deferred to capture leg).
