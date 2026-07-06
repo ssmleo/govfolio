@@ -14,7 +14,7 @@
 - [x] 061 adapter: uk_commons_register  (E1 diversity seed) (done 2026-07-05, commits 16337a6+c95a437+648e767; FIRST interest record_type; JSON-API source; conformance 5/5; auditor PASS e628c42 9/9. Bonus: .gitattributes -text fixes CRLF pinning hazard repo-wide)
 - [x] 062 adapter: canada_ciec          (E1 diversity seed) (done 2026-07-05, commits edf9ce2+53183ba+c0c51bf; two record_types interest+change_notification, bilingual HTML, <br>→space rule; conformance 7/7; auditor PASS 264c9bd 15/15 rows)
 - [x] 063 adapter: australia_register   (E1 diversity seed) (done 2026-07-05, commits d86036a+d3ed1a8+6ad8d35+9b0612e; FIRST LLM-vision green path, scanned PDFs, offline-primed cache; day-first DD/MM dates; conformance 4/4; auditor PASS 747e3c4; live browser-fetch = follow-up. CI SIGBUS fix: trimmed link footprint)
-- [ ] 064 adapter: eu_parliament + france_hatvp + germany_bundestag (E1 diversity seeds)
+- [x] 064 adapter: eu_parliament + france_hatvp + germany_bundestag (E1 diversity seeds) (done 2026-07-06, commits 9553390+d09d7b0+0ec6a66+ad26df6; ONE crate 3 sub-adapters, first periodic_declaration; EU LLM-vision+PLN-null, FR deterministic XML, DE Enodia-gated exact-euro; conformance 9/9; auditor PASS)
 - [ ] 017 sentinel WATCH (continuous drift defense)
 - [ ] 065 worldwide regime registry seed + coverage dashboard endpoint
 - [ ] 070 trust hardening (sampling audits, corrections log, redaction, drift response)
