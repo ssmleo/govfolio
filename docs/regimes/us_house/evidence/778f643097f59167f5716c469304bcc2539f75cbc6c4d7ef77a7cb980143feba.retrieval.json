@@ -1,0 +1,25 @@
+{
+  "evidence_for": "sources.yaml candidate: individual Periodic Transaction Report (PTR) PDF document endpoint",
+  "archived_file": "778f643097f59167f5716c469304bcc2539f75cbc6c4d7ef77a7cb980143feba.ptr-sample-20029138.pdf",
+  "sha256": "778f643097f59167f5716c469304bcc2539f75cbc6c4d7ef77a7cb980143feba",
+  "source": {
+    "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20029138.pdf",
+    "method": "GET",
+    "retrieved_at_utc": "2026-07-06T16:45:26Z",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "http_status": 200,
+    "content_type": "application/pdf",
+    "content_length": 82276,
+    "etag": "\"ff7815c32abdb1:0\"",
+    "last_modified": "Fri, 11 Apr 2025 22:37:51 GMT"
+  },
+  "verification": {
+    "result": "URL discovered via web search (not guessed) as an example disclosures-clerk.house.gov PTR link; fetched fresh and confirmed a valid 3-page PDF document at that path/host, corroborating that /public_disc/ptr-pdfs/<year>/<docid>.pdf is a live official document endpoint on the Clerk's disclosure domain, matching the pattern already used by crates/adapters/us_house."
+  },
+  "politeness": {
+    "requests_to_host_this_task": 1,
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — 200"
+  }
+}

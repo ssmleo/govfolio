@@ -1,0 +1,24 @@
+{
+  "evidence_for": "sources.yaml candidate: Financial Disclosure Reports search/browse portal (primary candidate)",
+  "archived_file": "a12698461d52486b706098ba4c1f36acce7a2ad7ce71bb2629257c72e13dc146.financial-disclosure-page.html",
+  "sha256": "a12698461d52486b706098ba4c1f36acce7a2ad7ce71bb2629257c72e13dc146",
+  "source": {
+    "url": "https://disclosures-clerk.house.gov/FinancialDisclosure",
+    "method": "GET",
+    "retrieved_at_utc": "2026-07-06T16:44:00Z",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "http_status": 200,
+    "content_type": "text/html",
+    "content_length": 73694
+  },
+  "verification": {
+    "observed": "Nav anchor text 'Financial Disclosure Reports' (title=\"Financial Disclosure Reports\"), page is a JS single-page app shell (interactive Report/Search/Download views: #Report, #Search, #download, #member-staff, #congressional-candidates) served from disclosures-clerk.house.gov — same domain as the Office of the Clerk homepage. Static HTML does not contain the dynamically-loaded statutory text; statutory basis (EIGA 1978 as amended by STOCK Act 2012, Pub. L. 112-105 §6 adding EIGA §103(l)) was independently confirmed via web search of secondary authoritative sources (CRS report, ethics.house.gov, FLRA) rather than scraped from this page — see notes in sources.yaml.",
+    "domain_authority": "disclosures-clerk.house.gov is a subdomain of house.gov (see CSP header on homepage: connect-src 'self' *.house.gov), consistent with an official House of Representatives system operated by the Office of the Clerk (clerk.house.gov, linked from this same page's footer/nav)."
+  },
+  "politeness": {
+    "requests_to_host_this_task": 1,
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — 200"
+  }
+}

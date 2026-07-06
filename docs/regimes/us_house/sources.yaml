@@ -1,0 +1,75 @@
+jurisdiction: us_house
+candidates:
+  - url: https://disclosures-clerk.house.gov/FinancialDisclosure
+    contains: "The Office of the Clerk's Financial Disclosure Reports portal: a browse/search/download
+      interface for House Member, officer, employee, and congressional-candidate financial
+      disclosure filings, including Periodic Transaction Reports (PTRs), annual Financial
+      Disclosure statements, and their amendments."
+    official_rationale: "Hosted on disclosures-clerk.house.gov, a house.gov subdomain
+      (confirmed via CSP header 'connect-src *.house.gov' on the Clerk homepage and via
+      direct navigation links between clerk.house.gov and this domain). The Office of the
+      Clerk of the U.S. House of Representatives is the statutory recipient of financial
+      disclosure filings under the Ethics in Government Act of 1978, as amended by the STOCK
+      Act of 2012 (Pub. L. 112-105 sec. 6, adding EIGA sec. 103(l), 5 U.S.C. app. 4 sec. 101
+      et seq.) — confirmed via independent web search of secondary authoritative sources
+      (Congressional Research Service report R47818 'Laws Governing Financial Disclosure';
+      House Committee on Ethics financial-disclosure page; FLRA's 'Financial Disclosure and
+      the STOCK Act'), which state FDs and PTRs must be filed with the Clerk (for the House)
+      or Secretary of the Senate, not the Ethics Committee."
+    evidence:
+      - a12698461d52486b706098ba4c1f36acce7a2ad7ce71bb2629257c72e13dc146.financial-disclosure-page.html
+      - a12698461d52486b706098ba4c1f36acce7a2ad7ce71bb2629257c72e13dc146.retrieval.json
+      - 219527786b15ee97637c45b0f8febcebad8427add9b14555e04f87bee8f64197.clerk-home.html
+      - 219527786b15ee97637c45b0f8febcebad8427add9b14555e04f87bee8f64197.retrieval.json
+    notes: "The statutory-basis text itself is not present in this page's static HTML (it is
+      a JS single-page app whose report data loads dynamically); the legal-authority claim is
+      corroborated via independent secondary sources cited above rather than scraped from this
+      page. This is Phase 0's primary candidate; Phase 1 (SURVEY) should re-verify the claim
+      chain and record it as a proper legal_basis claim with its own evidence."
+
+  - url: https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2026FD.zip
+    contains: "The bulk annual financial-disclosure filing index for calendar year 2026 —
+      an XML index of every FD/PTR filing (filer name, state/district, filing type, filing
+      date, document id) filed with the Clerk that year, used to discover individual filing
+      PDFs by DocID."
+    official_rationale: "Served from the same disclosures-clerk.house.gov Clerk-of-the-House
+      domain as the FinancialDisclosure portal above (identical host, /public_disc/ path
+      prefix shared with the PTR PDF endpoint). Already relied on by crates/adapters/us_house
+      (see crates/adapters/us_house/fixtures/MANIFEST.json) as the source of filing-index
+      slices, and by the frozen legacy reference bundle (docs/regimes/us-house/reference/
+      E1.lock.json, prior pin sha256 e5419282...) — independently re-fetched here rather than
+      trusted from that prior evidence."
+    evidence:
+      - a8c701865fb0da715c87fab7bcfcd8ebe890a1d4c5c19147bf8cbafad9d27c6d.2026FD.zip
+      - a8c701865fb0da715c87fab7bcfcd8ebe890a1d4c5c19147bf8cbafad9d27c6d.retrieval.json
+    notes: "This fetch's sha256 (a8c70186...) differs from the frozen legacy E1 pin
+      (e5419282...) and content-length also differs (48536 vs 48167 bytes); Last-Modified on
+      this fetch is 2026-07-06, i.e. today. This is EXPECTED — the legacy evidence itself
+      documents that this index is regenerated server-side at least daily — not a conflict
+      with the prior pin, just a later snapshot of a live, actively-updated feed."
+
+  - url: https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2025/20029138.pdf
+    contains: "A single filed Periodic Transaction Report (PTR) PDF document — the raw filing
+      artifact for one member's reported securities transaction(s)."
+    official_rationale: "Same host and /public_disc/ path family as the two candidates above;
+      URL pattern (/public_disc/ptr-pdfs/<year>/<docid>.pdf) matches crates/adapters/us_house's
+      existing production fetch convention. Fetched fresh (not reused from prior fixtures) and
+      confirmed to return a genuine 3-page PDF at HTTP 200, verifying the document endpoint is
+      still live as of this task."
+    evidence:
+      - 778f643097f59167f5716c469304bcc2539f75cbc6c4d7ef77a7cb980143feba.ptr-sample-20029138.pdf
+      - 778f643097f59167f5716c469304bcc2539f75cbc6c4d7ef77a7cb980143feba.retrieval.json
+    notes: "This particular DocID/URL was surfaced via web search rather than derived from
+      the freshly-fetched 2026FD.zip index (that XML was not parsed in this Phase-0 pass);
+      Phase 1/2 should derive sample DocIDs directly from the index rather than reuse this one."
+
+notes: "All four archived pages/documents were fetched fresh in this session with an
+  identified User-Agent ('govfolio.io research (contact: ssm.leo@outlook.com)'), concurrency
+  1, and a minimum 2-second interval between requests to disclosures-clerk.house.gov — no
+  request incidents (all HTTP 200). The pre-existing docs/regimes/us-house/ (hyphen) bundle
+  and docs/regimes/us-house.md are a frozen, separately-pinned legacy reference and were
+  consulted only for leads, never copied as evidence; every file referenced above was
+  independently re-fetched into docs/regimes/us_house/evidence/ (underscore) for this
+  artifact. WebFetch (the tool) returned HTTP 403 for this host on both the homepage and the
+  FinancialDisclosure page — the site appears to reject that tool's fetch signature; curl
+  with the identified UA above succeeded (200) for every request in this task."

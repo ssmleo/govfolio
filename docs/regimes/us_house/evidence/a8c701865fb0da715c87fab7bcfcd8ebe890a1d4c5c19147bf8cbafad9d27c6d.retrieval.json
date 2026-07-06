@@ -1,0 +1,26 @@
+{
+  "evidence_for": "sources.yaml candidate: bulk annual financial-disclosure filing index (2026FD.zip)",
+  "archived_file": "a8c701865fb0da715c87fab7bcfcd8ebe890a1d4c5c19147bf8cbafad9d27c6d.2026FD.zip",
+  "sha256": "a8c701865fb0da715c87fab7bcfcd8ebe890a1d4c5c19147bf8cbafad9d27c6d",
+  "source": {
+    "url": "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2026FD.zip",
+    "method": "GET",
+    "retrieved_at_utc": "2026-07-06T16:45:13Z",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "http_status": 200,
+    "content_type": "application/x-zip-compressed",
+    "content_length": 48536,
+    "etag": "\"5a307c7e47ddd1:0\"",
+    "last_modified": "Mon, 06 Jul 2026 13:01:00 GMT"
+  },
+  "verification": {
+    "result": "Freshly re-fetched, independent of the frozen legacy pin (docs/regimes/us-house/reference/E1.lock.json, sha256 e5419282df7a96daa8aed108b72072a57bf909bb2a6c6333c938144f6898ba0d). Byte content DIFFERS from that pin (this fetch: 48536 bytes / sha a8c70186...; legacy: 48167 bytes) and Last-Modified is today (2026-07-06), consistent with the legacy note that this index is regenerated server-side at least daily — the differing hash is EXPECTED, not a discrepancy, and confirms the endpoint is a live, actively-maintained official data feed rather than a stale mirror.",
+    "path_confirms_pattern": "Confirms crates/adapters/us_house's live-fetch convention (disclosures-clerk.house.gov/public_disc/...) is still current as of this task's fetch."
+  },
+  "politeness": {
+    "requests_to_host_this_task": 1,
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — 200"
+  }
+}
