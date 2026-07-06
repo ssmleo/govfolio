@@ -59,6 +59,9 @@ fixture_fake = { path = "../adapters/fixture_fake" }
 # Dev-dep cycle (pipeline -> us_house -> pipeline) is legal: the e2e runner
 # test drives the real adapter end to end.
 us_house = { path = "../adapters/us_house" }
+# Same legal dev-dep cycle shape (pipeline -> worker -> pipeline, goal 081
+# Task 2): the backfill_suppression test proves match_pass sees zero events.
+worker = { path = "../worker" }
 sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "tls-rustls", "postgres", "migrate", "macros"] }
 tokio = { version = "1.52.3", features = ["test-util", "macros", "time", "rt"] }
 tempfile = "3.27.0"

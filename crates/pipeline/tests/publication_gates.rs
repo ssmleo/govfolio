@@ -68,6 +68,7 @@ fn spec(identity: &FilingIdentity) -> FilingSpec<'_> {
         raw_document_id: RAW_DOC_ID,
         identity,
         discovered_at: Utc::now(),
+        backfill: false,
     }
 }
 

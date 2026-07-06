@@ -367,6 +367,7 @@ async fn publish_writes_gold_and_outbox_in_one_transaction(pool: PgPool) {
         raw_document_id: "01BX5ZZKBKACTAV9WEVGEMMVD9",
         identity: &identity,
         discovered_at: chrono::Utc::now(),
+        backfill: false,
     };
 
     let good = candidate(serde_json::json!({

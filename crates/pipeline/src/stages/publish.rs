@@ -35,6 +35,11 @@ pub struct FilingSpec<'a> {
     pub identity: &'a FilingIdentity,
     /// When WE found the filing (`filing.discovered_at`, design §4.2).
     pub discovered_at: DateTime<Utc>,
+    /// Historical backfill run (goal 081 Task 2): Gold rows and `review_task`
+    /// rows are unaffected, but each `outbox_event` is written already dispatched
+    /// (`dispatched_at = now()`) so the matcher never fires real subscriber
+    /// alerts for filings that are years old. The row still exists for audit.
+    pub backfill: bool,
 }
 
 /// Audit stats of one publish; doubles as the `pipeline_run.stats` payload.
@@ -133,7 +138,7 @@ pub async fn publish_filing(
             continue; // fingerprint seen before: replay inserts nothing
         };
         stats.gold_inserted += 1;
-        insert_outbox(&mut tx, &record_id, &fp, &bound).await?;
+        insert_outbox(&mut tx, &record_id, &fp, &bound, spec.backfill).await?;
         stats.outbox_written += 1;
         for reason in review_reasons(&bound) {
             insert_review_task(&mut tx, &record_id, &reason).await?;
@@ -291,11 +296,17 @@ async fn insert_record(
 
 /// Writes the record's outbox event — same transaction as the Gold insert
 /// (design §5.2), so alerts can never observe a record that was rolled back.
+/// `backfill` (goal 081 Task 2) binds `dispatched_at = now()` in this same
+/// INSERT instead of leaving it NULL, so the matcher's `dispatched_at is
+/// null` poll never picks up historical events — no real subscriber alert
+/// ever fires for a backfilled filing, while the event row still exists for
+/// audit.
 async fn insert_outbox(
     tx: &mut Transaction<'_, Postgres>,
     record_id: &str,
     fp: &str,
     bound: &GoldCandidate,
+    backfill: bool,
 ) -> anyhow::Result<()> {
     let payload = json!({
         "record_id": record_id,
@@ -305,13 +316,17 @@ async fn insert_outbox(
         "regime_id": bound.regime_id.to_string(),
         "record_type": wire(&bound.record_type)?,
     });
-    sqlx::query("insert into outbox_event (id, kind, payload) values ($1, $2, $3)")
-        .bind(ulid::Ulid::new().to_string())
-        .bind("disclosure_record.published")
-        .bind(payload)
-        .execute(&mut **tx)
-        .await
-        .with_context(|| format!("writing outbox_event for record {record_id}"))?;
+    sqlx::query(
+        "insert into outbox_event (id, kind, payload, dispatched_at) \
+         values ($1, $2, $3, case when $4 then now() else null end)",
+    )
+    .bind(ulid::Ulid::new().to_string())
+    .bind("disclosure_record.published")
+    .bind(payload)
+    .bind(backfill)
+    .execute(&mut **tx)
+    .await
+    .with_context(|| format!("writing outbox_event for record {record_id}"))?;
     Ok(())
 }
 

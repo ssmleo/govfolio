@@ -506,6 +506,9 @@ impl<'a> Runner<'a> {
             raw_document_id,
             identity: &identity,
             discovered_at: self.ctx.clock.now(),
+            // Runner-driven live/local runs are never backfill (goal 081
+            // Task 3 wires the historical write path through its own call).
+            backfill: false,
         };
         publish_filing(&self.pool, &spec, &candidates, &|candidate| {
             self.binding.review_reasons(candidate)

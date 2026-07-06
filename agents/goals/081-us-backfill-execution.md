@@ -105,7 +105,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   Acceptance: `cargo test -p pipeline --test roster_historical -- --nocapture` — a real,
   pre-2015 filer no longer in Congress today resolves via `resolve_politician` to
   `Some(politician_id)` against the seeded historical roster, not `None`.
-- [ ] **Task 2 — backfill-mode alert suppression.** Add `pub backfill: bool` to `FilingSpec` (a
+- [x] **Task 2 — backfill-mode alert suppression.** Add `pub backfill: bool` to `FilingSpec` (a
   plain bool, not a `PublishMode` enum — only two states exist; CLAUDE.md simplicity-first).
   Thread into `insert_outbox` (`crates/pipeline/src/stages/publish.rs`): when true, bind
   `dispatched_at = now()` in the same INSERT instead of leaving it NULL. Gold rows and
