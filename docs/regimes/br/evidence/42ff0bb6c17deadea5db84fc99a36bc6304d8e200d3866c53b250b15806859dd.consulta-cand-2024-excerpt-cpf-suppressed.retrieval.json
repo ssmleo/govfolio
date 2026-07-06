@@ -1,0 +1,10 @@
+{
+  "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_2024.zip",
+  "fetched_at_utc": "2026-07-06T18:30:00Z",
+  "politeness": {
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "concurrency": 1,
+    "min_interval_seconds": 2
+  },
+  "redacted_by_govfolio": "2026-07-06 (orchestrator, before commit): NR_CPF_CANDIDATO was already suppressed by TSE itself in this cycle (sentinel '-4'), but DT_NASCIMENTO and NR_TITULO_ELEITORAL_CANDIDATO were still live real PII for real named 2024 candidates and were replaced with [REDACTED-BY-GOVFOLIO-*] placeholders in the archived CSV before commit. See docs/regimes/br/AUTHORITY.md personal_data_to_redact and agents/skills/evidence-archiving/SKILL.md."
+}

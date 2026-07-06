@@ -1,0 +1,9 @@
+{
+  "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_2022.zip",
+  "fetched_at_utc": "2026-07-06T18:30:00Z",
+  "politeness": {
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "concurrency": 1,
+    "min_interval_seconds": 2
+  }
+}

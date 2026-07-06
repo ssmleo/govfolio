@@ -1,0 +1,10 @@
+{
+  "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_2022.zip",
+  "fetched_at_utc": "2026-07-06T18:30:00Z",
+  "politeness": {
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "concurrency": 1,
+    "min_interval_seconds": 2
+  },
+  "redacted_by_govfolio": "2026-07-06 (orchestrator, before commit): NR_CPF_CANDIDATO, DT_NASCIMENTO, and NR_TITULO_ELEITORAL_CANDIDATO values replaced with [REDACTED-BY-GOVFOLIO-*] placeholders in the archived CSV. These are real, live PII (Brazilian national taxpayer ID, birth date, voter-registration number) for real named 2022 candidates, sourced from TSE's own public bulk open-data export; the source file and URL are genuinely public, but this project does not need to perpetuate a permanent, easily-discoverable copy of those specific values in its own git history to support the survey's claim (which is about column/field presence and format, not the individual values). The original unredacted bytes were never committed. See docs/regimes/br/AUTHORITY.md personal_data_to_redact and agents/skills/evidence-archiving/SKILL.md."
+}

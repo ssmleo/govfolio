@@ -1,0 +1,9 @@
+=== GET https://divulgacandcontas.tse.jus.br/ (headers) ===
+HTTP/1.0 302 Moved Temporarily
+Location: https://cdn.tse.jus.br/indisponivel.html
+Server: Webserver
+Connection: close
+Content-Length: 0
+
+
+=== GET https://divulgacandcontas.tse.jus.br/robots.txt (body) ===

@@ -1,0 +1,10 @@
+{
+  "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/bem_candidato/bem_candidato_2022.zip",
+  "fetched_at_utc": "2026-07-06T18:30:00Z",
+  "politeness": {
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "concurrency": 1,
+    "min_interval_seconds": 2
+  },
+  "redacted_by_govfolio": "2026-07-06 (orchestrator, before commit): several DS_BEM_CANDIDATO free-text asset descriptions contained full street addresses (with CEP), a vehicle license plate, and a CNPJ business registry number for real named 2022 candidates; those description cells were replaced with a [REDACTED-BY-GOVFOLIO: ...] placeholder that preserves the row's asset-type/value/date fields (the genuinely transparency-relevant data) without perpetuating the specific address/plate/CNPJ. See docs/regimes/br/AUTHORITY.md personal_data_to_redact and agents/skills/evidence-archiving/SKILL.md."
+}
