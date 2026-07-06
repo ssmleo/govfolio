@@ -15,7 +15,7 @@ cargo run -p pipeline --bin conformance -- eu_fr_de_annual
 ```
 
 ## Checklist
-- [x] regime doc  - [ ] fixtures  - [ ] expected (human)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
+- [x] regime doc  - [x] fixtures  - [x] expected (test-designer, 064b)  - [ ] discover  - [ ] fetch  - [ ] parse  - [ ] normalize  - [ ] green
 
 ## BLOCKED (human)
 - ~~expected.*.json completion~~ SUPERSEDED per automation-policy (no human gate):

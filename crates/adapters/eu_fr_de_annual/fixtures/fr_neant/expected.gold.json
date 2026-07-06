@@ -1,0 +1,71 @@
+[
+  {
+    "filing_id": "0FRHFNG0000000000000000002",
+    "politician_id": "0FRHMBR0000000000000000002",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "association canuts solidarité",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2024-08-04",
+    "value": null,
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "lahmar-abdelkader-dia31320-depute-69",
+      "declaration_uuid": "fbba93e0-8f4c-49fe-96bf-e2d8c0b81137",
+      "type_declaration": "DIA",
+      "is_modificative": false,
+      "section_tag": "participationDirigeantDto",
+      "row_ordinal": 1,
+      "motif": "CREATION",
+      "entry_fields": {
+        "nomSociete": "association canuts solidarité",
+        "activite": "association à but non lucrative",
+        "dateDebut": "12/2018",
+        "dateFin": "07/2024",
+        "commentaire": "fondateur trésorier de l'association",
+        "conservee": "true"
+      },
+      "montants": [
+        {
+          "year": 2018,
+          "amount": "0.00"
+        },
+        {
+          "year": 2019,
+          "amount": "0.00"
+        },
+        {
+          "year": 2020,
+          "amount": "0.00"
+        },
+        {
+          "year": 2021,
+          "amount": "0.00"
+        },
+        {
+          "year": 2022,
+          "amount": "0.00"
+        },
+        {
+          "year": 2023,
+          "amount": "0.00"
+        },
+        {
+          "year": 2024,
+          "amount": "0.00"
+        }
+      ],
+      "brut_net": "Net",
+      "organe": null,
+      "language": "fr",
+      "value_source": "none"
+    }
+  }
+]

@@ -1,0 +1,236 @@
+[
+  {
+    "filing_id": "0FRHFNG0000000000000000003",
+    "politician_id": "0FRHMBR0000000000000000002",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "enseignant titulaire",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2024-12-18",
+    "value": {
+      "low": "34429.00",
+      "high": "34429.00",
+      "currency": "EUR"
+    },
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "lahmar-abdelkader-diam31323-depute-69",
+      "declaration_uuid": "3ba463fa-244d-4305-9416-3f3c53eabddc",
+      "type_declaration": "DIAM",
+      "is_modificative": false,
+      "section_tag": "activProfCinqDerniereDto",
+      "row_ordinal": 1,
+      "motif": "CREATION",
+      "entry_fields": {
+        "description": "enseignant titulaire",
+        "employeur": "éducation nationale",
+        "dateDebut": "09/2019",
+        "dateFin": "09/2024",
+        "commentaire": "mise en disponibilité au 01/09/2024 par le ministrère de l'éducation nationale"
+      },
+      "montants": [
+        {
+          "year": 2019,
+          "amount": "45289.00"
+        },
+        {
+          "year": 2020,
+          "amount": "40044.00"
+        },
+        {
+          "year": 2021,
+          "amount": "44670.00"
+        },
+        {
+          "year": 2022,
+          "amount": "44264.00"
+        },
+        {
+          "year": 2023,
+          "amount": "49017.00"
+        },
+        {
+          "year": 2024,
+          "amount": "34429.00"
+        }
+      ],
+      "brut_net": "Net",
+      "organe": "Rhône(69)",
+      "language": "fr",
+      "value_source": "montant_latest_year"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000003",
+    "politician_id": "0FRHMBR0000000000000000002",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "NEANT",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2024-12-18",
+    "value": null,
+    "owner": "spouse",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "lahmar-abdelkader-diam31323-depute-69",
+      "declaration_uuid": "3ba463fa-244d-4305-9416-3f3c53eabddc",
+      "type_declaration": "DIAM",
+      "is_modificative": false,
+      "section_tag": "activProfConjointDto",
+      "row_ordinal": 2,
+      "motif": "CREATION",
+      "entry_fields": {
+        "activiteProf": "NEANT",
+        "employeurConjoint": "NEANT",
+        "nomConjoint": "[Données non publiées]",
+        "commentaire": "[Données non publiées]"
+      },
+      "montants": [],
+      "brut_net": null,
+      "organe": "Rhône(69)",
+      "language": "fr",
+      "value_source": "none"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000003",
+    "politician_id": "0FRHMBR0000000000000000002",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "association canuts solidarité",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2024-12-18",
+    "value": null,
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "lahmar-abdelkader-diam31323-depute-69",
+      "declaration_uuid": "3ba463fa-244d-4305-9416-3f3c53eabddc",
+      "type_declaration": "DIAM",
+      "is_modificative": false,
+      "section_tag": "participationDirigeantDto",
+      "row_ordinal": 3,
+      "motif": "CREATION",
+      "entry_fields": {
+        "nomSociete": "association canuts solidarité",
+        "activite": "association à but non lucrative",
+        "dateDebut": "12/2018",
+        "commentaire": "fondateur trésorier de l'association",
+        "conservee": "true"
+      },
+      "montants": [
+        {
+          "year": 2018,
+          "amount": "0.00"
+        },
+        {
+          "year": 2019,
+          "amount": "0.00"
+        },
+        {
+          "year": 2020,
+          "amount": "0.00"
+        },
+        {
+          "year": 2021,
+          "amount": "0.00"
+        },
+        {
+          "year": 2022,
+          "amount": "0.00"
+        },
+        {
+          "year": 2023,
+          "amount": "0.00"
+        },
+        {
+          "year": 2024,
+          "amount": "0.00"
+        }
+      ],
+      "brut_net": "Net",
+      "organe": "Rhône(69)",
+      "language": "fr",
+      "value_source": "none"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000003",
+    "politician_id": "0FRHMBR0000000000000000002",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "MIV mouvement d'initiative vaudais",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2024-12-18",
+    "value": null,
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "lahmar-abdelkader-diam31323-depute-69",
+      "declaration_uuid": "3ba463fa-244d-4305-9416-3f3c53eabddc",
+      "type_declaration": "DIAM",
+      "is_modificative": false,
+      "section_tag": "participationDirigeantDto",
+      "row_ordinal": 4,
+      "motif": "CREATION",
+      "entry_fields": {
+        "nomSociete": "MIV mouvement d'initiative vaudais",
+        "activite": "président de l'association",
+        "dateDebut": "08/2020",
+        "commentaire": "organisation politique locale située à Vaulx-en Velin",
+        "conservee": "true"
+      },
+      "montants": [
+        {
+          "year": 2020,
+          "amount": "0.00"
+        },
+        {
+          "year": 2021,
+          "amount": "0.00"
+        },
+        {
+          "year": 2022,
+          "amount": "0.00"
+        },
+        {
+          "year": 2023,
+          "amount": "0.00"
+        },
+        {
+          "year": 2024,
+          "amount": "0.00"
+        }
+      ],
+      "brut_net": "Net",
+      "organe": "Rhône(69)",
+      "language": "fr",
+      "value_source": "none"
+    }
+  }
+]

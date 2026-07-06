@@ -1,0 +1,50 @@
+[
+  {
+    "payload": {
+      "mdb_id": 1049290,
+      "member_name_raw": "Alexander Throm",
+      "wahlperiode": 21,
+      "category_number": 2,
+      "category_name_raw": "Entgeltliche Tätigkeiten neben dem Mandat",
+      "row_ordinal": 1,
+      "entry_text_raw": "THSB Throm Hauser Strobl von Berlichingen Rechtsanwälte PartGmbB, Heilbronn — Rechtsanwalt",
+      "amount_raw": "monatlich, 1.000,00 EUR, Gewinnausschüttung",
+      "partner_raw": "Mandant 3, Formenbau, 2025; Mandant 5, Energieversorgungsunternehmen, 2025; 2026; Mandant 28, Holzbau, 2025; 2026; Mandant 33, Wohnbau, 2026; Mandant 65, Fenster- und Fassadenbau, 2025; Mandant 67, Privatperson, 2025; 2026",
+      "ehrenamtlich": false,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049290,
+      "member_name_raw": "Alexander Throm",
+      "wahlperiode": 21,
+      "category_number": 7,
+      "category_name_raw": "Beteiligungen an Kapital- oder Personengesellschaften",
+      "row_ordinal": 2,
+      "entry_text_raw": "HMI Forderungs Treuhand GmbH, Heilbronn",
+      "amount_raw": null,
+      "partner_raw": null,
+      "ehrenamtlich": false,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049290,
+      "member_name_raw": "Alexander Throm",
+      "wahlperiode": 21,
+      "category_number": 7,
+      "category_name_raw": "Beteiligungen an Kapital- oder Personengesellschaften",
+      "row_ordinal": 3,
+      "entry_text_raw": "THSB Throm Hauser Strobl von Berlichingen Rechtsanwälte PartGmbB, Heilbronn — Bezüglich der Einkünfte aus dieser Beteiligung wird auf die bereits als Einkünfte aus entgeltlichen Nebentätigkeiten veröffentlichten Beträge verwiesen.",
+      "amount_raw": null,
+      "partner_raw": null,
+      "ehrenamtlich": false,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  }
+]

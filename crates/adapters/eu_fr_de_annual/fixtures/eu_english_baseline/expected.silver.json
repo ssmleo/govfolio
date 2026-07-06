@@ -1,0 +1,23 @@
+[
+  {
+    "payload": {
+      "dpi_uuid": "f4c30b56-86cb-4242-91e3-72b31bf8267c",
+      "version_ts": "1700040002003",
+      "mep_id": 125064,
+      "surname_raw": "SPYRAKI",
+      "first_name_raw": "Maria",
+      "parliamentary_term": 9,
+      "section": "A",
+      "row_ordinal": 1,
+      "entry_text_raw": "Member of the European Parliament",
+      "income_amount_raw": null,
+      "benefit_nature_raw": "The income I receive as Member of the European Parliament is public information",
+      "periodicity_raw": "Monthly",
+      "none_flag": false,
+      "declaration_date_raw": "13/11/2023",
+      "lang": "en",
+      "extractor": "eu_parliament_dpi/llm@1"
+    },
+    "confidence": 0.9800000190734863
+  }
+]

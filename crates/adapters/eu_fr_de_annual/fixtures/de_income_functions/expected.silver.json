@@ -1,0 +1,194 @@
+[
+  {
+    "payload": {
+      "mdb_id": 1049272,
+      "member_name_raw": "Stephan Stracke",
+      "wahlperiode": 21,
+      "category_number": 1,
+      "category_name_raw": "Berufliche Tätigkeit vor der Mitgliedschaft im Deutschen Bundestag",
+      "row_ordinal": 1,
+      "entry_text_raw": "Freistaat Bayern, München — Beamter, Rückkehrrecht",
+      "amount_raw": null,
+      "partner_raw": null,
+      "ehrenamtlich": false,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049272,
+      "member_name_raw": "Stephan Stracke",
+      "wahlperiode": 21,
+      "category_number": 3,
+      "category_name_raw": "Funktionen in Unternehmen",
+      "row_ordinal": 2,
+      "entry_text_raw": "Festspielhaus Management GmbH, Füssen — Mitglied des Kuratoriums des Festspielhauses Neuschwanstein",
+      "amount_raw": null,
+      "partner_raw": null,
+      "ehrenamtlich": false,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049272,
+      "member_name_raw": "Stephan Stracke",
+      "wahlperiode": 21,
+      "category_number": 3,
+      "category_name_raw": "Funktionen in Unternehmen",
+      "row_ordinal": 3,
+      "entry_text_raw": "Siebendächer Baugenossenschaft eG, Memmingen — Mitglied des Aufsichtsrates",
+      "amount_raw": "monatlich, 300,00 EUR, Brutto; zuzüglich Summe unregelmäßiger Zahlungen 2025: 89,55 EUR, Brutto",
+      "partner_raw": null,
+      "ehrenamtlich": false,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049272,
+      "member_name_raw": "Stephan Stracke",
+      "wahlperiode": 21,
+      "category_number": 3,
+      "category_name_raw": "Funktionen in Unternehmen",
+      "row_ordinal": 4,
+      "entry_text_raw": "Siebendächer Wohnbau-, Betreuungs- und Verwaltungsgesellschaft mbH, Memmingen — Mitglied des Aufsichtsrates",
+      "amount_raw": null,
+      "partner_raw": null,
+      "ehrenamtlich": false,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049272,
+      "member_name_raw": "Stephan Stracke",
+      "wahlperiode": 21,
+      "category_number": 4,
+      "category_name_raw": "Funktionen in Körperschaften und Anstalten des öffentlichen Rechts",
+      "row_ordinal": 5,
+      "entry_text_raw": "Stadt Kaufbeuren, Kaufbeuren — Mitglied des Stadtrates",
+      "amount_raw": "monatlich, 508,00 EUR, Brutto; zuzüglich Summe unregelmäßiger Zahlungen 2025: 140,00 EUR, Brutto; zuzüglich Summe unregelmäßiger Zahlungen 2026: 70,00 EUR, Brutto",
+      "partner_raw": null,
+      "ehrenamtlich": false,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049272,
+      "member_name_raw": "Stephan Stracke",
+      "wahlperiode": 21,
+      "category_number": 5,
+      "category_name_raw": "Funktionen in Vereinen, Verbänden und Stiftungen",
+      "row_ordinal": 6,
+      "entry_text_raw": "Bundesstiftung Bauakademie, Berlin — Stellv. Mitglied des Stiftungsrates, ehrenamtlich (ab 25.09.2025)",
+      "amount_raw": null,
+      "partner_raw": null,
+      "ehrenamtlich": true,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049272,
+      "member_name_raw": "Stephan Stracke",
+      "wahlperiode": 21,
+      "category_number": 5,
+      "category_name_raw": "Funktionen in Vereinen, Verbänden und Stiftungen",
+      "row_ordinal": 7,
+      "entry_text_raw": "Deutsche Renten Information e.V., Frankfurt/Main — Mitglied des Beirates, ehrenamtlich",
+      "amount_raw": null,
+      "partner_raw": null,
+      "ehrenamtlich": true,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049272,
+      "member_name_raw": "Stephan Stracke",
+      "wahlperiode": 21,
+      "category_number": 5,
+      "category_name_raw": "Funktionen in Vereinen, Verbänden und Stiftungen",
+      "row_ordinal": 8,
+      "entry_text_raw": "Kneipp-Bund e.V., Bad Wörishofen — Mitglied des Expertenrates des Präsidiums, ehrenamtlich",
+      "amount_raw": null,
+      "partner_raw": null,
+      "ehrenamtlich": true,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049272,
+      "member_name_raw": "Stephan Stracke",
+      "wahlperiode": 21,
+      "category_number": 5,
+      "category_name_raw": "Funktionen in Vereinen, Verbänden und Stiftungen",
+      "row_ordinal": 9,
+      "entry_text_raw": "Landesvereinigung der Helfer und Förderer des Technischen Hilfswerks in Bayern e.V., München — Landesvorsitzender, ehrenamtlich",
+      "amount_raw": null,
+      "partner_raw": null,
+      "ehrenamtlich": true,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049272,
+      "member_name_raw": "Stephan Stracke",
+      "wahlperiode": 21,
+      "category_number": 5,
+      "category_name_raw": "Funktionen in Vereinen, Verbänden und Stiftungen",
+      "row_ordinal": 10,
+      "entry_text_raw": "Outward Bound Deutschland - e.V., Schwangau — Mitglied des Vorstandes, ehrenamtlich",
+      "amount_raw": null,
+      "partner_raw": null,
+      "ehrenamtlich": true,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049272,
+      "member_name_raw": "Stephan Stracke",
+      "wahlperiode": 21,
+      "category_number": 5,
+      "category_name_raw": "Funktionen in Vereinen, Verbänden und Stiftungen",
+      "row_ordinal": 11,
+      "entry_text_raw": "Stiftung Technisches Hilfswerk (THW), Berlin — Mitglied des Kuratoriums, ehrenamtlich",
+      "amount_raw": null,
+      "partner_raw": null,
+      "ehrenamtlich": true,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "mdb_id": 1049272,
+      "member_name_raw": "Stephan Stracke",
+      "wahlperiode": 21,
+      "category_number": 5,
+      "category_name_raw": "Funktionen in Vereinen, Verbänden und Stiftungen",
+      "row_ordinal": 12,
+      "entry_text_raw": "THW-Bundesvereinigung e.V. (THW-BV), Berlin — Mitglied des Präsidiums, ehrenamtlich",
+      "amount_raw": null,
+      "partner_raw": null,
+      "ehrenamtlich": true,
+      "extractor": "de_bundestag/html@1"
+    },
+    "confidence": 1.0
+  }
+]

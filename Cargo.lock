@@ -886,6 +886,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "eu_fr_de_annual"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "core",
+ "pipeline",
+ "rust_decimal",
+ "schemars",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "euclid"
 version = "0.20.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"

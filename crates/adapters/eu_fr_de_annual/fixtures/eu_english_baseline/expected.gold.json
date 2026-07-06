@@ -1,0 +1,36 @@
+[
+  {
+    "filing_id": "0EPDFNG0000000000000000003",
+    "politician_id": "0EPDMBR0000000000000000003",
+    "regime_id": "0EPDREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Member of the European Parliament",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2023-11-13",
+    "value": null,
+    "owner": "self",
+    "extraction_confidence": 0.9800000190734863,
+    "extracted_by": "eu_parliament_dpi/llm@1",
+    "fingerprint": null,
+    "details": {
+      "dpi_uuid": "f4c30b56-86cb-4242-91e3-72b31bf8267c",
+      "version_ts": "1700040002003",
+      "mep_id": 125064,
+      "parliamentary_term": 9,
+      "section": "A",
+      "row_ordinal": 1,
+      "entry_text": "Member of the European Parliament",
+      "income_amount_raw": null,
+      "income_currency": null,
+      "periodicity": "monthly",
+      "benefit_nature": "The income I receive as Member of the European Parliament is public information",
+      "declaration_date": "2023-11-13",
+      "language": "en",
+      "value_source": "none"
+    }
+  }
+]

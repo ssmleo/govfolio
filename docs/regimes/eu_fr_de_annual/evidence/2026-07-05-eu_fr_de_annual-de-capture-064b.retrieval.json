@@ -1,0 +1,34 @@
+{
+  "leg": "goal 064 leg B (test-designer) — Germany Bundestag fixture capture via the browser-engine seam",
+  "date_utc": "2026-07-05",
+  "purpose": "Establish the DE canonical raw-byte pins the SAF §DE.8 deferred (www.bundestag.de is Enodia/Radware bot-gated; §DE.2). EU + FR fixtures reuse the byte-exact 063a archives (no DE-style capture needed) — this log covers ONLY the DE browser-seam retrievals this leg.",
+  "access_method": {
+    "engine": "Playwright 1.61.1 chromium (ms-playwright/chromium-1228/chrome-win64/chrome.exe, HeadlessChrome/149.0.7827.55) — the us_senate §2.5 / australia_register 063b browser-engine seam.",
+    "enodia_gate": "www.bundestag.de returns HTTP 400 /.enodia/challenge (a JS proof-of-work + cookie challenge) to EVERY non-browser client. A real headless Chromium executes the challenge automatically: observed 400 /.enodia/challenge?redirect=... then 200 <path>?enodia=<jwt-like-token>. The 'Veröffentlichungspflichtige Angaben' disclosure block is SERVER-RENDERED into the raw main-document response body (confirmed: rawHasDisc=true on every capture). NO fingerprint evasion — the browser's own HeadlessChrome UA is kept (a bot/identified UA trips Enodia); a From: contact header identifies us.",
+    "pin_basis": "sha256 of the raw main-document response bytes (Playwright response.body(), NOT page.content() DOM re-serialization — fixture-capture skill). The bytes carry per-session enodia tokens in embedded links so they are NOT byte-reproducible on re-fetch, but the committed fixtures/de_*/input.html is byte-stable (== the pin) and the disclosure DATA is deterministic. This mirrors the australia_register precedent (bot-gated => the archived capture, not a canonically-reproducible source byte-stream, is the pin)."
+  },
+  "politeness": {
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/149.0.7827.55 Safari/537.36 (+ From: ssm.leo@outlook.com on www.bundestag.de)",
+    "from_header": "ssm.leo@outlook.com",
+    "from_header_scope": "route-scoped to **://www.bundestag.de/** only — From is not CORS-safelisted; a context-global header would force preflights that silently kill CDN JS on third-party hosts (fixture-capture skill learning).",
+    "concurrency": 1,
+    "min_interval_seconds_member_pages": 2.5,
+    "min_interval_seconds_index_pagination": 0.6,
+    "http_429_count": 0,
+    "fingerprint_evasion": "none"
+  },
+  "requests": {
+    "discovery": [
+      "GET /abgeordnete/biografien (index warmup, establishes the Enodia session)",
+      "GET /ajax/filterlist/de/abgeordnete/biografien/1040594-1040594?limit=12&offset=0..636 (paginated member enumeration; 636 MdB of the 21. Wahlperiode harvested, ~54 ajax calls @0.6s)"
+    ],
+    "probe_batch": "10 candidate MdB pages fetched @2.5s to locate members with published income/Beteiligungen: willsch, merz, luczak, throm, middelberg, whittaker, linnemann, gutting, stracke, bareiss (all HTTP 200 through the gate). Most 21. WP disclosures list only functions (many ehrenamtlich) with no euro amounts; throm/stracke/gutting carried exact euro figures.",
+    "final_capture": [
+      { "case": "de_income_beteiligung", "member": "Alexander Throm", "mdb_id": 1049290, "url": "https://www.bundestag.de/abgeordnete/biografien/T/throm_alexander-1049290", "status": 200, "content_type": "text/html;charset=UTF-8", "bytes": 273296, "sha256": "e08e494ecccf8783dc8eee9f26d6a4758b661b56b58aa57deee3466298129509" },
+      { "case": "de_income_functions", "member": "Stephan Stracke", "mdb_id": 1049272, "url": "https://www.bundestag.de/abgeordnete/biografien/S/stracke_stephan-1049272", "status": 200, "content_type": "text/html;charset=UTF-8", "bytes": 274942, "sha256": "e203363827b8f2a5fcd5fe51d553b7490c12475958f371505c2d597970f30b01" },
+      { "case": "de_functions_only", "member": "Thomas Bareiß", "mdb_id": 1048368, "url": "https://www.bundestag.de/abgeordnete/biografien/B/bareiss_thomas-1048368", "status": 200, "content_type": "text/html;charset=UTF-8", "bytes": 277198, "sha256": "689a7468c857f5449ba3a93ec1925d6422cc4be5b2e1c3ff60c5b00bd6772b0a" }
+    ]
+  },
+  "established_pins_note": "These 3 sha256 ESTABLISH the DE raw-byte pins the SAF §DE.8 recorded as '_capture leg_'. The SAF methodology page is founder/methodology-gated, so it was NOT edited here; fixtures/MANIFEST.json is the source of truth for the DE pins (builder/audit leg backfills §DE.8).",
+  "disclosure_html_structure": "div.e-collapse__content > div.m-biography__infos: a sequence of <h3> category headings (the §DE.3 8-category vocabulary, verbatim) each followed by one or more <ul class=\"voa_list bt-liste\"> ENTRIES. Per entry: first <li> = organisation (name, location); following <li>(s) = role/function [+ published income 'monatlich|jährlich|einmalig, N,NN Euro, Brutto/Gewinn...']; an optional NESTED <ul> = anonymised contract partners ('Mandant N, sector, years'). The build leg's scraper selectors + the value/period parse are specified in fixtures/MANIFEST.json builder_notes.de."
+}

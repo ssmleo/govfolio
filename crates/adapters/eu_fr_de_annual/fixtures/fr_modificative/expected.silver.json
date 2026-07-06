@@ -1,0 +1,193 @@
+[
+  {
+    "payload": {
+      "declaration_stem": "lahmar-abdelkader-diam31323-depute-69",
+      "declaration_uuid": "3ba463fa-244d-4305-9416-3f3c53eabddc",
+      "type_declaration": "DIAM",
+      "is_modificative": false,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Rhône(69)",
+      "declarant_nom_raw": "lahmar",
+      "declarant_prenom_raw": "abdelkader",
+      "date_depot_raw": "18/12/2024 18:41:38",
+      "section_tag": "activProfCinqDerniereDto",
+      "row_ordinal": 1,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "description": "enseignant titulaire",
+        "employeur": "éducation nationale",
+        "dateDebut": "09/2019",
+        "dateFin": "09/2024",
+        "commentaire": "mise en disponibilité au 01/09/2024 par le ministrère de l'éducation nationale"
+      },
+      "remuneration_raw": {
+        "brutNet": "Net",
+        "montant": [
+          {
+            "annee": 2019,
+            "montant": "45 289"
+          },
+          {
+            "annee": 2020,
+            "montant": "40 044"
+          },
+          {
+            "annee": 2021,
+            "montant": "44 670"
+          },
+          {
+            "annee": 2022,
+            "montant": "44 264"
+          },
+          {
+            "annee": 2023,
+            "montant": "49 017"
+          },
+          {
+            "annee": 2024,
+            "montant": "34 429"
+          }
+        ]
+      },
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "lahmar-abdelkader-diam31323-depute-69",
+      "declaration_uuid": "3ba463fa-244d-4305-9416-3f3c53eabddc",
+      "type_declaration": "DIAM",
+      "is_modificative": false,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Rhône(69)",
+      "declarant_nom_raw": "lahmar",
+      "declarant_prenom_raw": "abdelkader",
+      "date_depot_raw": "18/12/2024 18:41:38",
+      "section_tag": "activProfConjointDto",
+      "row_ordinal": 2,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "activiteProf": "NEANT",
+        "employeurConjoint": "NEANT",
+        "nomConjoint": "[Données non publiées]",
+        "commentaire": "[Données non publiées]"
+      },
+      "remuneration_raw": null,
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "lahmar-abdelkader-diam31323-depute-69",
+      "declaration_uuid": "3ba463fa-244d-4305-9416-3f3c53eabddc",
+      "type_declaration": "DIAM",
+      "is_modificative": false,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Rhône(69)",
+      "declarant_nom_raw": "lahmar",
+      "declarant_prenom_raw": "abdelkader",
+      "date_depot_raw": "18/12/2024 18:41:38",
+      "section_tag": "participationDirigeantDto",
+      "row_ordinal": 3,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "nomSociete": "association canuts solidarité",
+        "activite": "association à but non lucrative",
+        "dateDebut": "12/2018",
+        "commentaire": "fondateur trésorier de l'association",
+        "conservee": "true"
+      },
+      "remuneration_raw": {
+        "brutNet": "Net",
+        "montant": [
+          {
+            "annee": 2018,
+            "montant": "0"
+          },
+          {
+            "annee": 2019,
+            "montant": "0"
+          },
+          {
+            "annee": 2020,
+            "montant": "0"
+          },
+          {
+            "annee": 2021,
+            "montant": "0"
+          },
+          {
+            "annee": 2022,
+            "montant": "0"
+          },
+          {
+            "annee": 2023,
+            "montant": "0"
+          },
+          {
+            "annee": 2024,
+            "montant": "0"
+          }
+        ]
+      },
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "lahmar-abdelkader-diam31323-depute-69",
+      "declaration_uuid": "3ba463fa-244d-4305-9416-3f3c53eabddc",
+      "type_declaration": "DIAM",
+      "is_modificative": false,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Rhône(69)",
+      "declarant_nom_raw": "lahmar",
+      "declarant_prenom_raw": "abdelkader",
+      "date_depot_raw": "18/12/2024 18:41:38",
+      "section_tag": "participationDirigeantDto",
+      "row_ordinal": 4,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "nomSociete": "MIV mouvement d'initiative vaudais",
+        "activite": "président de l'association",
+        "dateDebut": "08/2020",
+        "commentaire": "organisation politique locale située à Vaulx-en Velin",
+        "conservee": "true"
+      },
+      "remuneration_raw": {
+        "brutNet": "Net",
+        "montant": [
+          {
+            "annee": 2020,
+            "montant": "0"
+          },
+          {
+            "annee": 2021,
+            "montant": "0"
+          },
+          {
+            "annee": 2022,
+            "montant": "0"
+          },
+          {
+            "annee": 2023,
+            "montant": "0"
+          },
+          {
+            "annee": 2024,
+            "montant": "0"
+          }
+        ]
+      },
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  }
+]

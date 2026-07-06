@@ -1,0 +1,78 @@
+[
+  {
+    "filing_id": "0EPDFNG0000000000000000001",
+    "politician_id": "0EPDMBR0000000000000000001",
+    "regime_id": "0EPDREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Δημοσιογράφος τηλεοπτικού σταθμού ΣΚΑΙ",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2024-06-18",
+    "value": {
+      "low": "11000.00",
+      "high": "11000.00",
+      "currency": "EUR"
+    },
+    "owner": "self",
+    "extraction_confidence": 0.9800000190734863,
+    "extracted_by": "eu_parliament_dpi/llm@1",
+    "fingerprint": null,
+    "details": {
+      "dpi_uuid": "c8d42e82-1191-49d7-864e-52631d292544",
+      "version_ts": "1721085706142",
+      "mep_id": 256820,
+      "parliamentary_term": 10,
+      "section": "A",
+      "row_ordinal": 1,
+      "entry_text": "Δημοσιογράφος τηλεοπτικού σταθμού ΣΚΑΙ",
+      "income_amount_raw": "11000 EUR",
+      "income_currency": "EUR",
+      "periodicity": "monthly",
+      "benefit_nature": null,
+      "declaration_date": "2024-06-18",
+      "language": "el",
+      "value_source": "income_amount"
+    }
+  },
+  {
+    "filing_id": "0EPDFNG0000000000000000001",
+    "politician_id": "0EPDMBR0000000000000000001",
+    "regime_id": "0EPDREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Καθηγητής δημοσιογραφίας στο Ιδιωτικό ΙΕΚ Όμηρος",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2024-06-18",
+    "value": {
+      "low": "50.00",
+      "high": "50.00",
+      "currency": "EUR"
+    },
+    "owner": "self",
+    "extraction_confidence": 0.9800000190734863,
+    "extracted_by": "eu_parliament_dpi/llm@1",
+    "fingerprint": null,
+    "details": {
+      "dpi_uuid": "c8d42e82-1191-49d7-864e-52631d292544",
+      "version_ts": "1721085706142",
+      "mep_id": 256820,
+      "parliamentary_term": 10,
+      "section": "A",
+      "row_ordinal": 2,
+      "entry_text": "Καθηγητής δημοσιογραφίας στο Ιδιωτικό ΙΕΚ Όμηρος",
+      "income_amount_raw": "50 EUR",
+      "income_currency": "EUR",
+      "periodicity": "other",
+      "benefit_nature": null,
+      "declaration_date": "2024-06-18",
+      "language": "el",
+      "value_source": "income_amount"
+    }
+  }
+]

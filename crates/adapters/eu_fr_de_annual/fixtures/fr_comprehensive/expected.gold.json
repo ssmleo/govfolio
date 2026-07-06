@@ -1,0 +1,514 @@
+[
+  {
+    "filing_id": "0FRHFNG0000000000000000001",
+    "politician_id": "0FRHMBR0000000000000000001",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Ministre délégué à l'industrie auprès du ministre de léconomie des finances et de la relance",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-01-02",
+    "value": {
+      "low": "43658.00",
+      "high": "43658.00",
+      "currency": "EUR"
+    },
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "section_tag": "activProfCinqDerniereDto",
+      "row_ordinal": 1,
+      "motif": "CREATION",
+      "entry_fields": {
+        "description": "Ministre délégué à l'industrie auprès du ministre de léconomie des finances et de la relance",
+        "employeur": "Etat Francais",
+        "dateDebut": "07/2020",
+        "dateFin": "05/2022",
+        "commentaire": "[Données non publiées]"
+      },
+      "montants": [
+        {
+          "year": 2020,
+          "amount": "44025.00"
+        },
+        {
+          "year": 2021,
+          "amount": "104778.00"
+        },
+        {
+          "year": 2022,
+          "amount": "43658.00"
+        }
+      ],
+      "brut_net": "Net",
+      "organe": "Pas-de-Calais(62)",
+      "language": "fr",
+      "value_source": "montant_latest_year"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000001",
+    "politician_id": "0FRHMBR0000000000000000001",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Ministre de la transition énergétique",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-01-02",
+    "value": {
+      "low": "11024.00",
+      "high": "11024.00",
+      "currency": "EUR"
+    },
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "section_tag": "activProfCinqDerniereDto",
+      "row_ordinal": 2,
+      "motif": "CREATION",
+      "entry_fields": {
+        "description": "Ministre de la transition énergétique",
+        "employeur": "Ministère de la transition énergétique",
+        "dateDebut": "05/2022",
+        "dateFin": "02/2024"
+      },
+      "montants": [
+        {
+          "year": 2022,
+          "amount": "64267.00"
+        },
+        {
+          "year": 2023,
+          "amount": "106077.00"
+        },
+        {
+          "year": 2024,
+          "amount": "11024.00"
+        }
+      ],
+      "brut_net": "Net",
+      "organe": "Pas-de-Calais(62)",
+      "language": "fr",
+      "value_source": "montant_latest_year"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000001",
+    "politician_id": "0FRHMBR0000000000000000001",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Ministre déléguée",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-01-02",
+    "value": {
+      "low": "38221.00",
+      "high": "38221.00",
+      "currency": "EUR"
+    },
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "section_tag": "activProfCinqDerniereDto",
+      "row_ordinal": 3,
+      "motif": "CREATION",
+      "entry_fields": {
+        "description": "Ministre déléguée",
+        "employeur": "Ministère de l'agriculture et de la souveraineté alimentaire",
+        "dateDebut": "02/2024",
+        "dateFin": "08/2024",
+        "commentaire": "[Données non publiées]"
+      },
+      "montants": [
+        {
+          "year": 2024,
+          "amount": "38221.00"
+        }
+      ],
+      "brut_net": "Net",
+      "organe": "Pas-de-Calais(62)",
+      "language": "fr",
+      "value_source": "montant_latest_year"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000001",
+    "politician_id": "0FRHMBR0000000000000000001",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Ministre",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-01-02",
+    "value": {
+      "low": "22330.00",
+      "high": "22330.00",
+      "currency": "EUR"
+    },
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "section_tag": "activProfCinqDerniereDto",
+      "row_ordinal": 4,
+      "motif": "CREATION",
+      "entry_fields": {
+        "description": "Ministre",
+        "employeur": "Ministère de la transition écologique",
+        "dateDebut": "09/2024",
+        "dateFin": "12/2024"
+      },
+      "montants": [
+        {
+          "year": 2024,
+          "amount": "22330.00"
+        }
+      ],
+      "brut_net": "Net",
+      "organe": "Pas-de-Calais(62)",
+      "language": "fr",
+      "value_source": "montant_latest_year"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000001",
+    "politician_id": "0FRHMBR0000000000000000001",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Ministre",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-01-02",
+    "value": {
+      "low": "70531.00",
+      "high": "70531.00",
+      "currency": "EUR"
+    },
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "section_tag": "activProfCinqDerniereDto",
+      "row_ordinal": 5,
+      "motif": "CREATION",
+      "entry_fields": {
+        "description": "Ministre",
+        "employeur": "Ministere de la transition écologique",
+        "dateDebut": "12/2024",
+        "dateFin": "10/2025",
+        "commentaire": "[Données non publiées]"
+      },
+      "montants": [
+        {
+          "year": 2024,
+          "amount": "1856.00"
+        },
+        {
+          "year": 2025,
+          "amount": "70531.00"
+        }
+      ],
+      "brut_net": "Net",
+      "organe": "Pas-de-Calais(62)",
+      "language": "fr",
+      "value_source": "montant_latest_year"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000001",
+    "politician_id": "0FRHMBR0000000000000000001",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Société de conseil [Données non publiées]",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-01-02",
+    "value": null,
+    "owner": "spouse",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "section_tag": "activProfConjointDto",
+      "row_ordinal": 6,
+      "motif": "CREATION",
+      "entry_fields": {
+        "activiteProf": "Société de conseil [Données non publiées]",
+        "employeurConjoint": "NB Stratégie",
+        "nomConjoint": "[Données non publiées]"
+      },
+      "montants": [],
+      "brut_net": null,
+      "organe": "Pas-de-Calais(62)",
+      "language": "fr",
+      "value_source": "none"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000001",
+    "politician_id": "0FRHMBR0000000000000000001",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "Institut Evidences",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-01-02",
+    "value": null,
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "section_tag": "fonctionBenevoleDto",
+      "row_ordinal": 7,
+      "motif": "CREATION",
+      "entry_fields": {
+        "nomStructure": "Institut Evidences",
+        "descriptionActivite": "Membre du comité éditorial",
+        "commentaire": "Rédaction et relecture de travaux pour lutter contre la désinformation scientifique",
+        "conservee": "true"
+      },
+      "montants": [],
+      "brut_net": null,
+      "organe": "Pas-de-Calais(62)",
+      "language": "fr",
+      "value_source": "none"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000001",
+    "politician_id": "0FRHMBR0000000000000000001",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "deputée",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-01-02",
+    "value": {
+      "low": "13254.00",
+      "high": "13254.00",
+      "currency": "EUR"
+    },
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "section_tag": "mandatElectifDto",
+      "row_ordinal": 8,
+      "motif": "CREATION",
+      "entry_fields": {
+        "descriptionMandat": "deputée",
+        "dateDebut": "07/2024",
+        "dateFin": "09/2024",
+        "commentaire": "[Données non publiées]"
+      },
+      "montants": [
+        {
+          "year": 2024,
+          "amount": "13254.00"
+        }
+      ],
+      "brut_net": "Net",
+      "organe": "Pas-de-Calais(62)",
+      "language": "fr",
+      "value_source": "montant_latest_year"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000001",
+    "politician_id": "0FRHMBR0000000000000000001",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "SCI [Données non publiées]",
+    "record_type": "interest",
+    "asset_class": "other",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-01-02",
+    "value": null,
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "section_tag": "participationDirigeantDto",
+      "row_ordinal": 9,
+      "motif": "CREATION",
+      "entry_fields": {
+        "nomSociete": "SCI [Données non publiées]",
+        "activite": "Gerante",
+        "dateDebut": "07/2023",
+        "commentaire": "[Données non publiées]"
+      },
+      "montants": [
+        {
+          "year": 2023,
+          "amount": "0.00"
+        },
+        {
+          "year": 2024,
+          "amount": "0.00"
+        },
+        {
+          "year": 2025,
+          "amount": "0.00"
+        }
+      ],
+      "brut_net": "Net",
+      "organe": "Pas-de-Calais(62)",
+      "language": "fr",
+      "value_source": "none"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000001",
+    "politician_id": "0FRHMBR0000000000000000001",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "ELIS",
+    "record_type": "interest",
+    "asset_class": "equity",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-01-02",
+    "value": null,
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "section_tag": "participationFinanciereDto",
+      "row_ordinal": 10,
+      "motif": "CREATION",
+      "entry_fields": {
+        "nomSociete": "ELIS",
+        "evaluation": "15055",
+        "remuneration": "0",
+        "capitalDetenu": "0",
+        "nombreParts": "615",
+        "actiConseil": "Non",
+        "commentaire": "[Données non publiées]"
+      },
+      "montants": [],
+      "brut_net": null,
+      "organe": "Pas-de-Calais(62)",
+      "language": "fr",
+      "value_source": "none"
+    }
+  },
+  {
+    "filing_id": "0FRHFNG0000000000000000001",
+    "politician_id": "0FRHMBR0000000000000000001",
+    "regime_id": "0FRHREG0000000000000000001",
+    "instrument_id": null,
+    "asset_description_raw": "SCI [Données non publiées]",
+    "record_type": "interest",
+    "asset_class": "equity",
+    "side": null,
+    "transaction_date": null,
+    "as_of_date": null,
+    "notified_date": "2026-01-02",
+    "value": null,
+    "owner": "self",
+    "extraction_confidence": 1.0,
+    "extracted_by": "fr_hatvp_dia/xml@1",
+    "fingerprint": null,
+    "details": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "section_tag": "participationFinanciereDto",
+      "row_ordinal": 11,
+      "motif": "CREATION",
+      "entry_fields": {
+        "nomSociete": "SCI [Données non publiées]",
+        "evaluation": "99",
+        "remuneration": "0",
+        "capitalDetenu": "99",
+        "nombreParts": "99",
+        "actiConseil": "Non"
+      },
+      "montants": [],
+      "brut_net": null,
+      "organe": "Pas-de-Calais(62)",
+      "language": "fr",
+      "value_source": "none"
+    }
+  }
+]

@@ -1,0 +1,62 @@
+[
+  {
+    "payload": {
+      "declaration_stem": "lahmar-abdelkader-dia31320-depute-69",
+      "declaration_uuid": "fbba93e0-8f4c-49fe-96bf-e2d8c0b81137",
+      "type_declaration": "DIA",
+      "is_modificative": false,
+      "type_mandat_raw": "depute",
+      "organe_raw": null,
+      "declarant_nom_raw": "lahmar",
+      "declarant_prenom_raw": "abdelkader",
+      "date_depot_raw": "04/08/2024 11:04:36",
+      "section_tag": "participationDirigeantDto",
+      "row_ordinal": 1,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "nomSociete": "association canuts solidarité",
+        "activite": "association à but non lucrative",
+        "dateDebut": "12/2018",
+        "dateFin": "07/2024",
+        "commentaire": "fondateur trésorier de l'association",
+        "conservee": "true"
+      },
+      "remuneration_raw": {
+        "brutNet": "Net",
+        "montant": [
+          {
+            "annee": 2018,
+            "montant": "0"
+          },
+          {
+            "annee": 2019,
+            "montant": "0"
+          },
+          {
+            "annee": 2020,
+            "montant": "0"
+          },
+          {
+            "annee": 2021,
+            "montant": "0"
+          },
+          {
+            "annee": 2022,
+            "montant": "0"
+          },
+          {
+            "annee": 2023,
+            "montant": "0"
+          },
+          {
+            "annee": 2024,
+            "montant": "0"
+          }
+        ]
+      },
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  }
+]

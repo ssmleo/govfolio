@@ -1,0 +1,379 @@
+[
+  {
+    "payload": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Pas-de-Calais(62)",
+      "declarant_nom_raw": "PANNIER-RUNACHER",
+      "declarant_prenom_raw": "Agnès",
+      "date_depot_raw": "02/01/2026 08:29:45",
+      "section_tag": "activProfCinqDerniereDto",
+      "row_ordinal": 1,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "description": "Ministre délégué à l'industrie auprès du ministre de léconomie des finances et de la relance",
+        "employeur": "Etat Francais",
+        "dateDebut": "07/2020",
+        "dateFin": "05/2022",
+        "commentaire": "[Données non publiées]"
+      },
+      "remuneration_raw": {
+        "brutNet": "Net",
+        "montant": [
+          {
+            "annee": 2020,
+            "montant": "44 025"
+          },
+          {
+            "annee": 2021,
+            "montant": "104 778"
+          },
+          {
+            "annee": 2022,
+            "montant": "43 658"
+          }
+        ]
+      },
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Pas-de-Calais(62)",
+      "declarant_nom_raw": "PANNIER-RUNACHER",
+      "declarant_prenom_raw": "Agnès",
+      "date_depot_raw": "02/01/2026 08:29:45",
+      "section_tag": "activProfCinqDerniereDto",
+      "row_ordinal": 2,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "description": "Ministre de la transition énergétique",
+        "employeur": "Ministère de la transition énergétique",
+        "dateDebut": "05/2022",
+        "dateFin": "02/2024"
+      },
+      "remuneration_raw": {
+        "brutNet": "Net",
+        "montant": [
+          {
+            "annee": 2022,
+            "montant": "64 267"
+          },
+          {
+            "annee": 2023,
+            "montant": "106 077"
+          },
+          {
+            "annee": 2024,
+            "montant": "11 024"
+          }
+        ]
+      },
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Pas-de-Calais(62)",
+      "declarant_nom_raw": "PANNIER-RUNACHER",
+      "declarant_prenom_raw": "Agnès",
+      "date_depot_raw": "02/01/2026 08:29:45",
+      "section_tag": "activProfCinqDerniereDto",
+      "row_ordinal": 3,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "description": "Ministre déléguée",
+        "employeur": "Ministère de l'agriculture et de la souveraineté alimentaire",
+        "dateDebut": "02/2024",
+        "dateFin": "08/2024",
+        "commentaire": "[Données non publiées]"
+      },
+      "remuneration_raw": {
+        "brutNet": "Net",
+        "montant": [
+          {
+            "annee": 2024,
+            "montant": "38 221"
+          }
+        ]
+      },
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Pas-de-Calais(62)",
+      "declarant_nom_raw": "PANNIER-RUNACHER",
+      "declarant_prenom_raw": "Agnès",
+      "date_depot_raw": "02/01/2026 08:29:45",
+      "section_tag": "activProfCinqDerniereDto",
+      "row_ordinal": 4,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "description": "Ministre",
+        "employeur": "Ministère de la transition écologique",
+        "dateDebut": "09/2024",
+        "dateFin": "12/2024"
+      },
+      "remuneration_raw": {
+        "brutNet": "Net",
+        "montant": [
+          {
+            "annee": 2024,
+            "montant": "22 330"
+          }
+        ]
+      },
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Pas-de-Calais(62)",
+      "declarant_nom_raw": "PANNIER-RUNACHER",
+      "declarant_prenom_raw": "Agnès",
+      "date_depot_raw": "02/01/2026 08:29:45",
+      "section_tag": "activProfCinqDerniereDto",
+      "row_ordinal": 5,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "description": "Ministre",
+        "employeur": "Ministere de la transition écologique",
+        "dateDebut": "12/2024",
+        "dateFin": "10/2025",
+        "commentaire": "[Données non publiées]"
+      },
+      "remuneration_raw": {
+        "brutNet": "Net",
+        "montant": [
+          {
+            "annee": 2024,
+            "montant": "1 856"
+          },
+          {
+            "annee": 2025,
+            "montant": "70 531"
+          }
+        ]
+      },
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Pas-de-Calais(62)",
+      "declarant_nom_raw": "PANNIER-RUNACHER",
+      "declarant_prenom_raw": "Agnès",
+      "date_depot_raw": "02/01/2026 08:29:45",
+      "section_tag": "activProfConjointDto",
+      "row_ordinal": 6,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "activiteProf": "Société de conseil [Données non publiées]",
+        "employeurConjoint": "NB Stratégie",
+        "nomConjoint": "[Données non publiées]"
+      },
+      "remuneration_raw": null,
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Pas-de-Calais(62)",
+      "declarant_nom_raw": "PANNIER-RUNACHER",
+      "declarant_prenom_raw": "Agnès",
+      "date_depot_raw": "02/01/2026 08:29:45",
+      "section_tag": "fonctionBenevoleDto",
+      "row_ordinal": 7,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "nomStructure": "Institut Evidences",
+        "descriptionActivite": "Membre du comité éditorial",
+        "commentaire": "Rédaction et relecture de travaux pour lutter contre la désinformation scientifique",
+        "conservee": "true"
+      },
+      "remuneration_raw": null,
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Pas-de-Calais(62)",
+      "declarant_nom_raw": "PANNIER-RUNACHER",
+      "declarant_prenom_raw": "Agnès",
+      "date_depot_raw": "02/01/2026 08:29:45",
+      "section_tag": "mandatElectifDto",
+      "row_ordinal": 8,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "descriptionMandat": "deputée",
+        "dateDebut": "07/2024",
+        "dateFin": "09/2024",
+        "commentaire": "[Données non publiées]"
+      },
+      "remuneration_raw": {
+        "brutNet": "Net",
+        "montant": [
+          {
+            "annee": 2024,
+            "montant": "13 254"
+          }
+        ]
+      },
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Pas-de-Calais(62)",
+      "declarant_nom_raw": "PANNIER-RUNACHER",
+      "declarant_prenom_raw": "Agnès",
+      "date_depot_raw": "02/01/2026 08:29:45",
+      "section_tag": "participationDirigeantDto",
+      "row_ordinal": 9,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "nomSociete": "SCI [Données non publiées]",
+        "activite": "Gerante",
+        "dateDebut": "07/2023",
+        "commentaire": "[Données non publiées]"
+      },
+      "remuneration_raw": {
+        "brutNet": "Net",
+        "montant": [
+          {
+            "annee": 2023,
+            "montant": "0"
+          },
+          {
+            "annee": 2024,
+            "montant": "0"
+          },
+          {
+            "annee": 2025,
+            "montant": "0"
+          }
+        ]
+      },
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Pas-de-Calais(62)",
+      "declarant_nom_raw": "PANNIER-RUNACHER",
+      "declarant_prenom_raw": "Agnès",
+      "date_depot_raw": "02/01/2026 08:29:45",
+      "section_tag": "participationFinanciereDto",
+      "row_ordinal": 10,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "nomSociete": "ELIS",
+        "evaluation": "15055",
+        "remuneration": "0",
+        "capitalDetenu": "0",
+        "nombreParts": "615",
+        "actiConseil": "Non",
+        "commentaire": "[Données non publiées]"
+      },
+      "remuneration_raw": null,
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  },
+  {
+    "payload": {
+      "declaration_stem": "pannier-runacher-agnes-dia34763-depute-62",
+      "declaration_uuid": "47f2ca02-d614-4693-a250-0583af53dcf9",
+      "type_declaration": "DIA",
+      "is_modificative": true,
+      "type_mandat_raw": "depute",
+      "organe_raw": "Pas-de-Calais(62)",
+      "declarant_nom_raw": "PANNIER-RUNACHER",
+      "declarant_prenom_raw": "Agnès",
+      "date_depot_raw": "02/01/2026 08:29:45",
+      "section_tag": "participationFinanciereDto",
+      "row_ordinal": 11,
+      "motif_raw": "CREATION",
+      "entry_fields_raw": {
+        "nomSociete": "SCI [Données non publiées]",
+        "evaluation": "99",
+        "remuneration": "0",
+        "capitalDetenu": "99",
+        "nombreParts": "99",
+        "actiConseil": "Non"
+      },
+      "remuneration_raw": null,
+      "neant_section": false,
+      "extractor": "fr_hatvp_dia/xml@1"
+    },
+    "confidence": 1.0
+  }
+]
