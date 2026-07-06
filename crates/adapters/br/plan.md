@@ -95,11 +95,17 @@ research + the fixture evidence itself, not rubber-stamped):**
 - **Recommended implementation shape** (for rust-builder, not built here): a
   `asset_class_for_code(code: &str) -> Option<AssetClass>` lookup mirroring
   `us_house`'s/`us_senate`'s established convention (`crates/adapters/us_house/src/tables.rs:56`) —
-  `Some(...)` for the 3 high-confidence codes above, `None` for everything else
-  (including `32`/`97`), with the caller bucketing `None` to `AssetClass::Other` plus
-  an extraction-confidence penalty. This keeps `32`/`97`'s "not confident" status
-  visible in the confidence signal rather than silently indistinguishable from the
-  3 confident codes.
+  `Some(...)` for all 5 codes now resolved above (`12`/`13`→`RealEstate`, `21`→`Other`,
+  `32`→`Private`, `97`→`Other`, all "High" confidence post-audit — see the code table),
+  `None` (fail-closed default, `AssetClass::Other` + a confidence penalty at the
+  caller) only for a code NOT in this table at all, i.e. one never observed in these
+  3 fixtures. (This paragraph originally described `32`/`97` as unresolved,
+  falling through the `None` path like a low-confidence code — that framing is now
+  stale after the audit resolution above and has been corrected here; test-designer
+  correctly caught the contradiction between this paragraph and the resolved code
+  table when drafting `expected.gold.json` confidence scores. `32`/`97` are pinned,
+  ordinary `Some(...)` entries now — do not re-introduce a confidence penalty for
+  them without a new reason.)
 
 ## Parse strategy & rationale
 
