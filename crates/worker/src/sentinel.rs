@@ -183,6 +183,16 @@ pub fn live_targets() -> Vec<WatchTarget> {
             &["Bundestag"],
             "/abgeordnete/",
         ),
+        t(
+            // AUTHORITY.md tos_and_politeness: dadosabertos.tse.jus.br's
+            // robots.txt disallows /api/ — this is the human-facing CKAN
+            // dataset page (/dataset/, not /api/), not covered by that
+            // Disallow, and lists the real resource files by name.
+            "br",
+            "https://dadosabertos.tse.jus.br/dataset/candidatos-2022",
+            &["consulta_cand_2022", "bem_candidato_2022"],
+            "consulta_cand_2022",
+        ),
     ]
 }
 
