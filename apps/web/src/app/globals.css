@@ -514,6 +514,86 @@ details.payload pre {
   padding: 0.5rem 0;
 }
 
+/* ---------- corrections log ---------- */
+
+.corrections-log {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.correction {
+  border-top: 1px solid var(--rule);
+  padding-top: 1rem;
+}
+
+.correction-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 0.75rem;
+}
+
+.correction-asset {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.correction-asset:hover {
+  color: var(--seal-deep);
+}
+
+.correction-when {
+  font-size: 0.875rem;
+  margin: 0.15rem 0 0.6rem;
+}
+
+.correction-diff {
+  width: auto;
+  max-width: 100%;
+  margin: 0.25rem 0 0.6rem;
+}
+
+.correction-diff th[scope="col"] {
+  padding-right: 1.5rem;
+}
+
+.correction-diff th[scope="row"] {
+  color: var(--muted);
+  font-weight: 400;
+  padding: 0.3rem 1.5rem 0.3rem 0;
+  white-space: nowrap;
+}
+
+.correction-diff td {
+  padding: 0.3rem 1.5rem 0.3rem 0;
+}
+
+.correction-diff th,
+.correction-diff td {
+  border-bottom: none;
+  vertical-align: baseline;
+}
+
+.diff-before {
+  color: var(--muted);
+  text-decoration: line-through;
+  text-decoration-color: var(--rule-strong);
+}
+
+.diff-after {
+  color: var(--v-corrected-ink);
+  font-weight: 600;
+}
+
+.correction-links {
+  font-size: 0.9375rem;
+  margin: 0.25rem 0 0;
+}
+
 /* ---------- reviewer console (goal 041; internal, noindexed) ---------- */
 
 .reviewer-banner {

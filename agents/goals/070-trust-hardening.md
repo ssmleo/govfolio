@@ -12,7 +12,7 @@ cargo test -p pipeline redaction drift && pnpm --filter web test -- corrections
 ```
 
 ## Checklist
-- [x] sampler  - [ ] corrections page  - [x] redaction rules/regime  - [x] drift freeze
+- [x] sampler  - [x] corrections page  - [x] redaction rules/regime  - [x] drift freeze
 
 ## Leg A (pipeline) — done 2026-07-06
 Rust data-plane half: sampler + redaction + drift-freeze. Corrections PAGE is leg B

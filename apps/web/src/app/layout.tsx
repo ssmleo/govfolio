@@ -23,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Link>
             <nav aria-label="Primary">
               <Link href="/jurisdictions">Jurisdictions</Link>
+              <Link href="/corrections">Corrections</Link>
             </nav>
             <form action="/search" method="get" role="search" className="header-search">
               <label className="visually-hidden" htmlFor="header-q">
@@ -44,7 +45,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="shell">
             <p>
               govfolio · disclosure records as filed with official sources ·{" "}
-              <Link href="/jurisdictions">coverage by jurisdiction</Link>
+              <Link href="/jurisdictions">coverage by jurisdiction</Link> ·{" "}
+              <Link href="/corrections">corrections</Link>
             </p>
           </div>
         </footer>

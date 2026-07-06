@@ -7,8 +7,11 @@ export async function GET(): Promise<Response> {
   const jurisdictions = await listJurisdictions();
   return xmlResponse(
     urlsetXml([
+      // Static top-level public pages ride along here (design §6.4: every
+      // public URL belongs in a sitemap).
       "/",
       "/jurisdictions",
+      "/corrections",
       ...jurisdictions.map(
         (jurisdiction) => `/jurisdictions/${encodeURIComponent(jurisdiction.id)}`,
       ),
