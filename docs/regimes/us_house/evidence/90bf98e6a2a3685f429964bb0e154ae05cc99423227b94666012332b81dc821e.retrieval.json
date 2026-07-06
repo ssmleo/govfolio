@@ -1,0 +1,23 @@
+{
+  "evidence_for": "AUTHORITY.md band_table (top-of-range band), identifiers_available (explicit SP owner code, option asset), who_files claims",
+  "archived_file": "90bf98e6a2a3685f429964bb0e154ae05cc99423227b94666012332b81dc821e.ptr-sp-owner-options-20034836.pdf",
+  "sha256": "90bf98e6a2a3685f429964bb0e154ae05cc99423227b94666012332b81dc821e",
+  "source": {
+    "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20034836.pdf",
+    "method": "GET (this copy)",
+    "retrieved_at_utc": "2026-07-04T00:00:00Z",
+    "note_on_provenance": "Fetched fresh by the sampler role (MANIFEST.json case 'sp_owner_options'); re-derived independently here (pdftotext -layout) for the survey, sha256 cross-checked against the manifest pin.",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "http_status": 200,
+    "content_type": "application/pdf"
+  },
+  "verification": {
+    "observed": "Filing ID #20034836 (Hon. Nancy Pelosi, CA11), 2 purchase rows, both explicit Owner column value 'SP' (row-level, no vehicle needed for this owner code — contrast with the 'multi_row_sp_vehicle' fixture's vehicle-only expression of SP). Amount bands OBSERVED: '$1,000,001 - $5,000,000' and '$500,001 - $1,000,000' — the highest band observed across all sampled fixtures/sample PDFs in this task. Asset descriptions carry a trailing [OP] (options) asset-type code, e.g. 'Intel Corporation - Common Stock (INTC) [OP]', with a 'D :' description sub-line giving strike price/expiration detail. Status: Member; identifiers again limited to Name + State/District, no bioguide id; instrument identified by name + ticker + [XX] code only."
+  },
+  "politeness": {
+    "requests_to_host_this_task": 0,
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — re-read of an already-fetched, sha-verified fixture"
+  }
+}

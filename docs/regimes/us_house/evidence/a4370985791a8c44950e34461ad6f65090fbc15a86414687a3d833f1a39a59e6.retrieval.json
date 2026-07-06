@@ -1,0 +1,24 @@
+{
+  "evidence_for": "AUTHORITY.md legal_basis, who_files, cadence_and_lag, regime_versions claims (Phase 1 SURVEY, re-verifying the sources.yaml Phase-0 legal-basis lead against PRIMARY LAW TEXT rather than secondary sources)",
+  "archived_file": "a4370985791a8c44950e34461ad6f65090fbc15a86414687a3d833f1a39a59e6.stock-act-plaw-112publ105.pdf",
+  "sha256": "a4370985791a8c44950e34461ad6f65090fbc15a86414687a3d833f1a39a59e6",
+  "source": {
+    "url": "https://www.govinfo.gov/content/pkg/PLAW-112publ105/pdf/PLAW-112publ105.pdf",
+    "method": "GET",
+    "retrieved_at_utc": "2026-07-06T16:58:36Z",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "http_status": 200,
+    "content_type": "application/pdf",
+    "content_length": 157255
+  },
+  "verification": {
+    "observed": "Public Law 112-105 (\"STOCK Act\"), enacted APR. 4, 2012. SEC. 6 \"PROMPT REPORTING OF FINANCIAL TRANSACTIONS\" (a) REPORTING REQUIREMENT amends Section 103 of the Ethics in Government Act of 1978 (5 U.S.C. App. 103) by adding subsection (l): 'Not later than 30 days after receiving notification of any transaction required to be reported under section 102(a)(5)(B), but in no case later than 45 days after such transaction' certain persons 'shall file a report of the transaction' — enumerated covered persons include (9) 'A Member of Congress, as defined under section 109(12)' and (10) 'An officer or employee of the Congress, as defined under section 109(13)'. (b) EFFECTIVE DATE: the amendment applies to transactions occurring on or after the date 90 days after enactment — enactment 2012-04-04 + 90 days = 2012-07-03, independently confirming the regime_versions effective_from date. Section 8(a)(4) FILERS COVERED (amending EIGA public-availability requirements) states individuals required to file financial disclosure reports do so 'with the Secretary of the Senate or the Clerk of the House of Representatives' — confirming who_files' filing-office claim directly from the amending statute's own text (not merely from secondary CRS/ethics-committee sources as the Phase-0 sources.yaml candidate noted).",
+    "text_extraction": "pdftotext -layout; SEC. 6 begins page 4 (footer '126 STAT. 294  PUBLIC LAW 112-105--APR. 4, 2012')."
+  },
+  "politeness": {
+    "requests_to_host_this_task": 1,
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — 200; WebFetch tool not attempted for this host (curl used directly per this task's known 403-on-WebFetch pattern for disclosures-clerk.house.gov; govinfo.gov not yet tested with WebFetch but curl succeeded first try)"
+  }
+}

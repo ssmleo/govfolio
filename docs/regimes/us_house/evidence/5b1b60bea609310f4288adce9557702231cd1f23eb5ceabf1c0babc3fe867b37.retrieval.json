@@ -1,0 +1,23 @@
+{
+  "evidence_for": "AUTHORITY.md band_table, identifiers_available, who_files (Status: Member), cadence_and_lag claims",
+  "archived_file": "5b1b60bea609310f4288adce9557702231cd1f23eb5ceabf1c0babc3fe867b37.ptr-multi-row-sp-vehicle-20019182.pdf",
+  "sha256": "5b1b60bea609310f4288adce9557702231cd1f23eb5ceabf1c0babc3fe867b37",
+  "source": {
+    "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20019182.pdf",
+    "method": "GET (this copy)",
+    "retrieved_at_utc": "2026-07-04T00:00:00Z",
+    "note_on_provenance": "Fetched fresh by the sampler role (MANIFEST.json case 'multi_row_sp_vehicle'); re-derived independently here (pdftotext -layout) for the survey, sha256 cross-checked against the manifest pin.",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "http_status": 200,
+    "content_type": "application/pdf"
+  },
+  "verification": {
+    "observed": "Filing ID #20019182 (Hon. Lloyd K. Smucker, PA11), 8 sale rows. Amount bands OBSERVED verbatim in the text layer: '$1,001 - $15,000' (x3), '$15,001 - $50,000', '$50,001 - $100,000', '$100,001 - $250,000' (x2). Every row's Owner column is blank; the Investment Vehicle Details section lists one vehicle 'Sale of Spouse Inherited Assets (Owner: SP)' matched to every row by exact 'S O :' string — confirming vehicle-level owner inheritance (owner_code SP -> Gold owner=spouse) even when the row-level owner cell is blank. Identifiers: filer identified only by 'Name:' (Hon. Lloyd K. Smucker) + 'State/District: PA11'; no bioguide/member id anywhere. Instruments identified only by company name + ticker in parens + trailing [XX] asset-type code (e.g. 'Fulton Financial Corporation - Common Stock (FULT) [ST]'); no ISIN/CUSIP/FIGI anywhere. Status: Member. Transaction/notification dates observed 04/17-04/23/2026, signed 04/30/2026 — consistent with the STOCK Act's 30-day-from-notification ceiling."
+  },
+  "politeness": {
+    "requests_to_host_this_task": 0,
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — re-read of an already-fetched, sha-verified fixture"
+  }
+}

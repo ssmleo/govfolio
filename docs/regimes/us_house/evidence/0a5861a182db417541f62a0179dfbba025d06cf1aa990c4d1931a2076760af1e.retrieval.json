@@ -1,0 +1,23 @@
+{
+  "evidence_for": "AUTHORITY.md amendment_mechanism claim",
+  "archived_file": "0a5861a182db417541f62a0179dfbba025d06cf1aa990c4d1931a2076760af1e.ptr-amendment-20033759.pdf",
+  "sha256": "0a5861a182db417541f62a0179dfbba025d06cf1aa990c4d1931a2076760af1e",
+  "source": {
+    "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20033759.pdf",
+    "method": "GET (this copy)",
+    "retrieved_at_utc": "2026-07-04T00:00:00Z",
+    "note_on_provenance": "This exact document was fetched fresh from the URL above by the sampler role (goal 001 Task 8b, capture manifest crates/adapters/us_house/fixtures/MANIFEST.json, case 'amendment_unlinked'); this surveyor pass re-derives the amendment_mechanism claim independently by reading the archived PDF's own content (pdftotext -layout + direct read) and confirming its sha256 equals both the MANIFEST pin and this archived copy, rather than taking the manifest's prose description on faith.",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "http_status": 200,
+    "content_type": "application/pdf"
+  },
+  "verification": {
+    "observed": "Filing ID #20033759 (Hon. David Rouzer, NC07). Single transaction row carries a populated 10-digit row id '2000152831' (blank on non-amended rows in every other sampled PTR), sub-line 'F  S : Amended' (the small-caps-degraded rendering of 'FILING STATUS: Amended'), transaction date 12/09/2025 (prior calendar year vs the 2026 index this DocID appears in). No field anywhere in the document (or in the parent 2026FD.xml index entry) references the ORIGINAL DocID being amended — the amendment is only detectable per-row inside this NEW document, confirming the amendment_mechanism claim: amendments are new documents/DocIDs with no index-level link back to the original."
+  },
+  "politeness": {
+    "requests_to_host_this_task": 0,
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — re-read of an already-fetched, sha-verified fixture; no new HTTP request made to disclosures-clerk.house.gov for this specific file in this task"
+  }
+}

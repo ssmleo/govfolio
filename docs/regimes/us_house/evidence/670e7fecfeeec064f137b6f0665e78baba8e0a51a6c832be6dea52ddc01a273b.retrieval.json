@@ -1,0 +1,26 @@
+{
+  "evidence_for": "AUTHORITY.md historical_depth claim — pinpointing when the index schema switches to the FilingType=='P' code the us_house adapter's discovery filter relies on (crates/adapters/us_house)",
+  "archived_file": "670e7fecfeeec064f137b6f0665e78baba8e0a51a6c832be6dea52ddc01a273b.2015FD.zip",
+  "sha256": "670e7fecfeeec064f137b6f0665e78baba8e0a51a6c832be6dea52ddc01a273b",
+  "source": {
+    "url": "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2015FD.zip",
+    "method": "GET",
+    "retrieved_at_utc": "2026-07-06T17:00:07Z",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "http_status": 200,
+    "content_type": "application/x-zip-compressed",
+    "content_length": 76338
+  },
+  "verification": {
+    "observed": "2015FD.zip unzips to 2015FD.xml with 728 <FilingType>P</FilingType> records and NO <DisclosureType> field anywhere in the document — i.e. by 2015 the index schema matches the CURRENT (2026) schema shape and the FilingType=='P' code is in active use for PTRs. Companion checks in this task (2013FD.zip, downloaded and parsed; 2014FD.zip, downloaded and parsed) place the schema transition between 2013 (DisclosureType field present, 2318 PTR-tagged rows under FilingType O/A, zero FilingType=='P' rows) and 2015. 2014FD.zip is anomalous: only 11 total <Member> records, all <DisclosureType>FD</DisclosureType>, none PTR-tagged, with several non-US <StateDst> tokens (NS00, WM00, CB00, CP00) — flagged as a data-quality quirk in the Quirks log rather than asserted as a real activity gap. NET FINDING for historical backfill: a discovery/parse strategy that filters strictly on FilingType=='P' (as the current adapter does) will silently see ZERO PTR filings for any index year before ~2015, even though PTR-shaped data exists in the raw index back to 2012 tagged via DisclosureType=='PTR'. This is a load-bearing quirk for any pre-2015 backfill goal, not previously documented in the legacy us-house.md.",
+    "filing_type_census_2015": "{A: 213, C: 401, D: 130, E: 5, G: 1, O: 440, P: 728, T: 50, W: 31, X: 298}",
+    "filing_type_census_2013_companion": "{A: 800, B: 1, D: 82, E: 38, F: 6, G: 11, N: 10, O: 5231, R: 2, T: 481, W: 15, X: 660}; disclosure_type: {FD: 5019, PTR: 2318}, all PTR rows under FilingType O or A",
+    "filing_type_census_2014_companion": "{A: 8, O: 1, T: 2}; disclosure_type: {FD: 11}; anomalously sparse index (11 records total) vs neighboring years"
+  },
+  "politeness": {
+    "requests_to_host_this_task": 3,
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — all 200; this file covers the 2015, 2013, and 2014 zip fetches (2013/2014 raw zips not separately archived here — their census is fully reproducible from this file's companion figures plus the archived 2012/2015 zips bracketing them)"
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "evidence_for": "AUTHORITY.md historical_depth claim — does PTR-shaped data exist in the historical index for 2012, the year the STOCK Act (PTR obligation) took effect?",
+  "archived_file": "3ef175309c99f036fe053814fb2a8939e5adb7e3cf33ab00cfd1c11667036251.2012FD.zip",
+  "sha256": "3ef175309c99f036fe053814fb2a8939e5adb7e3cf33ab00cfd1c11667036251",
+  "source": {
+    "url": "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/2012FD.zip",
+    "method": "GET",
+    "retrieved_at_utc": "2026-07-06T16:59:40Z",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "http_status": 200,
+    "content_type": "application/x-zip-compressed",
+    "content_length": 161534
+  },
+  "verification": {
+    "observed": "2012FD.zip exists (200 OK) and unzips to 2012FD.xml, a well-formed Member index for calendar year 2012. FilingType/DisclosureType census (grep over the extracted XML): 813 records carry <DisclosureType>PTR</DisclosureType> (all under <FilingType>O</FilingType> or <FilingType>A</FilingType> — NOT FilingType 'P'), plus 4534 <DisclosureType>FD</DisclosureType> records. This CONFIRMS PTR-shaped disclosures are present in the archive back to 2012 (the legacy doc's 'assumed 2012' claim), but reveals a SCHEMA FORK not previously documented: in 2012 the index schema carries a <DisclosureType> field (FD|PTR) absent from the current (2026) index schema, and PTR rows are NOT tagged FilingType=='P' in this era — they are tagged FilingType O ('Original', the same code used for annual FDs) or A ('Amended'), disambiguated only by <DisclosureType>PTR</DisclosureType>. A 2011FD.zip HEAD-check (200 OK) and 2008FD.zip HEAD-check (200 OK) were also performed to establish the index-zip endpoint's depth, but their bodies were not downloaded/parsed in this task (politeness budget); 2011's zip is documented separately in this task's log as containing zero PTR-tagged records (consistent with the STOCK Act's 2012-07-03 effective date). See sibling evidence 670e7fe...2015FD.zip for the point where the FilingType=='P' code (matching the us_house adapter's current discovery filter) first appears.",
+    "filing_type_census_2012": "{A: 737, B: 1, D: 34, E: 8, F: 4, G: 3, N: 6, O: 3812, R: 2, T: 226, W: 10, X: 504}",
+    "disclosure_type_census_2012": "{FD: 4534, PTR: 813}"
+  },
+  "politeness": {
+    "requests_to_host_this_task": 1,
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — 200"
+  }
+}

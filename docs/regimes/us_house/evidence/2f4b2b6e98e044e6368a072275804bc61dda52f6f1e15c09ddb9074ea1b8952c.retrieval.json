@@ -1,0 +1,23 @@
+{
+  "evidence_for": "AUTHORITY.md band_table (top-3 bands + the 'K' column — self-evidencing form layout), personal_data_to_redact, formats (pdf_scanned) claims",
+  "archived_file": "2f4b2b6e98e044e6368a072275804bc61dda52f6f1e15c09ddb9074ea1b8952c.ptr-scanned-paper-9115811.pdf",
+  "sha256": "2f4b2b6e98e044e6368a072275804bc61dda52f6f1e15c09ddb9074ea1b8952c",
+  "source": {
+    "url": "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/9115811.pdf",
+    "method": "GET (this copy)",
+    "retrieved_at_utc": "2026-07-05T04:28:24Z",
+    "note_on_provenance": "Fetched fresh by the sampler role (goal 021, MANIFEST.json case 'scanned_paper_ptr'); re-derived independently here by VISUAL read of the page image (this surveyor's PDF-render capability), sha256 cross-checked against the manifest pin. Confirmed no text layer: pdftotext emits 1 byte (a lone form-feed), consistent with prior finding.",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "http_status": 200,
+    "content_type": "application/pdf"
+  },
+  "verification": {
+    "observed": "This is the PAPER PTR FORM ITSELF (blank government form printed with pre-filled bands, then hand/typewriter-completed) — the amount-of-transaction columns are labelled A through K and read verbatim, left to right: A '$1,001-$15,000', B '$15,001-$50,000', C '$50,001-$100,000', D '$100,001-$250,000', E '$250,001-$500,000', F '$500,001-1,000,000', G '$1,000,001-$5,000,000', H '$5,000,001-$25,000,000', I '$25,000,001-$50,000,000', J 'Over $50,000,000', K 'Transaction in a Spouse or Dependent Child Asset over $1,000,000'. This is a MAJOR CORRECTION to the legacy us-house.md open question ('exact strings of the three top bands and the Spouse/DC over $1,000,000 variant'): column K is NOT an 11th value band at all — it is a SEPARATE checkbox flag that co-occurs with exactly one of columns A-J (i.e. a boolean 'this transaction, whose amount is recorded in one of the A-J band columns, additionally involves a spouse/dependent-child asset over $1,000,000'), not an alternative/variant amount-band string. Because this is a fixed, uniformly-printed government form, the top-3 band strings (H, I, J) are self-evidencing from this single archived instance even though no FILED transaction in the sampled evidence set actually checked one of them. Personal data observed on this specific filed instance (beyond the printed form fields): a handwritten office telephone '202-225-6356' and handwritten clerk-staff initials 'MC' in the '(For Official Use Only)' box, plus a 'HAND DELIVERED' / 'LEGISLATIVE RESOURCE CENTER' clerk receipt stamp dated '2026 MAY -6'. These are institutional/office artifacts of clerk processing, not personal data about the filer or their family, and are flagged as such rather than folded into personal_data_to_redact."
+  },
+  "politeness": {
+    "requests_to_host_this_task": 0,
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — re-read of an already-fetched, sha-verified fixture"
+  }
+}

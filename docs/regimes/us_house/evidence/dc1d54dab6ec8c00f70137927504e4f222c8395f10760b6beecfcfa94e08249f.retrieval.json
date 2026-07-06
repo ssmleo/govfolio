@@ -1,0 +1,23 @@
+{
+  "evidence_for": "AUTHORITY.md tos_and_politeness / access claims — re-verifying the legacy us-house.md E11 finding (no robots.txt) independently for this artifact",
+  "archived_file": "dc1d54dab6ec8c00f70137927504e4f222c8395f10760b6beecfcfa94e08249f.robots-txt-404.html",
+  "sha256": "dc1d54dab6ec8c00f70137927504e4f222c8395f10760b6beecfcfa94e08249f",
+  "source": {
+    "url": "https://disclosures-clerk.house.gov/robots.txt",
+    "method": "GET",
+    "retrieved_at_utc": "2026-07-06T16:59:37Z",
+    "user_agent": "govfolio.io research (contact: ssm.leo@outlook.com)",
+    "http_status": 404,
+    "content_type": "text/html",
+    "content_length": 1245
+  },
+  "verification": {
+    "observed": "HTTP 404 Not Found for /robots.txt — the site publishes no robots policy, confirming (independently, this session) the legacy doc's E11 finding. No captcha, no session cookie, no auth challenge encountered on this or any GET/HEAD in this task; every response in this task's log carried only standard security headers (Strict-Transport-Security, Cache-Control) — consistent with plain anonymous HTTPS access."
+  },
+  "politeness": {
+    "requests_to_host_this_task": 1,
+    "concurrency": 1,
+    "min_interval_seconds": 2,
+    "incidents": "none — 404 is the expected/correct response (absence of a robots policy), not an error"
+  }
+}
