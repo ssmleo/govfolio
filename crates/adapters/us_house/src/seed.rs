@@ -6,12 +6,16 @@
 //! index zip XML.
 
 use anyhow::Context as _;
+use async_trait::async_trait;
 use chrono::NaiveDate;
+use sqlx::PgPool;
 
+use pipeline::adapter::RunCtx;
 use pipeline::run::RegimeBinding;
-use pipeline::stages::roster::RosterMember;
+use pipeline::stages::roster::{RosterMember, seed_roster};
 use pipeline::stages::seed::{JurisdictionSeed, RegimeSeed};
 
+use crate::UsHouseAdapter;
 use crate::index;
 
 /// Stable `disclosure_regime.id` — the same constant the conformance fixtures
@@ -111,6 +115,108 @@ fn join_name(parts: &[&str]) -> String {
         .copied()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+// ---------------------------------------------------------------------------
+// Historical roster seeding (goal 081 Task 1): loop `roster_from_index_xml` +
+// `seed_roster` (both above, unchanged) over every archive year.
+// ---------------------------------------------------------------------------
+
+/// Where one archive year's index XML comes from for historical roster
+/// seeding. [`LiveIndexSource`] shares `UsHouseAdapter`'s own conditional-GET
+/// fetch — the SAME fetch [`crate::UsHouseAdapter::discover_year`] uses for
+/// filing discovery, so a year's archive is fetched exactly once, never
+/// twice (invariant 10). Tests inject a fixture-backed source instead
+/// (mirrors `worker::backfill::ArchiveSource`'s per-year isolation,
+/// `crates/worker/src/backfill.rs`).
+#[async_trait]
+pub trait IndexXmlSource: Send + Sync {
+    /// The archive year's raw index XML, or `None` on a 304 (index
+    /// unchanged since the last poll for this year).
+    ///
+    /// # Errors
+    /// Transport failure or an unparseable historical index — the caller
+    /// ([`seed_historical_rosters`]) fails that year closed and continues
+    /// the range.
+    async fn fetch_year(&self, year: i32) -> anyhow::Result<Option<String>>;
+}
+
+/// The live source: `UsHouseAdapter`'s own conditional-GET fetch.
+pub struct LiveIndexSource<'a> {
+    /// The adapter whose cached conditional-GET validators this shares.
+    pub adapter: &'a UsHouseAdapter,
+    /// The run context (HTTP client, politeness) to fetch through.
+    pub ctx: &'a RunCtx,
+}
+
+#[async_trait]
+impl IndexXmlSource for LiveIndexSource<'_> {
+    async fn fetch_year(&self, year: i32) -> anyhow::Result<Option<String>> {
+        self.adapter.fetch_index_xml(year, self.ctx).await
+    }
+}
+
+/// One archive year's historical-roster-seeding outcome (goal 081 Task 1).
+#[derive(Debug, Clone)]
+pub struct YearSeedResult {
+    /// The archive year.
+    pub year: i32,
+    /// Roster members newly inserted this year (0 on a 304, or an
+    /// already-seeded replay).
+    pub inserted: u32,
+    /// Set when the YEAR itself failed — index unreachable/unparseable, or
+    /// `seed_roster` bailed on an ambiguous roster. Fail closed per year,
+    /// the range continues (mirrors `worker::backfill::dry_run`'s per-year
+    /// isolation): an ambiguous roster on one year must not sink the rest.
+    pub error: Option<String>,
+}
+
+/// Seeds the historical `us_house` roster across every archive year in
+/// `from..=to` (design §5.4; Clerk index only — goal 081 research
+/// findings). Loops the EXISTING, unchanged [`roster_from_index_xml`] +
+/// `seed_roster` over each year's index (`index_zip_url(year)`, fetched via
+/// `source`). Each year fails closed INDEPENDENTLY: an unreachable/
+/// unparseable index or an ambiguous roster on one year is recorded in that
+/// year's [`YearSeedResult`] and the sweep continues — never sinking the
+/// rest of the range.
+pub async fn seed_historical_rosters(
+    source: &dyn IndexXmlSource,
+    pool: &PgPool,
+    regime: &RegimeBinding,
+    from: i32,
+    to: i32,
+) -> Vec<YearSeedResult> {
+    let mut results = Vec::new();
+    for year in from..=to {
+        results.push(match seed_one_year(source, pool, regime, year).await {
+            Ok(inserted) => YearSeedResult {
+                year,
+                inserted,
+                error: None,
+            },
+            Err(error) => YearSeedResult {
+                year,
+                inserted: 0,
+                error: Some(format!("{error:#}")),
+            },
+        });
+    }
+    results
+}
+
+/// Fetches, rosters, and seeds ONE year — the unit [`seed_historical_rosters`]
+/// isolates failures around.
+async fn seed_one_year(
+    source: &dyn IndexXmlSource,
+    pool: &PgPool,
+    regime: &RegimeBinding,
+    year: i32,
+) -> anyhow::Result<u32> {
+    let Some(xml) = source.fetch_year(year).await? else {
+        return Ok(0); // index unchanged since the last poll — nothing new
+    };
+    let roster = roster_from_index_xml(&xml)?;
+    seed_roster(pool, regime, &roster).await
 }
 
 #[cfg(test)]

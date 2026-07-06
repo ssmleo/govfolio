@@ -32,8 +32,14 @@ pub(crate) fn ptr_pdf_url(year: &str, doc_id: &str) -> String {
     format!("https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/{year}/{doc_id}.pdf")
 }
 
-/// Opens the index zip and parses the `*FD.xml` inside.
-pub(crate) fn parse_index_zip(bytes: &[u8]) -> anyhow::Result<Vec<IndexMember>> {
+/// Unzips the index archive to its `*FD.xml` text (BOM left intact —
+/// [`parse_index_xml`] trims it). Used by the adapter's fetch helper
+/// (`UsHouseAdapter::fetch_index_xml`, shared by filing discovery and
+/// historical roster seeding — goal 081 Task 1).
+///
+/// # Errors
+/// The bytes are not a valid zip, or no `*FD.xml` member is found inside.
+pub(crate) fn unzip_index_xml(bytes: &[u8]) -> anyhow::Result<String> {
     let mut archive =
         zip::ZipArchive::new(std::io::Cursor::new(bytes)).context("opening index zip")?;
     let name = archive
@@ -47,7 +53,7 @@ pub(crate) fn parse_index_zip(bytes: &[u8]) -> anyhow::Result<Vec<IndexMember>> 
         .with_context(|| format!("opening {name} in index zip"))?
         .read_to_string(&mut xml)
         .with_context(|| format!("reading {name}"))?;
-    parse_index_xml(&xml)
+    Ok(xml)
 }
 
 /// Parses the index XML (`FinancialDisclosure` root, repeated `Member`).

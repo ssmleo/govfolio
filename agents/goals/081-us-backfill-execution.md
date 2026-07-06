@@ -95,7 +95,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
 ```
 
 ## Checklist
-- [ ] **Task 1 — historical roster seeding.** Loop `roster_from_index_xml` + `seed_roster`
+- [x] **Task 1 — historical roster seeding.** Loop `roster_from_index_xml` + `seed_roster`
   (both unchanged) over each archive year 2012-2026 via `index_zip_url(year)`, sharing ONE fetch
   per year with filing-discovery (extract the index-zip fetch+unzip out of
   `UsHouseAdapter::discover_year` into a small reusable helper — do not double-fetch the same

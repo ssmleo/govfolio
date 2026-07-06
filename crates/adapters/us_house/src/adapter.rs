@@ -126,23 +126,24 @@ impl JurisdictionAdapter for UsHouseAdapter {
 }
 
 impl UsHouseAdapter {
-    /// Discover one archive year's PTR filings (backfill, design §5.6 — the same
-    /// pipeline pointed at the Clerk's historical `{YYYY}FD.zip` indexes back to
-    /// the 2012 STOCK Act era). The live [`discover`](Self::discover) is this for
-    /// the current year. Validators are cached PER YEAR (see the struct field):
-    /// each year is fetched once unconditionally, so a backfill sweep never
-    /// false-304s, while a live re-poll of the same year still sends conditional
-    /// headers. Early archive years legitimately hold zero `FilingType == "P"`
-    /// rows (PTR e-filing post-dates the 2012 STOCK Act; verified empty for
-    /// 2012 — goal 080) — that is a valid empty result, not a failure. If a
-    /// historical index's shape ever diverges from the current `Member` layout,
-    /// the XML parse fails HERE for that year and the caller fails it closed,
-    /// continuing the range.
+    /// Fetches + unzips one archive year's index to its raw `*FD.xml` text
+    /// (conditional GET, validators cached per year — regime doc §2.4).
+    /// Shared by [`discover_year`](Self::discover_year) (filing discovery)
+    /// and historical roster seeding (`seed::seed_historical_rosters`, goal
+    /// 081 Task 1) so the SAME year's archive is fetched exactly once, never
+    /// twice, across both uses (invariant 10).
+    ///
+    /// Returns `Ok(None)` on a 304 (index unchanged since the last poll for
+    /// this year); `Ok(Some(xml))` otherwise.
     ///
     /// # Errors
     /// Index GET transport failure, a non-success (non-304) status, or an
-    /// unparseable index archive.
-    pub async fn discover_year(&self, year: i32, ctx: &RunCtx) -> anyhow::Result<Vec<FilingRef>> {
+    /// unparseable index zip.
+    pub(crate) async fn fetch_index_xml(
+        &self,
+        year: i32,
+        ctx: &RunCtx,
+    ) -> anyhow::Result<Option<String>> {
         let url = index::index_zip_url(year);
         let cached = self
             .index_validators
@@ -160,7 +161,7 @@ impl UsHouseAdapter {
             )
             .await?;
         if response.status().as_u16() == 304 {
-            return Ok(Vec::new()); // index unchanged — nothing new
+            return Ok(None); // index unchanged — nothing new
         }
         anyhow::ensure!(
             response.status().is_success(),
@@ -186,10 +187,32 @@ impl UsHouseAdapter {
             .lock()
             .map_err(|_| anyhow::anyhow!("index validator lock poisoned"))?
             .insert(year, fresh);
+        Ok(Some(index::unzip_index_xml(&bytes)?))
+    }
 
+    /// Discover one archive year's PTR filings (backfill, design §5.6 — the same
+    /// pipeline pointed at the Clerk's historical `{YYYY}FD.zip` indexes back to
+    /// the 2012 STOCK Act era). The live [`discover`](Self::discover) is this for
+    /// the current year. Validators are cached PER YEAR (see the struct field):
+    /// each year is fetched once unconditionally, so a backfill sweep never
+    /// false-304s, while a live re-poll of the same year still sends conditional
+    /// headers. Early archive years legitimately hold zero `FilingType == "P"`
+    /// rows (PTR e-filing post-dates the 2012 STOCK Act; verified empty for
+    /// 2012 — goal 080) — that is a valid empty result, not a failure. If a
+    /// historical index's shape ever diverges from the current `Member` layout,
+    /// the XML parse fails HERE for that year and the caller fails it closed,
+    /// continuing the range.
+    ///
+    /// # Errors
+    /// Index GET transport failure, a non-success (non-304) status, or an
+    /// unparseable index archive.
+    pub async fn discover_year(&self, year: i32, ctx: &RunCtx) -> anyhow::Result<Vec<FilingRef>> {
+        let Some(xml) = self.fetch_index_xml(year, ctx).await? else {
+            return Ok(Vec::new()); // index unchanged — nothing new
+        };
         // Filter FilingType == "P"; publish-time dedup by (regime, external_id)
         // also captures amended PTRs, which arrive as NEW DocIDs (§2.4).
-        Ok(index::parse_index_zip(&bytes)?
+        Ok(index::parse_index_xml(&xml)?
             .into_iter()
             .filter(|member| {
                 member.filing_type == "P" && !member.doc_id.is_empty() && !member.year.is_empty()
