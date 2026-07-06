@@ -145,13 +145,20 @@ candidate-facing search portal.
 
 - **Bulk open data (the practical access path)**: `dadosabertos.tse.jus.br`, a CKAN
   portal cataloging one `candidatos-<year>` package per election year (1933-2024, minus
-  2020). Each package's actual disclosure content is two resources, both nationwide-plus-
-  per-state ZIPs of `;`-delimited, quoted, Latin-1-encoded CSVs, at a stable predictable
-  URL: `https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_{YEAR}[_{UF}].zip`
+  2020). Each package's actual disclosure content is two resources: ONE nationwide ZIP
+  per dataset per year (no per-UF suffix), each containing one `;`-delimited, quoted,
+  Latin-1-encoded CSV per UF INSIDE the ZIP, plus a nationwide aggregate CSV and a
+  `leiame.pdf` field dictionary — at the stable predictable URL
+  `https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_{YEAR}.zip`
   (candidate identity/registration fields) and
-  `https://cdn.tse.jus.br/estatistica/sead/odsele/bem_candidato/bem_candidato_{YEAR}[_{UF}].zip`
-  (itemized declared assets). Every ZIP ships its own `leiame.pdf` field dictionary.
-  No login, API key, or captcha; `cdn.tse.jus.br` carries no robots.txt at all.
+  `https://cdn.tse.jus.br/estatistica/sead/odsele/bem_candidato/bem_candidato_{YEAR}.zip`
+  (itemized declared assets). **Correction (rust-builder, Phase 4 build, 2026-07-06):**
+  this section previously documented a `[_{UF}].zip` per-UF URL suffix; the sampler
+  (`fixtures/MANIFEST.json uf_zip_pattern_correction`) and an independent audit both
+  confirmed that pattern 404s — per-UF CSVs ship inside the one nationwide ZIP, not as
+  separately downloadable per-UF ZIPs. Corrected here (was flagged, not yet fixed, as of
+  the Phase 3 spec-writer pass). No login, API key, or captcha; `cdn.tse.jus.br` carries
+  no robots.txt at all.
 - **Candidate-facing search portal**: `https://divulgacandcontas.tse.jus.br/` — TSE's own
   documentation names this as the public presentation layer for individual declarations,
   but it has been unreachable (redirects to a maintenance page) for the entire
@@ -237,6 +244,81 @@ prose rather than a replaced CSV row, that would need re-evaluating.
   the same files — only the specific sensitive values were replaced, not the
   structural facts (column presence, format, row counts) the claims rely on. See
   `agents/skills/evidence-archiving/SKILL.md` for the generalized lesson.
+- 2026-07-06 · **Bronze-doc granularity is a genuine new design point, not covered by
+  any prior regime (rust-builder, Phase 4 build)** — TSE never serves one candidate's
+  declaration as an individually addressable document; `bem_candidato`/`consulta_cand`
+  each ship as ONE nationwide ZIP covering every candidate for the year. Since the
+  `JurisdictionAdapter` trait's `fetch()` produces one Bronze document per one
+  `FilingRef`, `discover()` does the real work for this regime: it downloads both
+  nationwide ZIPs once, joins `bem_candidato` rows to their `consulta_cand` candidate by
+  `SQ_CANDIDATO`, and caches each joined per-candidate JSON in-process (keyed by
+  `FilingRef.external_id`) for `fetch()` to re-serialize into Bronze without a second
+  network round trip. This means `discover()` must run before `fetch()` in the same
+  adapter instance (true of the in-process `pipeline::run::Runner`); a bare `fetch()`
+  call with a cold cache fails closed with an explanatory error rather than guessing.
+  Implemented in `crates/adapters/br/src/adapter.rs` — flagged here since it is a
+  reusable pattern for any future *bulk-single-file, many-filings-per-file* regime.
+- 2026-07-06 · **Per-UF CSV entries inside the nationwide ZIP are distinguished from the
+  nationwide aggregate CSV by a hardcoded 27-item UF-code whitelist, not by the
+  aggregate's own filename** — the exact aggregate filename (`_BR.csv`/`_BRASIL.csv`/
+  other) was not directly re-confirmed against a live download this pass (no network
+  access in the build environment); rather than guess a suffix to exclude, the adapter
+  INCLUDES only entries whose filename ends in one of the 27 official UF abbreviations
+  (`crates/adapters/br/src/adapter.rs::BRAZIL_UF_CODES`), which is robust regardless of
+  the aggregate's exact name. Flagged for whoever first runs this adapter against a real
+  download to confirm the aggregate is in fact excluded (and isn't itself named with a
+  2-letter code that collides with a real UF).
+- 2026-07-06 · **Conformance harness's zero-row fail-closed check was scoped per
+  fixture-CASE, not per whole-run — a real defect, now fixed (rust-builder, Phase 4
+  build)** — `crates/pipeline/src/conformance.rs`'s shared `run_case_inner` was
+  unconditionally flagging `rows.is_empty()` as an invariant-6 failure for EVERY fixture
+  case, with no adapter-level exception. `br` is the first regime with a fixture whose
+  own committed `expected.silver.json` is legitimately `[]` (`zero_asset_deputado`, edge
+  case 1) — as written, the harness would have failed that case regardless of how
+  `parse()` was implemented. Fixed by only flagging zero rows when the fixture's own
+  expected Silver is NOT also `[]` (a real mismatch is still caught by the exact-diff
+  check immediately below it, unchanged). Verified as a no-op for every other committed
+  adapter fixture in the workspace (none has an empty `expected.silver.json`). This is a
+  shared-infrastructure fix, not an `br`-scoped one — noted here per this file's write-back
+  convention since `br`'s own edge case 1 is what exposed it.
+- 2026-07-06 · **Production PII passthrough is gated on `ctx.pool.is_some()`, not a
+  separate code path** — plan.md's "Row unit" section flagged a tension: the real
+  `parse()`/politician-resolution path needs `NR_TITULO_ELEITORAL_CANDIDATO`/
+  `NR_CPF_CANDIDATO` threaded through the Silver payload, but the committed
+  `expected.silver.json` (test-designer's deliberately conservative, PII-free pass)
+  omits them entirely. Resolved by gating the two fields' presence in
+  `crate::parse::SilverRow` on `ctx.pool.is_some()` (`skip_serializing_if` when absent):
+  conformance mode (`pool: None`) serializes byte-identical to the committed fixtures;
+  a real pool-backed run serializes both fields for the (not-yet-built) politician
+  resolution/`RunnerBinding` path to consume. No `RunnerBinding`/`binding.rs` was built
+  in this pass — out of scope for this goal's deliverables (conformance + the four gate
+  commands); flagged here so the next pass wiring `br` into `pipeline::run::Runner`
+  knows the payload shape is already production-ready.
+
+- 2026-07-06 · **FINDING, not fixed here: the shared promotion-stage fingerprint does
+  NOT yet honor edge case 2's "fingerprint from specific row content, not the
+  timestamp" resolution (rust-builder, Phase 4 build)** — `crates/pipeline/src/stages/
+  publish.rs`'s `fingerprint()` call is fully generic across every regime: it hashes
+  `serde_json::to_value(&bound)`, i.e. the WHOLE bound `GoldCandidate` (including its
+  entire `details` blob), not a per-regime-selected subset of fields. `br`'s
+  `BrHoldingDetailsV1` deliberately carries `last_updated_date_raw`/
+  `last_updated_time_raw` verbatim (forensic visibility, per edge case 2's own
+  resolution) — but because the generic fingerprint hashes the whole candidate, a bulk
+  backend re-timestamp event (this same edge case's own evidence: 85-99% of a whole
+  state's rows sharing one re-touched date) WOULD still change every affected row's
+  fingerprint at promotion time, since the two raw timestamp fields are part of what
+  gets hashed. This does not affect conformance (which never reaches the promotion
+  stage — `adapter.parse()`/`normalize()` are exercised directly, fixtures always ship
+  `fingerprint: null`) or any of this goal's four gate commands, and no `RunnerBinding`
+  for `br` was built in this pass (out of scope — see the PII-passthrough Quirks entry
+  above), so `br` cannot reach `publish.rs` yet regardless. Flagged here because it is
+  the load-bearing assumption edge case 2 rests on, and it is NOT actually true of the
+  current shared machinery: whoever wires `br` into `pipeline::run::Runner` needs either
+  a per-regime fingerprint-content-selector hook (a cross-regime `publish.rs`/invariant-4
+  design change, out of scope for a single-adapter PR) or an accepted, documented
+  tradeoff that a bulk re-timestamp event DOES currently manufacture a same-content
+  "new" Gold row for every affected candidate — the exact outcome edge case 2 set out to
+  avoid.
 
 ## Operational notes (politeness incidents, outages)
 
@@ -264,3 +346,19 @@ prose rather than a replaced CSV row, that would need re-evaluating.
 - 2026-07-06 · `www2.camara.leg.br/edbr/inicio` (the internal DBR system): HTTP 502,
   same failure the Phase-0 scout observed — re-checked independently this session, no
   change. Not a public disclosure surface either way (see open_questions).
+- 2026-07-06 · **`discover()`'s target-year selection is a simplifying heuristic, not
+  fully specified (rust-builder, Phase 4 build)** — live discovery picks the most recent
+  year with `year % 4 == 2` (2018/2022/2026/…) at or before the clock's current year,
+  matching this regime's quadrennial federal cadence (`cadence_and_lag`). It does not
+  account for the lag between an election's own bulk-data publication and calendar
+  year-of-election (e.g. whether a fresh cycle's ZIPs are live on `cdn.tse.jus.br` by
+  January of the election year, or only after the October vote) — untested against a
+  real download this pass (no network access in the build environment). A `discover()`
+  call that races ahead of a not-yet-published cycle's ZIP would see a plain HTTP error
+  (fails closed, not silently empty) rather than falling back to the prior cycle.
+  Historical/backfill runs bypass this entirely via `BrAdapter::discover_year(year, ctx)`
+  called directly with an explicit year, mirroring the `us_house` backfill-bin
+  precedent. Also: a nationwide-ZIP conditional GET returning 304 is treated as "no
+  new/changed candidates this poll" (empty `discover()` result for that dataset) —
+  the same semantics `us_house`'s index-304 handling uses, applied here to a whole-year
+  bulk file rather than a per-doc index.

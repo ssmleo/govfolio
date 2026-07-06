@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BrHoldingDetailsV1",
+  "description": "`details` payload of one Brazilian TSE `declaração de bens` asset-line-item\n(regime `br`, `record_type = holding`). One instance per `bem_candidato`\nrow (plan.md \"Parse strategy\"). Every field is required: the 3 sampled\nfixtures (typical/amendment/zero-asset cases) show no partial rows for any\nof these columns — a source row missing one of them should fail closed\n(invariant 6) rather than silently relaxing this contract to `Option`\n(plan.md open item on TSE sentinel values, e.g. `#NULO`/`-1`/`-4`,\nobserved in adjacent `consulta_cand` columns but not yet observed in\n`bem_candidato` itself).",
+  "type": "object",
+  "properties": {
+    "asset_class": {
+      "description": "Derived asset-class bucket (plan.md's code -> `AssetClass` table).\nDeliberately duplicates the Gold `asset_class` column so the details\npayload is self-contained for audit without a join back to\n`disclosure_record` — a departure from every prior regime's details\ncontract (none echoes `asset_class`); flagged in plan.md for auditor\nconfirmation rather than assumed silently.",
+      "$ref": "#/$defs/AssetClass"
+    },
+    "asset_description_raw": {
+      "description": "Verbatim `DS_BEM_CANDIDATO` free-text description. Duplicates the\nGold `asset_description_raw` column for the same self-containment\nreason as `asset_class` above (invariant 2: raw is sacred).",
+      "type": "string"
+    },
+    "asset_type_code_raw": {
+      "description": "Verbatim `CD_TIPO_BEM_CANDIDATO` source code (e.g. `\"12\"`, `\"97\"`).\nTSE publishes no complete code table (AUTHORITY.md field-mapping\ntable) — see plan.md's code -> `AssetClass` table and its flagged\nlow-confidence entries.",
+      "type": "string"
+    },
+    "asset_type_label_raw": {
+      "description": "Verbatim `DS_TIPO_BEM_CANDIDATO` human-readable label, always paired\nwith the code above in the source row (self-describing pair,\nAUTHORITY.md field-mapping table).",
+      "type": "string"
+    },
+    "election_year": {
+      "description": "`ANO_ELEICAO` — the quadrennial federal-election cycle year this\ndeclaration was filed for (e.g. `2022`).",
+      "type": "integer",
+      "format": "uint16",
+      "maximum": 65535,
+      "minimum": 0
+    },
+    "last_updated_date_raw": {
+      "description": "Verbatim `DT_ULT_ATUAL_BEM_CANDIDATO` (`DD/MM/YYYY`). See plan.md's\namendment-timestamp-ambiguity edge case before wiring this into any\nsupersession trigger (invariant 1) — the sampler found evidence this\nfield may reflect a bulk backend re-timestamp event rather than a\ngenuine per-candidate rectification.",
+      "type": "string"
+    },
+    "last_updated_time_raw": {
+      "description": "Verbatim `HH_ULT_ATUAL_BEM_CANDIDATO` (`HH:MM:SS`), paired with the\ndate above.",
+      "type": "string"
+    },
+    "line_item_ordinal": {
+      "description": "`NR_ORDEM_BEM_CANDIDATO` — 1-based ordinal position of this asset\nwithin the candidate's own declaration (stable ordering/fingerprint\nkey; not a durable cross-cycle id — `SQ_CANDIDATO` itself is minted\nfresh per election cycle, AUTHORITY.md `identifiers_available`).",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 1
+    },
+    "value_raw": {
+      "description": "Verbatim `VR_BEM_CANDIDATO` comma-decimal string exactly as filed\n(e.g. `\"15000,00\"`), before comma->dot / `rust_decimal` parsing into\nthe Gold `value` interval (invariant 7). Plan.md blocker: Gold\n`value.currency` needs `Currency::BRL`, which does not yet exist in\n`govfolio_core::domain::enums::Currency` (`EUR`/`GBP`/`USD` only).",
+      "type": "string"
+    }
+  },
+  "required": [
+    "asset_type_code_raw",
+    "asset_type_label_raw",
+    "asset_class",
+    "asset_description_raw",
+    "value_raw",
+    "election_year",
+    "line_item_ordinal",
+    "last_updated_date_raw",
+    "last_updated_time_raw"
+  ],
+  "$defs": {
+    "AssetClass": {
+      "description": "`asset_class` vocabulary (design §4.2 column comment).",
+      "type": "string",
+      "enum": [
+        "equity",
+        "bond",
+        "fund",
+        "option",
+        "crypto",
+        "commodity",
+        "real_estate",
+        "private",
+        "other"
+      ]
+    }
+  }
+}

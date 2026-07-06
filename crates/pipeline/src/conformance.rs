@@ -97,6 +97,9 @@ pub fn details_schema(regime: &str, record_type: RecordType) -> anyhow::Result<O
         ("de_bundestag", RecordType::Interest) => {
             include_str!("../schemas/details/de_bundestag.interest.json")
         }
+        ("br", RecordType::Holding) => {
+            include_str!("../schemas/details/br.holding.json")
+        }
         _ => return Ok(None),
     };
     serde_json::from_str(doc)
@@ -187,11 +190,17 @@ async fn run_case_inner(
 
     // parse → Silver, deep-compared against the committed expectation.
     let rows = adapter.parse(&doc, ctx).await.context("parse failed")?;
-    if rows.is_empty() {
-        failures.push("parse produced zero rows — fail closed (invariant 6)".to_owned());
-    }
     let actual_silver = serde_json::to_value(&rows)?;
     let expected_silver = load_json(&case_dir.join("expected.silver.json"))?;
+    // Fail closed on a zero-row parse (invariant 6) — UNLESS the fixture's
+    // own committed ground truth also expects zero rows (e.g. `br`'s
+    // zero-asset-declaration case, plan.md edge case 1: a legitimate "no
+    // assets declared" outcome, not a parser bug). A real mismatch (rows
+    // empty but nonzero expected, or vice versa) is still caught below by
+    // the exact Silver diff.
+    if rows.is_empty() && expected_silver != Value::Array(Vec::new()) {
+        failures.push("parse produced zero rows — fail closed (invariant 6)".to_owned());
+    }
     if let Some(diff) = json_diff("expected.silver.json", &expected_silver, &actual_silver) {
         failures.push(format!("Silver mismatch:\n{diff}"));
     }

@@ -1,13 +1,17 @@
-//! Placeholder crate for the `br` (Brazil) jurisdiction adapter.
-//!
-//! Coverage-factory phase: SPECCED (fixtures + capture manifest under
-//! `fixtures/` — see `MANIFEST.json`; Phase 3 spec-writer artifacts are
-//! `plan.md`, at the crate root, and `details.rs`, below). `plan.md` carries
-//! the field-mapping table, parse strategy, politeness config, edge-case
-//! list, and open items (notably a blocking one: `Currency::BRL` does not
-//! yet exist in `govfolio_core::domain::enums::Currency`). No adapter logic
-//! (`discover`/`fetch`/`parse`/`normalize`, i.e. the `JurisdictionAdapter`
-//! impl) lives here yet — that is Phase 4 (rust-builder) work, see
-//! `agents/workflows/source-exploration.md`.
+//! Brazil (`br`) TSE candidacy-time asset-declaration adapter (regime code
+//! `br`, coverage-factory epoch E2 — first `record_type: holding` regime,
+//! first non-English source). Scope: `declaração de bens` itemized asset
+//! line items for `DEPUTADO FEDERAL`/`SENADOR` (+ suplentes) candidacies.
+//! The canonical methodology lives in `docs/regimes/br/AUTHORITY.md` (survey)
+//! and `plan.md`, at the crate root (field-mapping table, parse strategy,
+//! `CD_TIPO_BEM_CANDIDATO -> AssetClass` table, politeness config, edge
+//! cases). Fixtures + conformance conventions:
+//! `crates/adapters/br/fixtures/MANIFEST.json`.
 
+pub mod adapter;
 pub mod details;
+pub(crate) mod normalize;
+pub(crate) mod parse;
+pub(crate) mod tables;
+
+pub use adapter::BrAdapter;

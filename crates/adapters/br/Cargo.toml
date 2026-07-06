@@ -7,9 +7,23 @@ edition = "2024"
 workspace = true
 
 [dependencies]
+anyhow = "1.0.103"
+async-trait = "0.1.89"
+chrono = { version = "0.4.45", features = ["serde"] }
 # AssetClass, for the details contract's (deliberately redundant, plan.md
 # open item) `asset_class` field.
 core = { version = "0.1.0", path = "../../core" }
+# `;`-delimited TSE bulk CSVs (fetch(), production join — plan.md "Parse
+# strategy").
+csv = "1.4.0"
+pipeline = { version = "0.1.0", path = "../../pipeline" }
+rust_decimal = "1.42.1"
 schemars = "1.2.1"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"
+# TSE ships one nationwide ZIP per dataset per year (fetch(), production).
+zip = { version = "8.6.0", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+rust_decimal_macros = "1.40.0"
+tokio = { version = "1.52.3", features = ["macros", "rt"] }
