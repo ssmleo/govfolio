@@ -90,6 +90,8 @@ cargo test -p pipeline --test roster_historical -- --nocapture         # Task 1
 cargo test -p pipeline --test backfill_suppression -- --nocapture      # Task 2
 cargo test -p worker --test backfill_real -- --ignored --nocapture     # Task 3
 cargo test -p worker --test backfill_budget_gate -- --nocapture        # Task 4
+cargo run -p worker --bin backfill -- --adapter us_house --from 2012 --to 2013 --dry-run
+                                                                         # Task 4.5: nonzero discovery
 cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --workspace
 # Task 5: real execution, verified operationally (see checklist) — no single test command
 ```
@@ -139,6 +141,38 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   BACKFILL_BUDGET replacing the founder-diff-review step.
   Acceptance: `cargo test -p worker --test backfill_budget_gate -- --nocapture` — a
   synthetic/mocked high-count year halts cleanly; a low-count year proceeds to a real write.
+- [ ] **Task 4.5 — pre-2015 PTR discovery-filter fix (blocks Task 5's full-range run).** Real
+  finding, discovered concurrently on this branch by the standing loop's Stage 0 role-eval
+  calibration work (`docs/regimes/us_house/AUTHORITY.md`, surveyor artifact, commit `cd2c706`,
+  independently audited PASS — see its `open_questions` entry on the filing-index schema flip):
+  the Clerk's filing-index schema forks before ~2015. 2011 carries no PTR tag at all
+  (pre-STOCK-Act). 2012-2013 tag PTRs via `DisclosureType == "PTR"` with `FilingType` `O`
+  (original) or `A` (amended) — there is no `FilingType == 'P'` in this era. 2015+ uses
+  `FilingType == 'P'` with the `DisclosureType` field gone entirely. Goal 080's dry run (and
+  this goal's Tasks 1/3/4, inherited from it) filtered on `FilingType == 'P'` only, which
+  **silently** (not fail-closed — a real invariant-6-adjacent gap) skips real 2012-2013 PTR
+  filings rather than finding them or erroring. **2014 is a separate, genuinely open anomaly**
+  (only 11 total `Member` records in that year's whole index, none `DisclosureType`-tagged PTR
+  either) — AUTHORITY.md flags this as unexplained; this task does not need to explain it or
+  force rows out of a year that may genuinely have almost nothing in the archive. Do not
+  fabricate an explanation for 2014; leave it as a documented anomaly.
+  Fix: wherever the PTR-discovery filter lives (`UsHouseAdapter::discover_year` / the index
+  parsing in `crates/adapters/us_house/src/index.rs` and `adapter.rs`), recognize BOTH
+  conventions: `FilingType == 'P'` (2015+) OR (`DisclosureType == "PTR"` AND `FilingType` in
+  `{O, A}`) (pre-2015). Parse `DisclosureType` out of the index XML if it isn't already
+  captured on the `Member` struct. Do not touch Tasks 1-4's own committed logic beyond this
+  discovery filter; do not attempt to resolve the 2014 anomaly or the adapter's other open
+  questions (FilingType legend for B/C/D/E/F/G/H/N/R/T/W/X, DC/JT owner rendering, etc.) — out
+  of scope here.
+  Acceptance: a test proving discovery over a pre-2015 year (2012 or 2013) now finds a nonzero
+  count of PTR-shaped filings under the fixed filter (previously 0 under the old
+  `FilingType == 'P'`-only filter) — reuse AUTHORITY.md's real counts/evidence where practical.
+  Also re-run the EXISTING, unmodified dry-run bin —
+  `cargo run -p worker --bin backfill -- --adapter us_house --from 2012 --to 2013 --dry-run` —
+  and confirm discovered counts are now nonzero for 2012/2013 (goal 080's original findings
+  reported 0 for both years under the old filter). Command-form for the new test, exact name
+  at the implementer's discretion matching existing `us_house`/`worker` test conventions, e.g.
+  `cargo test -p us_house -- --nocapture` (whichever suite the fix's test lives in).
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres
