@@ -31,9 +31,9 @@ justified for checks with known environmental flakiness; none exist today.
 
 | Role | Threshold | What is scored (all mechanical) |
 |---|---|---|
-| scout | 1.00 | `docs/regimes/us_house/sources.yaml` validates (`validate_sources`) — NOT_APPLICABLE today, see below |
-| surveyor | 1.00 | `docs/regimes/us_house/AUTHORITY.md` validates (`validate_survey`) — NOT_APPLICABLE today, see below |
-| sampler | 1.00 | sampler-attributed capture manifest validates (`validate_manifest`) — NOT_APPLICABLE today, see below |
+| scout | 1.00 | `docs/regimes/us_house/sources.yaml` validates (`validate_sources`) |
+| surveyor | 1.00 | `docs/regimes/us_house/AUTHORITY.md` validates (`validate_survey`) |
+| sampler | 1.00 | sampler-attributed capture manifest validates (`validate_manifest`) |
 | spec-writer | 1.00 | regime-doc structural completeness: front-matter parses with all 18 RegimeSurvey keys, record types in vocabulary, band table with decimal-string bounds, all reference sections present, §3.3/§3.4/§3.6 mapping tables parse with required tokens, every fixture input hashes to a §7 pin, §8 evidence log populated (rows/URLs/sha pins) |
 | test-designer | 1.00 | `validate_manifest` clean; every expected.silver.json is a non-empty `{payload, confidence}` wrapper array with counts matching the manifest; every expected.gold.json candidate is schema-valid vs the committed GoldCandidate snapshot, deserializes + passes domain validation, and satisfies the (us_house, transaction) details contract; manifest sha pins appear in regime doc §7 |
 | rust-builder | 1.00 | the real commands, invoked: `conformance -- us_house` prints 4/4 green, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, `cargo test --workspace` all exit 0 |
@@ -49,19 +49,33 @@ skeleton skipped that phase). It is *not* a pass and *not* an exemption:
 > (Brazil) needs the scout/survey/sample phases live, so gating on their absence
 > is correct — an epoch must not open on unmeasured roles.
 
-Currently NOT_APPLICABLE, with the artifact that unblocks each:
+Resolved 2026-07-06 (Stage 0 calibration, per this same document's authority — a
+factual update of which artifacts exist, not a change to the threshold, scored-role
+set, or NOT_APPLICABLE gating rule above, all of which are unchanged): scout,
+surveyor, and sampler were previously NOT_APPLICABLE because the goal-001 walking
+skeleton skipped their phases. They now score normally:
 
-- **scout** — needs `docs/regimes/us_house/sources.yaml` (E1 source was
-  founder-designated; no SCOUT run ever produced the artifact). Any validated
-  E1-scope scout artifact converts the score to `validate_sources` output.
-- **surveyor** — needs `docs/regimes/us_house/AUTHORITY.md`. The E1 survey
-  knowledge lives in `docs/regimes/us-house.md`, which PRE-DATES the goal-015
-  AUTHORITY.md convention and its `{url, file}` evidence schema; the scorer will
-  not grandfather it (fail closed).
-- **sampler** — fixtures exist and validate, but `MANIFEST.json.captured_by`
-  attributes the capture to test-designer (goal 001 T8b): there is no
-  sampler-produced artifact. A sampler-attributed, validating capture manifest
-  converts the score.
+- **scout** — `docs/regimes/us_house/sources.yaml` exists and validates
+  (`validate_sources`); a real SCOUT pass identified and evidenced
+  disclosures-clerk.house.gov as the official system, independently audited PASS.
+- **surveyor** — `docs/regimes/us_house/AUTHORITY.md` exists and validates
+  (`validate_survey`); a real SURVEY pass re-derived the RegimeSurvey against
+  primary sources (not copied from the pre-existing `docs/regimes/us-house.md`,
+  which predates the `{url, file}` evidence schema and remains a separate, frozen
+  legacy artifact), independently audited PASS after one bounce (a citation pincite
+  fix).
+- **sampler** — `crates/adapters/us_house/fixtures/MANIFEST.json`'s top-level
+  `captured_by` now attributes a genuine Phase-2 SAMPLE re-attestation to sampler
+  (representativeness review + independent sha256 re-derivation of all 5 fixtures +
+  politeness review, recorded in a new `sampler_attestation` key; the historical
+  capture facts are unchanged), converting the score. This changed the manifest's
+  bytes, so the frozen `docs/regimes/us-house/reference/E1.lock.json` was superseded
+  v2→v3 (supersede-never-mutate, same pattern as the v1→v2 supersession) to re-pin it.
+
+The E2 gate is now OPEN (`cargo run -p pipeline --bin epoch-gate -- E2` exits 0):
+every scored role meets threshold and none are NOT_APPLICABLE. The NOT_APPLICABLE
+mechanism above remains in force for any FUTURE role/epoch that lacks a reference
+artifact — it just has no current occurrence.
 
 ## Roles outside the harness
 

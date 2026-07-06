@@ -1,10 +1,11 @@
 //! Goal 016 acceptance: `cargo test -p pipeline role_evals`.
 //!
 //! Runs every role scorer against the frozen E1 `us_house` reference and
-//! asserts each applicable role meets its threshold
-//! (`docs/decisions/role-eval-thresholds.md`); roles without reference
-//! artifacts must report `NOT_APPLICABLE`, which BLOCKS the E2 gate (fail
-//! closed). The freeze test makes the reference bundle tamper-evident.
+//! asserts each role meets its threshold (`docs/decisions/role-eval-thresholds.md`).
+//! Stage 0 calibration produced real scout/surveyor/sampler E1 reference
+//! artifacts (previously missing since the goal-001 walking skeleton skipped
+//! those phases), so no role is `NOT_APPLICABLE` anymore and the E2 gate is
+//! open. The freeze test makes the reference bundle tamper-evident.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
@@ -43,25 +44,6 @@ fn assert_meets_threshold(role: Role) {
         Outcome::NotApplicable { reason } => {
             panic!("role {} unexpectedly NOT_APPLICABLE: {reason}", role.name())
         }
-    }
-}
-
-fn assert_not_applicable(role: Role, reason_needle: &str) {
-    let report = evals::score_role(&root(), role);
-    match &report.outcome {
-        Outcome::NotApplicable { reason } => {
-            assert!(!reason.trim().is_empty(), "NA reason must be explicit");
-            assert!(
-                reason.contains(reason_needle),
-                "role {} NA reason must name the missing artifact ({reason_needle:?}): {reason}",
-                role.name()
-            );
-        }
-        Outcome::Scored { checks } => panic!(
-            "role {} must be NOT_APPLICABLE until its reference artifact exists, got score {:.2}",
-            role.name(),
-            evals::score(checks)
-        ),
     }
 }
 
@@ -158,22 +140,24 @@ fn role_evals_auditor_meets_threshold() {
 // exactly once per suite.
 
 // ---------------------------------------------------------------------------
-// 3. Missing-reference roles are NOT_APPLICABLE (and will block E2)
+// 3. Scout/surveyor/sampler now have E1 reference artifacts (Stage 0
+//    calibration, docs/decisions/role-eval-thresholds.md) and score like any
+//    other role — no longer NOT_APPLICABLE / E2-blocking.
 // ---------------------------------------------------------------------------
 
 #[test]
-fn role_evals_scout_is_not_applicable_with_explicit_reason() {
-    assert_not_applicable(Role::Scout, "sources.yaml");
+fn role_evals_scout_meets_threshold() {
+    assert_meets_threshold(Role::Scout);
 }
 
 #[test]
-fn role_evals_surveyor_is_not_applicable_with_explicit_reason() {
-    assert_not_applicable(Role::Surveyor, "AUTHORITY.md");
+fn role_evals_surveyor_meets_threshold() {
+    assert_meets_threshold(Role::Surveyor);
 }
 
 #[test]
-fn role_evals_sampler_is_not_applicable_with_explicit_reason() {
-    assert_not_applicable(Role::Sampler, "test-designer");
+fn role_evals_sampler_meets_threshold() {
+    assert_meets_threshold(Role::Sampler);
 }
 
 // ---------------------------------------------------------------------------
@@ -215,13 +199,14 @@ fn role_evals_gate_rejects_unwired_epochs() {
     );
 }
 
-/// The full epoch gate: every applicable role >= threshold, and E2 entry is
-/// BLOCKED by exactly the three missing-reference roles (that is CORRECT
-/// output — E2 needs scout/surveyor/sampler live). The rust-builder scorer
-/// invokes the real command block here, so this test is the expensive one;
-/// it must not recurse through the nested `cargo test --workspace`.
+/// The full epoch gate: every role >= threshold, zero `NOT_APPLICABLE`, E2 OPEN.
+/// Stage 0 calibration (docs/decisions/role-eval-thresholds.md) produced real
+/// scout/surveyor/sampler E1 reference artifacts, so all 7 roles now score
+/// instead of blocking on missing references. The rust-builder scorer invokes
+/// the real command block here, so this test is the expensive one; it must
+/// not recurse through the nested `cargo test --workspace`.
 #[test]
-fn role_evals_epoch_gate_e2_blocked_only_by_missing_references() {
+fn role_evals_epoch_gate_e2_open() {
     if nested() {
         eprintln!("nested role_evals run — skipping the gate test (no recursion)");
         return;
@@ -232,7 +217,6 @@ fn role_evals_epoch_gate_e2_blocked_only_by_missing_references() {
         Vec::<String>::new(),
         "reference bundle must verify inside the gate"
     );
-    let mut not_applicable = Vec::new();
     for role_report in &report.roles {
         match &role_report.outcome {
             Outcome::Scored { checks } => {
@@ -250,29 +234,22 @@ fn role_evals_epoch_gate_e2_blocked_only_by_missing_references() {
                     failed.join("\n")
                 );
             }
-            Outcome::NotApplicable { .. } => not_applicable.push(role_report.role),
+            Outcome::NotApplicable { reason } => panic!(
+                "role {} unexpectedly NOT_APPLICABLE (Stage 0 calibration should have \
+                 produced every reference artifact): {reason}",
+                role_report.role.name()
+            ),
         }
     }
-    assert_eq!(
-        not_applicable,
-        vec![Role::Scout, Role::Surveyor, Role::Sampler],
-        "exactly the walking-skeleton-skipped phases lack reference artifacts"
-    );
     assert!(
-        !report.open(),
-        "E2 must be BLOCKED while reference artifacts are missing"
+        report.open(),
+        "E2 must be OPEN now that every role has a reference artifact: blockers {:#?}",
+        report.blockers
     );
     assert_eq!(
         report.blockers.len(),
-        3,
-        "only the NOT_APPLICABLE roles may block: {:#?}",
+        0,
+        "no blockers once every role scores at threshold: {:#?}",
         report.blockers
     );
-    for name in ["scout", "surveyor", "sampler"] {
-        assert!(
-            report.blockers.iter().any(|b| b.contains(name)),
-            "blockers must name {name}: {:#?}",
-            report.blockers
-        );
-    }
 }
