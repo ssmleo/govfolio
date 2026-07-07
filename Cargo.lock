@@ -313,6 +313,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "br"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "core",
+ "csv",
+ "pipeline",
+ "rust_decimal",
+ "rust_decimal_macros",
+ "schemars",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "ulid",
+ "zip",
+]
+
+[[package]]
 name = "bstr"
 version = "1.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2060,6 +2081,7 @@ dependencies = [
  "tokio",
  "ulid",
  "us_house",
+ "worker",
 ]
 
 [[package]]
@@ -4021,6 +4043,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "br",
  "chrono",
  "const_format",
  "core",

@@ -9,6 +9,9 @@ workspace = true
 [dependencies]
 anyhow = "1.0.103"
 async-trait = "0.1.89"
+# br local-run proof (crates/worker/src/bin/local_br.rs): drives the real
+# Runner + BrBinding over the br fixtures, us_house precedent below.
+br = { version = "0.1.0", path = "../adapters/br" }
 chrono = { version = "0.4.45", features = ["serde"] }
 # const-composes SQL from the shared grammar fragment while staying a
 # compile-time &'static str (sqlx SqlSafeStr holds structurally).
