@@ -804,6 +804,98 @@ prose rather than a replaced CSV row, that would need re-evaluating.
   - Not attempted (still explicitly out of scope): the full 1933-2024
     historical range remains the clear next increment, to be pursued
     incrementally with the same `BACKFILL_BUDGET`/audit discipline.
+- 2026-07-07 · **Second election year (2018) real write completed (rust-builder)
+  — first time TWO different years' real candidate data coexist in the
+  roster, and the first live test of cross-year politician resolution.**
+  Ran the SAME, unchanged 2022 code path against 2018 — no genuine defect
+  found, no code changes needed.
+  - `seed-br-candidates --from 2018 --to 2018` (no `--uf`, nationwide):
+    9830 candidates discovered (matches the earlier dry-run-proven figure
+    exactly), 1223 skipped (non-`DEPUTADO FEDERAL` cargo, a notably higher
+    share than 2022's 793/11423 — not investigated further, plausible
+    election-to-election variation in suplente registration, not a defect),
+    66 errors = **33 same-pass `(alias, district)` collision pairs**,
+    correctly refused by the existing `identity_collision_counts` fix (see
+    the 2026-07-06 nationwide-2022 entry above for the fix itself) — this is
+    the fix working correctly on a genuinely different candidate pool, not a
+    regression. **7467 new politicians seeded.** `br` politician total went
+    10452 -> 17919 (exact arithmetic match: 10452 + 7467), confirmed by direct
+    count.
+  - **Real write** (`backfill-real-br --from 2018 --to 2018`, no `--uf`,
+    `BACKFILL_BUDGET=50000` — sized generously up front from the 2022
+    precedent's real `record_delta=40427` at the same budget, reasoned down
+    slightly since 2018 discovered fewer candidates than 2022, per this
+    task's own guidance not to waste a duplicate dry-run just to guess).
+    Gate's real number: **`record_delta 39230`** (comfortably inside
+    budget). Result: 9830 filings in scope, published 9031, replayed 0,
+    **31100 Gold rows inserted**, 31100 outbox events written, 0 new review
+    tasks from successful publishes, **799 failed closed** — ALL 799 are
+    `unresolved_filer` (invariant 3; directly confirmed by grep over the
+    run's own failure log, zero invariant-6/zero-row failures), consistent
+    with the same collision-plus-unresolvable-suplente pattern documented
+    for 2022.
+  - **Alert-suppression, exhaustive (not sampled)**: all 31100 new
+    `outbox_event` rows from this run carry `dispatched_at` exactly equal to
+    `created_at`. The `br` regime's undispatched set (`dispatched_at is
+    null`) is still exactly the SAME 6 pre-existing `local_br.rs` rows,
+    byte-identical ids, before and after this run.
+  - **Idempotency, 2022 unchanged — verified directly, not assumed**: 2022
+    filings (6691), disclosure_records (35886), and unresolved_filer
+    review_tasks (678) are all EXACTLY unchanged after the 2018 run.
+    Timestamp proof: `max(created_at)` over every 2022-scoped
+    disclosure_record is `2026-07-07T00:58:28`; `min(created_at)` over every
+    2018-scoped one is `2026-07-07T01:46:56` — a clean ~48-minute gap with
+    zero overlap, ruling out any interleaved touch of 2022 rows.
+  - **Idempotency, 2018's own correctness — proven by an actual second
+    invocation**, not inferred: re-ran the identical
+    `backfill-real-br --from 2018 --to 2018` command a second time. Result:
+    `published 0 | replayed 9031 | gold inserted 0 | outbox written 0 |
+    failed 799` (the failed set is byte-identical to the first run's). Every
+    `br` DB total (filings 12119, disclosure_records 66986, outbox_events
+    66986, unresolved_filer review_tasks 1477, politicians 17919) was
+    confirmed EXACTLY unchanged before vs. after this replay — the strongest
+    available proof, a real re-run rather than a code-reading inference.
+  - **Cross-year identity resolution — NEW territory this task set out to
+    test, confirmed working as designed, one architectural caveat flagged
+    (not fixed, not a defect requiring action this pass)**: this is the
+    first time two different real election years' data coexist in the same
+    roster. Traced `pipeline::stages::roster::seed_roster`/`resolve_politician`
+    directly (not assumed): both match purely on `(alias, district, body)`
+    with **no year or cargo dimension at all** in the lookup key. So when
+    `seed_candidates_year` processes a 2018 candidate whose
+    `(NM_CANDIDATO, SG_UF)` exactly matches an already-seeded 2022
+    politician, `seed_roster`'s `resolve_hits` finds exactly one hit and
+    `continue`s (no new politician/mandate row) — the 2018 candidacy
+    silently resolves onto the SAME existing politician row. Verified this
+    is exactly what happened, exhaustively, not sampled: a direct query for
+    every `(alias, district)` pair across the WHOLE `br` roster mapping to
+    more than one politician id returned **zero rows** — no duplicate-person
+    defect anywhere. A second direct query found **851 politicians** now
+    carry filings in BOTH 2018 and 2022 (concrete example: "ACÁCIO DA SILVA
+    FAVACHO NETO"/AP — filings `2018:30000613842` and `2022:30001605451`,
+    one politician id `01KWXA44QJAJYBNNKQ0VYY4DQW`, one mandate row dated
+    `2022-01-01`, i.e. originally seeded during the 2022 pass and correctly
+    matched rather than duplicated by the 2018 pass). This is the CORRECT,
+    desired outcome for a real person's political career spanning multiple
+    elections. **Residual risk, same class already documented for the
+    same-pass and cross-cargo axes above, now confirmed to extend across
+    time**: because the match key carries no year/cargo disambiguator, this
+    mechanism is structurally unable to distinguish a genuine same-person
+    re-candidacy from two different real people who happen to share an
+    exact `(NM_CANDIDATO, SG_UF)` string across different election cycles —
+    every one of the 851 cross-year matches found above is PLAUSIBLE (common
+    Brazilian re-election pattern) but NOT individually verified against a
+    durable personal identifier (CPF/voter-title) the way the 2022 task's 3
+    cross-cargo matches were. A future fix needs the same kind of
+    disambiguation already flagged for the cross-cargo axis (CPF-aware
+    matching, internal-only per `personal_data_to_redact`) or an explicit
+    accepted-tradeoff decision — a genuine cross-cutting design question,
+    out of scope for this task (which was scoped to running the existing,
+    unchanged bins against a second year, not building new disambiguation
+    logic).
+  - Not attempted (still explicitly out of scope, unchanged from the prior
+    entry): the full 1933-2024 historical range remains the clear next
+    increment.
 
 ## Operational notes (politeness incidents, outages)
 
