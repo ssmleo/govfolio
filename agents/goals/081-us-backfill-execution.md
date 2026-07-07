@@ -676,7 +676,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   per-year failed-count is therefore roughly unchanged even though the specific signature/
   certification failure modes this task targeted are gone, exactly matching this task's own
   acceptance wording ("other, separately-tracked gaps... may legitimately remain").
-- [ ] **Task 4.12 — row-grammar cluster (blocks Task 5's full-range run).** Four real, related
+- [x] **Task 4.12 — row-grammar cluster (blocks Task 5's full-range run).** Four real, related
   gaps in row/transaction-level parsing, accumulated across goal 080's original findings plus
   Tasks 4.8/4.9's own discoveries: (a) scrambled-case lowercase row-level type tokens (e.g.
   `unknown transaction type token Some("s")`, `Some("(partial)")`) failing `find_anchor`'s
@@ -695,6 +695,139 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   with all existing tests continuing to pass. Re-run a real dry-run sample across the affected
   years (2014, 2022, 2023, 2026 at minimum) and confirm these specific failure modes' occurrence
   counts drop substantially.
+  **Closed 2026-07-07**: investigated real evidence first for each sub-issue independently (live
+  `--dry-run --limit 60` sweeps for 2014/2018/2020/2022/2023/2026 against `govfolio_081_rehearsal`,
+  individual real PDFs re-fetched directly from `https://disclosures-clerk.house.gov/public_disc/
+  ptr-pdfs/{year}/{doc_id}.pdf` and sha256-verified before use). All FIVE named sub-issues
+  confirmed as genuinely distinct root causes and fixed, all in
+  `crates/adapters/us_house/src/parse.rs`, additively alongside every existing exact-case/
+  NUL-survivor/scrambled-case form (none weakened):
+  (a) **scrambled-case row-level type token**: `find_anchor`'s match arms now accept `"P"`/`"S"`/
+  `"E"`/`"(partial)"` case-insensitively and normalize to the canonical uppercase form
+  `normalize::normalize_row` expects (a strict superset — an already exact-case token round-trips
+  unchanged). Real evidence: Filing IDs #20016288 (2020, sha256
+  7774958acf4269ed3270638a520b2f61fe6b908d62d053ae226425788c2f86f7, lowercase `"s"` alone),
+  #20009743/#20010366 (2018, sha256 2300e59b82f02b7d23b4df3457a603cfd5e83819c0280fa5462775c81bccfa61
+  and 19d5e4e536fddb558d55a5813af1a06d77b107b44a24c7e388b634d3d7b27d83, `"s (partial)"`), #20000077
+  (2014, sha256 ea936ce15201393a2fbfc61c9e9670e016fd5c6b0010aae8b750e34ebc924691, `"s"` alone — the
+  SAME document also evidencing (e) below).
+  (b) **"unattached asset text after the last row" (2022)**: root cause is a sub-line's own
+  free-text VALUE (Comments/Description) itself wrapping onto further physical lines with no
+  repeated label — the old grammar had no continuation-join for sub-line values (unlike the
+  pre-anchor asset-name `pending` join and the amount band-wrap join, which already existed). Fixed
+  via a new `mid_sublabel` loop-state in `scan_rows`: immediately after a `match_sublabel` hit, a
+  plain orphan line is joined onto that same sub-line's value (space-joined) instead of falling
+  into `pending`/failing closed; cleared on a blank line, a page-boundary footer, a header-block
+  reprint, or the next anchor, so ordinary single-line values (the overwhelming common case, always
+  followed by a blank line in every real document sampled) are unaffected. Real evidence: Filing
+  IDs #20021740 (2022, sha256 6ba941b0a3d5047c95d1eb4724322ce46ec3cde0ff153b3aa591f7d6c06d697f,
+  Comments — the task's own named case), #20022126 (2023, Comments), #20034044 (2026, Comments),
+  #20034201 (2026, sha256 6372d59d32a7e54b69e4b456c315670456aa625572a5c78e5c29b72a81de2d43,
+  Description).
+  (c) **"band wrap not followed by a `$…` continuation" (2023)**: root cause is a page break
+  landing between a wrapped band's hyphen and its `$…` continuation, with blank lines / the
+  per-page `Filing ID #` footer / a repeated header-block reprint in between (the old code only
+  ever peeked exactly one line ahead). Fixed via a new `is_page_boundary_furniture` helper plus a
+  skip-forward loop before the "does it start with `$`" check — any run of known page-boundary
+  furniture is skipped additively; a continuation on the very next line (the common case) is
+  unaffected. Real evidence: Filing IDs #20023082 (2023, sha256
+  35f8d99e4c84d26ddebb219499c9f41bbff56dcdc0ef893e4962623642e0316e, blank + header-block reprint),
+  #20023623 (2023, sha256 f0d3292c5db2b46013ef382bf0fc3e673144ba7820f225c845beea57ff812463, the
+  `Filing ID #` footer directly then a header-block reprint, no blank at all before the footer).
+  (d) **`L:` sub-line inside the Transactions region (2026, goal 080's own original known issue)**:
+  root cause is a Location sub-line attached directly to a transaction row — not only to an
+  Investment Vehicle Details bullet, the only place it was previously recognized — in both the
+  NUL-survivor (`L:`) and scrambled-case full-word (`LoCaTIoN:`) forms. Fixed by no longer
+  hard-bailing on `SubLabel::Location` inside `scan_rows`: it now populates a new
+  `RowDraft.location_raw` field, which `parse_document` feeds into the EXISTING
+  `vehicle_location_raw` Gold field (no schema change — that field already means "the location tied
+  to this row's holding/vehicle"), taking precedence over, and falling back to, the vehicle-bullet
+  join exactly as before. Real evidence: Filing IDs #20020708 (2022, sha256
+  825a86bbd6895fc3e9d71913185bd1c2cc8a2840ca9809de26386b537cd580cb), #20022368/#20022428/#20024042
+  (2023), #20016088 (2020, sha256 1ea1a47b83870a9f3ff0bf3310f56ee285dacc13530afbbf48509a6bca57f34c,
+  scrambled full-text form `"LoCaTIoN: Malvern, Pa, US"`), #20034201/#20033744 and many more (2026).
+  (e) **2014's shorter 3-line table-header-block shape** (discovered by Task 4.9's investigation): a
+  genuinely different, shorter shape — no "Cap. Gains > $200?" columns at all — `"ID Owner Asset
+  Transaction"` / `"Type Date Notification"` / `"Date Amount"` only. Fixed via an additive
+  `HEADER_BLOCK_SHORT` const plus a restructured detection in `scan_rows` that checks the 3rd line
+  against BOTH the modern `"Date Amount Cap."` and the short `"Date Amount"` before falling into
+  the standard 5-line loop — the modern 5-line block keeps matching byte-for-byte as before. Real
+  evidence: Filing ID #20000077 (2014, see above — scrambled-case `"iD owner asset transaction"` /
+  `"type Date notification"` / `"Date amount"`, directly fetched and dumped this session); the
+  exact-case rendering of the same shorter shape independently corroborated via the live dry-run's
+  own fail-closed report for Filing ID #20002042 (2014, sha256
+  c0921665f767172970259a4b2fb7e727af03a64aec0136ff8bb92909db84dd3b).
+  11 new tests, all real-evidence-cited: `find_anchor_accepts_real_scrambled_case_type_tokens`,
+  `scan_rows_joins_a_real_wrapped_comments_sub_line_continuation`,
+  `scan_rows_joins_a_real_wrapped_description_sub_line_continuation`,
+  `scan_rows_accepts_a_real_band_wrap_across_a_page_break_with_a_header_reprint`,
+  `scan_rows_accepts_a_real_band_wrap_split_by_a_filing_id_footer_and_header_reprint`,
+  `scan_rows_accepts_a_real_row_level_location_sub_line_inside_the_transactions_region`,
+  `scan_rows_accepts_a_real_scrambled_case_full_text_location_sub_line_in_a_row`,
+  `parse_document_feeds_a_rows_own_location_sub_line_into_vehicle_location_raw` +
+  `parse_document_still_falls_back_to_the_vehicle_bullet_location_without_a_row_l_sub_line`
+  (regression guard for the same `vehicle_location_raw` wiring change),
+  `scan_rows_accepts_the_real_2014_three_line_header_block_shape`, and an end-to-end
+  `parse_document_succeeds_against_the_real_2014_three_line_header_and_type_token_evidence`.
+  `cargo test -p us_house`: 75 passed + 1 ignored (was 65+1 at Task 4.11's close), every
+  pre-existing test unchanged and green. `cargo fmt --check` and `cargo clippy --all-targets --
+  -D warnings` both clean, workspace-wide; `cargo test --workspace`: 431 passed, 63 ignored, 0
+  failed (was 420 at Task 4.11's close).
+  Live re-verification against `govfolio_081_rehearsal`: `cargo run -p worker --bin backfill --
+  adapter us_house --from <year> --to <year> --dry-run --limit 60` for 2014, 2018, 2020, 2022,
+  2023, and 2026, before vs. after. Each sub-issue's OWN named failure text dropped to **zero** in
+  every sampled year that exhibited it: `unknown transaction type token` (2018 2→0, 2020 2→0);
+  `unattached asset text after the last row` (2022 1→0, 2023 1→0, 2026 2→0); `band "..." wrap not
+  followed by a` `$…` `continuation` (2023 2→0); `L: sub-line inside the Transactions region` (2020
+  1→0, 2022 1→0, 2023 3→0, 2026 8→0); `unrecognized table header block` (2014 30→0). Per-year adds
+  moved 2022 24→25, 2023 24→26, 2026 33→37 (documents that used to hard-reject now flow through to
+  a real Gold classification); some formerly-hard-rejecting rows (e.g. Filing IDs #20000077,
+  #20020708) now correctly parse but route to the pre-existing, already-benign
+  `needs_llm_extraction` seam instead (low mean confidence from the SAME scrambled/loose match that
+  unblocked them — no `ANTHROPIC_API_KEY` configured in this dev environment — exactly invariant 6
+  working as designed, not a miss).
+  REAL FINDINGS surfaced, explicitly NOT fixed (separate from the five named sub-issues, discovered
+  by this task's own re-verification once the (e)/(a) fixes let previously-blocked 2014/2018-era
+  documents parse further than ever before):
+  (1) **non-zero-padded TRANSACTION/NOTIFICATION dates** (distinct from Task 4.11's already-fixed
+  SIGNATURE date — a different field, `find_anchor`'s strict `is_date10`, not
+  `extract_signed_date`): e.g. real Filing ID #20000800 (2014) `"...P 11/1/2013 11/1/2013
+  $100,001 - $250,000"`, #20001769 (2014) `"...P 09/8/2014 09/8/2014 $15,001 - $50,000"` — the
+  anchor is never recognized at all, so the whole row becomes unattached text that then collides
+  with the row's own sub-line block, surfacing as `sub-line "..." amid unattached asset text`. This
+  is now the single most common 2014/2018 failure post-fix. A likely low-risk fix (reuse the
+  existing `is_lenient_date` helper Task 4.11 already built, in `find_anchor` instead of
+  `is_date10`) but NOT one of the five sub-issues this task was scoped to — left undone, flagged
+  for a follow-up task.
+  (2) **an asset name splitting across a page break such that the anchor (type/dates/amount)
+  already completes on the FIRST page while the remaining name fragment lands on the FOLLOWING
+  page, after a header-block reprint, unattached before the row's own sub-line block** — real
+  evidence: Filing ID #20033762 (2026, `"SBA Communications Corporation -"` on the anchor line,
+  then, after a page break + header-block reprint, `"Class A Common Stock (SBAC) [ST]"` orphaned
+  before the next `F S: New`), #20033983 (2026, `"Eaton Corporation, PLC Ordinary"` /
+  [page break] / `"Shares (ETN) [ST]"`). Produces the SAME `sub-line "..." amid unattached asset
+  text` failure text as (b) but is a structurally different cause (asset text trailing AFTER its
+  own row's anchor, not a sub-line value wrapping). Confidently disambiguating this from an
+  ordinary new row's own short asset-name preamble needs a lookahead heuristic (peek past the
+  header-block-reprint boundary to see whether the very next real content is another anchor — new
+  row — or a sub-label — orphaned continuation of the PREVIOUS row) that is qualitatively riskier
+  (more surface for silently mis-attributing real asset-name text to the wrong row) than any of the
+  five sub-issues actually assigned here. Left correctly fail-closed, not attempted; flagged for
+  whoever picks up the next narrowing pass, with the disambiguation strategy above if pursued.
+  (3) **a genuinely new, unrecognized "Asset Class Details" section heading** in the 2014-era
+  document anatomy (scrambled-case `"aSSet claSS DetailS"`), appearing after a `SUBHOlDINg OF:`
+  sub-line and before Comments — not in `is_next_section_heading`'s vocabulary, so
+  `transactions_region`'s end boundary scans past it, sweeping it (and whatever follows, up to the
+  next recognized heading) into `pending`, surfacing as `unattached asset text after the last row`.
+  Real evidence: Filing IDs #20001087/#20001259 (2014, `["aSSet claSS DetailS", "UBS Financial
+  Services Inc. Traditional IRA"]`). A likely easy, additive fix (one more entry in
+  `is_next_section_heading`'s `FULL_FORMS`) but, like (1) and (2), not one of the five sub-issues
+  this task was scoped to — left undone, flagged for a follow-up task.
+  These three are genuinely new discoveries, not a re-litigation of anything Tasks 4.5-4.11 already
+  closed; the already-named, already-tracked gaps (non-zero-padded/garbled signature dates,
+  `Digitally Signed:` line variants, the `gfedc`/`gfedcb` artifacts, the 2014 footnote-absence gap,
+  `needs_llm_extraction` with no `ANTHROPIC_API_KEY` configured) recur as expected and are not
+  re-litigated here either.
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres

@@ -140,7 +140,13 @@ pub(crate) fn parse_document(text: &str) -> anyhow::Result<ParsedDoc> {
                 description_raw: draft.description_raw,
                 comments_raw: draft.comments_raw,
                 vehicle_owner_code_raw: vehicle.and_then(|v| v.owner_code.clone()),
-                vehicle_location_raw: vehicle.and_then(|v| v.location.clone()),
+                // goal 081 Task 4.12(d): a row's own directly-attached `L:`
+                // sub-line (`draft.location_raw`) takes precedence; falls
+                // back to the Investment Vehicle Details bullet join
+                // exactly as before when the row carries none.
+                vehicle_location_raw: draft
+                    .location_raw
+                    .or_else(|| vehicle.and_then(|v| v.location.clone())),
                 signed_date_raw: signed_date_raw.clone(),
                 extractor: EXTRACTOR.to_owned(),
             },
@@ -409,6 +415,44 @@ const HEADER_BLOCK: [&str; 5] = [
     "$200?",
 ];
 
+/// The 2014-era table-header block's genuinely different, SHORTER shape
+/// (goal 081 Task 4.12(e)): real 2014 electronic PTRs (e.g. Filing ID
+/// #20000077, sha256
+/// ea936ce15201393a2fbfc61c9e9670e016fd5c6b0010aae8b750e34ebc924691 — line
+/// 16-18 of its real `pdf_extract::extract_text_from_mem` text: `"iD owner
+/// asset transaction"` / `"type Date notification"` / `"Date amount"`) never
+/// render a "Cap. Gains > $200?" continuation at all — a column the
+/// 2014-era paper form appears to genuinely lack, not a rendering
+/// degradation. Also observed exact-case (not scrambled): Filing ID
+/// #20002042 (2014) renders `"ID Owner Asset Transaction"` / `"Type Date
+/// Notification"` / `"Date Amount"` verbatim. An ADDITIVE alternative
+/// checked alongside `HEADER_BLOCK`, never a replacement — the modern
+/// 5-line block (any year that has it) keeps matching exactly as before.
+const HEADER_BLOCK_SHORT: [&str; 3] = [
+    "ID Owner Asset Transaction",
+    "Type Date Notification",
+    "Date Amount",
+];
+
+/// Whether `line` is one of the fixed-vocabulary tokens that can appear as
+/// page-boundary furniture inside the Transactions region: a blank line, the
+/// per-page `Filing ID #` footer, or either table-header-block shape's own
+/// line text (in any position, not just a full in-order block — a cheap,
+/// safe over-approximation, since none of these fixed strings could ever be
+/// a real amount-band continuation, which always starts with `$`). Goal 081
+/// Task 4.12(c) uses this to look PAST such furniture when a wrapped band's
+/// hyphen and its `$…` continuation land on opposite sides of a page break.
+fn is_page_boundary_furniture(line: &str) -> bool {
+    if line.is_empty() || line.starts_with("Filing ID #") {
+        return true;
+    }
+    let collapsed = collapse_ws(line);
+    HEADER_BLOCK
+        .iter()
+        .chain(HEADER_BLOCK_SHORT.iter())
+        .any(|expected| collapsed.eq_ignore_ascii_case(expected))
+}
+
 /// Sub-line labels that survive small-caps degradation (§3.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SubLabel {
@@ -498,6 +542,11 @@ struct RowDraft {
     subholding_of_raw: Option<String>,
     description_raw: Option<String>,
     comments_raw: Option<String>,
+    /// A `L:` sub-line attached directly to this row (goal 081 Task 4.12(d))
+    /// rather than to an Investment Vehicle Details bullet — feeds
+    /// `vehicle_location_raw` in [`parse_document`] alongside (falling back
+    /// to) the vehicle-bullet join.
+    location_raw: Option<String>,
     loose_label: bool,
     page_break_join: bool,
 }
@@ -555,10 +604,22 @@ fn scan_rows(region: &[String]) -> anyhow::Result<Vec<RowDraft>> {
     let mut drafts: Vec<RowDraft> = Vec::new();
     let mut pending: Vec<String> = Vec::new();
     let mut pending_page_break = false;
+    // goal 081 Task 4.12(b): which sub-line (if any) a plain orphan line
+    // should be joined onto as a continuation of that sub-line's own
+    // free-text VALUE, when that value itself wraps across further physical
+    // lines with no repeated label. Only ever `Some` immediately after a
+    // `match_sublabel` hit, with nothing but further orphan lines in
+    // between — cleared on a blank line, a page-boundary footer, a
+    // header-block reprint, or the next anchor, so it can never fire on a
+    // document's ordinary single-line sub-line values (real evidence:
+    // Filing IDs #20021740 (2022), #20022126 (2023), #20034044/#20034201
+    // (2026)).
+    let mut mid_sublabel: Option<SubLabel> = None;
     let mut i = 0;
     while i < region.len() {
         let line = &region[i];
         if line.is_empty() {
+            mid_sublabel = None;
             i += 1;
             continue;
         }
@@ -567,6 +628,7 @@ fn scan_rows(region: &[String]) -> anyhow::Result<Vec<RowDraft>> {
         if line.starts_with("Filing ID #") {
             // Asset cell still open ⇒ it continues across the page break.
             pending_page_break |= !pending.is_empty();
+            mid_sublabel = None;
             i += 1;
             continue;
         }
@@ -576,7 +638,25 @@ fn scan_rows(region: &[String]) -> anyhow::Result<Vec<RowDraft>> {
         // instead of the modern exact-case rendering; both forms are
         // accepted the same way, whitespace-collapsed as before.
         if collapse_ws(line).eq_ignore_ascii_case(HEADER_BLOCK[0]) {
-            for (offset, expected) in HEADER_BLOCK.iter().enumerate().skip(1) {
+            mid_sublabel = None;
+            let got1 = region.get(i + 1).map(|l| collapse_ws(l));
+            anyhow::ensure!(
+                got1.as_deref()
+                    .is_some_and(|g| g.eq_ignore_ascii_case(HEADER_BLOCK[1])),
+                "unrecognized table header block at {line:?} (expected {:?}, got {got1:?})",
+                HEADER_BLOCK[1]
+            );
+            let got2 = region.get(i + 2).map(|l| collapse_ws(l));
+            if got2
+                .as_deref()
+                .is_some_and(|g| g.eq_ignore_ascii_case(HEADER_BLOCK_SHORT[2]))
+            {
+                // goal 081 Task 4.12(e): the 2014-era 3-line shape — no
+                // "Cap. Gains > $200?" continuation at all.
+                i += HEADER_BLOCK_SHORT.len();
+                continue;
+            }
+            for (offset, expected) in HEADER_BLOCK.iter().enumerate().skip(2) {
                 let got = region.get(i + offset).map(|l| collapse_ws(l));
                 anyhow::ensure!(
                     got.as_deref()
@@ -600,22 +680,50 @@ fn scan_rows(region: &[String]) -> anyhow::Result<Vec<RowDraft>> {
                 SubLabel::SubholdingOf => &mut draft.subholding_of_raw,
                 SubLabel::Description => &mut draft.description_raw,
                 SubLabel::Comments => &mut draft.comments_raw,
-                SubLabel::Location => {
-                    anyhow::bail!("L: sub-line inside the Transactions region: {line:?}")
-                }
+                // goal 081 Task 4.12(d): a `L:` sub-line can also appear
+                // directly inside the Transactions region, attached to the
+                // row itself — not only inside an Investment Vehicle
+                // Details bullet, the only place it was previously
+                // recognized. Real evidence: Filing IDs #20020708 (2022),
+                // #20022368/#20022428/#20024042 (2023), #20016088 (2020, the
+                // scrambled-case full-text form `"LoCaTIoN: ..."`),
+                // #20034201/#20033744 and many more (2026). Fed into
+                // `location_raw`, joined onto the existing
+                // `vehicle_location_raw` Gold field in `parse_document`
+                // (falling back to the vehicle-bullet join when this row
+                // carries none) — no schema change, that field already
+                // means "the location tied to this row's holding/vehicle".
+                SubLabel::Location => &mut draft.location_raw,
             };
             anyhow::ensure!(slot.is_none(), "duplicate sub-line label on {line:?}");
             *slot = Some(content);
             draft.loose_label |= loose;
+            mid_sublabel = Some(label);
             i += 1;
             continue;
         }
         if let Some(anchor) = find_anchor(line)? {
+            mid_sublabel = None;
             let mut amount = anchor.amount;
             if amount.ends_with('-') {
-                // Long bands wrap after the hyphen (§3.2); join with a space.
+                // Long bands wrap after the hyphen (§3.2). goal 081 Task
+                // 4.12(c): a page break can fall between the hyphen and its
+                // `$…` continuation, landing blank lines / the `Filing ID #`
+                // footer / a repeated header-block reprint in between — real
+                // evidence: Filing IDs #20023082 (2023, blank + header-block
+                // reprint), #20023623 (2023, the footer directly, then a
+                // header-block reprint, no blank at all before the footer).
+                // Skip any such furniture additively; a continuation on the
+                // very next line (the common case) is unaffected.
+                let mut next_index = i + 1;
+                while region
+                    .get(next_index)
+                    .is_some_and(|l| is_page_boundary_furniture(l))
+                {
+                    next_index += 1;
+                }
                 let next = region
-                    .get(i + 1)
+                    .get(next_index)
                     .with_context(|| format!("band {amount:?} wraps past the region end"))?;
                 anyhow::ensure!(
                     next.starts_with('$'),
@@ -623,7 +731,7 @@ fn scan_rows(region: &[String]) -> anyhow::Result<Vec<RowDraft>> {
                 );
                 amount.push(' ');
                 amount.push_str(next);
-                i += 1;
+                i = next_index;
             }
             // goal 081 Task 4.10: discard a trailing PDF checkbox-widget
             // artifact before grammar-checking (never before — the artifact
@@ -663,6 +771,34 @@ fn scan_rows(region: &[String]) -> anyhow::Result<Vec<RowDraft>> {
             i += 1;
             continue;
         }
+        if let Some(label) = mid_sublabel {
+            // goal 081 Task 4.12(b): a sub-line's own free-text VALUE can
+            // itself wrap onto one or more further physical lines with no
+            // repeated label — real evidence: Filing IDs #20021740 (2022,
+            // Comments), #20022126 (2023, Comments), #20034044 (2026,
+            // Comments), #20034201 (2026, Description). Join with a space,
+            // additively: `mid_sublabel` is only ever `Some` right after a
+            // fresh match with nothing but orphan lines since, so a
+            // document's pre-existing single-line sub-line values (the
+            // overwhelming common case — always followed by a blank line in
+            // every real document sampled) are completely unaffected.
+            let draft = drafts
+                .last_mut()
+                .context("sub-line continuation before any transaction row")?;
+            let slot = match label {
+                SubLabel::FilingStatus => &mut draft.filing_status_raw,
+                SubLabel::SubholdingOf => &mut draft.subholding_of_raw,
+                SubLabel::Description => &mut draft.description_raw,
+                SubLabel::Comments => &mut draft.comments_raw,
+                SubLabel::Location => &mut draft.location_raw,
+            };
+            if let Some(existing) = slot {
+                existing.push(' ');
+                existing.push_str(line);
+            }
+            i += 1;
+            continue;
+        }
         pending.push(line.clone());
         i += 1;
     }
@@ -696,9 +832,27 @@ fn find_anchor(line: &str) -> anyhow::Result<Option<Anchor>> {
             amount.starts_with('$') || amount.starts_with("Over $"),
             "date pair not followed by an amount band: {line:?}"
         );
+        // goal 081 Task 4.12(a): the same scrambled-case degradation Task
+        // 4.8 documented for headings/labels also hits the row-level type
+        // token, arbitrarily per document (real evidence: Filing IDs
+        // #20016288 (2020, `"s"` alone), #20009743/#20010366 (2018, `"s
+        // (partial)"`), #20000077 (2014, `"s"` alone)) — matched
+        // case-insensitively and normalized to the canonical uppercase form
+        // `normalize::normalize_row` expects, a strict superset: an already
+        // exact-case token round-trips unchanged.
         let (type_token, pre_end) = match i.checked_sub(1).map(|j| tokens[j]) {
-            Some((start, _, token @ ("P" | "S" | "E"))) => (token.to_owned(), start),
-            Some((_, _, "(partial)")) if i >= 2 && tokens[i - 2].2 == "S" => {
+            Some((start, _, token))
+                if token.eq_ignore_ascii_case("P")
+                    || token.eq_ignore_ascii_case("S")
+                    || token.eq_ignore_ascii_case("E") =>
+            {
+                (token.to_ascii_uppercase(), start)
+            }
+            Some((_, _, token))
+                if token.eq_ignore_ascii_case("(partial)")
+                    && i >= 2
+                    && tokens[i - 2].2.eq_ignore_ascii_case("S") =>
+            {
                 ("S (partial)".to_owned(), tokens[i - 2].0)
             }
             other => anyhow::bail!(
@@ -1691,5 +1845,405 @@ Mr. Michael C. Burgess , 04/14/2014
         assert_eq!(doc.doc_id, "20000708");
         assert_eq!(doc.rows.len(), 1);
         assert_eq!(doc.rows[0].row.signed_date_raw, "04/14/2014");
+    }
+
+    #[test]
+    fn find_anchor_accepts_real_scrambled_case_type_tokens() {
+        // Goal 081 Task 4.12(a): the same scrambled-case degradation Task 4.8
+        // documented for headings/labels also hits the row-level type
+        // token — arbitrarily per document, not a fixed positional rule.
+        // Real `pdf_extract::extract_text_from_mem` lines, both
+        // independently live-fetched and sha256-pinned this session:
+        //   - a lowercase `"s"` alone — Filing ID #20016288 (2020),
+        //     https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2020/20016288.pdf
+        //     (sha256 7774958acf4269ed3270638a520b2f61fe6b908d62d053ae226425788c2f86f7)
+        //   - a lowercase `"s (partial)"` — Filing ID #20009743 (2018),
+        //     https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2018/20009743.pdf
+        //     (sha256 2300e59b82f02b7d23b4df3457a603cfd5e83819c0280fa5462775c81bccfa61)
+        // Both previously hard-rejected with `unknown transaction type token`.
+        // The token is normalized to the canonical uppercase form
+        // `normalize::normalize_row` expects (raw ticker/owner-code case
+        // elsewhere in these same lines is untouched — a separate,
+        // out-of-scope harmless-casing concern per Task 4.8's own note).
+        let anchor = find_anchor("(BsX) [sT] s 02/05/2020 02/05/2020 $1,001 - $15,000 gfedc")
+            .unwrap()
+            .unwrap();
+        assert_eq!(anchor.type_token, "S");
+
+        let anchor = find_anchor(
+            "JT alpha Pro Tech, ltd. (aPT) [sT] s (partial) 05/25/2018 05/25/2018 \
+             $1,001 - $15,000 gfedcb",
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(anchor.type_token, "S (partial)");
+
+        // Already exact-case tokens keep matching unchanged (strict
+        // superset — no regression to `anchor_splits_type_dates_and_band`).
+        let anchor = find_anchor("Foo Corp [ST] P 01/02/2020 01/03/2020 $1,001 - $15,000")
+            .unwrap()
+            .unwrap();
+        assert_eq!(anchor.type_token, "P");
+    }
+
+    #[test]
+    fn scan_rows_joins_a_real_wrapped_comments_sub_line_continuation() {
+        // Goal 081 Task 4.12(b): a sub-line's own free-text VALUE can wrap
+        // onto further physical lines with no repeated label — previously
+        // left as unattached `pending` text, hard-rejecting the whole
+        // document (`unattached asset text after the last row` /
+        // `sub-line ... amid unattached asset text`). Real
+        // `pdf_extract::extract_text_from_mem` lines verbatim from a live
+        // 2022 electronic PTR: Filing ID #20021740, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2022/20021740.pdf
+        // (pdf sha256 6ba941b0a3d5047c95d1eb4724322ce46ec3cde0ff153b3aa591f7d6c06d697f).
+        let region: Vec<String> = vec![
+            "Apple Inc. (AAPL) [ST] P 08/26/2022 08/26/2022 $1,001 - $15,000".to_owned(),
+            String::new(),
+            "F S: New".to_owned(),
+            "C: Purchase of AAPL Stock in three separate transactions on same day. \
+             Individual transactions are below the"
+                .to_owned(),
+            "required threshold.".to_owned(),
+        ];
+        let drafts = scan_rows(&region).unwrap();
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(
+            drafts[0].comments_raw.as_deref(),
+            Some(
+                "Purchase of AAPL Stock in three separate transactions on same day. \
+                 Individual transactions are below the required threshold."
+            )
+        );
+    }
+
+    #[test]
+    fn scan_rows_joins_a_real_wrapped_description_sub_line_continuation() {
+        // Goal 081 Task 4.12(b): the same wrap pattern also hits
+        // Description, not only Comments — real `pdf_extract::
+        // extract_text_from_mem` lines verbatim from a live 2026 electronic
+        // PTR: Filing ID #20034201, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20034201.pdf
+        // (pdf sha256 6372d59d32a7e54b69e4b456c315670456aa625572a5c78e5c29b72a81de2d43).
+        let region: Vec<String> = vec![
+            "Apple Inc. (AAPL) [ST] P 01/02/2026 01/03/2026 $1,001 - $15,000".to_owned(),
+            String::new(),
+            "F S: New".to_owned(),
+            "S O: Putnam Investments".to_owned(),
+            "D: The full transaction included the following sales: T \u{2013} 37.426 shares \
+             sold @ $27.645/share BRK/B \u{2013} 3 shares"
+                .to_owned(),
+            "sold @ $493.42/share SPY \u{2013} 8.318 shares sold @ $670.024/share".to_owned(),
+        ];
+        let drafts = scan_rows(&region).unwrap();
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(
+            drafts[0].description_raw.as_deref(),
+            Some(
+                "The full transaction included the following sales: T \u{2013} 37.426 shares \
+                 sold @ $27.645/share BRK/B \u{2013} 3 shares sold @ $493.42/share SPY \u{2013} \
+                 8.318 shares sold @ $670.024/share"
+            )
+        );
+        // A pre-existing single-line sub-line value (the overwhelming
+        // common case) is unaffected: no continuation to join, and the next
+        // row's own asset-name preamble must still land in `pending`, not
+        // get absorbed as a "continuation".
+        let region_single_line: Vec<String> = vec![
+            "Apple Inc. (AAPL) [ST] P 01/02/2026 01/03/2026 $1,001 - $15,000".to_owned(),
+            String::new(),
+            "F S: New".to_owned(),
+            String::new(),
+            "Boeing Company".to_owned(),
+            "(BA) [ST] S 02/02/2026 02/03/2026 $1,001 - $15,000".to_owned(),
+        ];
+        let drafts = scan_rows(&region_single_line).unwrap();
+        assert_eq!(drafts.len(), 2);
+        assert!(drafts[1].asset_raw.contains("Boeing Company"));
+        assert!(!drafts[1].asset_raw.contains("New"));
+    }
+
+    #[test]
+    fn scan_rows_accepts_a_real_band_wrap_across_a_page_break_with_a_header_reprint() {
+        // Goal 081 Task 4.12(c): a page break can fall between a wrapped
+        // band's hyphen and its `$…` continuation, landing a blank line and
+        // a repeated header block in between — previously hard-rejected
+        // (`band "..." wrap not followed by a `$…` continuation`) because
+        // the old code only ever peeked exactly one line ahead. Real
+        // `pdf_extract::extract_text_from_mem` lines verbatim from a live
+        // 2023 electronic PTR: Filing ID #20023082, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2023/20023082.pdf
+        // (pdf sha256 35f8d99e4c84d26ddebb219499c9f41bbff56dcdc0ef893e4962623642e0316e).
+        let region: Vec<String> = vec![
+            "ID Owner Asset Transaction".to_owned(),
+            "Type Date Notification".to_owned(),
+            "Date Amount Cap.".to_owned(),
+            "Gains >".to_owned(),
+            "$200?".to_owned(),
+            String::new(),
+            "2000074180 SP Dominion Energy, Inc. (D) [ST] S 12/15/2020 12/18/2020 $15,001 -"
+                .to_owned(),
+            String::new(),
+            "ID Owner Asset Transaction".to_owned(),
+            "Type Date Notification".to_owned(),
+            "Date Amount Cap.".to_owned(),
+            "Gains >".to_owned(),
+            "$200?".to_owned(),
+            String::new(),
+            "$50,000".to_owned(),
+            String::new(),
+            "F S: Amended".to_owned(),
+        ];
+        let drafts = scan_rows(&region).unwrap();
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].amount_raw, "$15,001 - $50,000");
+    }
+
+    #[test]
+    fn scan_rows_accepts_a_real_band_wrap_split_by_a_filing_id_footer_and_header_reprint() {
+        // Goal 081 Task 4.12(c): a second real shape — the page break lands
+        // the `Filing ID #` footer directly after the hyphen (no blank line
+        // at all), then the header-block reprint, before the real `$…`
+        // continuation. Real `pdf_extract::extract_text_from_mem` lines
+        // verbatim from a live 2023 electronic PTR: Filing ID #20023623,
+        // fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2023/20023623.pdf
+        // (pdf sha256 f0d3292c5db2b46013ef382bf0fc3e673144ba7820f225c845beea57ff812463).
+        let region: Vec<String> = vec![
+            "ID Owner Asset Transaction".to_owned(),
+            "Type Date Notification".to_owned(),
+            "Date Amount Cap.".to_owned(),
+            "Gains >".to_owned(),
+            "$200?".to_owned(),
+            String::new(),
+            "SP Royal Bank Of Canada (RY) [ST] P 08/09/2023 08/11/2023 $15,001 -".to_owned(),
+            "Filing ID #20023623".to_owned(),
+            "ID Owner Asset Transaction".to_owned(),
+            "Type Date Notification".to_owned(),
+            "Date Amount Cap.".to_owned(),
+            "Gains >".to_owned(),
+            "$200?".to_owned(),
+            String::new(),
+            "$50,000".to_owned(),
+            String::new(),
+            "F S: New".to_owned(),
+        ];
+        let drafts = scan_rows(&region).unwrap();
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].amount_raw, "$15,001 - $50,000");
+    }
+
+    #[test]
+    fn scan_rows_accepts_a_real_row_level_location_sub_line_inside_the_transactions_region() {
+        // Goal 081 Task 4.12(d): a `L:` sub-line attached directly to a
+        // transaction row (not only to an Investment Vehicle Details
+        // bullet) — previously a hard reject (`L: sub-line inside the
+        // Transactions region`). Real `pdf_extract::extract_text_from_mem`
+        // lines verbatim from a live 2026 electronic PTR: Filing ID
+        // #20034201, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20034201.pdf
+        // (pdf sha256 6372d59d32a7e54b69e4b456c315670456aa625572a5c78e5c29b72a81de2d43).
+        let region: Vec<String> = vec![
+            "Invesco QQQ [OT] S (partial) 03/16/2026 03/16/2026 $1,001 - $15,000".to_owned(),
+            String::new(),
+            "F S: New".to_owned(),
+            "S O: Putnam Investments".to_owned(),
+            "L: US".to_owned(),
+        ];
+        let drafts = scan_rows(&region).unwrap();
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].location_raw.as_deref(), Some("US"));
+    }
+
+    #[test]
+    fn scan_rows_accepts_a_real_scrambled_case_full_text_location_sub_line_in_a_row() {
+        // Goal 081 Task 4.12(d): the same row-level `L:` sub-line also
+        // renders in the scrambled-case full-word form (Task 4.8's
+        // mechanism) — real content verbatim from the live dry-run's own
+        // fail-closed report against a 2020 electronic PTR: Filing ID
+        // #20016088, sha256
+        // 1ea1a47b83870a9f3ff0bf3310f56ee285dacc13530afbbf48509a6bca57f34c
+        // (`cargo run -p worker --bin backfill -- --adapter us_house --from
+        // 2020 --to 2020 --dry-run`, `L: sub-line inside the Transactions
+        // region: "LoCaTIoN: Malvern, Pa, US"`).
+        let region: Vec<String> = vec![
+            "Foo Corp [ST] P 01/02/2020 01/03/2020 $1,001 - $15,000".to_owned(),
+            String::new(),
+            "F S: New".to_owned(),
+            "LoCaTIoN: Malvern, Pa, US".to_owned(),
+        ];
+        let drafts = scan_rows(&region).unwrap();
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].location_raw.as_deref(), Some("Malvern, Pa, US"));
+    }
+
+    #[test]
+    fn parse_document_feeds_a_rows_own_location_sub_line_into_vehicle_location_raw() {
+        // Goal 081 Task 4.12(d) end-to-end: no schema change — the row's
+        // own `L:` sub-line feeds the SAME `vehicle_location_raw` Gold field
+        // a vehicle-bullet join would otherwise populate. Real evidence
+        // (Filing ID #20034201, see above) spliced with clean synthetic
+        // filer/doc-id/signature grammar, matching this suite's convention.
+        let text = "\
+Filing ID #20099995
+
+name: Jane Filer
+Status: Member
+State/District: XX00
+
+TRANSACTIONS
+
+ID Owner Asset Transaction
+Type Date Notification
+Date Amount Cap.
+Gains >
+$200?
+
+Invesco QQQ [OT] S (partial) 03/16/2026 03/16/2026 $1,001 - $15,000
+
+F S: New
+S O: Putnam Investments
+L: US
+
+* For the complete list of asset type abbreviations, please visit https://fd.house.gov/reference/asset-type-codes.aspx.
+
+Digitally Signed: Jane Filer , 03/31/2026
+";
+        let doc = parse_document(text).unwrap();
+        assert_eq!(doc.rows.len(), 1);
+        assert_eq!(doc.rows[0].row.vehicle_location_raw.as_deref(), Some("US"));
+    }
+
+    #[test]
+    fn parse_document_still_falls_back_to_the_vehicle_bullet_location_without_a_row_l_sub_line() {
+        // Regression guard for the same `vehicle_location_raw` wiring
+        // change: a row with NO own `L:` sub-line must still fall back to
+        // the Investment Vehicle Details bullet join exactly as before.
+        let text = "\
+Filing ID #20099994
+
+name: Jane Filer
+Status: Member
+State/District: XX00
+
+TRANSACTIONS
+
+ID Owner Asset Transaction
+Type Date Notification
+Date Amount Cap.
+Gains >
+$200?
+
+Invesco QQQ [OT] S (partial) 03/16/2026 03/16/2026 $1,001 - $15,000
+
+F S: New
+S O: My Trust
+
+* For the complete list of asset type abbreviations, please visit https://fd.house.gov/reference/asset-type-codes.aspx.
+
+I V D
+
+My Trust
+L: US
+
+I P O
+
+Digitally Signed: Jane Filer , 03/31/2026
+";
+        let doc = parse_document(text).unwrap();
+        assert_eq!(doc.rows.len(), 1);
+        assert_eq!(doc.rows[0].row.vehicle_location_raw.as_deref(), Some("US"));
+    }
+
+    #[test]
+    fn scan_rows_accepts_the_real_2014_three_line_header_block_shape() {
+        // Goal 081 Task 4.12(e): the 2014-era table-header block is a
+        // genuinely different, SHORTER shape — no "Cap. Gains > $200?"
+        // continuation at all — previously hard-rejected
+        // (`unrecognized table header block`). Real `pdf_extract::
+        // extract_text_from_mem` lines verbatim from a live 2014 electronic
+        // PTR: Filing ID #20000077, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2014/20000077.pdf
+        // (pdf sha256 ea936ce15201393a2fbfc61c9e9670e016fd5c6b0010aae8b750e34ebc924691).
+        // The row itself also carries real evidence of Task 4.12(a)'s
+        // scrambled-case type token (`s` for `S`) from this SAME document.
+        let region: Vec<String> = vec![
+            "iD owner asset transaction".to_owned(),
+            "type Date notification".to_owned(),
+            "Date amount".to_owned(),
+            String::new(),
+            "sP Hill International, Inc. (HIl) s 12/26/2013 12/30/2013 $15,001 - $50,000"
+                .to_owned(),
+        ];
+        let drafts = scan_rows(&region).unwrap();
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].transaction_type_raw, "S");
+        assert_eq!(drafts[0].amount_raw, "$15,001 - $50,000");
+
+        // The exact-case rendering of this same shorter shape is also real
+        // (confirmed via the live dry-run's own fail-closed report against
+        // a second 2014 electronic PTR, Filing ID #20002042, sha256
+        // c0921665f767172970259a4b2fb7e727af03a64aec0136ff8bb92909db84dd3b:
+        // `unrecognized table header block at "ID Owner Asset Transaction"
+        // (expected "Date Amount Cap.", got Some("Date Amount"))`).
+        let region_exact_case: Vec<String> = vec![
+            "ID Owner Asset Transaction".to_owned(),
+            "Type Date Notification".to_owned(),
+            "Date Amount".to_owned(),
+            String::new(),
+            "Foo Corp [ST] P 01/02/2014 01/03/2014 $1,001 - $15,000".to_owned(),
+        ];
+        let drafts = scan_rows(&region_exact_case).unwrap();
+        assert_eq!(drafts.len(), 1);
+
+        // The modern 5-line block (any year) keeps matching exactly as
+        // before — never weakened by this additive alternative.
+        let region_modern: Vec<String> = vec![
+            "ID Owner Asset Transaction".to_owned(),
+            "Type Date Notification".to_owned(),
+            "Date Amount Cap.".to_owned(),
+            "Gains >".to_owned(),
+            "$200?".to_owned(),
+            String::new(),
+            "Foo Corp [ST] P 01/02/2020 01/03/2020 $1,001 - $15,000".to_owned(),
+        ];
+        let drafts = scan_rows(&region_modern).unwrap();
+        assert_eq!(drafts.len(), 1);
+    }
+
+    #[test]
+    fn parse_document_succeeds_against_the_real_2014_three_line_header_and_type_token_evidence() {
+        // Goal 081 Task 4.12(a)+(e) end-to-end proof, both from the SAME
+        // real document: Filing ID #20000077 (see above). The heading,
+        // 3-line header block, and full row (including its scrambled-case
+        // `s` type token) below are REAL `pdf_extract::extract_text_from_mem`
+        // text verbatim; doc id / filer info / signature are clean
+        // synthetic grammar, matching this suite's existing convention.
+        let text = "\
+Filing ID #20099993
+
+name: Jane Filer
+Status: Member
+State/District: XX00
+
+tranSactionS
+
+iD owner asset transaction
+type Date notification
+Date amount
+
+sP Hill International, Inc. (HIl) s 12/26/2013 12/30/2013 $15,001 - $50,000
+
+FIlINg sTATus: New
+
+initial Public offeringS
+
+Digitally Signed: Jane Filer , 01/13/2014
+";
+        let doc = parse_document(text).unwrap();
+        assert_eq!(doc.rows.len(), 1);
+        assert_eq!(doc.rows[0].row.transaction_type_raw, "S");
+        assert!(doc.rows[0].row.asset_raw.contains("Hill International"));
+        assert_eq!(doc.rows[0].row.filing_status_raw, "New");
     }
 }
