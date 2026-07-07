@@ -183,14 +183,29 @@ fn extract_doc_id(lines: &[String]) -> anyhow::Result<String> {
 }
 
 /// First `<prefix> <value>` line (mixed-case data labels extract intact, §3.1).
+/// The label itself matches case-insensitively: pre-2022-ish historical-era
+/// text layers render it lowercase (`name:`) where modern ones use `Name:`.
 fn labeled_value(lines: &[String], prefix: &str) -> anyhow::Result<String> {
     lines
         .iter()
         .find_map(|line| {
-            let value = line.strip_prefix(prefix)?.trim();
+            let value = strip_prefix_ignore_ascii_case(line, prefix)?.trim();
             (!value.is_empty()).then(|| value.to_owned())
         })
         .with_context(|| format!("missing filer-information line {prefix:?}"))
+}
+
+/// Case-insensitive `str::strip_prefix`: anchored at the start of `line` only
+/// (never matches partway through a longer word), and byte-length-safe (never
+/// panics on a `line` shorter than `prefix`).
+fn strip_prefix_ignore_ascii_case<'a>(line: &'a str, prefix: &str) -> Option<&'a str> {
+    let bytes = line.as_bytes();
+    if bytes.len() < prefix.len() {
+        return None;
+    }
+    bytes[..prefix.len()]
+        .eq_ignore_ascii_case(prefix.as_bytes())
+        .then(|| &line[prefix.len()..])
 }
 
 /// Date from `Digitally Signed: <name> , <MM/DD/YYYY>` (stray pre-comma space
@@ -625,6 +640,57 @@ fn flush_vehicle(
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn strip_prefix_ignore_ascii_case_is_byte_length_safe_and_anchored() {
+        // Shorter than the prefix: must not panic, must miss.
+        assert_eq!(strip_prefix_ignore_ascii_case("Na", "Name:"), None);
+        assert_eq!(strip_prefix_ignore_ascii_case("", "Name:"), None);
+        // Case-insensitive on the label, whatever case the value carries.
+        assert_eq!(
+            strip_prefix_ignore_ascii_case("NAME: Jane Doe", "Name:"),
+            Some(" Jane Doe")
+        );
+        // Anchored at the start only, over the label's full byte span
+        // (colon included) — a longer word sharing a leading run of letters
+        // must not match partway through it.
+        assert_eq!(
+            strip_prefix_ignore_ascii_case("Named: Someone", "Name:"),
+            None
+        );
+        assert_eq!(
+            strip_prefix_ignore_ascii_case("Status: Member", "Name:"),
+            None
+        );
+    }
+
+    #[test]
+    fn labeled_value_matches_real_historical_lowercase_name_label() {
+        // Real `pdf_extract::extract_text_from_mem` text-layer lines (after
+        // `clean_line`'s NUL/whitespace cleanup — no NULs were present in
+        // this document, unlike the small-caps-degraded modern fixtures)
+        // from a live 2015 electronic PTR: Filing ID #20002776, Rep. Brad
+        // Ashford (NE-02), filed 2015-03-24, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2015/20002776.pdf
+        // (pdf sha256 9fa13801b0271971f090ad1e1cc9f6ffd6b3bd002134c56fa4306560ac0297ff).
+        // This real document's text layer renders the "Name:"
+        // filer-information label lowercase (`name:`) — the exact shape
+        // goal 081's live 2012-2026 dry-run sweep found failing near-100%
+        // across 2014-2017 with `missing filer-information line "Name:"`
+        // under the old exact-case `strip_prefix`. `Status:`/
+        // `State/District:` happen to keep modern case in this particular
+        // document; all three go through the same shared `labeled_value`.
+        let lines: Vec<String> = vec![
+            "filer information".to_owned(),
+            "name: Brad Ashford".to_owned(),
+            "Status: Member".to_owned(),
+            "State/District: NE02".to_owned(),
+        ];
+
+        assert_eq!(labeled_value(&lines, "Name:").unwrap(), "Brad Ashford");
+        assert_eq!(labeled_value(&lines, "Status:").unwrap(), "Member");
+        assert_eq!(labeled_value(&lines, "State/District:").unwrap(), "NE02");
+    }
 
     #[test]
     fn nul_stripping_recovers_degraded_labels() {

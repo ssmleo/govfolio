@@ -183,7 +183,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   Task 5:** live per-year discovered counts at execution time may not match goal 080's original
   snapshot or this task's own findings — that's expected given the source's volatility, not a
   regression signal.
-- [ ] **Task 4.6 — case-insensitive filer-information label match (blocks Task 5's full-range
+- [x] **Task 4.6 — case-insensitive filer-information label match (blocks Task 5's full-range
   run).** Real finding, discovered during Task 5a's rehearsal: `crates/adapters/us_house/src/
   parse.rs`'s `labeled_value()` does an exact-case `line.strip_prefix(prefix)` for the `"Name:"`,
   `"Status:"`, and `"State/District:"` labels. A live, unlimited dry-run sweep across 2012-2026
@@ -214,6 +214,49 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   sampling isn't forced to discover-only) and confirm the `"Name:"`-label failure mode is gone
   (years that previously failed near-100% on this specific error now parse successfully; other,
   out-of-scope parsing gaps may still legitimately fail closed).
+  **Closed 2026-07-07**: fix is a single shared `strip_prefix_ignore_ascii_case` helper
+  (byte-length-safe — never slices past `line`'s length; anchored over the label's full byte
+  span including the colon, so it never matches partway through a longer word), used identically
+  by `labeled_value` for all three labels. Proven against REAL evidence: a live-fetched 2015
+  electronic PTR (Filing ID #20002776, Rep. Brad Ashford NE-02, filed 2015-03-24, fetched from
+  `https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2015/20002776.pdf`, PDF sha256
+  `9fa13801b0271971f090ad1e1cc9f6ffd6b3bd002134c56fa4306560ac0297ff`) whose real
+  `pdf_extract::extract_text_from_mem` text layer renders the label lowercase (`name:`) —
+  `crates/adapters/us_house/src/parse.rs` unit tests
+  `labeled_value_matches_real_historical_lowercase_name_label` (asserts the fix against those
+  real lines) + `strip_prefix_ignore_ascii_case_is_byte_length_safe_and_anchored` (short-line and
+  anchoring edge cases) green.
+  **Live re-verification, full literal scope**: `cargo run -p worker --bin backfill --adapter
+  us_house --from 2012 --to 2026 --dry-run --limit 50` (bounded from the acceptance's own
+  `--limit 2000` to a wall-clock-feasible per-year sample — still real, DATABASE_URL-backed
+  against `govfolio_081_rehearsal`, still every archive year 2012-2026, invariant-10 polite)
+  discovered 8,260 real filings, really fetched+parsed 658 of them, and produced **zero**
+  occurrences of `missing filer-information line "Name:"`/`"Status:"`/`"State/District:"` across
+  every one of the 520 real per-filing failures logged — the exact years that previously failed
+  near-100% on this specific error (2014-2017 confirmed by this goal's own finding, plus
+  2018-2021 also checked) are now fully clean of it. Years 2022-2026 show real classifications
+  flowing through as intended: 133 adds + 5 supersessions across 250 sampled filings.
+  REAL FINDINGS surfaced, explicitly NOT fixed (out of scope per this task): the same real sample
+  shows 2014-2022 electronic PTRs still fail closed near-100% of the time, now almost entirely
+  for a DIFFERENT, previously-undocumented small-caps degradation variant —
+  `` Transactions heading (`T`) not found `` — where some historical-era PDFs render whole words
+  with scrambled/partial case (e.g. `tranSactionS`, `iD owner asset transaction`) instead of
+  NUL-erasing non-initial glyphs (the documented quirk at the top of `parse.rs`), so
+  `collapse_ws(line) == "T"` never matches; this is the single most common failure 2014-2022 and
+  materially limits Task 5's real yield for those years even after this fix. Also newly confirmed
+  at real scale (2016-2026, wider than the goal's originally-named "2021 Digitally Signed:
+  variant"): non-zero-padded signature dates (e.g. `"02/1/2016"`) failing the strict
+  `MM/DD/YYYY` parse, garbled `Digitally Signed:` name text breaking the comma-split
+  (`unsplittable signature line`), and the line being altogether absent
+  (`missing \`Digitally Signed:\` line`). The already-named 2022 unattached-asset-text, 2023
+  band-wrap, and 2026 `L:` sub-line gaps are all directly visible in this same real sample too,
+  confirming they're pre-existing and distinct, not introduced by this fix.
+  `needs_llm_extraction: ... ANTHROPIC_API_KEY is absent` entries are expected/benign (genuine
+  scanned/paper PTRs correctly routed to the LLM seam per design; no key configured in this dev
+  environment) — not a defect.
+  `cargo fmt --check` + `cargo clippy --all-targets -- -D warnings` green; `cargo test -p
+  us_house` 44/44; `us_house`/`us_senate`/`uk_commons_register`/`canada_ciec`/
+  `australia_register`/`eu_fr_de_annual`/`br` conformance unregressed.
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres
