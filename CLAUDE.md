@@ -42,7 +42,8 @@ The generated OpenAPI contract is the only door; regen drift fails CI.
 `cargo fmt --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test --workspace`
 · `cargo run -p pipeline --bin conformance -- <adapter>` · `docker compose up -d &&
 cargo test --workspace -- --ignored` (sqlx suites) · `cargo run -p api --bin openapi`
-(regen contract) · web: `pnpm --filter web lint|typecheck|test`, `pnpm e2e`
+(regen contract) · `cargo run -p worker --bin check-br-identity-collisions` (report-only
+br CPF-collision sweep, not a gate) · web: `pnpm --filter web lint|typecheck|test`, `pnpm e2e`
 
 ## Start the loop
 `./agents/run-loop.sh [effort] [model]` — defaults: max effort + --dangerously-skip-permissions (GOVFOLIO_SKIP_PERMS=0 to prompt). Run isolated: dedicated VM, repo-token-only credentials, protected main.

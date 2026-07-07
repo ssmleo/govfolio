@@ -1307,6 +1307,21 @@ prose rather than a replaced CSV row, that would need re-evaluating.
     identity-resolution mechanism those same prior entries call for remains
     unbuilt and is tracked as separate future work, not blocked on by this fix.
 
+- 2026-07-07 · **Standing detection net added** (plan §9's closing
+  recommendation, `docs/decisions/br-identity-collision-remediation.md`):
+  the §2 CPF-collision sweep query is now wired into a small, permanent,
+  report-only bin, `cargo run -p worker --bin check-br-identity-collisions`
+  (env `DATABASE_URL` required). It prints `PASS: zero br
+  politician-identity CPF collisions found.` (exit 0) or, for any politician
+  whose filings carry more than one distinct `stg_br.nr_cpf_candidato`, a
+  report line (`politician_id`, `canonical_name`, distinct CPFs) and exits
+  nonzero — never auto-fixes/writes/deletes anything, and is not wired into
+  any CI gate. Run against the live dev DB immediately after adding it:
+  PASS (zero rows) — confirms the `JULIO CESAR DOS SANTOS` fix above is the
+  only case there has ever been, and this defect class now has a cheap,
+  re-runnable check standing guard against nationwide-scale reintroduction
+  before the harder CPF-aware resolver mechanism exists.
+
 ## Operational notes (politeness incidents, outages)
 
 - 2026-07-06 · `divulgacandcontas.tse.jus.br`: root and `/divulga/` both 302 to
