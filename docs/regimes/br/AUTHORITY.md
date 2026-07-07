@@ -1134,6 +1134,118 @@ prose rather than a replaced CSV row, that would need re-evaluating.
     check since this touches shared roster-resolution reasoning, though not
     `crates/pipeline` source itself), `cargo test -p pipeline --test
     role_evals` (11/11, unchanged) all green.
+- 2026-07-07 · **SENADOR/suplente historical re-run for 2018+2022 (rust-builder)**
+  — re-ran the widened `seed-br-candidates`/`backfill-real-br` bins (unchanged
+  source, no code touched this pass) over the SAME two years already backfilled
+  for `DEPUTADO FEDERAL`, so the previously-`unresolved_filer` Senado candidacies
+  from those two writes could now resolve for real. Both bins already seed/write
+  BOTH bodies in one invocation (no `--body` flag — confirmed by reading the
+  current source before running, per this file's own convention).
+  - **Seed** (`seed-br-candidates --from <year> --to <year>`, no `--uf`, nationwide):
+    2018 discovered 9830, seeded **1161** new Senado Federal politicians, 128
+    same-pass collisions refused (mix of already-known Câmara-repeat collisions
+    + new Senado-internal ones, e.g. several Mato Grosso SENADOR/suplente
+    slates). 2022 discovered 11423, seeded **729** new Senado Federal
+    politicians, 201 same-pass collisions refused. Câmara politician count
+    (17919) confirmed byte-unchanged by both passes (direct `mandate.body`
+    group-by, not inferred). Final: **1890 new Senado Federal politicians**
+    (1161+729), **19809 total `br` politicians** (17919+1890).
+  - **Real write** (`backfill-real-br --from <year> --to <year>`,
+    `BACKFILL_BUDGET=50000` — reused the exact value the original full-nationwide
+    2018/2022 writes needed, rather than guessing): 2018 gate `record_delta 8130`,
+    result **published 758 | gold inserted 7792 | outbox written 7792 | failed 41**
+    (all Senado — the Câmara Runner this year found zero new filings, per the
+    idempotency check below). 2022 gate `record_delta 5298`, result
+    **published 589 | gold inserted 4925 | outbox written 4925 | failed 89** —
+    this total is NOT Senado-only: it's the SUM of `runner_camara`+`runner_senado`
+    (`merge_reports`), and 2022's Câmara Runner unexpectedly found 10 new
+    filings/45 new records of its own (see the collision finding below for what
+    these are). Direct DB counts (regime-scoped, the authoritative figures, not
+    the combined CLI total) give the true Senado-only additions: **1337 new
+    Senado filings** (758 in 2018 + 579 in 2022) and **12672 new Senado
+    disclosure_records** (7792 in 2018 + 4880 in 2022) — 4880+45(Câmara)=4925
+    and 579+10(Câmara)=589 reconcile the CLI total exactly.
+  - **Reconciliation, exact**: 2018's 758 published + 41 failed = 799, which is
+    EXACTLY the ORIGINAL pre-widen 2018 write's own "799 failed, all
+    unresolved_filer" figure — the previously-failed Senado candidacies split
+    cleanly into 758 now-resolved + 41 still-refused (the same-pass collision
+    set), nothing lost or double-counted. `unresolved_filer` review_task count
+    (br-scoped) stayed EXACTLY 1477 before/after both writes: the still-failing
+    candidates are the SAME filing external_ids that already carried a
+    review_task from the pre-widen runs (`ON CONFLICT` found the existing row,
+    no duplicate).
+  - **Idempotency — Câmara, directly re-verified (not inferred)**: `filing`/
+    `disclosure_record` counts under the Câmara regime were queried
+    immediately before AND after both real writes: **12119 filings / 66986
+    records unchanged by the 2018 write**; the 2022 write then added exactly
+    **10 new Câmara filings / 45 new Câmara records** (see the collision
+    finding below for what these are — NOT a violation of "Câmara untouched",
+    but worth calling out explicitly since it wasn't zero). Final Câmara:
+    12129 filings / 67031 records.
+  - **Idempotency — second-invocation replay, both years (real re-run, not
+    inferred)**: re-ran `backfill-real-br` a second time for both years.
+    Result byte-identical structurally and numerically: 2018 replay
+    `published 0 | replayed 9789 | gold inserted 0 | outbox written 0 | failed 41`;
+    2022 replay `published 0 | replayed 11334 | gold inserted 0 | outbox
+    written 0 | failed 89` — same failed counts as the first invocations. Full
+    DB snapshot (filings/records/outbox per body, `unresolved_filer` count,
+    total politicians) taken immediately before and after both replays: every
+    figure identical.
+  - **Alert-suppression, exhaustive**: every one of the 12717 new `outbox_event`
+    rows this pass created (12672 Senado + 45 Câmara) carries `dispatched_at`
+    (backfill mode). The `br` regime's undispatched (`dispatched_at is null`)
+    set is still EXACTLY the same 6 pre-existing `local_br.rs` rows, before and
+    after every write and replay this pass performed.
+  - **REAL FINDING, pre-existing, NOT introduced by this pass — a genuine
+    invariant-3 wrong-attribution defect already live in production data**:
+    investigating why the 2022 write added 10 Câmara filings (not just Senado
+    ones, unexpected under a "Senado-only" re-run) led to checking every `br`
+    politician with 2+ filings in the SAME year under one body — the exact
+    signature of a leftover pre-`identity_collision_counts`-fix merged
+    politician row being used by more than one real candidate. Found 16 such
+    politicians (10 pre-existing in 2018 Câmara, 6 in 2022 Câmara — 4 of
+    which resolved for the FIRST time this pass: EDSON BEZERRA DA COSTA,
+    RAIMUNDO GERSON DOS SANTOS LIMA, ANÍBAL FERREIRA GOMES, ADAILTO BARROS DE
+    SOUZA, all CE/PB same-pass Câmara collisions this pass's OWN
+    `seed-br-candidates` run correctly refused to (re-)seed, but which
+    `resolve_politician` resolved anyway against an already-existing leftover
+    politician row — this is the "10 new Câmara filings" from a nominally
+    Senado-only re-run), plus 2 new Senado same-year multi-filing cases
+    (MARIA LUCIA CAVALLI NEDER, MARIA DE LOURDES WERNECK). Verified all 18
+    directly against the raw Bronze bytes' `NR_CPF_CANDIDATO` +
+    `NR_TITULO_ELEITORAL_CANDIDATO` (this project's own established
+    same-person-verification method). **17 of 18 are CONFIRMED the SAME real
+    person** (matching CPF+título) re-registered under a second `SQ_CANDIDATO`
+    in the same cycle — a genuine, benign TSE administrative pattern, not a
+    bug; correct attribution. **ONE IS A GENUINE COLLISION, already live in
+    production before this pass started**: `JULIO CESAR DOS SANTOS` (BA, 2018,
+    Câmara, `politician_id 01KWXE3M4J18YNCD5R1V7NTGQ3`) — filings
+    `2018:50000604277` (CPF `80673872653`, título `088320410230`) and
+    `2018:50000608317` (CPF `67701124500`, título `066773530590`) are TWO
+    DIFFERENT REAL PEOPLE sharing a name+state, both currently attributed to
+    ONE shared politician row/public profile — most likely a leftover from the
+    documented "first buggy nationwide seed pass" whose 89-pair cleanup was
+    apparently not fully exhaustive. Both filings/records already existed
+    before this pass ran anything (part of the original 2018 nationwide
+    write), so this pass did not introduce it — but it is real, live, and
+    currently serving wrong data. NOT fixed here (no deletion/merge attempted,
+    per this session's own standing safety directive after the invariant-2
+    incident): flagged for a dedicated remediation pass (likely: split the
+    politician row and re-point one candidate's filing/records, or a
+    CPF-aware roster-resolution design change — the same underlying gap this
+    file's residual-risk notes above already name for the cross-cargo and
+    cross-year axes, now confirmed to also apply within a single
+    body/year/cargo when a leftover un-cleaned merge row exists).
+  - Gates: `cargo build -p worker -p br`, `cargo fmt --check -p worker -p br`,
+    `cargo clippy -p worker -p br --all-targets -- -D warnings` (all green,
+    unchanged — no source touched this pass), `cargo run -p pipeline --bin
+    conformance -- br` (3/3, unchanged).
+  - Final `br` totals after this pass: **19809 politicians** (17919 Câmara +
+    1890 Senado), **13466 filings** (12129 Câmara + 1337 Senado), **79703
+    disclosure_records** (67031 Câmara + 12672 Senado), same split for
+    `outbox_event`, **1477 `unresolved_filer` review_tasks** (unchanged).
+    Not attempted (still out of scope): the full 1933-2024 historical range
+    for either body remains the clear next increment.
 
 ## Operational notes (politeness incidents, outages)
 
