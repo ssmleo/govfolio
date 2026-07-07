@@ -183,6 +183,37 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   Task 5:** live per-year discovered counts at execution time may not match goal 080's original
   snapshot or this task's own findings — that's expected given the source's volatility, not a
   regression signal.
+- [ ] **Task 4.6 — case-insensitive filer-information label match (blocks Task 5's full-range
+  run).** Real finding, discovered during Task 5a's rehearsal: `crates/adapters/us_house/src/
+  parse.rs`'s `labeled_value()` does an exact-case `line.strip_prefix(prefix)` for the `"Name:"`,
+  `"Status:"`, and `"State/District:"` labels. A live, unlimited dry-run sweep across 2012-2026
+  (`cargo run -p worker --bin backfill -- --adapter us_house --from 2012 --to 2026 --dry-run
+  --limit 2000`, no DB baseline needed for this signal) showed entire years failing closed
+  near-100% (2014: 708/708, 2015: 728/728, 2016: 765/765, 2017: 801/801, and more) with the exact
+  error `missing filer-information line "Name:"` — historical-era documents render this label
+  lowercase (`name:`), which the exact-case prefix match never matches. This is the same root
+  cause Task 3's build agent already flagged (for 2015 specifically) as a deferred
+  adapter-hardening gap — now confirmed to span most of 2014-2021 at real scale, not a rare edge
+  case.
+  Fix: make `labeled_value`'s prefix match case-insensitive (e.g. compare
+  `line[..prefix.len().min(line.len())].eq_ignore_ascii_case(prefix)` then slice past it, or an
+  equivalent tolerant comparison) — a single shared function serving all three labels, so the
+  fix covers `"Name:"`/`"Status:"`/`"State/District:"` symmetrically without inventing new
+  speculative label variants. Do NOT attempt to fix the other, distinct one-off parsing gaps
+  found in the same sweep (2021 `"Digitally Signed:"` line variant, 2022 "unattached asset text
+  after the last row", 2023 "band wrap not followed by a `$…` continuation", 2026 `"L:"`
+  sub-line inside the Transactions region — this last one is goal 080's own already-documented,
+  deliberately-deferred edge case) — those are separate, smaller-blast-radius gaps, out of scope
+  here; only the label-casing issue is in scope, per its confirmed wide impact.
+  Acceptance: a test proving `labeled_value` (or `parse_document`) now succeeds against a
+  lowercase-labeled historical-era text layer that previously failed with "missing
+  filer-information line" (use real historical evidence where practical, matching the Task 4.5
+  fix's own precedent of testing against real pinned archive data). Also re-run the full
+  2012-2026 dry-run sweep (`cargo run -p worker --bin backfill -- --adapter us_house --from 2012
+  --to 2026 --dry-run --limit 2000`, DATABASE_URL pointed at a real reachable Postgres so
+  sampling isn't forced to discover-only) and confirm the `"Name:"`-label failure mode is gone
+  (years that previously failed near-100% on this specific error now parse successfully; other,
+  out-of-scope parsing gaps may still legitimately fail closed).
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres
