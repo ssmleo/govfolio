@@ -828,6 +828,22 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   `Digitally Signed:` line variants, the `gfedc`/`gfedcb` artifacts, the 2014 footnote-absence gap,
   `needs_llm_extraction` with no `ANTHROPIC_API_KEY` configured) recur as expected and are not
   re-litigated here either.
+- [ ] **Task 4.13 — non-zero-padded transaction/notification dates in `find_anchor` (blocks
+  Task 5's full-range run; flagged by Task 4.12 as the dominant remaining 2014/2018 blocker).**
+  Real finding, distinct from Task 4.11's already-fixed SIGNATURE date case: row-level
+  transaction/notification dates (the two adjacent `MM/DD/YYYY` tokens `find_anchor` anchors a
+  row on) can also be non-zero-padded (e.g. a single-digit month or day), and `find_anchor`'s
+  own date-shape check is the same strict `is_date10` the signature-date fix already proved too
+  strict for real historical data. `is_lenient_date` (added in Task 4.11, a confirmed strict
+  superset of `is_date10`) already exists and is reusable here directly — this is expected to be
+  a small, low-risk, additive swap, not a fresh investigation.
+  Fix: use `is_lenient_date` (not `is_date10`) wherever `find_anchor` identifies the row-anchor
+  date pair, additively — well-formed zero-padded rows must keep matching exactly as before. Do
+  not touch Tasks 4.5-4.12's already-closed logic beyond this one swap.
+  Acceptance: a test proving a row with a real non-zero-padded transaction/notification date
+  (matching Task 4.12's own cited real examples if practical) now anchors and parses correctly,
+  with all existing tests continuing to pass. Re-run a real dry-run sample against 2014/2018 and
+  confirm this specific failure mode's occurrence count drops substantially.
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres
