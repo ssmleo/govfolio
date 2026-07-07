@@ -8,12 +8,16 @@
 //! For each year in `--from..=--to`, discovers that year's in-scope
 //! candidates (`BrAdapter::discover_year`, the SAME conditional-GET fetch
 //! filing discovery/the real backfill use — invariant 10) and seeds a
-//! `politician` + `mandate` row for every `DEPUTADO FEDERAL` candidate
-//! (`br::seed::seed_candidates_year`). Each year fails closed INDEPENDENTLY
-//! (an unreachable/unparseable year is printed and does not sink the rest of
-//! the range); within a year, each candidate seeds independently too — an
-//! ambiguous match (e.g. two politicians already resolve the same
-//! name+state) is printed/counted as a skip, not a whole-year failure.
+//! `politician` + `mandate` row for every candidate whose `DS_CARGO` maps to
+//! a `br::seed::RosterBody` — `DEPUTADO FEDERAL` (Câmara dos Deputados) AND,
+//! as of this pass, `SENADOR`/`1º SUPLENTE`/`2º SUPLENTE` (Senado Federal)
+//! (`br::seed::seed_candidates_year`; see that module's doc comment for the
+//! multi-body design and the suplente-handling decision). Each year fails
+//! closed INDEPENDENTLY (an unreachable/unparseable year is printed and does
+//! not sink the rest of the range); within a year, each candidate seeds
+//! independently too — an ambiguous match (e.g. two politicians already
+//! resolve the same name+state WITHIN one body) is printed/counted as a
+//! skip, not a whole-year failure.
 //!
 //! `--uf <CODE[,CODE...]>` is a PROOF-ONLY bound: it additionally restricts
 //! seeding to the listed states. `docs/regimes/br/AUTHORITY.md`'s own
@@ -99,6 +103,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("applying migrations")?;
     seed_regime(&pool, &br::seed::regime_seed()).await?;
+    seed_regime(&pool, &br::seed::regime_seed_senado()).await?;
 
     let adapter = BrAdapter::default();
     let bronze = std::env::temp_dir().join(format!(
@@ -116,13 +121,11 @@ async fn main() -> anyhow::Result<()> {
         Clock::System,
         &adapter.politeness(),
     )?;
-    let regime = br::seed::regime_binding();
-
     let mut total_inserted = 0u32;
     let mut total_errors = 0usize;
     let mut failed_years = 0usize;
     for year in args.from..=args.to {
-        match seed_candidates_year(&adapter, &ctx, &pool, &regime, year, &args.ufs).await {
+        match seed_candidates_year(&adapter, &ctx, &pool, year, &args.ufs).await {
             Ok(result) => {
                 println!(
                     "{year}: discovered {} | considered {} (uf filter {:?}) | seeded {} | \

@@ -244,6 +244,28 @@ PolitenessCfg::new(Duration::from_secs(2), "ssm.leo@outlook.com") // concurrency
    (sampler's own note: screened during selection, judged not required to satisfy the
    3-case gate). Builder/test-designer discretion to add a dedicated fixture.
 
+   **Update (rust-builder, 2026-07-07 — roster-seeding/resolution widen, NOT an
+   adapter/fixture change):** this edge case is about the `parse()`/`normalize()`
+   layer, which was ALREADY correct for `SENADOR`/suplente content — the
+   `IN_SCOPE_CARGOS` discovery filter (`crates/adapters/br/src/parse.rs`) already
+   admitted all 4 cargos, and `BrHoldingDetailsV1`/`asset_class_for_code` have no
+   cargo-specific branching. What was NOT correct, until this pass, was the
+   SEPARATE roster-seeding/politician-resolution layer
+   (`crates/adapters/br/src/seed.rs`): it only ever seeded `DEPUTADO FEDERAL`
+   politicians, so a real `SENADOR`/suplente filing reaching the `Runner` always
+   failed closed (`unresolved_filer`, invariant 3) even though its Gold content
+   would have normalized correctly. `seed.rs` now seeds AND resolves `SENADOR` +
+   `1º SUPLENTE` + `2º SUPLENTE` under their own `Senado Federal`
+   `RegimeBinding`/`disclosure_regime` row, distinct from `DEPUTADO FEDERAL`'s
+   `Câmara dos Deputados` one (`br::seed::RosterBody`). Full design reasoning
+   (multi-body `RegimeBinding` widen, per-body same-pass identity-collision
+   scoping, and the suplente-handling decision — suplentes are seeded as their
+   own politicians, not merged into the titular senator) is write-back'd to
+   `docs/regimes/br/AUTHORITY.md`'s Quirks log rather than duplicated here. The
+   "no dedicated fixture" gap this edge case originally flagged is UNCHANGED —
+   still no committed `SENADOR`/suplente fixture, still builder/test-designer
+   discretion; this update is scoped to roster/resolution only, not fixtures.
+
 8. **TSE sentinel values** (`#NULO`, `-1`, `-3`, `-4`) are observed elsewhere in
    `consulta_cand` (e.g. `NR_FEDERACAO: "-1"`, `NM_FEDERACAO: "#NULO"` for
    `TP_AGREMIACAO: "PARTIDO ISOLADO"` candidates, `zero_asset_deputado:31-34`) and are

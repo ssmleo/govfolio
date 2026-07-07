@@ -37,6 +37,28 @@
 //! would always measure the full year's ~11000-record delta against the
 //! default 500-record budget and skip every year outright.
 //!
+//! 3. **Two `Runner`s, one per `br::seed::RosterBody`** (widened this pass,
+//!    `docs/regimes/br/AUTHORITY.md` Quirks log): `pipeline::run::Runner`
+//!    resolves politicians against exactly one `RegimeBinding`/body for its
+//!    whole lifetime (`crates/pipeline/src/run.rs`), so a SINGLE Runner
+//!    cannot correctly resolve a discovered year's candidates when they span
+//!    BOTH `br` bodies (Câmara dos Deputados + Senado Federal). This bin
+//!    discovers each year exactly ONCE (never a second network fetch,
+//!    invariant 10), splits the resulting `FilingRef`s by
+//!    `br::seed::roster_body_for_cargo`, then runs each body's refs through
+//!    ITS OWN `Runner` (`runner_camara`/`runner_senado`, sharing one
+//!    `BrAdapter` instance and Bronze root — see `main`). **Known,
+//!    explicitly flagged limitation**: the `BACKFILL_BUDGET` gate below
+//!    still estimates `record_delta` from ONE combined dry-run
+//!    (`UfScopedArchive`) against ONE `PgBaseline` scoped to the Câmara
+//!    `regime_id` only — a previously-published Senado filing (`regime_id`
+//!    differs) will never be found by that baseline lookup, so a future
+//!    re-run's gate will over-count Senado candidates as "Add" rather than
+//!    "Unchanged". This makes the gate MORE conservative (more likely to
+//!    SKIP), never less safe — a deliberate, documented tradeoff rather than
+//!    a hidden defect, left as a follow-up alongside the actual re-run this
+//!    task's own scope explicitly excludes.
+//!
 //! Usage:
 //! ```text
 //! cargo run -p worker --bin backfill-real-br -- --from 2022 [--to <year>] [--uf AC,AL]
@@ -187,49 +209,97 @@ fn add_report(total: &mut RunReport, year: i32, report: RunReport) {
         .extend(report.failed.into_iter().map(|f| format!("[{year}] {f}")));
 }
 
-/// Discovers every year in `from..=to`, applying the `--uf` bound, BEFORE
-/// any real write starts (one politeness throttle for the whole discovery
-/// pass, invariant 10).
+/// One year's discovered `FilingRef`s, already `--uf`-bounded and split by
+/// `br::seed::RosterBody` (module doc comment, point 3) — the shape both
+/// `runner_camara.run_over`/`runner_senado.run_over` need.
+struct YearFilings {
+    year: i32,
+    camara: Vec<FilingRef>,
+    senado: Vec<FilingRef>,
+}
+
+/// Discovers every year in `from..=to`, applying the `--uf` bound AND the
+/// Câmara/Senado body split, BEFORE any real write starts (one politeness
+/// throttle for the whole discovery pass, invariant 10 — ONE
+/// `discover_candidates_year` call per year serves BOTH bodies).
 async fn discover_by_year(
     adapter: &BrAdapter,
     ctx: &RunCtx,
     from: i32,
     to: i32,
     ufs: &[String],
-) -> anyhow::Result<Vec<(i32, Vec<FilingRef>)>> {
+) -> anyhow::Result<Vec<YearFilings>> {
     let mut by_year = Vec::new();
     for year in from..=to {
         let candidates = discover_candidates_year(adapter, ctx, year)
             .await
             .with_context(|| format!("discovering {year}"))?;
-        let scoped: Vec<FilingRef> = candidates
-            .into_iter()
-            .filter(|c| ufs.is_empty() || ufs.contains(&c.sg_uf))
-            .map(|c| c.filing_ref)
-            .collect();
+        let mut camara = Vec::new();
+        let mut senado = Vec::new();
+        let mut unmapped = 0usize;
+        for candidate in candidates {
+            if !ufs.is_empty() && !ufs.contains(&candidate.sg_uf) {
+                continue;
+            }
+            match br::seed::roster_body_for_cargo(&candidate.ds_cargo) {
+                Some(br::seed::RosterBody::Camara) => camara.push(candidate.filing_ref),
+                Some(br::seed::RosterBody::Senado) => senado.push(candidate.filing_ref),
+                // Defensive only — every cargo IN_SCOPE_CARGOS admits maps
+                // to a RosterBody (see that function's own doc comment).
+                None => unmapped += 1,
+            }
+        }
         println!(
-            "{year}: {} filing(s) in scope (uf filter {ufs:?})",
-            scoped.len()
+            "{year}: {} Câmara + {} Senado filing(s) in scope (uf filter {ufs:?}){}",
+            camara.len(),
+            senado.len(),
+            if unmapped > 0 {
+                format!(" — WARNING: {unmapped} candidate(s) matched no RosterBody")
+            } else {
+                String::new()
+            }
         );
-        by_year.push((year, scoped));
+        by_year.push(YearFilings {
+            year,
+            camara,
+            senado,
+        });
     }
     Ok(by_year)
 }
 
+/// Merges two `RunReport`s (one per body) into one — plain field-wise sums,
+/// `failed` messages concatenated (the OUTER `add_report` call still applies
+/// the `[{year}]` prefix exactly once, so this must not prefix again).
+fn merge_reports(a: RunReport, b: RunReport) -> RunReport {
+    RunReport {
+        filings: a.filings + b.filings,
+        published: a.published + b.published,
+        replayed: a.replayed + b.replayed,
+        gold_inserted: a.gold_inserted + b.gold_inserted,
+        outbox_written: a.outbox_written + b.outbox_written,
+        review_tasks: a.review_tasks + b.review_tasks,
+        failed: a.failed.into_iter().chain(b.failed).collect(),
+    }
+}
+
 /// Gates one year against `BACKFILL_BUDGET` (scoped to the same `--uf`
-/// bound, see module/`UfScopedArchive` doc comments) then, on
-/// [`BudgetVerdict::Proceed`], runs the real write pass over `refs`.
-/// Returns `None` on a budget skip (logged to `agents/JOURNAL.md`, nothing
-/// blocks the range).
+/// bound, see module/`UfScopedArchive` doc comments — the gate's own
+/// baseline scoping caveat is flagged in the module doc comment's point 3)
+/// then, on [`BudgetVerdict::Proceed`], runs the real write pass over BOTH
+/// bodies' refs (`runner_camara`/`runner_senado`, module doc comment point
+/// 3). Returns `None` on a budget skip (logged to `agents/JOURNAL.md`,
+/// nothing blocks the range).
 async fn gate_and_write_year(
-    runner: &Runner<'_>,
+    runner_camara: &Runner<'_>,
+    runner_senado: &Runner<'_>,
     gate_source: &UfScopedArchive,
     gate_baseline: &PgBaseline,
     journal_root: &std::path::Path,
     budget: usize,
-    year: i32,
-    refs: &[FilingRef],
+    filings: &YearFilings,
 ) -> anyhow::Result<Option<RunReport>> {
+    let year = filings.year;
     let record_delta =
         match worker::backfill::gate_year(gate_source, gate_baseline, "br", year, budget).await? {
             BudgetVerdict::Skip { record_delta } => {
@@ -246,10 +316,15 @@ async fn gate_and_write_year(
         "{year}: budget OK (record_delta {record_delta} <= BACKFILL_BUDGET {budget}) — \
          proceeding to the real write"
     );
-    let report = runner
-        .run_over(refs)
+    let camara_report = runner_camara
+        .run_over(&filings.camara)
         .await
-        .with_context(|| format!("real write pass for {year}"))?;
+        .with_context(|| format!("real write pass (Câmara) for {year}"))?;
+    let senado_report = runner_senado
+        .run_over(&filings.senado)
+        .await
+        .with_context(|| format!("real write pass (Senado) for {year}"))?;
+    let report = merge_reports(camara_report, senado_report);
     println!(
         "{year}: published {} | replayed {} | gold inserted {} | outbox written {} | \
          review tasks {} | failed {}",
@@ -275,6 +350,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("applying migrations")?;
     seed_regime(&pool, &br::seed::regime_seed()).await?;
+    seed_regime(&pool, &br::seed::regime_seed_senado()).await?;
 
     let adapter = BrAdapter::default();
     // NOT under an OS temp directory, and NOT wrapped in ScratchDir: this ctx
@@ -293,21 +369,41 @@ async fn main() -> anyhow::Result<()> {
     let bronze = workspace_root()
         .join("target")
         .join("bronze-backfill-real-br");
-    let ctx = RunCtx::new(
+    // Two RunCtx instances sharing the SAME (content-addressed, safe to open
+    // twice) Bronze path and pool clone — one per RosterBody Runner (module
+    // doc comment point 3). `BrAdapter::discover_year`'s joined-declaration
+    // cache lives on the shared `adapter` instance below, not on either ctx,
+    // so discovering once and fetching through either Runner both hit that
+    // SAME cache (never a second network round trip).
+    let ctx_camara = RunCtx::new(
+        BronzeStore::open(bronze.clone())?,
+        Some(pool.clone()),
+        Clock::System,
+        &adapter.politeness(),
+    )?;
+    let ctx_senado = RunCtx::new(
         BronzeStore::open(bronze)?,
         Some(pool.clone()),
         Clock::System,
         &adapter.politeness(),
     )?;
 
-    let by_year = discover_by_year(&adapter, &ctx, args.from, args.to, &args.ufs).await?;
+    let by_year = discover_by_year(&adapter, &ctx_camara, args.from, args.to, &args.ufs).await?;
 
     let binding = BrBinding;
-    let runner =
-        Runner::new(&adapter, &binding, br::seed::regime_binding(), ctx)?.with_backfill(true);
+    let runner_camara = Runner::new(&adapter, &binding, br::seed::regime_binding(), ctx_camara)?
+        .with_backfill(true);
+    let runner_senado = Runner::new(
+        &adapter,
+        &binding,
+        br::seed::regime_binding_senado(),
+        ctx_senado,
+    )?
+    .with_backfill(true);
 
     // BACKFILL_BUDGET gate, scoped to the SAME --uf bound (see module doc
-    // comment / UfScopedArchive doc comment for why).
+    // comment / UfScopedArchive doc comment for why). Baseline scoping
+    // caveat: module doc comment point 3.
     let budget = worker::backfill::backfill_budget();
     let gate_scratch = std::env::temp_dir().join(format!(
         "govfolio-backfill-real-br-gate-{}",
@@ -318,19 +414,19 @@ async fn main() -> anyhow::Result<()> {
     let journal_root = worker::backfill::workspace_root();
 
     let mut total = RunReport::default();
-    for (year, refs) in by_year {
+    for year_filings in &by_year {
         if let Some(report) = gate_and_write_year(
-            &runner,
+            &runner_camara,
+            &runner_senado,
             &gate_source,
             &gate_baseline,
             &journal_root,
             budget,
-            year,
-            &refs,
+            year_filings,
         )
         .await?
         {
-            add_report(&mut total, year, report);
+            add_report(&mut total, year_filings.year, report);
         }
     }
 

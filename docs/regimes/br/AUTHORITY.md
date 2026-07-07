@@ -944,6 +944,196 @@ prose rather than a replaced CSV row, that would need re-evaluating.
   jurisdictions`/`/v1/regimes` scorecard endpoint (design doc §6.1) may not yet
   reflect `br`'s real production data for `DEPUTADO FEDERAL` across two election
   years; worth a small follow-up for whoever next touches the registry seed.
+- 2026-07-07 · **`SENADOR`/suplente roster-seeding + politician-resolution widen
+  (rust-builder)** — the E2-scoping resolution above confirmed zero
+  surveyor-level unknowns for `SENADOR` coverage (same TSE source, schema,
+  legal basis, cadence as `DEPUTADO FEDERAL`, already discovered/parsed/
+  normalized correctly); this task widened the one layer that WASN'T yet
+  correct — `crates/adapters/br/src/seed.rs`'s roster-seeding and
+  `pipeline::stages::roster::resolve_politician`'s real resolution, which
+  only ever covered `DEPUTADO FEDERAL` (Câmara dos Deputados). `parse()`/
+  `normalize()`/`details.rs`/`tables.rs` were ALREADY correct for
+  `SENADOR`/suplente content and needed no change (`crate::parse::
+  IN_SCOPE_CARGOS` already admitted all 4 cargos) — this is purely a
+  roster/resolution widen, confirmed by reading every adapter-layer file
+  first.
+  - **Multi-body `RegimeBinding` design**: `RegimeBinding`
+    (`crates/pipeline/src/run.rs`) still carries exactly one `body` string —
+    NOT widened, and `pipeline::stages::roster::resolve_hits`/`seed_roster`
+    were not touched at all. Every OTHER regime (`us_house`, the only other
+    real caller) still constructs and uses exactly one `RegimeBinding` the
+    same way it always has — verified via `cargo run -p pipeline --bin
+    conformance -- us_house` (5/5, unchanged) and `cargo test -p pipeline
+    --test role_evals` (11/11, unchanged) after this change: zero blast
+    radius. `br` instead constructs TWO `RegimeBinding` values
+    (`br::seed::regime_binding`/`regime_binding_senado`, dispatched through
+    a new `br::seed::RosterBody` enum) that share one `jurisdiction_id` but
+    differ in `regime_id`/`body`. Since `resolve_hits`'s WHERE clause
+    matches on `mandate.body` (not `jurisdiction_id`/`regime_id`), giving
+    Senado Federal its own body value also structurally FIXES the residual
+    cross-cargo resolution risk the nationwide-2022 real write flagged
+    above (a `SENADOR`/suplente candidate could previously only ever
+    accidentally resolve against an existing `DEPUTADO FEDERAL` mandate,
+    since both were checked under one shared body): a Senado-bound lookup
+    can no longer match a Câmara mandate row, or vice versa, regardless of
+    name collisions.
+  - **Second `disclosure_regime` row, not a shared one — no migration
+    needed.** `br::seed::REGIME_ID_SENADO` (`0BRAREG0000000000000000002`,
+    distinct from the existing `REGIME_ID` `...001`) backs
+    `regime_binding_senado`/`regime_seed_senado`. Considered and rejected:
+    reusing the existing `REGIME_ID` for both bodies (simpler, fewer moving
+    parts) — rejected because `filing.regime_id`/`disclosure_record.
+    regime_id` would then mislabel every real Senado filing's chamber as
+    Câmara dos Deputados via the FK to `disclosure_regime.body`, a genuine
+    data-quality defect, not merely cosmetic. The schema's own
+    `disclosure_regime.body` column comment
+    (`crates/core/migrations/0001_core.sql`) already gives `'US House'`/
+    `'US Senate'` as the worked example of one country modeled as two
+    separate regime rows — this mirrors that established convention rather
+    than inventing a new one. **No migration was needed or made**:
+    `disclosure_regime` already supports more than one `body` row per
+    `jurisdiction_id` (its own pre-existing `unique (jurisdiction_id, body,
+    effective_from)` constraint requires exactly this shape for two
+    different bodies) — the second row is just an additional idempotent
+    `seed_regime()` insert (`ON CONFLICT DO NOTHING`), wired into both
+    `bin/seed-br-candidates.rs` and `bin/backfill-real-br.rs`. The
+    pre-existing Câmara row (`...001`) and every Gold/filing/disclosure_record
+    row referencing it are completely untouched.
+  - **Same-pass identity-collision logic — scoped per body, not globally
+    (design decision).** `seed.rs`'s `identity_collision_counts` (built
+    2026-07-06, see that entry above) is now parameterized by a `cargos: &
+    [&str]` list instead of the single hardcoded `DEPUTADO FEDERAL`
+    constant, and `seed_candidates_year` calls it ONCE PER `RosterBody`
+    (Câmara: `["DEPUTADO FEDERAL"]`; Senado: `["SENADOR", "1º SUPLENTE",
+    "2º SUPLENTE"]`), each against that body's own `RegimeBinding`.
+    Reasoned through explicitly rather than assumed: a `DEPUTADO FEDERAL`
+    candidate and a `SENADOR`/suplente candidate sharing the exact same
+    `(NM_CANDIDATO, SG_UF)` in one pass is deliberately NOT flagged as a
+    collision, because `resolve_hits`'s `body` filter means the two
+    bodies' roster lookups can never merge onto the same mandate row
+    regardless of a name match — flagging it would refuse otherwise-
+    legitimate seeds for no real safety benefit. This is not merely
+    theoretical: the 2026-07-06 nationwide-2022 write independently
+    CPF/voter-title-verified 3 real individuals who filed under two
+    different cargos in the same cycle (e.g. `DEPUTADO FEDERAL` +
+    `SENADOR`) — seeding each candidacy under its own body fixes a real
+    defect the OLD single-body design had (their Senado filing previously
+    misresolved onto their Câmara politician row, mislabeling its
+    `regime_id`/chamber), which IS the correct fix for that mislabeling.
+    **This is a genuine trade, not a strict win, and should be read as
+    such**: the old (buggy) behavior incidentally modeled these 3 real
+    people as ONE politician entity spanning both chambers — a natural
+    real-world shape ("this person," trackable once across a whole
+    political career) — whereas this fix, by design, will seed a NEW,
+    separate, disconnected politician row for their next cross-body
+    candidacy instead. Correct chamber attribution is gained; unified
+    cross-body person-identity is lost, with no link recorded between the
+    two rows. The schema already supports the actual right fix for free
+    (one `politician` row can already hold multiple `mandate` rows across
+    bodies — no constraint prevents it); what's still missing is a CPF/
+    voter-title-aware cross-body identity check at seed time (attach a new
+    mandate to an existing politician instead of minting a new one), which
+    this task does NOT build (out of scope here) — a real, pre-existing
+    gap in cross-body/cross-time person-identity linking (roster
+    resolution has none today, same underlying gap the 2018/2022
+    cross-year entry above already documents for a different axis), not
+    solved by this pass. Merging cross-body on a name match alone would
+    itself be guessing "same person" from a
+    weak signal in the overwhelming majority of OTHER cases where two
+    different cargos happen to share a common name+state, which invariant
+    3 forbids — so this pass's choice (mint separately, don't guess) is
+    still the right call GIVEN no cross-body identity check exists yet; it
+    relocates the visible symptom rather than resolving the underlying
+    gap. A collision WITHIN one body (e.g. two `SENADOR`/suplente
+    candidates, or a `SENADOR` and a `1º SUPLENTE`, sharing identity) is
+    exactly as real a risk as the original `DEPUTADO FEDERAL`-only case
+    and IS still guarded, per body — covered by a new unit test
+    (`identity_collision_counts_is_scoped_per_body_not_globally`,
+    `crates/adapters/br/src/seed.rs`).
+  - **Suplente-handling decision: seeded as their own politicians, sharing
+    the titular's body, distinguished by `mandate.role`.** TSE registers
+    each Senate ticket as THREE distinctly-named, separately-`SQ_CANDIDATO`/
+    CPF real candidates — one titular (`SENADOR`) plus two ranked
+    alternates (`1º`/`2º SUPLENTE`) — never one person under three
+    aliases; confirmed this is the real electoral-law shape (art. 46,
+    Constituição Federal: "cada Senador será eleito com dois suplentes"),
+    not an adapter/data quirk. Considered three options: (a) seed only the
+    titular `SENADOR`, dropping suplente candidacies entirely; (b) seed
+    suplentes as aliases/facets of the titular's own politician row; (c)
+    seed suplentes as their own independent politicians. Rejected (a):
+    Brazilian practice routinely has a suplente actually EXERCISE the
+    mandate for extended periods (the titular takes a ministry/
+    governorship "on license", resigns, or dies) — a suplente's own asset
+    declaration is exactly the kind of fact this project exists to track,
+    not a discardable technicality. Rejected (b): a suplente is a
+    genuinely distinct real person (different name, different CPF/voter
+    title, different `asset_description_raw` content) — modeling them as
+    a facet of the titular would conflate two different real people's
+    disclosed wealth under one `politician_id`, a correctness violation
+    far worse than the seeding gap being fixed. Chose (c): every
+    `SENADOR`/`1º SUPLENTE`/`2º SUPLENTE` candidate seeds as their OWN
+    `politician`/`politician_alias`/`mandate` row, sharing the Senado
+    Federal BODY (a suplente is, constitutionally, a member of that same
+    chamber the moment they take the seat, and there is no
+    roster-resolution reason to split them into a third body) but keeping
+    their own `mandate.role` = the raw `DS_CARGO` string (e.g. `"1º
+    SUPLENTE"`) for that distinction — `role` is display/audit-only, never
+    part of `resolve_hits`'s match key, so this costs nothing in
+    resolution precision or ambiguity risk.
+  - **Real-write routing widened too, not just seeding** (`bin/
+    backfill-real-br.rs`): `pipeline::run::Runner` resolves against exactly
+    one `RegimeBinding` for its whole lifetime, so a single Runner instance
+    cannot correctly resolve a discovered year's candidates once they span
+    both bodies. The bin now discovers each year exactly ONCE (unchanged
+    politeness cost, invariant 10 — `BrAdapter::discover_year`'s
+    joined-declaration cache lives on the shared adapter instance, not on
+    either `RunCtx`), splits the resulting `FilingRef`s by
+    `br::seed::roster_body_for_cargo`, then runs each body's refs through
+    its OWN `Runner` (`runner_camara`/`runner_senado`, two `RunCtx`
+    instances sharing one Bronze path + pool clone, one shared `BrAdapter`).
+    **Known, explicitly flagged limitation, not fixed this pass**: the
+    `BACKFILL_BUDGET` gate's dry-run estimate (`UfScopedArchive`/
+    `PgBaseline`) is still scoped to ONE combined discovery pass against
+    ONE baseline keyed on the Câmara `regime_id` only — a previously-
+    published Senado filing will never be found by that baseline lookup
+    (different `regime_id`), so a FUTURE re-run's gate will over-count
+    Senado candidates as "Add" rather than "Unchanged", inflating the
+    estimated `record_delta`. This makes the gate MORE conservative (more
+    likely to SKIP), never less safe — a deliberate, accepted tradeoff for
+    this pass, not a hidden defect, left for whoever next touches the gate
+    alongside the actual historical re-run (see below).
+  - **Existing 2018/2022 real production data confirmed undisturbed** —
+    no migration, no backfill re-run performed this pass (explicitly out of
+    scope). The pre-existing 10452 (2022) + 7467 (2018) `DEPUTADO FEDERAL`
+    politicians, their filings/disclosure_records, and the 1477
+    `unresolved_filer` `review_task`s recorded against `SENADOR`/suplente/
+    collision candidates from those two real writes are all untouched by
+    this pass (no DB write performed by this task at all — only source
+    code changed). A FUTURE re-run of `seed-br-candidates`/
+    `backfill-real-br` over 2018/2022 would now newly seed + resolve the
+    `SENADOR`/suplente candidates that previously failed closed — a real,
+    valuable outcome this widen sets up but does not itself execute.
+    **Flagged for whoever performs that future re-run**: the 3 candidates
+    this file's 2026-07-06 entry found accidentally resolved onto an
+    existing `DEPUTADO FEDERAL` politician (cross-cargo, same body) would,
+    under a re-run, instead resolve onto (or seed) a SEPARATE Senado
+    Federal politician row for their Senate candidacy — a NEW, additional
+    filing/disclosure_record set under `regime_id = REGIME_ID_SENADO`,
+    alongside their existing (unaffected) Câmara filing. This is the
+    CORRECT outcome (their Senate candidacy disclosure was never actually
+    captured before — the old accidental resolution only recorded their
+    Câmara filing under invariant-1-supersedable Câmara semantics, never a
+    genuine Senado record), not a duplication of the same fact, but is
+    worth an explicit audit note when that re-run happens since the
+    politician/filing counts for those 3 individuals will visibly change.
+  - Gates: `cargo build -p worker -p br`, `cargo fmt --check -p worker -p br`,
+    `cargo clippy -p worker -p br --all-targets -- -D warnings`, `cargo test
+    -p br` (34/34, +3 new tests — a prior write-back said +4; independent audit
+    recounted 31 existing + 3 new = 34), `cargo run -p pipeline --bin conformance --
+    br` (3/3, unchanged) and `-- us_house` (5/5, unchanged — zero-blast-radius
+    check since this touches shared roster-resolution reasoning, though not
+    `crates/pipeline` source itself), `cargo test -p pipeline --test
+    role_evals` (11/11, unchanged) all green.
 
 ## Operational notes (politeness incidents, outages)
 
