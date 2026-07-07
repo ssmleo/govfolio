@@ -498,7 +498,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   recur as before. These remain real, legitimate, separately-tracked blockers for Task 5's full
   yield — flagged here for whoever picks up the next narrowing pass (the header-block-shape
   finding in particular looks like it could be its own follow-up task), not fixed in this task.
-- [ ] **Task 4.10 — tolerate the `gfedc` band-parsing artifact (blocks Task 5's full-range run;
+- [x] **Task 4.10 — tolerate the `gfedc` band-parsing artifact (blocks Task 5's full-range run;
   now the dominant 2018-2022 failure).** Real finding from Task 4.8's own live re-verification: a
   `gfedc`-shaped token trails the amount band on many 2018-2022 rows whenever the Cap. Gains
   checkbox column is present in the source PDF, breaking band parsing (e.g. `band "$X - $Y gfedc"
@@ -518,6 +518,60 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   the `gfedc` artifact, with existing artifact-free band fixtures continuing to pass unchanged.
   Re-run a real dry-run sample against 2018-2022 and confirm this specific failure mode's
   occurrence count drops substantially.
+  **Closed 2026-07-07**: investigated first, against real, independently live-fetched and
+  sha256-pinned 2018-2022 electronic PTRs — five of them: Filing IDs #20016985 (2020, sha256
+  ce68b1f8b7def98256506531edd2c98557a0844e481ce0126a4cfec510202d6a), #20009788 (2018, sha256
+  38bb4d144e279c9ff999e6330e7ab90f2b5af86c6a705167da87fdd891e1755e), #20016326 (2020, sha256
+  50218765b6aed95559b71d556e36e2e59b772c6195f39a443716c3cc57a4ef25), #20019793 (2021, sha256
+  90663eab7fd7922e6d9533db8e220ca7f5f288047d76d7624650676f120575f2), #20020251 (2022, sha256
+  94542d4fec1917c208a02da0a5dd40b8a38414e4e5940defc29be68d86c98040) — plus a broader unpinned
+  sample across 2018/2019/2020/2021/2022 via the dry-run bin. Findings: the artifact is always a
+  standalone, whitespace-separated token trailing the FINAL closing amount (whether a single-line
+  band or the continuation line of a wrapped band), always exactly one of two literal
+  case-sensitive forms — `gfedc` or `gfedcb` (one letter longer) — never embedded mid-band or
+  attached without a preceding space. Same font-level mechanism that renders `nmlkj`/`nmlkji` for
+  the IPO Yes/No radio and a leading `gfedcb` before the certification paragraph elsewhere in
+  these same real documents (Task 4.9's own separately-flagged, still out-of-scope artifact) —
+  unrelated to case degradation, a PDF checkbox-widget glyph-name leak specific to the "Cap.
+  Gains > $200?" column.
+  Fix (`crates/adapters/us_house/src/parse.rs`, `scan_rows` only, additive): a new
+  `strip_band_artifact` helper discards a trailing `BAND_ARTIFACT_TOKENS` (`["gfedc", "gfedcb"]`)
+  token from the joined amount string — applied AFTER the existing wrap-join logic (so it covers
+  both single-line and wrapped bands uniformly) and BEFORE the `tables::band_bounds` grammar
+  check. Guards against absorbing real data: only strips when the token is a standalone trailing
+  token preceded by whitespace, never a partial/embedded match. An artifact-free band passes
+  through byte-for-byte unchanged.
+  4 new tests, all real-evidence-cited: `strip_band_artifact_discards_known_trailing_tokens_only`
+  (unit-level, both known forms plus a non-stripping embedded-match guard),
+  `scan_rows_accepts_real_gfedc_artifact_evidence` (real single-line AND wrapped-band rows from
+  Filing ID #20016985), `scan_rows_accepts_real_gfedcb_variant_evidence` (real wrapped-band row
+  from Filing ID #20016326), and an end-to-end
+  `parse_document_succeeds_against_real_2018_2022_gfedc_artifact_evidence` (real heading/header
+  block/rows from #20016985, doc id/filer info/signature clean synthetic grammar, matching this
+  suite's existing splicing convention). Red-green proven: with the fix's call site temporarily
+  disabled, the 3 non-unit new tests fail exactly as expected (`band "..." outside the grammar`);
+  restored, all 4 pass. `cargo test -p us_house`: 57 passed + 1 ignored (was 52+1 at Task 4.9's
+  close), every pre-existing test unchanged and green. `cargo fmt --check` and `cargo clippy
+  --all-targets -- -D warnings` both clean, workspace-wide (`cargo test --workspace`: 412 passed,
+  63 ignored, 0 failed).
+  Live re-verification against `govfolio_081_rehearsal`: `cargo run -p worker --bin backfill --
+  adapter us_house --from <year> --to <year> --dry-run --limit 40..60` for 2018, 2019, 2020, 2021,
+  and 2022 (260 real sampled filings total) — **zero** `band "..." outside the grammar` rejections
+  caused by the `gfedc`/`gfedcb` artifact in any of the five years (was, per Task 4.8's own close
+  note, "the single biggest remaining real-yield limiter"/"now the dominant 2018-2022 failure" —
+  roughly a third of the 2020 sample alone previously rejected on this exact error). The only
+  surviving `gfedc`/`gfedcb` mentions in the post-fix logs are inside a DIFFERENT,
+  already-separately-tracked error (`unknown transaction type token` — a scrambled-case lowercase
+  row-level type token, explicitly out of scope per this task) whose debug-printed raw line
+  happens to still echo the artifact because that row hard-rejects earlier in `find_anchor`,
+  before this fix's strip step is ever reached — not a regression or a miss. 2022 additionally
+  shows real classifications flowing through (11 adds of 40 sampled) now that this blocker is
+  gone. REAL FINDINGS surfaced, explicitly NOT fixed (separate, out of scope per this task,
+  already named by Tasks 4.6/4.8/4.9): scrambled-case lowercase row-level type tokens
+  (`unknown transaction type token Some("s")`/`Some("(partial)")`), non-zero-padded/garbled
+  signature dates and `Digitally Signed:` variants, `needs_llm_extraction` (expected, no
+  `ANTHROPIC_API_KEY` configured), and an `L:` sub-line inside the Transactions region. These
+  remain real, legitimate, separately-tracked blockers for Task 5's full yield, not fixed here.
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres

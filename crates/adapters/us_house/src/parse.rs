@@ -423,6 +423,41 @@ struct Anchor {
     amount: String,
 }
 
+/// Trailing PDF checkbox-widget artifact tokens (goal 081 Task 4.10): real
+/// 2018-2022 electronic PTR evidence (independently live-fetched and
+/// sha256-pinned this session — Filing IDs #20016985 (2020, sha256
+/// ce68b1f8b7def98256506531edd2c98557a0844e481ce0126a4cfec510202d6a),
+/// #20009788 (2018, sha256
+/// 38bb4d144e279c9ff999e6330e7ab90f2b5af86c6a705167da87fdd891e1755e),
+/// #20016326 (2020, sha256
+/// 50218765b6aed95559b71d556e36e2e59b772c6195f39a443716c3cc57a4ef25),
+/// #20019793 (2021, sha256
+/// 90663eab7fd7922e6d9533db8e220ca7f5f288047d76d7624650676f120575f2),
+/// #20020251 (2022, sha256
+/// 94542d4fec1917c208a02da0a5dd40b8a38414e4e5940defc29be68d86c98040)) shows a
+/// standalone, whitespace-separated token trailing the amount band whenever
+/// the "Cap. Gains > $200?" checkbox column is present — a PDF form-field
+/// glyph-name leak (the same font-level mechanism that renders `nmlkj` /
+/// `nmlkji` for the IPO Yes/No radio and a leading `gfedcb` before the
+/// certification paragraph elsewhere in these same documents, per Task 4.9's
+/// note — unrelated to case degradation). Always exactly one of these two
+/// literal, case-sensitive forms; never a partial/embedded match.
+const BAND_ARTIFACT_TOKENS: [&str; 2] = ["gfedc", "gfedcb"];
+
+/// Discards a trailing `BAND_ARTIFACT_TOKENS` token from an amount band
+/// string, if present as a standalone trailing token (goal 081 Task 4.10) —
+/// additive: a band with no artifact passes through unchanged, byte-for-byte.
+fn strip_band_artifact(amount: &str) -> String {
+    for token in BAND_ARTIFACT_TOKENS {
+        if let Some(stripped) = amount.strip_suffix(token)
+            && stripped.ends_with(char::is_whitespace)
+        {
+            return stripped.trim_end().to_owned();
+        }
+    }
+    amount.to_owned()
+}
+
 /// Content-order scan of the Transactions region into row drafts.
 #[allow(clippy::too_many_lines)] // one state machine, one place (§3.2 grammar)
 fn scan_rows(region: &[String]) -> anyhow::Result<Vec<RowDraft>> {
@@ -499,6 +534,11 @@ fn scan_rows(region: &[String]) -> anyhow::Result<Vec<RowDraft>> {
                 amount.push_str(next);
                 i += 1;
             }
+            // goal 081 Task 4.10: discard a trailing PDF checkbox-widget
+            // artifact before grammar-checking (never before — the artifact
+            // always trails the FINAL closing amount, wrapped or not, per
+            // real evidence).
+            amount = strip_band_artifact(&amount);
             // Hard rejects (§6.2): band outside grammar, unparseable dates.
             anyhow::ensure!(
                 tables::band_bounds(&amount).is_some(),
@@ -1202,5 +1242,142 @@ Digitally Signed: Jane Filer , 07/01/2014
         assert_eq!(doc.rows[0].row.filing_status_raw, "New");
         assert_eq!(doc.rows[0].row.transaction_type_raw, "P");
         assert!(doc.rows[0].row.asset_raw.contains("Example Corp"));
+    }
+
+    #[test]
+    fn strip_band_artifact_discards_known_trailing_tokens_only() {
+        // Goal 081 Task 4.10: both real forms observed in the live
+        // 2018-2022 sample strip cleanly.
+        assert_eq!(
+            strip_band_artifact("$1,001 - $15,000 gfedc"),
+            "$1,001 - $15,000"
+        );
+        assert_eq!(
+            strip_band_artifact("$15,001 - $50,000 gfedcb"),
+            "$15,001 - $50,000"
+        );
+        // ...an artifact-free band passes through unchanged, byte-for-byte.
+        assert_eq!(strip_band_artifact("$1,001 - $15,000"), "$1,001 - $15,000");
+        // Not a standalone trailing token (no preceding whitespace — an
+        // embedded/partial match) — must not strip real data.
+        assert_eq!(
+            strip_band_artifact("$1,001 - $15,000xgfedc"),
+            "$1,001 - $15,000xgfedc"
+        );
+    }
+
+    #[test]
+    fn scan_rows_accepts_real_gfedc_artifact_evidence() {
+        // Goal 081 Task 4.10: real `pdf_extract::extract_text_from_mem` lines
+        // from a live 2020 electronic PTR, Filing ID #20016985, fetched
+        // directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2020/20016985.pdf
+        // (pdf sha256 ce68b1f8b7def98256506531edd2c98557a0844e481ce0126a4cfec510202d6a).
+        // Two real rows: a single-line band carrying the trailing `gfedc`
+        // artifact, and a long/wrapped band whose continuation line ALSO
+        // carries it (Task 4.9's own wrap-join logic joins them into one
+        // string BEFORE this fix strips the trailing token) — both
+        // previously failed closed with `band "..." outside the grammar`.
+        let region: Vec<String> = vec![
+            "iD owner asset transaction".to_owned(),
+            "type Date notification".to_owned(),
+            "Date amount cap.".to_owned(),
+            "gains >".to_owned(),
+            "$200?".to_owned(),
+            String::new(),
+            "Alphabet Inc. - Class A (gOOgl)".to_owned(),
+            "[ST] P 02/28/2020 03/20/2020 $1,001 - $15,000 gfedc".to_owned(),
+            String::new(),
+            "FIlINg STATuS: New".to_owned(),
+            String::new(),
+            "Royal Dutch Shell PlC Royal".to_owned(),
+            "Dutch Shell PlC American".to_owned(),
+            "Depositary Shares (RDS.B) [ST]".to_owned(),
+            "S 02/21/2020 03/20/2020 $15,001 -".to_owned(),
+            "$50,000 gfedc".to_owned(),
+            String::new(),
+            "FIlINg STATuS: New".to_owned(),
+        ];
+        let drafts = scan_rows(&region).unwrap();
+        assert_eq!(drafts.len(), 2);
+        assert_eq!(drafts[0].amount_raw, "$1,001 - $15,000");
+        assert_eq!(drafts[1].amount_raw, "$15,001 - $50,000");
+    }
+
+    #[test]
+    fn scan_rows_accepts_real_gfedcb_variant_evidence() {
+        // Goal 081 Task 4.10: the second real trailing-artifact form
+        // (`gfedcb`, one letter longer than `gfedc`) confirmed against a
+        // live 2020 electronic PTR distinct from the one above: Filing ID
+        // #20016326, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2020/20016326.pdf
+        // (pdf sha256 50218765b6aed95559b71d556e36e2e59b772c6195f39a443716c3cc57a4ef25).
+        let region: Vec<String> = vec![
+            "iD owner asset transaction".to_owned(),
+            "type Date notification".to_owned(),
+            "Date amount cap.".to_owned(),
+            "gains >".to_owned(),
+            "$200?".to_owned(),
+            String::new(),
+            "Chicago IL Met Wtr R 5%".to_owned(),
+            "12/01/23 [gS] S 02/27/2020 03/10/2020 $50,001 -".to_owned(),
+            "$100,000 gfedcb".to_owned(),
+        ];
+        let drafts = scan_rows(&region).unwrap();
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].amount_raw, "$50,001 - $100,000");
+    }
+
+    #[test]
+    fn parse_document_succeeds_against_real_2018_2022_gfedc_artifact_evidence() {
+        // Goal 081 Task 4.10 end-to-end proof: `parse_document` now succeeds
+        // on real rows carrying the `gfedc` PDF checkbox-widget artifact
+        // trailing the amount band, which previously failed closed with
+        // `band "..." outside the grammar`. The heading/header block and
+        // both row lines below (one single-line band, one wrapped) are REAL
+        // `pdf_extract::extract_text_from_mem` text verbatim from a live
+        // 2020 electronic PTR: Filing ID #20016985, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2020/20016985.pdf
+        // (pdf sha256 ce68b1f8b7def98256506531edd2c98557a0844e481ce0126a4cfec510202d6a).
+        // Doc id / filer info / signature are clean synthetic grammar,
+        // matching this suite's existing convention (real evidence spliced
+        // in only for the elements this fix targets).
+        let text = "\
+Filing ID #20099997
+
+name: Jane Filer
+Status: Member
+State/District: XX00
+
+tranSactionS
+
+iD owner asset transaction
+type Date notification
+Date amount cap.
+gains >
+$200?
+
+Alphabet Inc. - Class A (gOOgl)
+[ST] P 02/28/2020 03/20/2020 $1,001 - $15,000 gfedc
+
+FIlINg STATuS: New
+
+Royal Dutch Shell PlC Royal
+Dutch Shell PlC American
+Depositary Shares (RDS.B) [ST]
+S 02/21/2020 03/20/2020 $15,001 -
+$50,000 gfedc
+
+FIlINg STATuS: New
+
+* For the complete list of asset type abbreviations, please visit https://fd.house.gov/reference/asset-type-codes.aspx.
+
+Digitally Signed: Jane Filer , 07/01/2020
+";
+        let doc = parse_document(text).unwrap();
+        assert_eq!(doc.doc_id, "20099997");
+        assert_eq!(doc.rows.len(), 2);
+        assert_eq!(doc.rows[0].row.amount_raw, "$1,001 - $15,000");
+        assert_eq!(doc.rows[1].row.amount_raw, "$15,001 - $50,000");
     }
 }
