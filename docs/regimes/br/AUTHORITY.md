@@ -559,6 +559,117 @@ prose rather than a replaced CSV row, that would need re-evaluating.
     historical-depth question before spending a full fetch+parse+normalize pass on
     it), no repeated/duplicate fetches (each year's ZIP fetched once, cached, reused
     across every sampled candidate that year).
+- 2026-07-06 · **Real write path built (rust-builder) — `crates/adapters/br/src/seed.rs` +
+  `crates/worker/src/bin/{seed-br-candidates,backfill-real-br}.rs`, plus a bounded
+  real proof against LIVE TSE data.** This is the `br` equivalent of goal 081's
+  `us_house` real-write backfill (`bin/backfill-real.rs`). Two design questions this
+  task had to resolve, both investigated directly against the Runner/roster code
+  (not assumed):
+  - **Does `br`'s resolution path mint a new politician on first encounter?** No —
+    confirmed by reading `pipeline::stages::roster::resolve_politician` and
+    `pipeline::run::Runner::publish_document` directly: there is no auto-mint path
+    for ANY regime. `resolve_politician` requires an EXACT pre-seeded
+    `(alias, district, body)` match or the filing fails closed with an
+    `unresolved_filer` `review_task` (invariant 3). A roster pre-seed is a genuine
+    precondition for `br`, same as `us_house`.
+  - **Is a full 1933-2024 "historical roster" pre-seed the right shape, given
+    `SQ_CANDIDATO` isn't durable and Brazil has no fixed ~435-seat roster?** No —
+    judgment call: unlike `us_house`'s Clerk index (a separate, durable member-list
+    authority independent of any one filing), `br` has no equivalent authority.
+    The only identity fields roster resolution needs (`NM_CANDIDATO`/`SG_UF`) live
+    inside the SAME `consulta_cand` bulk file `discover_year` already downloads to
+    discover filings. So "seeding the roster" for `br` means minting one
+    `politician`+`mandate` row per discovered candidate for the year(s) actually
+    being processed — there is no separate authority to pre-load ahead of time, and
+    no single "historical roster" artifact to build once. See
+    `crates/adapters/br/src/seed.rs`'s module doc comment for the full reasoning.
+  - **Known limitation, not fixed**: `RegimeBinding` carries one `body` string, but
+    `br`'s scope covers TWO bodies (Câmara dos Deputados + Senado Federal). Roster
+    resolution matches on `mandate.body = regime.body` (one fixed string), so this
+    seed path seeds `DEPUTADO FEDERAL` only; a real `SENADOR`/suplente filing still
+    correctly fails closed (`unresolved_filer`, invariant 3) rather than
+    misresolving — it just never resolves under this pass. Supporting `SENADOR`
+    needs either a second `RegimeBinding`/regime row or a `RunnerBinding`/roster
+    design change letting one binding match more than one body — a genuine
+    cross-regime design question, out of scope here.
+  - **Real defect found + fixed (shared code, zero blast radius)**:
+    `worker::backfill::log_budget_skip` hardcoded the string `"us_house"` into its
+    `agents/JOURNAL.md` log line — harmless while `us_house` was the only caller,
+    but would have mislabeled a `br` `BACKFILL_BUDGET` skip as `us_house`. Fixed by
+    threading a `regime_code: &str` parameter through (one call site in
+    `bin/backfill-real.rs` updated to pass `"us_house"`, its own test updated
+    identically); `bin/backfill-real-br.rs` passes `"br"`. No behavior change for
+    the existing `us_house` caller.
+  - **Bounded real proof, run against LIVE TSE data** (identified UA, concurrency 1,
+    2s min-interval, `DATABASE_URL` pointed at the shared local dev Postgres that
+    already carried `worker::bin::local_br`'s 2 prior filings/3 prior politicians):
+    scoped to `--from 2022 --to 2022 --uf AC,AL` (Acre + Alagoas — the two states
+    the pre-existing local_br.rs politicians/filings already live in, chosen so the
+    proof would directly exercise both idempotent replay of known candidates AND
+    real new writes, while staying small/deliberate per this task's own bounding
+    guidance).
+    - `seed-br-candidates --from 2022 --to 2022 --uf AC,AL`: 11423 candidates
+      discovered nationally (full-scope, honest reporting), 371 in AC+AL, 321
+      newly seeded as `DEPUTADO FEDERAL` politicians, 47 skipped (`SENADOR`/suplente
+      cargo — outside this pass's single-body scope), 0 errors.
+    - `backfill-real-br --from 2022 --to 2022 --uf AC,AL`: the default
+      `BACKFILL_BUDGET` (500) correctly SKIPPED this scope first
+      (`record_delta 904 > 500`, logged to `agents/JOURNAL.md`, nothing blocked) —
+      re-run with `BACKFILL_BUDGET=1000` (a deliberate, reasoned widen for this
+      one bounded, documented invocation, per the budget's own "widenable via the
+      env var" design intent). Real result: 371 filings processed, 343 published,
+      **0 replayed** (expected — this is the FIRST live-network publish claim for
+      every one of these candidates; the sha256 of freshly-fetched real bytes
+      differs from `local_br.rs`'s synthetic fixture bytes, so idempotency shows up
+      at the RECORD/fingerprint level, not the document-claim level — see below),
+      **751 Gold rows inserted**, 751 outbox events written, 0 review tasks from
+      successful publishes, 28 failed closed (`unresolved_filer` — real `SENADOR`/
+      suplente candidates with non-zero assets, correctly refused per invariant 3;
+      the other 19 of the 47 skipped-cargo candidates had zero declared assets and
+      published silently with 0 records, needing no roster resolution at all).
+    - **Idempotent replay CONFIRMED at the record level**: queried Gold directly —
+      both `local_br.rs`'s pre-existing filings (`2022:10001595344`,
+      `2022:20001716829`) still show exactly 3 `disclosure_record` rows each,
+      UNCHANGED by this real run, even though the real TSE-fetched bytes produced a
+      brand-new (non-replayed) publish claim for both. The real content's
+      per-regime fingerprint (`pipeline::fingerprint_content`) matched the
+      already-published rows' fingerprints exactly, so `insert_record`'s
+      `ON CONFLICT (fingerprint) DO NOTHING` absorbed them with zero new rows —
+      independent, real-data confirmation of the SAME fingerprint parity
+      `AUTHORITY.md`'s earlier dry-run proof already established.
+    - **New real writes confirmed**: total `br` Gold records went 6 → 757 (exactly
+      6 pre-existing + 751 new); total `br` `filing` rows went 2 → 161 (159 new,
+      2 reused via `ensure_filing`'s `ON CONFLICT (regime_id, external_id)`);
+      `review_task` count went 39 → 67 (exactly +28, one per failed candidate, no
+      duplicates).
+    - **Name-collision risk (flagged, not hit)**: `seed_roster`'s ambiguity check
+      only rejects an alias+district match against ALREADY-COMMITTED rows: two
+      different candidates sharing the exact same `(NM_CANDIDATO, SG_UF)` within one
+      seeding pass would silently merge onto the same politician (the second
+      candidate's `seed_roster` call would see the first's just-committed row as
+      "already seeded" and skip). Given `br` has thousands of one-time candidates
+      (unlike `us_house`'s much smaller fixed roster), this risk is real and worth
+      watching at larger scale. Checked directly against this run: 324 total `br`
+      politicians (3 pre-existing + 321 newly seeded) with ZERO
+      `(alias, district)` pairs shared by more than one politician row — no merge
+      occurred in this proof's scope.
+    - **ALERT-SUPPRESSION VERIFIED (mandatory per this session's standing
+      directive)**: queried `outbox_event` directly, scoped to the `br` regime.
+      ALL 751 new rows from this run carry `dispatched_at` equal to `created_at`
+      (pre-stamped at insert time, backfill-mode `FilingSpec::backfill = true`
+      threading through correctly) — the real-time alert dispatcher's
+      `dispatched_at is null` poll will never pick these up. The only 6
+      non-suppressed (`dispatched_at is null`) `br` outbox events are
+      `local_br.rs`'s PRE-EXISTING rows from an earlier, unrelated proof (that bin
+      never sets `Runner::with_backfill`) — predate this task entirely, not
+      created by this run, and out of this task's scope to fix (flagged here for
+      awareness; a real subscriber alert on those 6 would only ever fire once, the
+      first time the dispatcher polls them, and is a pre-existing condition this
+      task did not introduce).
+    - Not attempted (explicitly out of scope for this pass): the full 1933-2024
+      historical range, the full 2022 nationwide population (11423 candidates),
+      and `SENADOR`/suplente resolution — all flagged above as later,
+      independently-audited increments.
 
 ## Operational notes (politeness incidents, outages)
 

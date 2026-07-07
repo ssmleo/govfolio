@@ -122,7 +122,7 @@ async fn high_count_year_halts_skips_the_write_and_logs_cleanly() {
     let root = scratch_root("high");
     match verdict {
         BudgetVerdict::Skip { record_delta } => {
-            log_budget_skip(&root, year, record_delta, budget).unwrap();
+            log_budget_skip(&root, "us_house", year, record_delta, budget).unwrap();
         }
         BudgetVerdict::Proceed { .. } => {
             write_attempts += 1;

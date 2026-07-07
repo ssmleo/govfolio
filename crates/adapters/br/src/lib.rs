@@ -13,6 +13,7 @@ pub mod binding;
 pub mod details;
 pub(crate) mod normalize;
 pub(crate) mod parse;
+pub mod seed;
 pub(crate) mod tables;
 
 pub use adapter::BrAdapter;

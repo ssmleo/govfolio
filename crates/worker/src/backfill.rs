@@ -797,8 +797,8 @@ pub fn budget_verdict(record_delta: usize, budget: usize) -> BudgetVerdict {
 /// dry-processed) and reads `report.years[0].record_delta` (already
 /// computed — no new prediction/classification code), then applies
 /// [`budget_verdict`]. `regime_code` is threaded straight to `dry_run`
-/// (see [`candidate_fingerprints`]); today's only real caller
-/// (`bin/backfill-real.rs`) always passes `"us_house"`.
+/// (see [`candidate_fingerprints`]); `bin/backfill-real.rs` passes
+/// `"us_house"`, `bin/backfill-real-br.rs` passes `"br"`.
 ///
 /// # Errors
 /// The underlying `dry_run` call fails (a baseline DB failure — an
@@ -824,12 +824,16 @@ pub async fn gate_year(
 /// Appends one skip line to `<root>/agents/JOURNAL.md`, matching the
 /// existing halt-entry convention: `date | item | outcome | blockers`.
 /// Called only on [`BudgetVerdict::Skip`] — nothing blocks the range, so this
-/// is a log line, not a `## BLOCKED (human)` halt.
+/// is a log line, not a `## BLOCKED (human)` halt. `regime_code` labels the
+/// entry (originally hardcoded to `us_house` when this was the only caller;
+/// parameterized when `br` gained its own real-write bin so a `br` skip is
+/// never mislabeled `us_house` in the journal).
 ///
 /// # Errors
 /// The journal file cannot be created/appended (filesystem failure).
 pub fn log_budget_skip(
     root: &Path,
+    regime_code: &str,
     year: i32,
     record_delta: usize,
     budget: usize,
@@ -846,7 +850,7 @@ pub fn log_budget_skip(
     let date = chrono::Utc::now().date_naive();
     writeln!(
         file,
-        "{date} | 081/T4 | BACKFILL_BUDGET skip: us_house {year} record_delta={record_delta} \
+        "{date} | 081/T4 | BACKFILL_BUDGET skip: {regime_code} {year} record_delta={record_delta} \
          exceeds budget={budget} | none — nothing blocks; a later invocation retries {year}"
     )
     .with_context(|| format!("appending to {}", path.display()))?;

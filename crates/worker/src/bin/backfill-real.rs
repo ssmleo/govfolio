@@ -95,6 +95,11 @@ fn add_report(total: &mut RunReport, year: i32, report: RunReport) {
 }
 
 #[tokio::main]
+// `log_budget_skip`'s new required `regime_code` parameter (added when `br`
+// gained its own real-write bin, `bin/backfill-real-br.rs`) reformats this
+// call across more lines, pushing this otherwise-unchanged function 6 lines
+// past the limit — not a genuine complexity regression.
+#[allow(clippy::too_many_lines)]
 async fn main() -> anyhow::Result<()> {
     let args = parse_args()?;
     let database_url =
@@ -164,7 +169,13 @@ async fn main() -> anyhow::Result<()> {
                     "{year}: SKIPPED — record_delta {record_delta} exceeds BACKFILL_BUDGET \
                          {budget}; logged to agents/JOURNAL.md, continuing (nothing blocks)"
                 );
-                worker::backfill::log_budget_skip(&journal_root, year, record_delta, budget)?;
+                worker::backfill::log_budget_skip(
+                    &journal_root,
+                    "us_house",
+                    year,
+                    record_delta,
+                    budget,
+                )?;
                 continue;
             }
             worker::backfill::BudgetVerdict::Proceed { record_delta } => record_delta,
