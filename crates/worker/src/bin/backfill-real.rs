@@ -150,18 +150,25 @@ async fn main() -> anyhow::Result<()> {
 
     let mut total = RunReport::default();
     for (year, refs) in by_year {
-        let record_delta =
-            match worker::backfill::gate_year(&gate_source, &gate_baseline, year, budget).await? {
-                worker::backfill::BudgetVerdict::Skip { record_delta } => {
-                    println!(
-                        "{year}: SKIPPED — record_delta {record_delta} exceeds BACKFILL_BUDGET \
+        let record_delta = match worker::backfill::gate_year(
+            &gate_source,
+            &gate_baseline,
+            "us_house",
+            year,
+            budget,
+        )
+        .await?
+        {
+            worker::backfill::BudgetVerdict::Skip { record_delta } => {
+                println!(
+                    "{year}: SKIPPED — record_delta {record_delta} exceeds BACKFILL_BUDGET \
                          {budget}; logged to agents/JOURNAL.md, continuing (nothing blocks)"
-                    );
-                    worker::backfill::log_budget_skip(&journal_root, year, record_delta, budget)?;
-                    continue;
-                }
-                worker::backfill::BudgetVerdict::Proceed { record_delta } => record_delta,
-            };
+                );
+                worker::backfill::log_budget_skip(&journal_root, year, record_delta, budget)?;
+                continue;
+            }
+            worker::backfill::BudgetVerdict::Proceed { record_delta } => record_delta,
+        };
         println!(
             "{year}: budget OK (record_delta {record_delta} <= BACKFILL_BUDGET {budget}) — \
              proceeding to the real write"

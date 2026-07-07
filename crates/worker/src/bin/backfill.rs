@@ -1,12 +1,19 @@
-//! US archive backfill (goal 080, design §5.6): "backfill = the same pipeline
-//! pointed at archives." This bin drives the **dry-run** half — discover the
-//! Clerk's per-year `{YYYY}FD.zip` indexes back to the 2012 STOCK Act era,
-//! dry-process a BOUNDED per-year sample, and print a diff report (adds /
-//! changes / supersessions) WITHOUT writing Bronze/Silver/Gold.
+//! Archive backfill dry-run (goal 080, design §5.6; extended for `br` — the
+//! second `ArchiveSource` this bin drives): "backfill = the same pipeline
+//! pointed at archives." For `us_house`: discover the Clerk's per-year
+//! `{YYYY}FD.zip` indexes back to the 2012 STOCK Act era. For `br`: discover
+//! TSE's per-year nationwide bulk ZIPs (`consulta_cand`/`bem_candidato`,
+//! `docs/regimes/br/AUTHORITY.md`). Either way: dry-process a BOUNDED per-year
+//! sample, and print a diff report (adds/changes/supersessions) WITHOUT
+//! writing Bronze/Silver/Gold. The dry-run engine itself
+//! (`worker::backfill::{dry_run, ArchiveSource, GoldBaseline}`) is fully
+//! regime-agnostic — this bin is just the CLI + per-adapter wiring
+//! (`ClerkArchive`/`TseArchive`, and each regime's own Gold `regime_id`).
 //!
 //! Usage:
 //! ```text
 //! cargo run -p worker --bin backfill -- --adapter us_house --from 2012 --dry-run
+//! cargo run -p worker --bin backfill -- --adapter br --from 2022 --dry-run
 //!   [--to <year>]      last archive year (default: current year)
 //!   [--limit <N>]      per-year dry-process sample bound (default 5; 0 =
 //!                      discover-only — count filings, do not fetch/classify)
@@ -15,7 +22,8 @@
 //! `--dry-run` is REQUIRED. The real (write-to-prod) backfill is a HALT: it
 //! needs the cloud substrate applied (goal 020 ADC), a founder diff-approval,
 //! and a go/no-go. Without `--dry-run` this bin refuses and prints those
-//! preconditions.
+//! preconditions. (`br` has no real-write bin at all yet — `bin/backfill-real.rs`
+//! is `us_house`-only; a `br` real-write pass is a separate, later task.)
 //!
 //! Env: `DATABASE_URL` (optional). When set + reachable, the dry run classifies
 //! each sampled filing against the real Gold (add/change/supersession/
@@ -27,7 +35,32 @@
 use anyhow::Context as _;
 use chrono::Datelike as _;
 
-use worker::backfill::{ClerkArchive, DiffReport, GoldBaseline, NoBaseline, PgBaseline, dry_run};
+use worker::backfill::{
+    ArchiveSource, ClerkArchive, DiffReport, GoldBaseline, NoBaseline, PgBaseline, TseArchive,
+    dry_run,
+};
+
+/// Same conformance/prod `br` regime id `br::normalize`'s private
+/// `CONFORMANCE_REGIME_ID` pins and `worker::bin::local_br` also reuses (`br`
+/// has no public `seed`/`REGIME_ID` module yet, unlike `us_house`) —
+/// duplicated here with the same justification as that bin's own doc comment.
+const BR_REGIME_ID: &str = "0BRAREG0000000000000000001";
+
+/// Earliest archive year each adapter can be asked to sweep. `us_house`: the
+/// Clerk's electronic PDF archive begins at the 2012 STOCK Act era (existing
+/// convention). `br`: TSE's open-data catalog lists a `candidatos-<year>`
+/// package back to 1933 (`docs/regimes/br/AUTHORITY.md historical_depth`) —
+/// how far back `bem_candidato`-shaped itemized-asset data actually exists is
+/// an open question this bin's own dry run can help answer, so the floor
+/// here is the catalog's own earliest year, not an assumed later one. Only
+/// quadrennial federal-election years (`year % 4 == 2`) hold real `br` data;
+/// any other year fails closed per-year (`BrAdapter`'s 404), never silently.
+fn min_year(adapter: &str) -> i32 {
+    match adapter {
+        "br" => 1933,
+        _ => 2012,
+    }
+}
 
 /// Default per-year sample bound (honest cap; the full scope is always reported
 /// in the diff's `discovered` column). A full 2012→now backfill is thousands of
@@ -76,15 +109,16 @@ fn parse_args() -> anyhow::Result<Args> {
 
     let adapter = adapter.context("--adapter is required (e.g. --adapter us_house)")?;
     anyhow::ensure!(
-        adapter == "us_house",
-        "adapter {adapter:?} has no backfill wiring — only us_house is archived to 2012 today"
+        adapter == "us_house" || adapter == "br",
+        "adapter {adapter:?} has no backfill wiring — only us_house/br are archived today"
     );
     let from = from.context("--from is required (e.g. --from 2012)")?;
     let to = to.unwrap_or(current_year);
     anyhow::ensure!(from <= to, "--from {from} is after --to {to}");
+    let floor = min_year(&adapter);
     anyhow::ensure!(
-        (2012..=current_year + 1).contains(&from),
-        "--from {from} is outside the archived range (2012..={current_year})"
+        (floor..=current_year + 1).contains(&from),
+        "--from {from} is outside {adapter}'s archived range ({floor}..={current_year})"
     );
     Ok(Args {
         adapter,
@@ -158,18 +192,25 @@ async fn main() -> anyhow::Result<()> {
     // Gold baseline, so we do not fetch PDFs at all — just count the archives.
     let effective_limit = if pool.is_some() { args.limit } else { 0 };
 
-    let source = ClerkArchive::new(pool.clone(), scratch)?;
+    let source: Box<dyn ArchiveSource> = match args.adapter.as_str() {
+        "us_house" => Box::new(ClerkArchive::new(pool.clone(), scratch)?),
+        "br" => Box::new(TseArchive::new(pool.clone(), scratch)?),
+        other => unreachable!("parse_args already validated the adapter, got {other:?}"),
+    };
+    let regime_id = match args.adapter.as_str() {
+        "us_house" => us_house::seed::REGIME_ID.to_owned(),
+        "br" => BR_REGIME_ID.to_owned(),
+        other => unreachable!("parse_args already validated the adapter, got {other:?}"),
+    };
     let baseline: Box<dyn GoldBaseline> = match &pool {
-        Some(pool) => Box::new(PgBaseline::new(
-            pool.clone(),
-            us_house::seed::REGIME_ID.to_owned(),
-        )),
+        Some(pool) => Box::new(PgBaseline::new(pool.clone(), regime_id)),
         None => Box::new(NoBaseline),
     };
 
     let report: DiffReport = dry_run(
-        &source,
+        source.as_ref(),
         baseline.as_ref(),
+        &args.adapter,
         args.from,
         args.to,
         effective_limit,

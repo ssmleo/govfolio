@@ -86,6 +86,7 @@ open_questions:
   - question: "Whether bem_candidato-shaped itemized asset data exists as far back as TSE's candidate-registration catalog does (1933), or only from some later year once the modern itemized-CSV format was introduced. This session verified 2022 and 2024 directly but did not check earlier cycles."
     tried:
       - "confirmed via package_list that a 'candidatos-<year>' package exists for nearly every year 1933-2024 (except 2020), but only opened/parsed the 2022 and 2024 bem_candidato resources this session — earlier years' bem_candidato resource shape not directly verified"
+      - "rust-builder (2026-07-06, real dry-run against live cdn.tse.jus.br, `worker::backfill::TseArchive`): substantially narrowed, not fully closed. `curl -I` against the hardcoded `bem_candidato_{year}.zip` URL pattern shows it 404s for 1994/1998/2002 and returns 200 from 2006 onward — so the itemized-asset bulk format does NOT reach back to 1933; it starts somewhere at/after 2006. But the CSV SCHEMA itself forks within that reachable range: downloaded+inspected 2010's real `bem_candidato_2010_AC.csv` header directly — it carries `NR_ORDEM_CANDIDATO`/`DT_ULTIMA_ATUALIZACAO`/`HH_ULTIMA_ATUALIZACAO` (plus extra columns `DT_GERACAO`/`HH_GERACAO`/`CD_TIPO_ELEICAO`/`NM_TIPO_ELEICAO`/`CD_ELEICAO`/`DS_ELEICAO`/`SG_UE`/`NM_UE` this adapter doesn't model), NOT this adapter's `NR_ORDEM_BEM_CANDIDATO`/`DT_ULT_ATUAL_BEM_CANDIDATO`/`HH_ULT_ATUAL_BEM_CANDIDATO` — core content columns (`SQ_CANDIDATO`, `CD_TIPO_BEM_CANDIDATO`, `DS_TIPO_BEM_CANDIDATO`, `DS_BEM_CANDIDATO`, `VR_BEM_CANDIDATO`) ARE present under the same names, so this reads as a column-RENAME fork, not a wholesale format change. A real dry run (`cargo run -p worker --bin backfill -- --adapter br --from 2006 --to 2006 --dry-run` and `--from 2010 --to 2010`) confirms the adapter fails CLOSED on both years exactly as invariant 6 requires (`CSV deserialize error: missing field 'NR_ORDEM_BEM_CANDIDATO'`), never silently misparsing the old schema. Downloaded+inspected 2014's real header directly: it already matches this adapter's current field names exactly. So: the CURRENT adapter schema is confirmed good from (at least) 2014 through 2022 (also dry-run-verified for 2018/2022, see Quirks log entry below); 2006 and 2010 exist but use an older, different (though closely related) column-name schema this adapter does not yet parse; 2002 and earlier have no `bem_candidato` bulk file at all under this URL pattern. Separately, `consulta_cand_{year}.zip` (registration/identity metadata, not the asset content) resolves back to at least 1994 (200 OK) — its own historical depth exceeds the itemized-asset content's. Not resolved: whether an even-older bem-like dataset exists under a different name/host pre-2006, and whether the 2006/2010 schema could be supported with a small adapter extension (a genuine schema-fork question for a future historical-depth task, analogous to `us_house`'s own pre-2015 PDF-format fork — out of scope for this dry-run proof)."
   - question: "Whether the declaração de bens ever attributes a specific item to a spouse/dependent (an 'owner' distinction), given Brazil's default community-property marital regime (comunhão parcial de bens), or whether conjugal assets are always merged into the candidate's own undifferentiated list. No owner-like column was observed in the bem_candidato schema (leiame documents none)."
     tried:
       - "read the full bem_candidato leiame field dictionary (archived: e46cb76c0124f0002d4480c49680ae2e01f21e5711bb7134c949843dfd64c947) — no owner/titularity field documented"
@@ -93,6 +94,7 @@ open_questions:
   - question: "Why the 'candidatos-2020' open-data package is absent from TSE's catalog (2018 and 2022 present; 2024 present; 2020 missing) — a genuine gap or a naming variant not yet found. Does not affect Câmara/Senado coverage (2020 was a municipal-only year) but is worth resolving before any municipal-office epoch."
     tried:
       - "surveyor pass (2026-07-06): package_show?id=candidatos-2020 returns success:false against the live CKAN API; did not search for an alternate package name/slug for the 2020 cycle in the time budgeted"
+      - "rust-builder (2026-07-06, real dry-run, `worker::backfill::TseArchive` over `--from 2018 --to 2022`): the practical Câmara/Senado-coverage half of this question is now directly confirmed, independent of the CKAN catalog gap. `consulta_cand_2020.zip`/`bem_candidato_2020.zip` ARE reachable on `cdn.tse.jus.br` (no 404, unlike the true non-election years 2019/2021, which both 404 as expected) and parse cleanly, but yield ZERO `DEPUTADO FEDERAL`/`SENADOR`/suplente rows after the `DS_CARGO` scope filter — `discover_year(2020, ctx)` returns an empty `Vec` with no error. This is exactly the outcome `cadence_and_lag`'s municipal-only-2020 claim predicts, now confirmed against the live bulk data itself rather than only the CKAN metadata layer. The CKAN catalog's own 'candidatos-2020' gap (a metadata/discovery-layer question) remains open, but it does not affect this regime, confirmed twice over now."
 regime_versions:
   - effective_from: "1997-09-30"
     change: "Lei 9.504/1997 (Lei das Eleições) enacted; art. 11 §1º IV establishes the declaração de bens as a mandatory candidacy-registration document for the first time in this consolidated form."
@@ -468,3 +470,129 @@ prose rather than a replaced CSV row, that would need re-evaluating.
   new/changed candidates this poll" (empty `discover()` result for that dataset) —
   the same semantics `us_house`'s index-304 handling uses, applied here to a whole-year
   bulk file rather than a per-doc index.
+- 2026-07-06 · **Dry-run backfill proof built and run against LIVE TSE data
+  (rust-builder)** — `worker::backfill::TseArchive` (mirrors the existing `us_house`
+  `ClerkArchive` shape exactly: wraps `BrAdapter`, `discover_year`/`fetch`/`parse`/
+  `normalize` reused as-is) plugs `br` into the already-generic dry-run/diff-report
+  engine (`crates/worker/src/backfill.rs`), wired through `cargo run -p worker --bin
+  backfill -- --adapter br`. No new caching code was needed: `BrAdapter::discover_year`
+  already downloads+joins both nationwide ZIPs ONCE per year and caches every
+  candidate's joined declaration in-process (see the `Bronze-doc granularity` Quirks
+  entry above) — `TseArchive::dry_process`'s per-candidate `fetch()` call is a cache
+  hit against that same instance, never a second network round trip. A REAL bug was
+  found and fixed first: `candidate_fingerprints()` (the dry-run's fingerprint
+  reproduction) was hashing the bare `serde_json::to_value(&bound)` — the OLD,
+  pre-fix formula this project already replaced everywhere else with the per-regime
+  `pipeline::fingerprint_content::fingerprint_content` hook (`publish.rs`) — so any
+  regime's dry-run reusing this shared code (not just `br`'s) would have
+  misclassified a content-identical-but-metadata-touched row as `Change` instead of
+  `Unchanged`. Fixed by threading a `regime_code: &str` parameter through
+  `candidate_fingerprints`/`classify`/`dry_run`/`gate_year` and calling the shared
+  hook; proven zero-blast-radius for `us_house` (this project's only real production
+  caller of this path today) by a dedicated test reproducing the OLD bare-serialization
+  formula by hand and asserting byte-identical fingerprints
+  (`crates/worker/src/backfill.rs`'s
+  `us_house_candidate_fingerprints_are_unchanged_by_the_fingerprint_content_refactor`).
+  **Real dry-run results** (identified UA, concurrency 1, ~2s interval, `DATABASE_URL`
+  pointed at the local dev Postgres that already carries the 2 filings
+  `worker::bin::local_br` previously published there):
+  - **2022, full population** (`--from 2022 --to 2022 --limit 11423`, i.e. every
+    in-scope candidate, not a sample): 11423 `DEPUTADO FEDERAL`/`SENADOR`/suplente
+    candidacies discovered. Classified: 7367 Add (new), 2 Unchanged, 0 Change, 0
+    Supersession, 4054 flagged "failed" by the dry-run engine (see the finding below —
+    these are legitimate zero-asset candidacies, not real defects). The 2 `Unchanged`
+    rows are BOTH previously-published fixture filings
+    (`worker::bin::local_br`'s `2022:10001595344`/`2022:20001716829`) — the dry run
+    reproduced their exact `publish.rs` fingerprints against REAL production Gold
+    data end to end, the strongest possible proof of fingerprint parity (prior tests
+    for this only used synthetic candidates).
+  - **Zero-asset rate, quantified**: 4054/11423 ≈ 35.5% of ALL in-scope 2022
+    candidates have zero declared assets — much more than AUTHORITY.md's prior
+    small-Acre-sample "several candidates" language conveyed; now a real,
+    whole-population number.
+  - **2018** (9830 discovered), **2019/2021** (both 404 — genuine non-election years,
+    fail closed per-year exactly as designed, do not sink the 2018-2022 range),
+    **2020** (0 in-scope after the `DS_CARGO` filter, no error — see the
+    `candidatos-2020` open-question update above): a `--from 2018 --to 2022` sweep
+    exercises every one of these outcomes in one real run.
+  - **Historical-depth schema fork, directly confirmed** (see the historical-depth
+    open-question update above for detail): `bem_candidato` 404s for 2002/1998/1994,
+    resolves (200) from 2006, but 2006/2010's real CSV schema uses different column
+    names (`NR_ORDEM_CANDIDATO`, `DT_ULTIMA_ATUALIZACAO`/`HH_ULTIMA_ATUALIZACAO`) than
+    this adapter's current struct expects — the adapter correctly fails closed
+    (invariant 6) on both years rather than silently misparsing; 2014 onward already
+    matches the modern schema. `consulta_cand` (registration metadata) resolves
+    further back, to at least 1994.
+  - **FINDING, not fixed here — cross-regime dry-run engine gap**: the generic
+    `dry_process_one` (`crates/worker/src/backfill.rs`) treats ANY zero-candidate
+    `normalize()` result as a per-filing failure ("would fail closed, invariant 6"),
+    with no per-regime exemption. `pipeline::zero_rows` already exempts `br` from
+    this exact check in the REAL `Runner` (zero-asset candidacies are a legitimate,
+    expected outcome per plan.md edge case 1) — but the dry-run engine has no
+    equivalent exemption, so the real 2022 run above reports 4054 legitimate
+    zero-asset candidacies as "failed" filings. Not a real defect (nothing is
+    actually broken — the classification undercounts "true" adds/unchanged by
+    exactly the zero-asset count, and the printed reason names the right mechanism),
+    but a real, live-confirmed inaccuracy in the report's "failed" column for `br`
+    specifically. A proper fix would thread `regime_code` into `dry_process_one`'s
+    zero-candidate check and consult `pipeline::zero_rows::allowed(regime_code)` the
+    same way `run.rs` already does — a small, mechanical follow-up, not attempted in
+    this pass (out of this task's scope, and `us_house` has no analogous case to
+    prove zero blast radius against without a second regime already exercising it).
+  - **FINDING ABOVE RESOLVED** — `dry_process_one` now threads `regime_code` and
+    consults `pipeline::zero_rows::allowed(regime_code)` before its zero-candidate
+    check, exactly as recommended: `br`'s zero-asset candidacies now classify as
+    `FilingClass::Add { records: 0 }` instead of a per-filing failure. Independently
+    re-verified against the REAL full 2022 population (`--adapter br --from 2022
+    --to 2022 --limit 11423`): discovered 11423, adds 11421 (= 7367 real-asset adds +
+    4054 zero-asset adds, now correctly folded together), unchanged 2, **failed 0** —
+    down from the pre-fix 4054 false failures. `us_house`'s own zero-candidate
+    regression test (`zero_candidate_filing_is_a_per_filing_failure_not_a_crash`)
+    confirms zero blast radius: a zero-candidate `us_house` filing still classifies
+    as a failure, since `us_house` is not in `pipeline::zero_rows`'s allow-list.
+  - Politeness: identified UA (`PolitenessCfg::user_agent()`'s standard
+    `govfolio-bot/0.1 (+https://govfolio.io; ...)` format, via `BrAdapter::politeness()`),
+    concurrency 1, 2s min-interval — same convention as every prior phase. Total real
+    network cost across this whole proof: one `consulta_cand`+`bem_candidato` ZIP pair
+    per year touched (2006, 2010, 2014, 2018, 2019, 2020, 2021, 2022 — plus a handful
+    of ad hoc `curl -I` HEAD probes for 1994/1998/2002/2006/2010/2014 to scope the
+    historical-depth question before spending a full fetch+parse+normalize pass on
+    it), no repeated/duplicate fetches (each year's ZIP fetched once, cached, reused
+    across every sampled candidate that year).
+
+## Operational notes (politeness incidents, outages)
+
+- 2026-07-06 · `divulgacandcontas.tse.jus.br`: root and `/divulga/` both 302 to
+  `cdn.tse.jus.br/indisponivel.html` on every probe this session, identical to the
+  Phase-0 scout's 2026-07-06 finding — re-probed independently at survey time via a fresh
+  `curl -sIL`, unchanged. Its `robots.txt` is the same catch-all redirect, not real
+  robots grammar (self-imposed limits govern, invariant 10). Sentinel should watch this
+  host for recovery.
+- 2026-07-06 · `dadosabertos.tse.jus.br`: reachable, real robots.txt with
+  `Disallow: /api/` and `Crawl-Delay: 10`; this survey's CKAN API calls (`package_show`,
+  `package_search`, `package_list`) were made at concurrency 1 with several seconds
+  between calls, but are flagged in tos_and_politeness/Quirks log as a path the eventual
+  automated adapter should avoid in favor of the unrestricted `cdn.tse.jus.br` host.
+- 2026-07-06 · `cdn.tse.jus.br`: no robots.txt (HTTP 404 on that path); ~9 bulk ZIP/HEAD
+  requests this session (consulta_cand + bem_candidato, 2022 and 2024, plus one HEAD),
+  identified UA, concurrency 1, several seconds between requests — no throttling or
+  errors observed.
+- 2026-07-06 · `www.planalto.gov.br`: bare identified UA ('govfolio.io research
+  (contact: ssm.leo@outlook.com)') got a TCP connection reset (TLS-layer) on every
+  attempt fetching the Lei 9.504/1997 text; a standard browser UA string with the same
+  contact identification appended succeeded immediately (HTTP 200). Same class of
+  non-stock-UA host block already documented for `us_senate`/`uk_commons_register` in
+  the `polite-fetching` skill — logged there rather than re-litigated here.
+- 2026-07-06 · `www2.camara.leg.br/edbr/inicio` (the internal DBR system): HTTP 502,
+  same failure the Phase-0 scout observed — re-checked independently this session, no
+  change. Not a public disclosure surface either way (see open_questions).
+- 2026-07-06 · **Process incident (orchestrator)**: this entire section was accidentally
+  dropped from the file by a later Phase-4 write-back (the `RunnerBinding` build, commit
+  `e6944ae`) — a full 5-required-section file got reduced to 4, and `validate-survey --
+  br` was not re-run after that commit to catch it (every subsequent phase's gate checks
+  focused on the code/conformance changes, not re-validating this artifact). Caught only
+  when re-running `validate-survey` after this same session's later dry-run write-back.
+  Recovered verbatim from the surveyor's original commit (`c578506`) via `git show`; no
+  content lost. Lesson: `validate-survey`/`validate-sources`/`validate-manifest` should
+  be re-run as a matter of course any time a later phase appends to a regime's
+  `AUTHORITY.md`, not only when the phase whose job is specifically the survey runs.

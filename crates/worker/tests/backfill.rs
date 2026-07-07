@@ -189,7 +189,7 @@ async fn dry_run_on_empty_gold_reports_adds_and_supersession_and_writes_nothing(
     let source = FixtureArchive::new(&pool);
     let before = table_counts(&pool).await;
 
-    let report: DiffReport = dry_run(&source, &pg_baseline(&pool), 2026, 2026, 10)
+    let report: DiffReport = dry_run(&source, &pg_baseline(&pool), "us_house", 2026, 2026, 10)
         .await
         .unwrap();
 
@@ -235,7 +235,7 @@ async fn dry_run_after_publish_reports_unchanged_and_writes_nothing(pool: PgPool
     // only holds if the dry run reproduces the publish fingerprints exactly.
     let source = FixtureArchive::new(&pool);
     let before = table_counts(&pool).await;
-    let report = dry_run(&source, &pg_baseline(&pool), 2026, 2026, 10)
+    let report = dry_run(&source, &pg_baseline(&pool), "us_house", 2026, 2026, 10)
         .await
         .unwrap();
 
@@ -294,7 +294,7 @@ async fn baseline_lookup_reproduces_publish_fingerprints(pool: PgPool) {
             filing.external_id
         );
         assert_eq!(
-            classify(base.as_ref(), &candidates).unwrap(),
+            classify("us_house", base.as_ref(), &candidates).unwrap(),
             FilingClass::Unchanged,
             "filing {} fingerprints must match publish",
             filing.external_id

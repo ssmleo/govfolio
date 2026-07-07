@@ -105,7 +105,9 @@ async fn high_count_year_halts_skips_the_write_and_logs_cleanly() {
     let over_budget_delta = budget + 5; // 10 filings, record_delta 10 > budget 5
     let source = FakeYear::new(year, over_budget_delta);
 
-    let verdict = gate_year(&source, &NoBaseline, year, budget).await.unwrap();
+    let verdict = gate_year(&source, &NoBaseline, "us_house", year, budget)
+        .await
+        .unwrap();
     assert_eq!(
         verdict,
         BudgetVerdict::Skip {
@@ -161,7 +163,9 @@ async fn low_count_year_proceeds_to_a_real_write() {
     let under_budget_delta = 2; // 2 filings, record_delta 2 <= budget 5
     let source = FakeYear::new(year, under_budget_delta);
 
-    let verdict = gate_year(&source, &NoBaseline, year, budget).await.unwrap();
+    let verdict = gate_year(&source, &NoBaseline, "us_house", year, budget)
+        .await
+        .unwrap();
     assert_eq!(
         verdict,
         BudgetVerdict::Proceed {

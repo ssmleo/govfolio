@@ -133,13 +133,27 @@ fn is_amendment(candidate: &GoldCandidate) -> bool {
 /// Reproduces the production `disclosure_record.fingerprint` for each candidate,
 /// EXACTLY as the publish stage does (`crates/pipeline/src/stages/publish.rs`):
 /// bind the resolved identity triple, then hash `(filing_id, ordinal, canonical
-/// content)`. `us_house` has no redaction rule, so the publish-time redaction
-/// is a no-op here; a backfill regime WITH active redaction would refine this.
+/// content)` via the SAME per-regime [`pipeline::fingerprint_content::fingerprint_content`]
+/// hook `publish.rs` calls — **fixed** here (this function used to duplicate
+/// the OLD pre-fix bare `serde_json::to_value(&bound)` serialization instead
+/// of calling the shared hook, so any regime with an excluded-details-key
+/// rule — e.g. `br`'s bulk-retimestamp fields, see
+/// `docs/regimes/br/AUTHORITY.md` Quirks log — would misclassify a
+/// content-identical-but-metadata-touched row as `Change` here even though
+/// the real publish path already got this right). `regime_code` selects the
+/// per-regime hook arm; the default arm (every regime but `br`) is
+/// byte-identical to the old bare serialization (see
+/// `crates/worker/src/backfill.rs`'s own
+/// `us_house_candidate_fingerprints_are_unchanged_by_the_fingerprint_content_refactor`
+/// test and `pipeline::fingerprint_content`'s own zero-blast-radius tests).
+/// `us_house` has no redaction rule, so the publish-time redaction is a no-op
+/// here; a backfill regime WITH active redaction would refine this.
 ///
 /// # Errors
 /// A baseline id that is not a valid ULID, or a candidate that will not
 /// serialize.
 pub fn candidate_fingerprints(
+    regime_code: &str,
     baseline: &FilingBaseline,
     candidates: &[GoldCandidate],
 ) -> anyhow::Result<Vec<String>> {
@@ -160,17 +174,21 @@ pub fn candidate_fingerprints(
                 .regime_id
                 .parse()
                 .map_err(|e| anyhow::anyhow!("baseline regime id {:?}: {e}", baseline.regime_id))?;
-            let content = serde_json::to_value(&bound).context("serializing bound candidate")?;
+            let content = pipeline::fingerprint_content::fingerprint_content(regime_code, &bound)
+                .context("computing fingerprint content")?;
             Ok(fingerprint(&baseline.filing_id, ordinal, &content))
         })
         .collect()
 }
 
 /// Classifies one sampled filing against its current Gold baseline.
+/// `regime_code` selects the per-regime fingerprint-content hook (see
+/// [`candidate_fingerprints`]).
 ///
 /// # Errors
 /// Fingerprint reproduction failure (see [`candidate_fingerprints`]).
 pub fn classify(
+    regime_code: &str,
     baseline: Option<&FilingBaseline>,
     candidates: &[GoldCandidate],
 ) -> anyhow::Result<FilingClass> {
@@ -184,7 +202,7 @@ pub fn classify(
             }
         }
         Some(base) => {
-            let fingerprints = candidate_fingerprints(base, candidates)?;
+            let fingerprints = candidate_fingerprints(regime_code, base, candidates)?;
             let new_records = fingerprints
                 .iter()
                 .filter(|fp| !base.fingerprints.contains(*fp))
@@ -256,6 +274,10 @@ impl YearDiff {
 /// with nothing written.
 #[derive(Debug, Clone)]
 pub struct DiffReport {
+    /// Adapter/regime code this dry run swept (`us_house`, `br`, …) — feeds
+    /// the report header and the per-regime fingerprint-content hook (see
+    /// [`candidate_fingerprints`]).
+    pub regime_code: String,
     /// First archive year swept.
     pub from: i32,
     /// Last archive year swept (inclusive).
@@ -310,8 +332,8 @@ impl fmt::Display for DiffReport {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
-            "== us_house backfill DRY-RUN — archive years {}..={} ==",
-            self.from, self.to
+            "== {} backfill DRY-RUN — archive years {}..={} ==",
+            self.regime_code, self.from, self.to
         )?;
         if self.per_year_limit == 0 {
             writeln!(
@@ -424,7 +446,9 @@ impl DiffReport {
 /// independently (a broken historical index does not sink the range); each
 /// filing fails closed independently (a bad PDF does not sink the year).
 /// `per_year_limit == 0` discovers only (no fetch/parse); `> 0` samples up to
-/// that many filings per year.
+/// that many filings per year. `regime_code` (e.g. `us_house`, `br`) selects
+/// the per-regime fingerprint-content hook (see [`candidate_fingerprints`])
+/// and labels the report header.
 ///
 /// # Errors
 /// A baseline lookup that fails at the database level (infrastructure, not a
@@ -432,11 +456,13 @@ impl DiffReport {
 pub async fn dry_run(
     source: &dyn ArchiveSource,
     baseline: &dyn GoldBaseline,
+    regime_code: &str,
     from: i32,
     to: i32,
     per_year_limit: usize,
 ) -> anyhow::Result<DiffReport> {
     let mut report = DiffReport {
+        regime_code: regime_code.to_owned(),
         from,
         to,
         per_year_limit,
@@ -452,7 +478,7 @@ pub async fn dry_run(
                 if per_year_limit > 0 {
                     for filing in filings.iter().take(per_year_limit) {
                         year_diff.sampled += 1;
-                        match dry_process_one(source, baseline, filing).await? {
+                        match dry_process_one(source, baseline, regime_code, filing).await? {
                             Ok(class) => year_diff.record(class),
                             Err(failure) => year_diff.failed.push(failure),
                         }
@@ -471,6 +497,7 @@ pub async fn dry_run(
 async fn dry_process_one(
     source: &dyn ArchiveSource,
     baseline: &dyn GoldBaseline,
+    regime_code: &str,
     filing: &DiscoveredFiling,
 ) -> anyhow::Result<Result<FilingClass, String>> {
     let candidates = match source.dry_process(filing).await {
@@ -478,15 +505,23 @@ async fn dry_process_one(
         Err(error) => return Ok(Err(format!("{}: {error:#}", filing.external_id))),
     };
     if candidates.is_empty() {
-        // Zero candidates never publish silently (invariant 6) — a real run
-        // would freeze; the dry run flags it as a per-filing failure.
+        // Zero candidates never publish silently by default (invariant 6) —
+        // a real run would freeze, so the dry run flags it as a per-filing
+        // failure UNLESS this regime has declared a zero-row result
+        // legitimate (`pipeline::zero_rows`, same per-regime opt-out the
+        // real Runner uses — `br`'s zero-asset candidacies, plan.md edge
+        // case 1). Mirrors that exemption here so the dry-run report and the
+        // real Runner agree on what counts as a genuine failure.
+        if pipeline::zero_rows::allowed(regime_code) {
+            return Ok(Ok(FilingClass::Add { records: 0 }));
+        }
         return Ok(Err(format!(
             "{}: normalize produced zero candidates — would fail closed (invariant 6)",
             filing.external_id
         )));
     }
     let base = baseline.lookup(&filing.external_id).await?;
-    match classify(base.as_ref(), &candidates) {
+    match classify(regime_code, base.as_ref(), &candidates) {
         Ok(class) => Ok(Ok(class)),
         Err(error) => Ok(Err(format!("{}: {error:#}", filing.external_id))),
     }
@@ -503,6 +538,7 @@ mod live {
     use async_trait::async_trait;
     use sqlx::PgPool;
 
+    use br::BrAdapter;
     use govfolio_core::domain::gold::GoldCandidate;
     use pipeline::adapter::{BronzeStore, Clock, FilingRef, JurisdictionAdapter as _, RunCtx};
     use us_house::UsHouseAdapter;
@@ -569,6 +605,75 @@ mod live {
         }
     }
 
+    /// The real `br` archive: `BrAdapter` over TSE's per-year nationwide bulk
+    /// ZIPs (`consulta_cand_{year}.zip` + `bem_candidato_{year}.zip`,
+    /// `docs/regimes/br/AUTHORITY.md` Data catalog), polite (invariant 10 —
+    /// the adapter's own `politeness()`), shared across the whole sweep.
+    /// Unlike [`ClerkArchive`] (one Bronze doc per Clerk PDF),
+    /// `BrAdapter::discover_year` already downloads + joins BOTH nationwide
+    /// ZIPs exactly ONCE per year and caches every candidate's joined
+    /// declaration in-process (`br::adapter` module doc comment) — so this
+    /// source's `dry_process` below, called once per SAMPLED candidate, is a
+    /// cache hit against that same `BrAdapter` instance, never a second
+    /// network round trip or a re-parse of the whole ZIP. Fetched bytes land
+    /// in an EPHEMERAL scratch `BronzeStore`, never the durable Bronze
+    /// ledger; `pool` is present only so `normalize` runs in unbound
+    /// (production-shaped) mode — this source never writes through it.
+    pub struct TseArchive {
+        adapter: BrAdapter,
+        ctx: RunCtx,
+    }
+
+    impl TseArchive {
+        /// Wires the archive. `pool` (when `Some`) puts `normalize` in unbound
+        /// mode so real filers resolve; `scratch` is the throwaway Bronze dir.
+        ///
+        /// # Errors
+        /// HTTP client / Bronze scratch construction failure.
+        pub fn new(pool: Option<PgPool>, scratch: PathBuf) -> anyhow::Result<Self> {
+            let adapter = BrAdapter::default();
+            let ctx = RunCtx::new(
+                BronzeStore::open(scratch)?,
+                pool,
+                Clock::System,
+                &adapter.politeness(),
+            )?;
+            Ok(Self { adapter, ctx })
+        }
+    }
+
+    #[async_trait]
+    impl ArchiveSource for TseArchive {
+        async fn discover_year(&self, year: i32) -> anyhow::Result<Vec<DiscoveredFiling>> {
+            Ok(self
+                .adapter
+                .discover_year(year, &self.ctx)
+                .await?
+                .into_iter()
+                .map(|r| DiscoveredFiling {
+                    external_id: r.external_id,
+                    url: r.url,
+                })
+                .collect())
+        }
+
+        async fn dry_process(
+            &self,
+            filing: &DiscoveredFiling,
+        ) -> anyhow::Result<Vec<GoldCandidate>> {
+            let filing_ref = FilingRef {
+                external_id: filing.external_id.clone(),
+                url: filing.url.clone(),
+            };
+            // fetch() re-serializes the joined declaration `discover_year`
+            // already cached (br::adapter module doc comment) — NOT a fresh
+            // ZIP download/parse. No pipeline_run, Silver, or Gold write.
+            let doc = self.adapter.fetch(&filing_ref, &self.ctx).await?;
+            let rows = self.adapter.parse(&doc, &self.ctx).await?;
+            self.adapter.normalize(&rows, &self.ctx).await
+        }
+    }
+
     /// Read-only Gold baseline over Postgres. Only ever SELECTs.
     pub struct PgBaseline {
         pool: PgPool,
@@ -627,7 +732,7 @@ mod live {
     }
 }
 
-pub use live::{ClerkArchive, NoBaseline, PgBaseline};
+pub use live::{ClerkArchive, NoBaseline, PgBaseline, TseArchive};
 
 // ---------------------------------------------------------------------------
 // Goal 081 Task 4: BACKFILL_BUDGET — the mechanical guardrail that replaces
@@ -691,7 +796,9 @@ pub fn budget_verdict(record_delta: usize, budget: usize) -> BudgetVerdict {
 /// over `year..=year` with no sample bound (`usize::MAX` — every filing
 /// dry-processed) and reads `report.years[0].record_delta` (already
 /// computed — no new prediction/classification code), then applies
-/// [`budget_verdict`].
+/// [`budget_verdict`]. `regime_code` is threaded straight to `dry_run`
+/// (see [`candidate_fingerprints`]); today's only real caller
+/// (`bin/backfill-real.rs`) always passes `"us_house"`.
 ///
 /// # Errors
 /// The underlying `dry_run` call fails (a baseline DB failure — an
@@ -701,10 +808,11 @@ pub fn budget_verdict(record_delta: usize, budget: usize) -> BudgetVerdict {
 pub async fn gate_year(
     source: &dyn ArchiveSource,
     baseline: &dyn GoldBaseline,
+    regime_code: &str,
     year: i32,
     budget: usize,
 ) -> anyhow::Result<BudgetVerdict> {
-    let report = dry_run(source, baseline, year, year, usize::MAX).await?;
+    let report = dry_run(source, baseline, regime_code, year, year, usize::MAX).await?;
     let record_delta = report
         .years
         .first()
@@ -784,7 +892,7 @@ mod tests {
             regime_id: "0HSEREG0000000000000000001".to_owned(),
             fingerprints: HashSet::new(),
         };
-        base.fingerprints = candidate_fingerprints(&base, candidates)
+        base.fingerprints = candidate_fingerprints("us_house", &base, candidates)
             .unwrap()
             .into_iter()
             .collect();
@@ -795,7 +903,7 @@ mod tests {
     fn new_filing_all_new_rows_is_an_add() {
         let cands = [candidate("New")];
         assert_eq!(
-            classify(None, &cands).unwrap(),
+            classify("us_house", None, &cands).unwrap(),
             FilingClass::Add { records: 1 }
         );
     }
@@ -806,7 +914,7 @@ mod tests {
         // `Amended` row — surfaced for supersession review, never mutation.
         let cands = [candidate("Amended")];
         assert_eq!(
-            classify(None, &cands).unwrap(),
+            classify("us_house", None, &cands).unwrap(),
             FilingClass::Supersession { records: 1 }
         );
     }
@@ -818,7 +926,7 @@ mod tests {
         let cands = [candidate("New")];
         let base = baseline_for(&cands);
         assert_eq!(
-            classify(Some(&base), &cands).unwrap(),
+            classify("us_house", Some(&base), &cands).unwrap(),
             FilingClass::Unchanged
         );
     }
@@ -835,8 +943,51 @@ mod tests {
         )
         .unwrap();
         assert_eq!(
-            classify(Some(&base), &[reprocessed]).unwrap(),
+            classify("us_house", Some(&base), &[reprocessed]).unwrap(),
             FilingClass::Change { new_records: 1 }
+        );
+    }
+
+    /// Zero-blast-radius proof (this task's own requirement): `us_house`'s
+    /// `candidate_fingerprints` output must be BYTE-IDENTICAL before and
+    /// after routing through `pipeline::fingerprint_content::fingerprint_content`
+    /// instead of the old bare `serde_json::to_value(&bound)` call. `us_house`
+    /// is not in `fingerprint_content`'s `EXCLUDED_DETAIL_KEYS` list, so its
+    /// default arm reproduces the old bare serialization exactly — this test
+    /// proves that equivalence AT THIS CALL SITE (not just inside
+    /// `pipeline::fingerprint_content`'s own unit tests) by hand-computing the
+    /// old formula and comparing.
+    #[test]
+    fn us_house_candidate_fingerprints_are_unchanged_by_the_fingerprint_content_refactor() {
+        let cands = [candidate("New")];
+        let base = FilingBaseline {
+            filing_id: "0HSEFNG0000000000020020055".to_owned(),
+            politician_id: "0HSEMBR0000000000000000001".to_owned(),
+            regime_id: "0HSEREG0000000000000000001".to_owned(),
+            fingerprints: HashSet::new(),
+        };
+
+        let new_fps = candidate_fingerprints("us_house", &base, &cands).unwrap();
+
+        // Hand-reproduce the OLD (pre-fix) bare-serialization computation.
+        let old_fps: Vec<String> = cands
+            .iter()
+            .enumerate()
+            .map(|(index, candidate)| {
+                let ordinal = u32::try_from(index).unwrap();
+                let mut bound = candidate.clone();
+                bound.filing_id = base.filing_id.parse().unwrap();
+                bound.politician_id = base.politician_id.parse().unwrap();
+                bound.regime_id = base.regime_id.parse().unwrap();
+                let content = serde_json::to_value(&bound).unwrap();
+                fingerprint(&base.filing_id, ordinal, &content)
+            })
+            .collect();
+
+        assert_eq!(
+            new_fps, old_fps,
+            "us_house fingerprints must be byte-identical pre/post the candidate_fingerprints \
+             fingerprint_content refactor — zero blast radius"
         );
     }
 
@@ -888,7 +1039,10 @@ mod tests {
             by_year: [(2012, filings(10))].into_iter().collect(),
             candidates,
         };
-        let report = dry_run(&source, &NoBaseline, 2012, 2012, 3).await.unwrap();
+        let report = dry_run(&source, &NoBaseline, "us_house", 2012, 2012, 3)
+            .await
+            .unwrap();
+        assert_eq!(report.regime_code, "us_house", "report labels its regime");
         let year = &report.years[0];
         assert_eq!(year.discovered, 10, "full scope reported, not truncated");
         assert_eq!(year.sampled, 3, "bounded to the honest cap");
@@ -909,7 +1063,9 @@ mod tests {
                 .collect(),
             candidates,
         };
-        let report = dry_run(&source, &NoBaseline, 2012, 2014, 5).await.unwrap();
+        let report = dry_run(&source, &NoBaseline, "us_house", 2012, 2014, 5)
+            .await
+            .unwrap();
         assert_eq!(report.errored_years(), vec![2013], "only 2013 fails closed");
         assert_eq!(report.years[0].adds, 1, "2012 still processed");
         assert_eq!(report.years[2].adds, 1, "2014 still processed");
@@ -922,7 +1078,9 @@ mod tests {
             by_year: std::collections::BTreeMap::new(),
             candidates: std::collections::BTreeMap::new(),
         };
-        let report = dry_run(&source, &NoBaseline, 2012, 2013, 5).await.unwrap();
+        let report = dry_run(&source, &NoBaseline, "us_house", 2012, 2013, 5)
+            .await
+            .unwrap();
         assert!(
             report.archive_unreachable(),
             "no year reachable, nothing discovered => unreachable (no false green)"
@@ -936,7 +1094,9 @@ mod tests {
             by_year: [(2012, filings(1))].into_iter().collect(),
             candidates: std::collections::BTreeMap::new(), // doc0 -> zero candidates
         };
-        let report = dry_run(&source, &NoBaseline, 2012, 2012, 5).await.unwrap();
+        let report = dry_run(&source, &NoBaseline, "us_house", 2012, 2012, 5)
+            .await
+            .unwrap();
         assert_eq!(
             report.years[0].failed.len(),
             1,
