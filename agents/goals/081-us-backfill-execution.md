@@ -322,7 +322,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   longer reproduce the issue, so the unit-level proof against a self-contained, verified-genuine
   reproduction of the same bug class is the primary evidence; the live run additionally confirms
   the wrapper adds no regression across 150 real documents end-to-end.
-- [ ] **Task 4.8 — tolerate the scrambled-case rendering variant (blocks Task 5's full-range
+- [x] **Task 4.8 — tolerate the scrambled-case rendering variant (blocks Task 5's full-range
   run; now the single most common real failure for 2014-2022).** Real finding, confirmed at
   scale by Task 4.6's own live sweep: a SECOND, independent PDF text-degradation pattern exists
   in the historical corpus, distinct from the one already documented at the top of `parse.rs`
@@ -356,6 +356,63 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   era fixtures) continue to pass unchanged. Also re-run a real dry-run sample across a few
   affected years (2014-2022) and confirm this specific failure mode's occurrence count drops
   substantially (other, separately-tracked gaps may still legitimately remain).
+  **Closed 2026-07-07**: investigated first, against real, independently live-fetched and
+  sha256-pinned 2014-2022 electronic PTRs (Filing ID #20000077, 2014,
+  `https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2014/20000077.pdf`, sha256
+  `ea936ce15201393a2fbfc61c9e9670e016fd5c6b0010aae8b750e34ebc924691`; #20001787, 2014, sha256
+  `29bfb95acf4679614ded1fb085743c9eb4220bb9964169b850307f584b06d11c`; #20016985, 2020, sha256
+  `ce68b1f8b7def98256506531edd2c98557a0844e481ce0126a4cfec510202d6a`; #20020448, 2022, sha256
+  `8f7c44affce207b7cc84cc2c74fb514eb37a33d118377f9c974e8710075f27fa`; plus a broader
+  unpinned sample across 2014/2016/2018/2020/2022). Findings: (a) the scramble is NOT a fixed
+  positional rule — different specific letters are affected inconsistently per
+  document/year (`tranSactionS`, `iD owner asset transaction`, `FIlINg sTATus:`,
+  `SubHOlDINg OF:`, `DESCRIPTIoN:`) — effectively arbitrary, not decodable by position or
+  character; (b) the SAME pattern DOES affect `SubLabel` sub-lines, directly confirmed for
+  `FilingStatus`/`SubholdingOf`/`Description` — but as the FULL undegraded label word in
+  scrambled case (`FILINg STATUS:`), not the abbreviated NUL-survivor form (`F S:`) the existing
+  matcher recognized.
+  Fix (`crates/adapters/us_house/src/parse.rs`, all additive alongside the existing
+  NUL-survivor forms, none weakened): `transactions_region`'s heading match (new
+  `is_transactions_heading` helper) now ALSO accepts
+  `collapse_ws(line).eq_ignore_ascii_case("TRANSACTIONS")`; `HEADER_BLOCK` matching in
+  `scan_rows` is now case-insensitive (was exact-case — a strict superset, so every
+  existing exact-case fixture still matches); `match_sublabel` gained a third form,
+  `full_text_label`, matching the FULL label text case-insensitively —
+  directly evidenced for `FilingStatus`/`SubholdingOf`/`Description`, extended to
+  `Comments`/`Location` by the same font-level mechanism using the full label text already
+  documented in `docs/regimes/us-house.md` (not a new speculative variant).
+  4 new tests, all real-evidence-cited: `transactions_region_accepts_real_scrambled_case_heading`,
+  `scan_rows_accepts_real_scrambled_case_header_block`,
+  `match_sublabel_accepts_real_scrambled_case_full_text_form`, and an end-to-end
+  `parse_document_succeeds_against_real_2014_2022_scrambled_case_evidence` (real scrambled
+  heading/header-block/FILING-STATUS lines from Filing ID #20016985, spliced with clean
+  synthetic row/filer-info grammar to isolate this fix from the separate `gfedc` artifact below
+  that document's own real row independently hits). `cargo test -p us_house`: 49 passed + 1
+  ignored (was 46+1 at Task 4.7's close) — every pre-existing NUL-survivor-pattern test
+  unchanged and green. `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` both
+  clean, workspace-wide.
+  Live re-verification against `govfolio_081_rehearsal`: `cargo run -p worker --bin backfill --
+  adapter us_house --from <year> --to <year> --dry-run --limit 40` for 2014, 2018, and 2022 (120
+  real sampled filings total) — **zero** occurrences of
+  `` Transactions heading (`T`) not found `` (was the single most common failure 2014-2022 per
+  Task 4.6's own live sweep, "fails closed near-100% of the time"). 2022 additionally shows real
+  classifications flowing through again (9 adds of 40 sampled) now that this blocker is gone.
+  REAL FINDINGS surfaced, explicitly NOT fixed (separate, out of scope per this task): (1) the
+  Transactions FOOTNOTE (`* For the complete list…`) is absent entirely — not scrambled-case,
+  genuinely missing — from at least some 2014-era documents (directly confirmed: neither
+  #20000077's nor #20001787's real extracted text contains any case-variant of that string
+  anywhere), a template/form-version difference across years, now the dominant 2014 failure;
+  (2) a `gfedc`-shaped token trails the amount band on many 2018-2022 rows whenever the Cap.
+  Gains checkbox column is present, breaking band parsing (`band "$X - $Y gfedc" outside the
+  grammar`) — looks like a PDF form-field default-value artifact bleeding into the text layer,
+  unrelated to case degradation; (3) row-level type tokens and asset/ticker text can also render
+  in the same scrambled case (e.g. a lowercase `s` type token on a real 2014 row, `(gOOgl)` for
+  a ticker) — the ticker case is harmless (raw is sacred, stored verbatim regardless), but a
+  lowercase type token would fail `find_anchor`'s exact-uppercase match, a genuinely separate
+  row-grammar gap. These, plus the already-named non-zero-padded dates / `Digitally Signed:`
+  variants / unattached-asset-text/band-wrap/`L:` gaps, remain real, legitimate,
+  separately-tracked blockers for Task 5's full yield — flagged here for whoever picks up the
+  next narrowing pass, not fixed in this task.
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres

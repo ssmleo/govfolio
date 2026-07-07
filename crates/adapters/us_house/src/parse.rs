@@ -5,6 +5,14 @@
 //! `pdf-extract` renders the lost glyphs as NUL characters — so labels are
 //! anchored on the surviving capitals (`F S:`, `S O:`, `D:`, `C:`, `L:`) after
 //! NUL-stripping, never on full label text. Data cells extract verbatim.
+//!
+//! A second, independently real degradation pattern (goal 081 Task 4.8, real
+//! 2014-2022 electronic PTR evidence): some historical-era documents instead
+//! render the WHOLE heading/label word intact but with scrambled/inconsistent
+//! case rather than NUL-erasing it (`tranSactionS`, `iD owner asset
+//! transaction`, `FILINg STATUS:`). Heading/header-block/sub-label matching
+//! accepts BOTH forms side by side — never a replacement of the NUL-survivor
+//! form, which 2015+-era fixtures still depend on.
 //! Rows anchor on the only place two `MM/DD/YYYY` tokens are adjacent.
 //! Hard rejects (unknown type token, band outside grammar, unparseable date,
 //! `Filing ID #` disagreement) are errors, never low-confidence rows
@@ -226,12 +234,14 @@ fn extract_signed_date(lines: &[String]) -> anyhow::Result<String> {
     Ok(date.to_owned())
 }
 
-/// The Transactions table region: after the `T` heading (small-caps survivor
-/// of "TRANSACTIONS") up to the `* For the complete list…` footnote.
+/// The Transactions table region: after the heading — either the `T`
+/// small-caps survivor of "TRANSACTIONS", or the scrambled-case full-word
+/// form (`tranSactionS`, goal 081 Task 4.8 — real 2014-2022 evidence, e.g.
+/// Filing ID #20000077) — up to the `* For the complete list…` footnote.
 fn transactions_region(lines: &[String]) -> anyhow::Result<&[String]> {
     let start = lines
         .iter()
-        .position(|line| collapse_ws(line) == "T")
+        .position(|line| is_transactions_heading(line))
         .context("Transactions heading (`T`) not found")?;
     let end = lines[start..]
         .iter()
@@ -239,6 +249,16 @@ fn transactions_region(lines: &[String]) -> anyhow::Result<&[String]> {
         .map(|offset| start + offset)
         .context("Transactions footnote (`* For the complete list…`) not found")?;
     Ok(&lines[start + 1..end])
+}
+
+/// Whether `line` is the Transactions heading, under either real
+/// degradation pattern: the NUL-survivor form (`T`) or the scrambled-case
+/// full-word form (goal 081 Task 4.8) — matched case-insensitively against
+/// the full undegraded word, whitespace-collapsed like every other
+/// heading/header check in this module.
+fn is_transactions_heading(line: &str) -> bool {
+    let collapsed = collapse_ws(line);
+    collapsed == "T" || collapsed.eq_ignore_ascii_case("TRANSACTIONS")
 }
 
 /// The Investment Vehicle Details region (`I V D` heading), when present:
@@ -274,16 +294,23 @@ enum SubLabel {
 
 /// Matches a degraded sub-line label. Strict form is the exact surviving-
 /// capital shape (`F S:` …); anything needing whitespace tolerance is a loose
-/// match and costs confidence (§6.2).
+/// match and costs confidence (§6.2). A third form (goal 081 Task 4.8) is
+/// also loose: the FULL, undegraded label text in scrambled case (e.g.
+/// `FILINg STATUS:`) instead of NUL-erased to its surviving capitals —
+/// directly confirmed by real 2014-2022 evidence for `FilingStatus`,
+/// `SubholdingOf` and `Description` (Filing IDs #20000077, #20001787,
+/// #20016985, #20020448); extended to `Comments`/`Location` by the same
+/// general font-level mechanism, using the full label text already documented
+/// in `docs/regimes/us-house.md` for those abbreviations.
 fn match_sublabel(line: &str) -> Option<(SubLabel, String, bool)> {
-    const LABELS: [(SubLabel, &str, &[char]); 5] = [
-        (SubLabel::FilingStatus, "F S:", &['F', 'S']),
-        (SubLabel::SubholdingOf, "S O:", &['S', 'O']),
-        (SubLabel::Description, "D:", &['D']),
-        (SubLabel::Comments, "C:", &['C']),
-        (SubLabel::Location, "L:", &['L']),
+    const LABELS: [(SubLabel, &str, &[char], &str); 5] = [
+        (SubLabel::FilingStatus, "F S:", &['F', 'S'], "FILING STATUS"),
+        (SubLabel::SubholdingOf, "S O:", &['S', 'O'], "SUBHOLDING OF"),
+        (SubLabel::Description, "D:", &['D'], "DESCRIPTION"),
+        (SubLabel::Comments, "C:", &['C'], "COMMENTS"),
+        (SubLabel::Location, "L:", &['L'], "LOCATION"),
     ];
-    for (label, strict, letters) in LABELS {
+    for (label, strict, letters, full) in LABELS {
         if let Some(rest) = line.strip_prefix(strict) {
             let content = rest.trim();
             if !content.is_empty() {
@@ -295,8 +322,25 @@ fn match_sublabel(line: &str) -> Option<(SubLabel, String, bool)> {
         {
             return Some((label, content, true));
         }
+        if let Some(content) = full_text_label(line, full)
+            && !content.is_empty()
+        {
+            return Some((label, content, true));
+        }
     }
     None
+}
+
+/// Case-insensitive, whitespace-tolerant match against the FULL, undegraded
+/// sub-label text (e.g. `"FILING STATUS"`, no trailing colon) — the
+/// scrambled-case degradation pattern (goal 081 Task 4.8) applied to
+/// sub-line labels. Anchored on the label portion before the line's first
+/// `:` so it never matches into the value.
+fn full_text_label(line: &str, full: &str) -> Option<String> {
+    let (label_part, content) = line.split_once(':')?;
+    collapse_ws(label_part)
+        .eq_ignore_ascii_case(full)
+        .then(|| content.trim().to_owned())
 }
 
 /// `^F\s*S\s*:\s*(.+)$`-style tolerant matcher over the surviving capitals.
@@ -364,11 +408,17 @@ fn scan_rows(region: &[String]) -> anyhow::Result<Vec<RowDraft>> {
             i += 1;
             continue;
         }
-        if collapse_ws(line) == HEADER_BLOCK[0] {
+        // Case-insensitive: some historical-era (2014-2022) documents render
+        // this whole block in scrambled case (`iD owner asset transaction`
+        // — goal 081 Task 4.8, real evidence e.g. Filing ID #20016985)
+        // instead of the modern exact-case rendering; both forms are
+        // accepted the same way, whitespace-collapsed as before.
+        if collapse_ws(line).eq_ignore_ascii_case(HEADER_BLOCK[0]) {
             for (offset, expected) in HEADER_BLOCK.iter().enumerate().skip(1) {
                 let got = region.get(i + offset).map(|l| collapse_ws(l));
                 anyhow::ensure!(
-                    got.as_deref() == Some(*expected),
+                    got.as_deref()
+                        .is_some_and(|g| g.eq_ignore_ascii_case(expected)),
                     "unrecognized table header block at {line:?} (expected {expected:?}, got {got:?})"
                 );
             }
@@ -703,6 +753,66 @@ mod tests {
     }
 
     #[test]
+    fn transactions_region_accepts_real_scrambled_case_heading() {
+        // Goal 081 Task 4.8: a SECOND real degradation pattern, distinct from
+        // the NUL-survivor form above — the whole "TRANSACTIONS" word survives
+        // intact but with scrambled/inconsistent case (`tranSactionS`) instead
+        // of being NUL-erased to `T`. Real `pdf_extract::extract_text_from_mem`
+        // text-layer line from a live 2014 electronic PTR: Filing ID #20000077,
+        // fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2014/20000077.pdf
+        // (pdf sha256 ea936ce15201393a2fbfc61c9e9670e016fd5c6b0010aae8b750e34ebc924691).
+        // This exact shape previously failed `transactions_region` with
+        // "Transactions heading (`T`) not found" (goal 081 Task 4.6's live
+        // sweep finding) — it must now succeed, while the pre-existing
+        // NUL-survivor form (2015+-era fixtures) keeps working unchanged.
+        let lines: Vec<String> = vec![
+            "tranSactionS".to_owned(),
+            "some row content".to_owned(),
+            "* For the complete list of asset type abbreviations".to_owned(),
+        ];
+        let region = transactions_region(&lines).unwrap();
+        assert_eq!(region.len(), 1);
+        assert_eq!(region[0], "some row content");
+
+        // The existing NUL-survivor form must still match unchanged.
+        let nul_survivor_lines: Vec<String> = vec![
+            "T".to_owned(),
+            "row".to_owned(),
+            "* For the complete list".to_owned(),
+        ];
+        assert!(transactions_region(&nul_survivor_lines).is_ok());
+    }
+
+    #[test]
+    fn scan_rows_accepts_real_scrambled_case_header_block() {
+        // Goal 081 Task 4.8: the table-header block rendered in the SAME
+        // scrambled-case pattern as the heading, instead of the modern
+        // exact-case rendering `HEADER_BLOCK` matches today. Real
+        // `pdf_extract::extract_text_from_mem` lines from a live 2020
+        // electronic PTR: Filing ID #20016985, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2020/20016985.pdf
+        // (pdf sha256 ce68b1f8b7def98256506531edd2c98557a0844e481ce0126a4cfec510202d6a).
+        // The row line itself is clean synthetic grammar (matching this
+        // suite's existing `anchor_splits_type_dates_and_band` convention) —
+        // the real document's own row hits a separate, out-of-scope artifact
+        // (a trailing `gfedc` checkbox-widget token after the amount band),
+        // not something this task fixes.
+        let region: Vec<String> = vec![
+            "iD owner asset transaction".to_owned(),
+            "type Date notification".to_owned(),
+            "Date amount cap.".to_owned(),
+            "gains >".to_owned(),
+            "$200?".to_owned(),
+            String::new(),
+            "Example Corp (EX) [ST] P 06/15/2020 06/20/2020 $1,001 - $15,000".to_owned(),
+        ];
+        let drafts = scan_rows(&region).unwrap();
+        assert_eq!(drafts.len(), 1);
+        assert_eq!(drafts[0].transaction_type_raw, "P");
+    }
+
+    #[test]
     fn sublabels_match_strict_without_penalty_and_loose_with() {
         assert_eq!(
             match_sublabel("F S: Amended"),
@@ -724,6 +834,57 @@ mod tests {
         // Headings carry no colon and data lines no label shape.
         assert_eq!(match_sublabel("C"), None);
         assert_eq!(match_sublabel("Boeing Company (BA) [ST]"), None);
+    }
+
+    #[test]
+    fn match_sublabel_accepts_real_scrambled_case_full_text_form() {
+        // Goal 081 Task 4.8: the SAME scrambled-case degradation pattern
+        // confirmed on the Transactions heading/header block also affects
+        // sub-line labels — but as the FULL, undegraded label word in
+        // scrambled case (`FILINg STATUS:`), not the abbreviated
+        // NUL-survivor form (`F S:`) `match_sublabel` already recognized.
+        // Real `pdf_extract::extract_text_from_mem` lines, all independently
+        // live-fetched this session:
+        //   - "FIlINg sTATus: New" — Filing ID #20000077 (2014),
+        //     https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2014/20000077.pdf
+        //     (sha256 ea936ce15201393a2fbfc61c9e9670e016fd5c6b0010aae8b750e34ebc924691)
+        //   - "DESCRIPTIoN: Sale of 230 shares of Apple, Inc. (AAPL) at
+        //     $99.6401/share. Total proceeds of $22,916.71." — Filing ID
+        //     #20001787 (2014),
+        //     https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2014/20001787.pdf
+        //     (sha256 29bfb95acf4679614ded1fb085743c9eb4220bb9964169b850307f584b06d11c)
+        //   - "SubHOlDINg OF: Charles Schwab IRA" — Filing ID #20020448
+        //     (2022),
+        //     https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2022/20020448.pdf
+        //     (sha256 8f7c44affce207b7cc84cc2c74fb514eb37a33d118377f9c974e8710075f27fa)
+        // `Comments`/`Location` were not directly observed scrambled in this
+        // session's sample, but share the same font-level mechanism and full
+        // label text already documented in `docs/regimes/us-house.md`.
+        assert_eq!(
+            match_sublabel("FIlINg sTATus: New"),
+            Some((SubLabel::FilingStatus, "New".to_owned(), true))
+        );
+        assert_eq!(
+            match_sublabel(
+                "DESCRIPTIoN: Sale of 230 shares of Apple, Inc. (AAPL) at $99.6401/share. \
+                 Total proceeds of $22,916.71."
+            ),
+            Some((
+                SubLabel::Description,
+                "Sale of 230 shares of Apple, Inc. (AAPL) at $99.6401/share. Total proceeds \
+                 of $22,916.71."
+                    .to_owned(),
+                true
+            ))
+        );
+        assert_eq!(
+            match_sublabel("SubHOlDINg OF: Charles Schwab IRA"),
+            Some((
+                SubLabel::SubholdingOf,
+                "Charles Schwab IRA".to_owned(),
+                true
+            ))
+        );
     }
 
     #[test]
@@ -827,5 +988,55 @@ mod tests {
     fn signed_date_tolerates_stray_pre_comma_space() {
         let lines = vec!["Digitally Signed: Hon. Steve Cohen , 06/17/2026".to_owned()];
         assert_eq!(extract_signed_date(&lines).unwrap(), "06/17/2026");
+    }
+
+    #[test]
+    fn parse_document_succeeds_against_real_2014_2022_scrambled_case_evidence() {
+        // Goal 081 Task 4.8 end-to-end proof: `parse_document` now succeeds
+        // on a document exhibiting the scrambled-case degradation pattern
+        // that previously failed closed with "Transactions heading (`T`)
+        // not found". The heading, header block, and FILING STATUS sub-line
+        // below are REAL `pdf_extract::extract_text_from_mem` text verbatim
+        // from a live 2020 electronic PTR: Filing ID #20016985, fetched
+        // directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2020/20016985.pdf
+        // (pdf sha256 ce68b1f8b7def98256506531edd2c98557a0844e481ce0126a4cfec510202d6a).
+        // Everything else (doc id, filer name, dates, the one row) is clean
+        // synthetic grammar, NOT a quote from that real filer — this
+        // document's own actual row hits a separate, out-of-scope artifact
+        // (a trailing `gfedc` checkbox-widget token after the amount band)
+        // this task does not fix; splicing in real evidence only for the
+        // elements this fix targets keeps the test isolated to what it
+        // proves, matching this suite's existing convention (synthetic rows
+        // in `anchor_splits_type_dates_and_band` et al.).
+        let text = "\
+Filing ID #20099999
+
+name: Jane Filer
+Status: Member
+State/District: XX00
+
+tranSactionS
+
+iD owner asset transaction
+type Date notification
+Date amount cap.
+gains >
+$200?
+
+Example Corp (EX) [ST] P 06/15/2020 06/20/2020 $1,001 - $15,000
+
+FIlINg STATuS: New
+
+* For the complete list of asset type abbreviations, please visit https://fd.house.gov/reference/asset-type-codes.aspx.
+
+Digitally Signed: Jane Filer , 07/01/2020
+";
+        let doc = parse_document(text).unwrap();
+        assert_eq!(doc.doc_id, "20099999");
+        assert_eq!(doc.rows.len(), 1);
+        assert_eq!(doc.rows[0].row.filing_status_raw, "New");
+        assert_eq!(doc.rows[0].row.transaction_type_raw, "P");
+        assert!(doc.rows[0].row.asset_raw.contains("Example Corp"));
     }
 }
