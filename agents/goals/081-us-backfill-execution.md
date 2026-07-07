@@ -413,6 +413,50 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   variants / unattached-asset-text/band-wrap/`L:` gaps, remain real, legitimate,
   separately-tracked blockers for Task 5's full yield — flagged here for whoever picks up the
   next narrowing pass, not fixed in this task.
+- [ ] **Task 4.9 — tolerate an absent Transactions footnote (blocks Task 5's full-range run; now
+  the dominant 2014 failure).** Real finding from Task 4.8's own live re-verification: some real
+  2014-era filings (confirmed directly against Filing IDs #20000077 and #20001787's actual
+  extracted text) never contain the `"* For the complete list..."` footnote line at all —
+  genuinely absent, not scrambled-case — so `transactions_region`
+  (`crates/adapters/us_house/src/parse.rs`, the `end` boundary search) fails closed with
+  `Transactions footnote (* For the complete list…) not found`. This looks like a different
+  form-template/version used in earlier years rather than a rendering-degradation quirk.
+  Needs real-evidence investigation first (same discipline as Tasks 4.6/4.8): fetch and read the
+  cited real 2014 documents (and a few more from that era) to determine what ACTUALLY marks the
+  end of the Transactions region when this footnote is missing — likely the start of the next
+  real section (compare how `vehicle_region`'s own end-boundary already tries multiple
+  alternative markers: `"C" | "I P O" | "C S"`) or simply the end of the document. Do not guess
+  the alternative marker without checking real text.
+  Fix `transactions_region`'s end-boundary detection to accept the existing footnote match OR a
+  confirmed-real alternative ending marker, additively (never break years where the footnote IS
+  present). Do not touch Task 4.5-4.8's already-closed logic, and do not attempt the other
+  still-separately-tracked gaps (the `gfedc` band artifact, scrambled row-level type tokens,
+  non-zero-padded dates, `Digitally Signed:` variants, unattached-asset-text/band-wrap/`L:`
+  gaps) — those remain out of scope here.
+  Acceptance: a test proving `transactions_region`/`parse_document` now succeeds against the
+  real 2014 evidence lacking the footnote, with existing footnote-present fixtures (2015+)
+  continuing to pass unchanged. Re-run a real dry-run sample against 2014 (and nearby years) and
+  confirm this specific failure mode's occurrence count drops substantially.
+- [ ] **Task 4.10 — tolerate the `gfedc` band-parsing artifact (blocks Task 5's full-range run;
+  now the dominant 2018-2022 failure).** Real finding from Task 4.8's own live re-verification: a
+  `gfedc`-shaped token trails the amount band on many 2018-2022 rows whenever the Cap. Gains
+  checkbox column is present in the source PDF, breaking band parsing (e.g. `band "$X - $Y gfedc"
+  outside the grammar`) — looks like a PDF form-field/checkbox-widget artifact bleeding into the
+  extracted text, not a case-degradation issue.
+  Needs real-evidence investigation first: fetch and read real 2018-2022 filings exhibiting this
+  (Task 4.8's build agent already has candidates in mind from its own sweep) to confirm the
+  artifact's exact shape and whether it is consistent enough to strip/ignore safely (e.g. always
+  trailing the recognized `$X - $Y` band, always the literal token `gfedc` or a small known set
+  of similar checkbox-widget tokens) without accidentally absorbing real data.
+  Fix the band-parsing logic to tolerate and discard this trailing artifact additively (existing
+  bands without the artifact must keep parsing exactly as before). Do not touch Task 4.5-4.9's
+  already-closed logic, and do not attempt the other still-separately-tracked gaps (scrambled
+  row-level type tokens, non-zero-padded dates, `Digitally Signed:` variants,
+  unattached-asset-text/band-wrap/`L:` gaps) — those remain out of scope here.
+  Acceptance: a test proving band parsing now succeeds against real 2018-2022 evidence carrying
+  the `gfedc` artifact, with existing artifact-free band fixtures continuing to pass unchanged.
+  Re-run a real dry-run sample against 2018-2022 and confirm this specific failure mode's
+  occurrence count drops substantially.
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres
