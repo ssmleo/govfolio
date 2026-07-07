@@ -322,6 +322,40 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   longer reproduce the issue, so the unit-level proof against a self-contained, verified-genuine
   reproduction of the same bug class is the primary evidence; the live run additionally confirms
   the wrapper adds no regression across 150 real documents end-to-end.
+- [ ] **Task 4.8 — tolerate the scrambled-case rendering variant (blocks Task 5's full-range
+  run; now the single most common real failure for 2014-2022).** Real finding, confirmed at
+  scale by Task 4.6's own live sweep: a SECOND, independent PDF text-degradation pattern exists
+  in the historical corpus, distinct from the one already documented at the top of `parse.rs`
+  ("headings/labels lose every non-initial glyph... rendered as NUL characters... anchored on
+  the surviving capitals"). In this second pattern, whole words/phrases survive intact but with
+  scrambled/inconsistent case — e.g. the Transactions heading renders as `tranSactionS` instead
+  of degrading to the NUL-survivor `T`, and the table header block renders as
+  `iD owner asset transaction` instead of the expected `ID Owner Asset Transaction`. Because
+  `transactions_region` (`crates/adapters/us_house/src/parse.rs:231-235`) matches the heading
+  via the EXACT string `collapse_ws(line) == "T"`, and `HEADER_BLOCK` (lines 257-263) matches
+  exact-case strings too, neither recognizes this second pattern at all — it fails closed on
+  `Transactions heading (\`T\`) not found` for the vast majority of 2014-2022 filings, the single
+  biggest remaining real-yield limiter after Tasks 4.6/4.7.
+  This needs investigation before a fix, not a guess: fetch and read several REAL 2014-2022
+  filings exhibiting this pattern (matching Task 4.6's own precedent of testing against real
+  historical evidence) to determine (a) whether the scramble follows any fixed rule (e.g.
+  case alternates by position, or is otherwise deterministic) or is effectively arbitrary per
+  character, and (b) whether the SAME scrambled-case rendering also affects the sub-line labels
+  (`SubLabel` enum + its matching logic, lines ~265+, which today only recognizes NUL-survivor
+  abbreviations like `F S:`, `S O:`, `D:`, `C:`, `L:`) or is confined to headings. Scope the fix
+  to what the real evidence actually shows — likely a case-insensitive-and-whitespace-tolerant
+  match against the FULL, undegraded label text (`"TRANSACTIONS"`, the full `HEADER_BLOCK`
+  strings, and — if evidence shows it's needed — the full sub-labels) as an alternate accepted
+  form alongside the existing NUL-survivor form, not a replacement of it (both degradation
+  patterns are real and must keep working). Do not touch the already-fixed Task 4.5/4.6/4.7
+  logic, and do not attempt the other still-out-of-scope gaps (signature dates, Digitally Signed
+  line, unattached asset text, band-wrap continuation, `L:` sub-line) — those are separate tasks.
+  Acceptance: a test proving `transactions_region`/`parse_document` now succeeds against real
+  2014-2022 evidence exhibiting the scrambled-case pattern that previously failed with
+  `Transactions heading (\`T\`) not found`, while the existing NUL-survivor-pattern tests (2015+
+  era fixtures) continue to pass unchanged. Also re-run a real dry-run sample across a few
+  affected years (2014-2022) and confirm this specific failure mode's occurrence count drops
+  substantially (other, separately-tracked gaps may still legitimately remain).
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres
