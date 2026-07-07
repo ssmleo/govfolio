@@ -920,6 +920,30 @@ prose rather than a replaced CSV row, that would need re-evaluating.
   `raw_document.storage_uri` reference lookup — a genuine invariant-2 violation,
   not a hypothetical risk. Full incident record: `agents/JOURNAL.md`, entry dated
   2026-07-07 ("INCIDENT — invariant 2 (raw is sacred) violated").
+- 2026-07-07 · **E2 exit-criteria scoping resolved** (`agents/EPOCHS.md`'s three named
+  leads — TSE candidate declarations, Camara/Senado open-data portals, annual
+  public-servant declaration regime): (1) `SENADOR`/suplente coverage is confirmed
+  the SAME already-fetched TSE source (`DS_CARGO='SENADOR'` rows live in the exact
+  nationwide ZIPs already parsed), same schema/legal-basis/cadence as
+  `DEPUTADO FEDERAL` — zero surveyor-level unknowns, this is a widen-the-existing-
+  regime BUILD task (seed.rs + `RegimeBinding` multi-body support), not a new
+  scout/surveyor cycle. (2) `dadosabertos.camara.leg.br`/
+  `www12.senado.leg.br/transparencia` reconfirmed roster/mandate/voting-only, no
+  asset/wealth content — closed as redundant, no further action. (3) The annual
+  public-servant regime question (see `open_questions` above) is now resolved as
+  **blocked, not merely unexplored**: CGU e-Patri's own FAQ explicitly excludes the
+  Legislative branch; the DBR-via-TCU mechanism has no public consultation surface
+  found on `tcu.gov.br` or via Câmara's DBR endpoint (still HTTP 502, third
+  independent confirmation this project has made) — recommend
+  `blocked:no-public-disclosure-surface` on the scorecard, with a formal LAI
+  (Lei de Acesso à Informação) request flagged as the one still-untried, low-priority
+  future avenue, not attempted here. Separately-flagged registry-seed finding (not
+  fixed by this scout pass): `crates/core/src/seed/mod.rs`'s `coverage_for()`
+  hardcodes `br` to `coverage_phase = "stub"` because `br` isn't in that file's
+  `LIVE_REGIMES` list (scoped to the 8 E1 launch regimes) — the public `/v1/
+  jurisdictions`/`/v1/regimes` scorecard endpoint (design doc §6.1) may not yet
+  reflect `br`'s real production data for `DEPUTADO FEDERAL` across two election
+  years; worth a small follow-up for whoever next touches the registry seed.
 
 ## Operational notes (politeness incidents, outages)
 
