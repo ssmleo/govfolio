@@ -1247,6 +1247,66 @@ prose rather than a replaced CSV row, that would need re-evaluating.
     Not attempted (still out of scope): the full 1933-2024 historical range
     for either body remains the clear next increment.
 
+- 2026-07-07 · **RESOLVED — the `JULIO CESAR DOS SANTOS` (BA, 2018, Câmara)
+  identity collision flagged above is fixed (rust-builder, commit 47f9c3c +
+  this execution pass)**. Full plan/review/execution trail:
+  `docs/decisions/br-identity-collision-remediation.md` (planning, all
+  read-only) → `crates/worker/src/bin/fix-br-julio-cesar-santos-ba-2018.rs`
+  (built + independently pre-execution code-reviewed PASS, commit 47f9c3c,
+  narrowly scoped to this one case only — not generalized) → executed exactly
+  once with `--execute` after a final live re-confirmation dry-run matched the
+  plan's diagnosed state bit-for-bit.
+  - **Before**: both real people's filings/records shared one politician row,
+    `politician_id 01KWXE3M4J18YNCD5R1V7NTGQ3` (`JULIO CESAR DOS SANTOS`) — 1
+    `politician_alias`, 1 `mandate`, 2 `filing`, 5 `disclosure_record` (1+4).
+  - **After**: a fresh politician row, `01KWY5XQ9SDYX7EHDD0AW0ZZSR` (mandate
+    `01KWY5XQ9SRG0CSC38B3N1YE42`), now holds CPF `67701124500`'s filing
+    (`01KWXEDGZQ8K0E9ZA75PB5C0ZS`, external_id `2018:50000608317`) and its one
+    `disclosure_record` (`01KWXEDGZR51RXG2QM5SHGEYW9`, the `#NULO#` bank
+    deposit, 10000.00 BRL) — same row `id`, `politician_id` and `fingerprint`
+    repointed (`31924765f131c9bb0cdd2191a9f9899f44e0454042742590b1f23f2c1ce70773`
+    → `71fa7c68fc51e0be9f9faf2509e84bc7cbb7e1f563a5a2736f18280d3c365c67`, the
+    latter re-derived and asserted correct by the script's own Step 3 before
+    the write, then confirmed byte-identical to the live post-write stored
+    value). `01KWXE3M4J18YNCD5R1V7NTGQ3` keeps CPF `80673872653`'s filing
+    (`01KWXEDHNW2T2YZFQW2QEVE5EM`) and all 4 land/cash/car/savings records
+    completely untouched (diffed against the script's own pre-write snapshot:
+    byte-identical, zero column changes, same row `id`s).
+  - **CPF re-verified directly against raw Bronze bytes post-fix** (same
+    method as every prior finding in this file): sha256
+    `83e06691b033742bd23e9d347a734603a4082ed5df20285e5938a0c220dc0b37` →
+    `NR_CPF_CANDIDATO 67701124500` → now correctly on the new politician;
+    sha256 `c7b7ce3052c6a7a800efc1fd763c5aa66670a46cf91ec1d9b7c8ba46b8eb1ce7` →
+    `NR_CPF_CANDIDATO 80673872653` → correctly still on the original politician.
+  - **Row-count sweep (the plan's §2 query, the whole point of the fix)**:
+    zero rows both immediately after the write and on a second, fully
+    independent re-run.
+  - **Idempotency**: a second `--execute` invocation detected "already
+    applied" via the moving filing's live `politician_id` and safely no-op'd
+    (no second transaction attempted, confirmed by re-reading the resulting
+    row counts) — exactly the plan §7 item 6 guarantee.
+  - **Blast radius confirmed exhaustive** (`review_task`/`outbox_event`/
+    `pipeline_run`, the three tables the plan flagged as at-risk): zero
+    `review_task` rows reference either filing/politician id (unchanged, as
+    before); the 5 pre-existing `outbox_event` rows still carry the OLD
+    politician_id in their JSONB payload, left deliberately stale per the
+    plan's own §6 recommendation (not a live query surface); both `pipeline_run`
+    publish-claim rows for these two documents remain untouched, still
+    `succeeded` (deliberately left alone per plan §4, so a future bulk re-run
+    continues to replay past them). br-scoped totals: politicians
+    19809→**19810**, mandates 19809→**19810** (both +1, the new row), filings
+    **13466→13466** and disclosure_records **79703→79703** (both unchanged in
+    COUNT — a repoint, not an insert/delete) — matching the plan's predicted
+    blast radius exactly, with no unexplained deltas anywhere else.
+  - **Gates**: `cargo build -p worker -p br`, `cargo fmt --check -p worker -p br`,
+    `cargo clippy -p worker -p br --all-targets -- -D warnings` all green;
+    `cargo run -p pipeline --bin conformance -- br` 3/3 green (unchanged — this
+    fix touches no adapter/conformance code).
+  - This was the one known live wrong-attribution case this file's own prior
+    entry named; the general CPF/voter-title-aware cross-time/cross-body
+    identity-resolution mechanism those same prior entries call for remains
+    unbuilt and is tracked as separate future work, not blocked on by this fix.
+
 ## Operational notes (politeness incidents, outages)
 
 - 2026-07-06 · `divulgacandcontas.tse.jus.br`: root and `/divulga/` both 302 to
