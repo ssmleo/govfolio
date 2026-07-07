@@ -257,6 +257,33 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   `cargo fmt --check` + `cargo clippy --all-targets -- -D warnings` green; `cargo test -p
   us_house` 44/44; `us_house`/`us_senate`/`uk_commons_register`/`canada_ciec`/
   `australia_register`/`eu_fr_de_annual`/`br` conformance unregressed.
+- [ ] **Task 4.7 — catch the `pdf-extract` crate's internal panic (blocks Task 5's full-range
+  run; higher severity than the cosmetic parsing gaps).** Real finding: a real `backfill-real
+  --from 2012 --to 2026` run against `govfolio_081_rehearsal` (Task 5a's own first rehearsal
+  attempt, prior to Tasks 4.6/4.7) crashed the WHOLE process partway through 2020 with:
+  `thread 'main' panicked at .../pdf-extract-0.12.0/src/lib.rs:950:49: called
+  \`Result::unwrap()\` on an \`Err\` value: FromUtf16Error(())`, exit code 101. This is NOT a
+  graceful per-filing failure like the other Task 4.x findings — it is an uncaught panic
+  **inside the third-party `pdf-extract` crate's own code**, which unwinds straight past
+  `crates/adapters/us_house/src/adapter.rs:83`'s existing `let Ok(text) =
+  pdf_extract::extract_text_from_mem(&bytes) else { ... }` graceful-`Err` handling (a panic
+  never produces an `Err` to match on — it aborts the call stack outright). Left unfixed, this
+  would recur identically on every retry against the same poison-pill PDF (some 2020-era
+  document with malformed UTF-16 in its embedded text), permanently blocking any real run that
+  reaches it — a much bigger risk than a single filing quietly failing closed.
+  Fix: wrap the `pdf_extract::extract_text_from_mem(&bytes)` call at `adapter.rs:83` in
+  `std::panic::catch_unwind` (with `std::panic::set_hook`/a restore-guard around it if needed to
+  avoid spamming the default panic-message printer for an expected, handled failure mode),
+  converting a caught panic into the same `Err`/fail-closed path the existing `else` branch
+  already handles — one poison-pill document fails that ONE filing closed and the run continues,
+  it does not crash the process. Do not touch pdf-extract itself (external dependency) or any of
+  the other Task 4.x-documented parsing gaps.
+  Acceptance: a test proving a PDF that would trigger `pdf-extract`'s internal panic (reuse the
+  real 2020-era poison-pill document if it can be responsibly captured/fixture-pinned, or a
+  minimal synthetic reproduction of the same malformed-UTF-16 condition if the real one isn't
+  practical to pin) now returns a normal `Err` (fails that filing closed) instead of crashing the
+  test process. Also re-run a real `backfill-real` (or the dry-run sweep) across a range
+  including 2020 and confirm no panic/process-crash occurs, only a normal per-filing failure.
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres
