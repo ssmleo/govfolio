@@ -257,7 +257,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   `cargo fmt --check` + `cargo clippy --all-targets -- -D warnings` green; `cargo test -p
   us_house` 44/44; `us_house`/`us_senate`/`uk_commons_register`/`canada_ciec`/
   `australia_register`/`eu_fr_de_annual`/`br` conformance unregressed.
-- [ ] **Task 4.7 — catch the `pdf-extract` crate's internal panic (blocks Task 5's full-range
+- [x] **Task 4.7 — catch the `pdf-extract` crate's internal panic (blocks Task 5's full-range
   run; higher severity than the cosmetic parsing gaps).** Real finding: a real `backfill-real
   --from 2012 --to 2026` run against `govfolio_081_rehearsal` (Task 5a's own first rehearsal
   attempt, prior to Tasks 4.6/4.7) crashed the WHOLE process partway through 2020 with:
@@ -284,6 +284,44 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   practical to pin) now returns a normal `Err` (fails that filing closed) instead of crashing the
   test process. Also re-run a real `backfill-real` (or the dry-run sweep) across a range
   including 2020 and confirm no panic/process-crash occurs, only a normal per-filing failure.
+  **Closed 2026-07-07**: fixed in `crates/adapters/us_house/src/adapter.rs` — a new private
+  `extract_text_catching_panics` wraps the `pdf_extract::extract_text_from_mem(&bytes)` call at
+  the former `adapter.rs:83` in `std::panic::catch_unwind`, swapping the default panic hook for a
+  no-op for the call's duration (restored immediately after, single `eprintln!` noting the caught
+  panic) so the expected failure mode doesn't spam a full backtrace. The caller's existing
+  `let Ok(text) = ... else { ... }` branch is otherwise untouched — a caught panic now flows into
+  the SAME LLM-seam fallback a graceful `Err` already used.
+  Took the REAL-reproduction path, not the synthetic-fallback: constructed a minimal,
+  syntactically-valid PDF from scratch (byte offsets computed programmatically, not
+  hand-counted) whose one `Type1` font's embedded `ToUnicode` `CMap` maps a character code to
+  `<D800D800>` — two consecutive UTF-16 high-surrogate code units, invalid UTF-16 not caught by
+  `pdf-extract`'s own single-surrogate guard. Verified genuine, not just "malformed for some
+  other reason": a new test (`malformed_utf16_cmap_pdf_reproduces_the_real_pdf_extract_panic`)
+  calls `pdf_extract::extract_text_from_mem` DIRECTLY (bypassing the fix) and asserts it panics —
+  confirmed via `cargo test`, reproducing the exact upstream bug class
+  (`pdf-extract-0.12.0/src/lib.rs:950`, `String::from_utf16(&be).unwrap()` on `FromUtf16Error`),
+  from a fully self-contained fixture (no external file needed). A second test
+  (`extract_text_catching_panics_converts_the_real_panic_into_an_err`) proves the fix turns that
+  SAME panic into `Err` without crashing the test process. A third
+  (`extract_text_catching_panics_still_returns_ok_for_a_normal_document`) guards against a
+  trivial always-`Err` implementation by patching just the poison surrogate bytes back to an
+  ordinary mapping (same byte length) and confirming `Ok`. All three green, plus the two
+  pre-existing `is_ptr` tests: `cargo test -p us_house` 46 passed + 1 ignored (was 44/44 at Task
+  4.6's close). `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` both clean.
+  `cargo test --workspace`: 394 passed, 63 ignored, 0 failed.
+  Live re-verification against `govfolio_081_rehearsal` (`localhost:5433`, per this task's own
+  instructions): `cargo run -p worker --bin backfill -- --adapter us_house --from 2020 --to 2020
+  --dry-run --limit 150` — 733 filings discovered, 150 really fetched + parsed (real network
+  calls, real 2020-era PDFs through the real `pdf_extract` call path), **exit code 0, no
+  panic/crash**. All 150 sampled filings failed closed on already-documented Task 4.6 parsing
+  gaps (`Transactions heading (T) not found`, `missing/unsplittable Digitally Signed: line`,
+  `needs_llm_extraction` with no `ANTHROPIC_API_KEY` configured) — none is the UTF-16 panic
+  condition, so this particular 150-document sample did not hit the exact original poison-pill
+  filing (its specific `Filing ID` was never recorded in the original crash report to target
+  directly). This is consistent with the acceptance's own allowance: the real document may no
+  longer reproduce the issue, so the unit-level proof against a self-contained, verified-genuine
+  reproduction of the same bug class is the primary evidence; the live run additionally confirms
+  the wrapper adds no regression across 150 real documents end-to-end.
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres

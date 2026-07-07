@@ -80,8 +80,10 @@ impl JurisdictionAdapter for UsHouseAdapter {
 
     async fn parse(&self, d: &RawDocRef, ctx: &RunCtx) -> anyhow::Result<Vec<StagingRow>> {
         let bytes = ctx.bronze.get(d)?;
-        let Ok(text) = pdf_extract::extract_text_from_mem(&bytes) else {
-            // Unreadable-by-text-path document (scanned/paper): LLM seam
+        let Ok(text) = extract_text_catching_panics(&bytes) else {
+            // Unreadable-by-text-path document (scanned/paper), OR
+            // `pdf_extract` panicked internally and `extract_text_catching_panics`
+            // converted it into this same `Err` (goal 081 Task 4.7): LLM seam
             // (§6.3c) — the seam itself fails closed when it cannot extract.
             return self.extractor.extract(d, ctx).await;
         };
@@ -238,9 +240,42 @@ fn is_ptr(member: &index::IndexMember) -> bool {
             && (member.filing_type == "O" || member.filing_type == "A"))
 }
 
+/// Runs `pdf_extract::extract_text_from_mem`, converting an internal panic
+/// into an ordinary `Err` instead of letting it crash the process (goal 081
+/// Task 4.7). A real `backfill-real` run crashed outright on a real 2020-era
+/// document: `pdf-extract-0.12.0/src/lib.rs:950` does
+/// `String::from_utf16(&be).unwrap()` while decoding a font's embedded
+/// `ToUnicode` `CMap`, which panics on malformed UTF-16 (e.g. an unpaired
+/// surrogate) rather than returning an `Err` — a panic never produces an
+/// `Err` for the caller's existing `let Ok(text) = ... else { ... }` to
+/// match on, so it unwinds straight past that fail-closed handling. Wrapping
+/// the call in `catch_unwind` lets one poison-pill document fail closed like
+/// any other unparseable PDF, instead of taking down the whole run.
+///
+/// The default panic hook is swapped out for the duration of the call so
+/// this expected, handled failure mode doesn't spam stderr with a full
+/// panic backtrace on every occurrence; the previous hook is always
+/// restored immediately after.
+fn extract_text_catching_panics(bytes: &[u8]) -> anyhow::Result<String> {
+    let previous_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let result = std::panic::catch_unwind(|| pdf_extract::extract_text_from_mem(bytes));
+    std::panic::set_hook(previous_hook);
+    let Ok(extracted) = result else {
+        eprintln!(
+            "pdf_extract::extract_text_from_mem panicked internally (caught) — \
+             treating this document as an ordinary extraction failure"
+        );
+        anyhow::bail!("pdf_extract::extract_text_from_mem panicked internally (caught)");
+    };
+    extracted.map_err(|error| anyhow::anyhow!("{error}"))
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
+    use std::fmt::Write as _;
+
     use super::*;
 
     // Real 2012FD.zip records (docs/regimes/us_house/AUTHORITY.md
@@ -298,6 +333,122 @@ mod tests {
         assert!(
             !is_ptr(&member[0]),
             "FilingType O with DisclosureType FD is not a PTR"
+        );
+    }
+
+    /// Builds a minimal, syntactically-valid PDF (hand-assembled, byte
+    /// offsets computed here rather than hand-counted) whose one font's
+    /// embedded `ToUnicode` `CMap` maps a character code to `<D800D800>` — two
+    /// consecutive UTF-16 high-surrogate code units, which is not valid
+    /// UTF-16 (a high surrogate must be followed by a low surrogate, not
+    /// another high surrogate). This is fed straight into
+    /// `pdf_extract-0.12.0`'s `get_unicode_map` (upstream `src/lib.rs:950`),
+    /// which does `String::from_utf16(&be).unwrap()` — reproducing, from a
+    /// self-contained fixture, the exact panic class
+    /// (`FromUtf16Error(())`) a real 2020-era production document triggered
+    /// (goal 081 Task 4.7). The font is `Tf`-referenced from the one page's
+    /// content stream, since `pdf_extract` only constructs (and so only
+    /// reads the `ToUnicode` `CMap` of) a font when a `Tf` operator selects it.
+    fn malformed_utf16_cmap_pdf() -> Vec<u8> {
+        let objects = [
+            "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n".to_owned(),
+            "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n".to_owned(),
+            "3 0 obj\n<< /Type /Page /Parent 2 0 R \
+             /Resources << /Font << /F1 4 0 R >> >> \
+             /MediaBox [0 0 200 200] /Contents 6 0 R >>\nendobj\n"
+                .to_owned(),
+            "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica \
+             /ToUnicode 5 0 R >>\nendobj\n"
+                .to_owned(),
+            {
+                let stream = "1 beginbfchar\n<41> <D800D800>\nendbfchar\n";
+                format!(
+                    "5 0 obj\n<< /Length {} >>\nstream\n{stream}endstream\nendobj\n",
+                    stream.len()
+                )
+            },
+            {
+                let stream = "BT /F1 12 Tf ET\n";
+                format!(
+                    "6 0 obj\n<< /Length {} >>\nstream\n{stream}endstream\nendobj\n",
+                    stream.len()
+                )
+            },
+        ];
+
+        let mut pdf = String::from("%PDF-1.4\n");
+        let mut offsets = Vec::with_capacity(objects.len());
+        for object in &objects {
+            offsets.push(pdf.len());
+            pdf.push_str(object);
+        }
+
+        let xref_start = pdf.len();
+        let entry_count = offsets.len() + 1; // + the free-list head entry
+        writeln!(pdf, "xref\n0 {entry_count}").unwrap();
+        pdf.push_str("0000000000 65535 f \n");
+        for offset in &offsets {
+            writeln!(pdf, "{offset:010} 00000 n ").unwrap();
+        }
+        write!(
+            pdf,
+            "trailer\n<< /Size {entry_count} /Root 1 0 R >>\nstartxref\n{xref_start}\n%%EOF"
+        )
+        .unwrap();
+
+        pdf.into_bytes()
+    }
+
+    #[test]
+    fn malformed_utf16_cmap_pdf_reproduces_the_real_pdf_extract_panic() {
+        // Proves the fixture genuinely reproduces pdf-extract's own bug
+        // (not just that our fixture is malformed for some other, unrelated
+        // reason): calling the crate's function DIRECTLY (bypassing our
+        // catch_unwind wrapper) panics, matching the real crash goal 081
+        // Task 4.7 documents (`pdf-extract-0.12.0/src/lib.rs:950`,
+        // `Result::unwrap()` on `FromUtf16Error(())`).
+        let bytes = malformed_utf16_cmap_pdf();
+        let previous_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(|_| {})); // this is the EXPECTED panic; don't print it
+        let result = std::panic::catch_unwind(|| pdf_extract::extract_text_from_mem(&bytes));
+        std::panic::set_hook(previous_hook);
+        assert!(
+            result.is_err(),
+            "fixture must panic when called through pdf_extract directly, proving it \
+             reproduces the real upstream bug rather than merely being malformed"
+        );
+    }
+
+    #[test]
+    fn extract_text_catching_panics_converts_the_real_panic_into_an_err() {
+        // The actual fix under test: going through
+        // `extract_text_catching_panics` instead of calling `pdf_extract`
+        // directly must turn that SAME panic into an ordinary `Err`, not
+        // crash the test process (goal 081 Task 4.7's acceptance).
+        let bytes = malformed_utf16_cmap_pdf();
+        let outcome = extract_text_catching_panics(&bytes);
+        assert!(
+            outcome.is_err(),
+            "a panicking pdf_extract call must be caught and surfaced as Err, not crash"
+        );
+    }
+
+    #[test]
+    fn extract_text_catching_panics_still_returns_ok_for_a_normal_document() {
+        // Guards against a trivial "always Err" implementation: a PDF with
+        // no malformed CMap must still extract normally through the same
+        // wrapper.
+        let mut bytes = malformed_utf16_cmap_pdf();
+        // Replace the poison-pill surrogate pair with an ordinary character
+        // mapping (same byte length, so no offsets need recomputing).
+        let patched = String::from_utf8(bytes.clone())
+            .unwrap()
+            .replace("<D800D800>", "<00410041>");
+        bytes = patched.into_bytes();
+        let outcome = extract_text_catching_panics(&bytes);
+        assert!(
+            outcome.is_ok(),
+            "a document with a well-formed ToUnicode CMap must still extract, got {outcome:?}"
         );
     }
 }
