@@ -216,22 +216,113 @@ fn strip_prefix_ignore_ascii_case<'a>(line: &'a str, prefix: &str) -> Option<&'a
         .then(|| &line[prefix.len()..])
 }
 
-/// Date from `Digitally Signed: <name> , <MM/DD/YYYY>` (stray pre-comma space
-/// tolerated — quirks log).
+/// Date from `Digitally Signed: <name> , <M/D/YYYY>` (stray pre-comma space
+/// tolerated — quirks log; non-zero-padded month/day tolerated, goal 081
+/// Task 4.11 — see [`is_lenient_date`]). The label is matched anywhere in the
+/// line, not just as a prefix (real evidence: Filing ID #20020708, 2022, pdf
+/// sha256 825a86bbd6895fc3e9d71913185bd1c2cc8a2840ca9809de26386b537cd580cb,
+/// renders it glued directly onto the end of a `Filing ID #NNNNN` footer line
+/// with no line break — `" Filing ID #20020708Digitally Signed: Hon. Jake
+/// Auchincloss , 04/10/2022"` — the same page-footer-glue pattern
+/// [`extract_doc_id`] already tolerates via `.find` instead of
+/// `.starts_with`).
+///
+/// When the label is absent everywhere (real evidence: Filing IDs #20001674,
+/// #20000708, #20004720, #20016417, #20009092 — 2014-2020, all independently
+/// live-fetched and sha256-pinned this session — drop the label text
+/// entirely; not NUL-degraded, genuinely gone from the extracted text layer,
+/// while the signer name + date survive verbatim as the document's own last
+/// non-empty line, e.g. `"Mr. Vern Buchanan , 09/15/2014"`), fall back to
+/// scanning from the end of the document for the first line whose
+/// comma-split tail is itself a lenient date shape — anchored on date shape,
+/// not merely "has a comma", so it cannot mistake the certification
+/// paragraph's own prose commas (e.g. `"...true, complete, and correct to
+/// the"`) for the signature line.
 fn extract_signed_date(lines: &[String]) -> anyhow::Result<String> {
-    let line = lines
-        .iter()
-        .find(|line| line.starts_with("Digitally Signed:"))
-        .context("missing `Digitally Signed:` line")?;
-    let (_, date) = line
-        .rsplit_once(',')
-        .with_context(|| format!("unsplittable signature line {line:?}"))?;
-    let date = date.trim();
-    anyhow::ensure!(
-        is_date10(date),
-        "signature date {date:?} is not MM/DD/YYYY — hard reject"
-    );
-    Ok(date.to_owned())
+    if let Some(line) = lines.iter().find(|line| line.contains("Digitally Signed:")) {
+        let line = strip_signature_area_artifact(line);
+        let (_, date) = line
+            .rsplit_once(',')
+            .with_context(|| format!("unsplittable signature line {line:?}"))?;
+        let date = strip_signature_area_artifact(date.trim());
+        anyhow::ensure!(
+            is_lenient_date(date),
+            "signature date {date:?} is not a recognizable M/D/YYYY — hard reject"
+        );
+        return Ok(date.to_owned());
+    }
+    for line in lines.iter().rev() {
+        let candidate = strip_signature_area_artifact(line);
+        let Some((_, date)) = candidate.rsplit_once(',') else {
+            continue;
+        };
+        let date = strip_signature_area_artifact(date.trim());
+        if is_lenient_date(date) {
+            return Ok(date.to_owned());
+        }
+    }
+    anyhow::bail!("missing `Digitally Signed:` line")
+}
+
+/// Structural `M/D/YYYY` shape, tolerant of non-zero-padded month/day (goal
+/// 081 Task 4.11 — real evidence spanning 2014-2018: Filing IDs #20000800
+/// (`"05/6/2014"`), #20001787 (`"10/3/2014"`), #20004485 (`"02/1/2016"`), and
+/// many more, all failing the strict [`is_date10`] shape). A strict superset
+/// of `is_date10`: every existing zero-padded `MM/DD/YYYY` signature date
+/// still matches. Digit COUNT only, like `is_date10` — calendar-range
+/// validity is `normalize::parse_source_date`'s job downstream, which already
+/// tolerates non-padded `%m/%d/%Y` via chrono's own lenient numeric parsing.
+fn is_lenient_date(token: &str) -> bool {
+    let Some((month, rest)) = token.split_once('/') else {
+        return false;
+    };
+    let Some((day, year)) = rest.split_once('/') else {
+        return false;
+    };
+    let digit_run_in = |s: &str, len: std::ops::RangeInclusive<usize>| {
+        len.contains(&s.len()) && s.bytes().all(|b| b.is_ascii_digit())
+    };
+    digit_run_in(month, 1..=2) && digit_run_in(day, 1..=2) && digit_run_in(year, 4..=4)
+}
+
+/// A checkbox-widget glyph-name-leak token (goal 081 Task 4.11) bleeding into
+/// certification-section text — the SAME underlying PDF form-field artifact
+/// `BAND_ARTIFACT_TOKENS` (Task 4.10) already tolerates trailing an amount
+/// band, evidenced here at a DIFFERENT location: real, independently
+/// live-fetched and sha256-pinned electronic PTRs show it leading the
+/// certification paragraph's opening line, immediately after the
+/// "Certification and Signature" heading and before "I CERTIFY..." — Filing
+/// ID #20000708 (2014, sha256
+/// bfa02ca731327086bd2fe6d8d61408ebecb57d69652d1341e7adb39a8f19704a): `"gfedcb
+/// I CERTIFY that the statements..."`; #20004720 shows the equivalent
+/// unnumbered `nmlkj`/`nmlkji` IPO-radio family immediately before it too.
+/// Not directly observed attached to the `Digitally Signed:` line/value
+/// itself in this session's sample — but the same font-level mechanism, so
+/// [`extract_signed_date`] strips it defensively (leading OR trailing,
+/// mirroring `strip_band_artifact`'s shape) wherever it appears in the
+/// candidate signature text, additively: text without the artifact passes
+/// through unchanged.
+const SIGNATURE_AREA_ARTIFACT_TOKENS: [&str; 2] = ["gfedc", "gfedcb"];
+
+/// Discards a standalone leading OR trailing `SIGNATURE_AREA_ARTIFACT_TOKENS`
+/// token from signature-area text, if present (goal 081 Task 4.11) —
+/// additive: text without the artifact passes through byte-for-byte
+/// unchanged.
+fn strip_signature_area_artifact(text: &str) -> &str {
+    let trimmed = text.trim();
+    for token in SIGNATURE_AREA_ARTIFACT_TOKENS {
+        if let Some(stripped) = trimmed.strip_prefix(token)
+            && stripped.starts_with(char::is_whitespace)
+        {
+            return stripped.trim_start();
+        }
+        if let Some(stripped) = trimmed.strip_suffix(token)
+            && stripped.ends_with(char::is_whitespace)
+        {
+            return stripped.trim_end();
+        }
+    }
+    text
 }
 
 /// The Transactions table region: after the heading — either the `T`
@@ -1136,6 +1227,133 @@ mod tests {
     }
 
     #[test]
+    fn is_lenient_date_tolerates_non_zero_padded_month_and_day() {
+        // Goal 081 Task 4.11: a strict superset of `is_date10` — every
+        // existing zero-padded shape still matches, plus 1-digit month/day.
+        assert!(is_lenient_date("06/17/2026"));
+        assert!(is_lenient_date("02/1/2016"));
+        assert!(is_lenient_date("5/6/2014"));
+        assert!(!is_lenient_date("2016/02/1"));
+        assert!(!is_lenient_date("02/1/16"));
+        assert!(!is_lenient_date("02//2016"));
+        assert!(!is_lenient_date("not a date"));
+    }
+
+    #[test]
+    fn extract_signed_date_accepts_real_non_zero_padded_date_evidence() {
+        // Goal 081 Task 4.11 sub-issue (a): real `pdf_extract::
+        // extract_text_from_mem` line verbatim from a live 2016 electronic
+        // PTR, Filing ID #20004485, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2016/20004485.pdf
+        // (pdf sha256 58e99632e80ebe5418c206bdfa970056f6e3ff7f11217e71bc02208d7cd7dbf5)
+        // — previously hard-rejected with `signature date "02/1/2016" is not
+        // MM/DD/YYYY`. `signed_date_raw` stays verbatim (raw is sacred) —
+        // `normalize::parse_source_date` already tolerates the non-padded
+        // form downstream via chrono's own lenient `%m/%d/%Y` parsing.
+        let lines = vec!["Digitally Signed: Hon. Brad Ashford , 02/1/2016".to_owned()];
+        assert_eq!(extract_signed_date(&lines).unwrap(), "02/1/2016");
+    }
+
+    #[test]
+    fn extract_signed_date_accepts_real_filing_id_glued_line_evidence() {
+        // Goal 081 Task 4.11 sub-issue (b): real line verbatim from a live
+        // 2022 electronic PTR, Filing ID #20020708, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2022/20020708.pdf
+        // (pdf sha256 825a86bbd6895fc3e9d71913185bd1c2cc8a2840ca9809de26386b537cd580cb)
+        // — the `Digitally Signed:` label is glued directly onto the end of
+        // a `Filing ID #NNNNN` footer line with no line break, so the old
+        // `starts_with` prefix match missed it entirely (`missing
+        // \`Digitally Signed:\` line`), the same page-footer-glue pattern
+        // `extract_doc_id` already tolerates via `.find`.
+        let lines = vec![
+            " Filing ID #20020708Digitally Signed: Hon. Jake Auchincloss , 04/10/2022".to_owned(),
+        ];
+        assert_eq!(extract_signed_date(&lines).unwrap(), "04/10/2022");
+    }
+
+    #[test]
+    fn extract_signed_date_falls_back_to_the_last_line_when_the_label_is_genuinely_absent() {
+        // Goal 081 Task 4.11 sub-issue (b): real lines verbatim from a live
+        // 2014 electronic PTR, Filing ID #20001674, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2014/20001674.pdf
+        // (pdf sha256 65803f4906c94339619c94cc75550d610084d5898e458f53187c37d7c8352b6a)
+        // — the `Digitally Signed:` label text is genuinely absent (not
+        // NUL-degraded — checked directly: no case-variant of "digitally" or
+        // "signed" appears anywhere in the real extracted text), while the
+        // signer name + date survive verbatim as the document's own last
+        // non-empty line. The certification paragraph's own prose commas
+        // (real evidence too) must NOT be mistaken for the signature line.
+        let lines = vec![
+            "certification anD Signature".to_owned(),
+            " Filing ID #20001674".to_owned(),
+            "/  I CERTIFY that the statements I have made on the attached Periodic \
+             Transaction Report are true, complete, and correct to the"
+                .to_owned(),
+            "best of my knowledge and belief.".to_owned(),
+            String::new(),
+            "Mr. Vern Buchanan , 09/15/2014".to_owned(),
+        ];
+        assert_eq!(extract_signed_date(&lines).unwrap(), "09/15/2014");
+    }
+
+    #[test]
+    fn strip_signature_area_artifact_discards_a_leading_or_trailing_token_only() {
+        // Goal 081 Task 4.11 sub-issue (c): mirrors `strip_band_artifact`'s
+        // own (Task 4.10) unit-test shape, applied to leading position too.
+        assert_eq!(
+            strip_signature_area_artifact("gfedcb Hon. Jane Filer , 06/17/2026"),
+            "Hon. Jane Filer , 06/17/2026"
+        );
+        assert_eq!(
+            strip_signature_area_artifact("Hon. Jane Filer , 06/17/2026 gfedc"),
+            "Hon. Jane Filer , 06/17/2026"
+        );
+        assert_eq!(
+            strip_signature_area_artifact("Hon. Jane Filer , 06/17/2026"),
+            "Hon. Jane Filer , 06/17/2026"
+        );
+        // Not a standalone token (no preceding/following whitespace — an
+        // embedded/partial match) — must not strip real data.
+        assert_eq!(
+            strip_signature_area_artifact("xgfedcHon. Jane Filer , 06/17/2026"),
+            "xgfedcHon. Jane Filer , 06/17/2026"
+        );
+    }
+
+    #[test]
+    fn extract_signed_date_fallback_tolerates_the_real_gfedcb_certification_paragraph_artifact() {
+        // Goal 081 Task 4.11 sub-issue (c): the `gfedcb` checkbox-widget
+        // artifact really does bleed into certification-section text — real
+        // lines verbatim from a live 2014 electronic PTR, Filing ID
+        // #20000708, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2014/20000708.pdf
+        // (pdf sha256 bfa02ca731327086bd2fe6d8d61408ebecb57d69652d1341e7adb39a8f19704a)
+        // — leading the certification paragraph's opening line, immediately
+        // after the "Certification and Signature" heading. This document
+        // also has NO `Digitally Signed:` label text anywhere (sub-issue
+        // (b)'s fallback fires), proving the fallback scan correctly skips
+        // the artifact-prefixed prose (no date-shaped comma tail) and lands
+        // on the real signature line.
+        let lines = vec![
+            "certification anD Signature".to_owned(),
+            String::new(),
+            "gfedcb  I CERTIFY that the statements I have made on the attached Periodic \
+             Transaction Report are true, complete, and correct to the"
+                .to_owned(),
+            String::new(),
+            "Filing ID #20000708".to_owned(),
+            String::new(),
+            "/  I CERTIFY that the statements I have made on the attached Periodic \
+             Transaction Report are true, complete, and correct to the"
+                .to_owned(),
+            "best of my knowledge and belief.".to_owned(),
+            String::new(),
+            "Mr. Michael C. Burgess , 04/14/2014".to_owned(),
+        ];
+        assert_eq!(extract_signed_date(&lines).unwrap(), "04/14/2014");
+    }
+
+    #[test]
     fn parse_document_succeeds_against_real_2014_2022_scrambled_case_evidence() {
         // Goal 081 Task 4.8 end-to-end proof: `parse_document` now succeeds
         // on a document exhibiting the scrambled-case degradation pattern
@@ -1379,5 +1597,99 @@ Digitally Signed: Jane Filer , 07/01/2020
         assert_eq!(doc.rows.len(), 2);
         assert_eq!(doc.rows[0].row.amount_raw, "$1,001 - $15,000");
         assert_eq!(doc.rows[1].row.amount_raw, "$15,001 - $50,000");
+    }
+
+    #[test]
+    fn parse_document_succeeds_against_real_2016_non_zero_padded_signature_date_evidence() {
+        // Goal 081 Task 4.11 sub-issue (a) end-to-end proof: `parse_document`
+        // now succeeds when the signature date is non-zero-padded, which
+        // previously failed closed with `signature date "02/1/2016" is not
+        // MM/DD/YYYY`. The `Digitally Signed:` line is REAL
+        // `pdf_extract::extract_text_from_mem` text verbatim from a live 2016
+        // electronic PTR: Filing ID #20004485, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2016/20004485.pdf
+        // (pdf sha256 58e99632e80ebe5418c206bdfa970056f6e3ff7f11217e71bc02208d7cd7dbf5).
+        // Everything else is clean synthetic grammar, matching this suite's
+        // existing splicing convention.
+        let text = "\
+Filing ID #20099996
+
+name: Jane Filer
+Status: Member
+State/District: XX00
+
+tranSactionS
+
+iD owner asset transaction
+type Date notification
+Date amount cap.
+gains >
+$200?
+
+Example Corp (EX) [ST] P 06/15/2016 06/20/2016 $1,001 - $15,000
+
+FIlINg STATuS: New
+
+* For the complete list of asset type abbreviations, please visit https://fd.house.gov/reference/asset-type-codes.aspx.
+
+Digitally Signed: Hon. Brad Ashford , 02/1/2016
+";
+        let doc = parse_document(text).unwrap();
+        assert_eq!(doc.doc_id, "20099996");
+        assert_eq!(doc.rows.len(), 1);
+        assert_eq!(doc.rows[0].row.signed_date_raw, "02/1/2016");
+    }
+
+    #[test]
+    fn parse_document_succeeds_against_real_2014_missing_signature_label_evidence() {
+        // Goal 081 Task 4.11 sub-issues (b)+(c) end-to-end proof:
+        // `parse_document` now succeeds when the `Digitally Signed:` label is
+        // genuinely absent AND the certification paragraph carries the
+        // `gfedcb` artifact — previously failed closed with `missing
+        // \`Digitally Signed:\` line`. The certification-area lines below are
+        // REAL `pdf_extract::extract_text_from_mem` text verbatim from a live
+        // 2014 electronic PTR: Filing ID #20000708, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2014/20000708.pdf
+        // (pdf sha256 bfa02ca731327086bd2fe6d8d61408ebecb57d69652d1341e7adb39a8f19704a).
+        // The heading/header block/row are clean synthetic grammar (that real
+        // document's own row hits the separate, out-of-scope 2014 header-
+        // block-shape gap), matching this suite's existing splicing
+        // convention.
+        let text = "\
+Filing ID #20000708
+
+name: Jane Filer
+Status: Member
+State/District: XX00
+
+tranSactionS
+
+iD owner asset transaction
+type Date notification
+Date amount cap.
+gains >
+$200?
+
+Example Corp (EX) [ST] P 06/15/2014 06/20/2014 $1,001 - $15,000
+
+FIlINg STATuS: New
+
+* For the complete list of asset type abbreviations, please visit https://fd.house.gov/reference/asset-type-codes.aspx.
+
+certification anD Signature
+
+gfedcb  I CERTIFY that the statements I have made on the attached Periodic Transaction Report are true, complete, and correct to the
+
+Filing ID #20000708
+
+/  I CERTIFY that the statements I have made on the attached Periodic Transaction Report are true, complete, and correct to the
+best of my knowledge and belief.
+
+Mr. Michael C. Burgess , 04/14/2014
+";
+        let doc = parse_document(text).unwrap();
+        assert_eq!(doc.doc_id, "20000708");
+        assert_eq!(doc.rows.len(), 1);
+        assert_eq!(doc.rows[0].row.signed_date_raw, "04/14/2014");
     }
 }

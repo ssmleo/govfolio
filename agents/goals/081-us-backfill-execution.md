@@ -572,7 +572,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   signature dates and `Digitally Signed:` variants, `needs_llm_extraction` (expected, no
   `ANTHROPIC_API_KEY` configured), and an `L:` sub-line inside the Transactions region. These
   remain real, legitimate, separately-tracked blockers for Task 5's full yield, not fixed here.
-- [ ] **Task 4.11 — signature/certification-section cluster (blocks Task 5's full-range run).**
+- [x] **Task 4.11 — signature/certification-section cluster (blocks Task 5's full-range run).**
   Three real, related gaps clustered around the certification/signature area of the document
   (`extract_signed_date` and its surrounding text), accumulated across Tasks 4.6/4.9's findings:
   (a) non-zero-padded signature dates (e.g. `"05/6/2014"`, `"02/1/2016"`) failing the strict
@@ -593,6 +593,89 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   Acceptance: tests proving each of the three sub-issues resolves against real evidence, with
   all existing tests continuing to pass. Re-run a real dry-run sample across a few affected years
   and confirm these specific failure modes' occurrence counts drop substantially.
+  **Closed 2026-07-07**: investigated first, against real, independently live-fetched and
+  sha256-pinned electronic PTRs spanning 2014-2022 (a live `--dry-run --limit 60` sweep of
+  2014/2016/2018/2020/2022 against `govfolio_081_rehearsal` surfaced every variant at real scale;
+  individual PDFs were then re-fetched directly from
+  `https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/{year}/{doc_id}.pdf` and their
+  `pdf_extract::extract_text_from_mem` text inspected verbatim — sha256 verified against each
+  dry-run log line before use). Filing IDs cited below: #20000800 (2014, sha256
+  40babda90c0d13a76da969956206164657a5d7004c8e49809fdfecf8f024ac9c), #20001787 (2014, sha256
+  29bfb95acf4679614ded1fb085743c9eb4220bb9964169b850307f584b06d11c), #20004485 (2016, sha256
+  58e99632e80ebe5418c206bdfa970056f6e3ff7f11217e71bc02208d7cd7dbf5), #20020708 (2022, sha256
+  825a86bbd6895fc3e9d71913185bd1c2cc8a2840ca9809de26386b537cd580cb), #20001674 (2014, sha256
+  65803f4906c94339619c94cc75550d610084d5898e458f53187c37d7c8352b6a), #20000708 (2014, sha256
+  bfa02ca731327086bd2fe6d8d61408ebecb57d69652d1341e7adb39a8f19704a).
+  Findings, per sub-issue: (a) confirmed exactly as named — real signature lines like `"Digitally
+  Signed: Hon. Brad Ashford , 02/1/2016"` carry a non-zero-padded day (or month); the strict
+  `is_date10` (exactly 10 bytes, `MM/DD/YYYY`) hard-rejects every one, even though
+  `normalize::parse_source_date` already tolerates non-padded `%m/%d/%Y` downstream via chrono's
+  own lenient numeric parsing — the ONLY blocker is this Silver-extraction-stage shape check.
+  (b) two DISTINCT real shapes, not one: (b1) the `Digitally Signed:` label glued directly onto
+  the end of a `Filing ID #NNNNN` footer line with no line break (`" Filing ID
+  #20020708Digitally Signed: Hon. Jake Auchincloss , 04/10/2022"`, real #20020708) — the old
+  `starts_with` prefix match missed it entirely, the same page-footer-glue pattern
+  `extract_doc_id` already tolerates via `.find`; (b2) the label genuinely absent from the
+  extracted text everywhere (checked directly — no NUL-survivor form either, confirmed via
+  `grep -i digitally/signed` against real #20001674/#20000708/#20004720/#20016417/#20009092's
+  full text: zero matches), while the signer name + date survive verbatim as the document's own
+  last non-empty line (e.g. `"Mr. Vern Buchanan , 09/15/2014"`, real #20001674). (c) confirmed
+  real and reproducible: a `gfedcb` token leads the certification paragraph's opening line,
+  immediately after the "Certification and Signature" heading and before "I CERTIFY..." (`"gfedcb
+  I CERTIFY that the statements..."`, real #20000708/#20004485/#20016099) — the same underlying
+  PDF form-field glyph-name-leak mechanism as Task 4.10's `BAND_ARTIFACT_TOKENS`, at a different
+  location; not directly observed attached to the `Digitally Signed:` line/value itself in this
+  session's sample, but the same font-level mechanism, so the fix strips it defensively wherever
+  it appears in signature-area text rather than only where directly observed.
+  Fix (`crates/adapters/us_house/src/parse.rs`, `extract_signed_date` and three new private
+  helpers only — no other function touched, all additive): `extract_signed_date` now (1) searches
+  for `"Digitally Signed:"` anywhere in a line (`.contains`, not `.starts_with`) — fixes (b1); (2)
+  when the label is absent from every line, falls back to scanning from the END of the document
+  for the first line whose comma-split tail is itself a lenient date shape — anchored on date
+  shape, not merely "has a comma", so it cannot mistake the certification paragraph's own prose
+  commas for the signature line — fixes (b2); (3) validates the date via a new `is_lenient_date`
+  (structural `M/D/YYYY`, 1-2 digit month/day, 4-digit year — a strict superset of `is_date10`,
+  every existing zero-padded date still matches; calendar-range validity stays
+  `normalize::parse_source_date`'s job downstream, unchanged) — fixes (a); (4) strips a new
+  `SIGNATURE_AREA_ARTIFACT_TOKENS` (`["gfedc", "gfedcb"]`, a separate constant from Task 4.10's
+  own `BAND_ARTIFACT_TOKENS` — that closed task's logic is untouched) leading-or-trailing token
+  from candidate signature text via a new `strip_signature_area_artifact` helper — defends (c).
+  `is_date10` itself, `BAND_ARTIFACT_TOKENS`/`strip_band_artifact`, `scan_rows`,
+  `transactions_region`, `HEADER_BLOCK`, and `find_anchor` are all byte-for-byte untouched.
+  8 new tests, all real-evidence-cited where the sub-issue calls for it:
+  `is_lenient_date_tolerates_non_zero_padded_month_and_day` (unit),
+  `extract_signed_date_accepts_real_non_zero_padded_date_evidence` (real #20004485),
+  `extract_signed_date_accepts_real_filing_id_glued_line_evidence` (real #20020708),
+  `extract_signed_date_falls_back_to_the_last_line_when_the_label_is_genuinely_absent` (real
+  #20001674), `strip_signature_area_artifact_discards_a_leading_or_trailing_token_only` (unit,
+  mirrors `strip_band_artifact`'s own Task 4.10 test shape),
+  `extract_signed_date_fallback_tolerates_the_real_gfedcb_certification_paragraph_artifact` (real
+  #20000708), and two end-to-end `parse_document_succeeds_against_real_..._evidence` tests
+  (non-zero-padded date via #20004485; missing-label fallback + gfedcb artifact via #20000708).
+  `cargo test -p us_house`: 65 passed + 1 ignored (was 57+1 at Task 4.10's close), every
+  pre-existing test unchanged and green. `cargo fmt --check` and `cargo clippy --all-targets --
+  -D warnings` both clean, workspace-wide; `cargo test --workspace`: 420 passed, 63 ignored, 0
+  failed (was 412 at Task 4.10's close).
+  Live re-verification against `govfolio_081_rehearsal`: `cargo run -p worker --bin backfill --
+  adapter us_house --from <year> --to <year> --dry-run --limit 60` for 2014, 2016, 2020, and 2026
+  (240 real sampled filings total), before vs. after the fix. `signature date "..." is not
+  MM/DD/YYYY` (sub-issue a): 2014 8→0, 2016 7→0, 2020 0→0 (none in this sample), 2026 0→0 — fully
+  eliminated in every sampled year. `missing \`Digitally Signed:\` line` (sub-issue b2): 2014
+  2→0, 2016 3→0, 2020 18→11 (the remaining 11 directly re-fetched and confirmed a DIFFERENT,
+  doubly-degraded real variant — the label is absent AND the trailing date's digits/comma are
+  ALSO eaten, e.g. `"on. Donald Sternoff beyer r 0/0/2020"` with no comma anywhere — genuinely
+  unrecoverable, correctly still hard-rejects; not a miss by this fix). `unsplittable signature
+  line` (sub-issue b1, genuinely-garbled subset): IDENTICAL sets before/after in every year (2014
+  2/2, 2016 2/2, 2020 14/14) — zero regression, these remain correctly fail-closed (no comma
+  survives to split on; confirmed unrecoverable by direct re-fetch). REAL FINDING surfaced,
+  explicitly NOT fixed (separate, out of scope, Task 4.12 territory): most of the newly-rescued
+  2014 filings (all 8 non-padded-date + both missing-label cases) immediately hit the SEPARATE,
+  already-documented 2014 shorter-3-line-header-block shape (`unrecognized table header block`)
+  one call deeper in `parse_document` — expected, since `extract_signed_date` runs BEFORE
+  `scan_rows`/`transactions_region` and previously never let these documents get that far; overall
+  per-year failed-count is therefore roughly unchanged even though the specific signature/
+  certification failure modes this task targeted are gone, exactly matching this task's own
+  acceptance wording ("other, separately-tracked gaps... may legitimately remain").
 - [ ] **Task 4.12 — row-grammar cluster (blocks Task 5's full-range run).** Four real, related
   gaps in row/transaction-level parsing, accumulated across goal 080's original findings plus
   Tasks 4.8/4.9's own discoveries: (a) scrambled-case lowercase row-level type tokens (e.g.
