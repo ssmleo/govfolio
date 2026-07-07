@@ -55,6 +55,7 @@ use govfolio_core::domain::gold::GoldCandidate;
 use pipeline::adapter::{
     BronzeStore, Clock, FilingRef, JurisdictionAdapter as _, RunCtx, ScratchDir,
 };
+use pipeline::conformance::workspace_root;
 use pipeline::run::{RunReport, Runner};
 use pipeline::stages::seed::seed_regime;
 use worker::backfill::{ArchiveSource, BudgetVerdict, DiscoveredFiling, PgBaseline};
@@ -276,12 +277,22 @@ async fn main() -> anyhow::Result<()> {
     seed_regime(&pool, &br::seed::regime_seed()).await?;
 
     let adapter = BrAdapter::default();
-    // NOT wrapped in ScratchDir: this ctx backs the REAL write pass below
-    // (Runner::run_over) — its Bronze root is durably referenced via
-    // raw_document.storage_uri (invariant 2, raw is sacred), unlike the
-    // gate's own scratch Bronze (UfScopedArchive, wrapped) a few lines down.
-    let bronze =
-        std::env::temp_dir().join(format!("govfolio-backfill-real-br-{}", std::process::id()));
+    // NOT under an OS temp directory, and NOT wrapped in ScratchDir: this ctx
+    // backs the REAL write pass below (Runner::run_over) — its Bronze root is
+    // durably referenced via raw_document.storage_uri (invariant 2, raw is
+    // sacred) and must never live anywhere a generic temp-dir sweep (disk
+    // cleanup utility, reboot policy, or an ad-hoc manual cleanup — see
+    // agents/JOURNAL.md's 2026-07-07 incident, which deleted exactly this
+    // directory family) could reach it. `target/` is gitignored but not
+    // OS-temp, and already this project's convention for durable-but-not-committed
+    // local state (`bin/local_br.rs`'s `target/bronze-local-br`); a fixed
+    // (non-PID) path is correct here since BronzeStore is content-addressed —
+    // re-invocations accumulate/reuse the same store rather than leaking a new
+    // directory per run. Unlike the gate's own scratch Bronze (UfScopedArchive,
+    // wrapped in ScratchDir) a few lines down.
+    let bronze = workspace_root()
+        .join("target")
+        .join("bronze-backfill-real-br");
     let ctx = RunCtx::new(
         BronzeStore::open(bronze)?,
         Some(pool.clone()),
