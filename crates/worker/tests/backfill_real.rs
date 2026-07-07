@@ -41,7 +41,7 @@ use std::path::PathBuf;
 
 use sqlx::PgPool;
 
-use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx};
+use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx, ScratchDir};
 use pipeline::run::Runner;
 use pipeline::stages::seed::seed_regime;
 use us_house::UsHouseAdapter;
@@ -86,8 +86,12 @@ async fn real_year_slice_lands_in_gold_idempotently_with_suppressed_alerts(pool:
     // conditional-GET validator cache (per adapter.rs), so this fetch is
     // this instance's first (and only) touch of YEAR.
     let roster_adapter = UsHouseAdapter::default();
+    // Ephemeral: seed_historical_rosters only writes politician/mandate rows,
+    // never raw_document — removed on drop (success, error, or panic).
+    let roster_root = temp_bronze("roster");
+    let _roster_scratch = ScratchDir::new(roster_root.clone());
     let roster_ctx = RunCtx::new(
-        BronzeStore::open(temp_bronze("roster")).unwrap(),
+        BronzeStore::open(roster_root).unwrap(),
         Some(pool.clone()),
         Clock::System,
         &roster_adapter.politeness(),
@@ -124,6 +128,10 @@ async fn real_year_slice_lands_in_gold_idempotently_with_suppressed_alerts(pool:
     // conditional GET and legitimately 304 (index unchanged seconds later),
     // returning zero filings, which is correct per-instance behavior but not
     // what this test wants. A fresh instance still touches YEAR exactly once.
+    // NOT wrapped in ScratchDir: this ctx backs the real Runner.run_over
+    // write below — raw_document.storage_uri durably references it for the
+    // life of this test's schema, matching bin/backfill-real.rs's own
+    // real-write ctx (see ScratchDir's doc comment).
     let run_adapter = UsHouseAdapter::default();
     let run_ctx = RunCtx::new(
         BronzeStore::open(temp_bronze("run")).unwrap(),

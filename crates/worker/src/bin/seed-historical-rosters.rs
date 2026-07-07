@@ -31,7 +31,7 @@
 use anyhow::Context as _;
 use chrono::Datelike as _;
 
-use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx};
+use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx, ScratchDir};
 use pipeline::stages::seed::seed_regime;
 use us_house::UsHouseAdapter;
 use us_house::seed::{LiveIndexSource, seed_historical_rosters};
@@ -89,6 +89,9 @@ async fn main() -> anyhow::Result<()> {
         "govfolio-seed-historical-rosters-{}",
         std::process::id()
     ));
+    // Ephemeral: this pass only seeds politician/mandate rows, never
+    // raw_document — removed on drop (success, error, or panic).
+    let _scratch = ScratchDir::new(bronze.clone());
     let ctx = RunCtx::new(
         BronzeStore::open(bronze)?,
         Some(pool.clone()),

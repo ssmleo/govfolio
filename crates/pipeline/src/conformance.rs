@@ -17,7 +17,7 @@ use similar::TextDiff;
 use govfolio_core::domain::enums::RecordType;
 use govfolio_core::domain::gold::GoldCandidate;
 
-use crate::adapter::{BronzeStore, Clock, JurisdictionAdapter, RunCtx};
+use crate::adapter::{BronzeStore, Clock, JurisdictionAdapter, RunCtx, ScratchDir};
 
 /// Result of one fixture case; empty `failures` means the case passed.
 #[derive(Debug)]
@@ -279,6 +279,10 @@ fn entry_inner(adapter: &dyn JurisdictionAdapter, name: &str) -> anyhow::Result<
         "govfolio-conformance-{name}-{}-{nanos}",
         std::process::id()
     ));
+    // Ephemeral: removed on drop (success, error, or panic during
+    // run_cases) — conformance never writes raw_document, so nothing durably
+    // references this path (see ScratchDir's own doc comment).
+    let _scratch = ScratchDir::new(bronze_root.clone());
     let ctx = RunCtx::new(
         BronzeStore::open(&bronze_root)?,
         None,
@@ -286,7 +290,6 @@ fn entry_inner(adapter: &dyn JurisdictionAdapter, name: &str) -> anyhow::Result<
         &adapter.politeness(),
     )?;
     let outcomes = runtime.block_on(run_cases(adapter, &fixtures_dir(name), &ctx));
-    let _ = fs::remove_dir_all(&bronze_root); // conformance bronze is ephemeral
     let outcomes = outcomes?;
     let green = outcomes.iter().filter(|o| o.passed()).count();
     for outcome in &outcomes {

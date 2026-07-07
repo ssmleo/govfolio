@@ -40,7 +40,7 @@ use chrono::Datelike as _;
 
 use br::BrAdapter;
 use br::seed::seed_candidates_year;
-use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx};
+use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx, ScratchDir};
 use pipeline::stages::seed::seed_regime;
 
 struct Args {
@@ -105,6 +105,11 @@ async fn main() -> anyhow::Result<()> {
         "govfolio-seed-br-candidates-{}",
         std::process::id()
     ));
+    // Ephemeral: this pass only seeds politician/mandate rows, never
+    // raw_document — removed on drop (success, error, or panic) so real `br`
+    // CPF/voter-registration numbers never linger under the OS temp dir
+    // (docs/regimes/br/AUTHORITY.md).
+    let _scratch = ScratchDir::new(bronze.clone());
     let ctx = RunCtx::new(
         BronzeStore::open(bronze)?,
         Some(pool.clone()),

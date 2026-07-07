@@ -896,6 +896,30 @@ prose rather than a replaced CSV row, that would need re-evaluating.
   - Not attempted (still explicitly out of scope, unchanged from the prior
     entry): the full 1933-2024 historical range remains the clear next
     increment.
+- 2026-07-07 · **Ephemeral scratch-Bronze leftovers under the OS temp dir carried
+  real unmasked CPF/voter-registration numbers, caught manually by an auditor
+  TWICE** (once for the 2022 nationwide task, once for the 2018 backfill task
+  above) — a real, unaddressed code-level gap, not a one-off. Root cause: every
+  discovery/dry-run/seed/gate-check pass (`bin/seed-br-candidates.rs`,
+  `bin/backfill-real-br.rs`'s `UfScopedArchive` gate, `bin/backfill.rs`'s
+  dry-run, and the analogous `us_house` paths) opens a scratch `BronzeStore`
+  under `std::env::temp_dir()` to buffer fetched bytes, but nothing ever
+  removed that directory — an every-bin-author-must-remember manual step nobody
+  reliably remembered. Fixed at the code level (not just today's manual
+  deletion): `pipeline::adapter::ScratchDir`, a `Drop`-based RAII guard that
+  best-effort `remove_dir_all`s its root on success, error, AND panic
+  unwinding, now wraps every ephemeral scratch Bronze root across both
+  regimes. The REAL write-pass Bronze root (`bin/backfill-real-br.rs`'s main
+  `ctx`, durably referenced via `raw_document.storage_uri`, invariant 2) is
+  deliberately NOT wrapped — auto-deleting that would be a correctness bug, not
+  a hygiene fix. See `ScratchDir`'s own doc comment in
+  `crates/pipeline/src/adapter.rs` for the full durable-vs-ephemeral rule.
+  **Separately, and unrelated to the code fix above**: the same task's manual
+  `%TEMP%` cleanup step deleted `br`'s own REAL, durable Bronze roots (all three
+  historical-backfill runs) by checking process-liveness instead of a direct
+  `raw_document.storage_uri` reference lookup — a genuine invariant-2 violation,
+  not a hypothetical risk. Full incident record: `agents/JOURNAL.md`, entry dated
+  2026-07-07 ("INCIDENT — invariant 2 (raw is sacred) violated").
 
 ## Operational notes (politeness incidents, outages)
 

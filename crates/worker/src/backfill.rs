@@ -540,7 +540,9 @@ mod live {
 
     use br::BrAdapter;
     use govfolio_core::domain::gold::GoldCandidate;
-    use pipeline::adapter::{BronzeStore, Clock, FilingRef, JurisdictionAdapter as _, RunCtx};
+    use pipeline::adapter::{
+        BronzeStore, Clock, FilingRef, JurisdictionAdapter as _, RunCtx, ScratchDir,
+    };
     use us_house::UsHouseAdapter;
 
     use super::{ArchiveSource, DiscoveredFiling, FilingBaseline, GoldBaseline};
@@ -554,23 +556,33 @@ mod live {
     pub struct ClerkArchive {
         adapter: UsHouseAdapter,
         ctx: RunCtx,
+        /// Removes `scratch` on drop (success, error, or panic) — this
+        /// archive's Bronze root is a throwaway buffer, never durably
+        /// referenced (see [`ScratchDir`]'s own doc comment).
+        _scratch: ScratchDir,
     }
 
     impl ClerkArchive {
         /// Wires the archive. `pool` (when `Some`) puts `normalize` in unbound
-        /// mode so real filers resolve; `scratch` is the throwaway Bronze dir.
+        /// mode so real filers resolve; `scratch` is the throwaway Bronze dir,
+        /// removed on drop.
         ///
         /// # Errors
         /// HTTP client / Bronze scratch construction failure.
         pub fn new(pool: Option<PgPool>, scratch: PathBuf) -> anyhow::Result<Self> {
             let adapter = UsHouseAdapter::default();
+            let guard = ScratchDir::new(scratch.clone());
             let ctx = RunCtx::new(
                 BronzeStore::open(scratch)?,
                 pool,
                 Clock::System,
                 &adapter.politeness(),
             )?;
-            Ok(Self { adapter, ctx })
+            Ok(Self {
+                adapter,
+                ctx,
+                _scratch: guard,
+            })
         }
     }
 
@@ -622,23 +634,36 @@ mod live {
     pub struct TseArchive {
         adapter: BrAdapter,
         ctx: RunCtx,
+        /// Removes `scratch` on drop (success, error, or panic) — this
+        /// archive's Bronze root is a throwaway buffer, never durably
+        /// referenced (see [`ScratchDir`]'s own doc comment). `br` documents
+        /// carry real CPF/voter-registration numbers
+        /// (`docs/regimes/br/AUTHORITY.md`), so this guard matters beyond
+        /// tidiness.
+        _scratch: ScratchDir,
     }
 
     impl TseArchive {
         /// Wires the archive. `pool` (when `Some`) puts `normalize` in unbound
-        /// mode so real filers resolve; `scratch` is the throwaway Bronze dir.
+        /// mode so real filers resolve; `scratch` is the throwaway Bronze dir,
+        /// removed on drop.
         ///
         /// # Errors
         /// HTTP client / Bronze scratch construction failure.
         pub fn new(pool: Option<PgPool>, scratch: PathBuf) -> anyhow::Result<Self> {
             let adapter = BrAdapter::default();
+            let guard = ScratchDir::new(scratch.clone());
             let ctx = RunCtx::new(
                 BronzeStore::open(scratch)?,
                 pool,
                 Clock::System,
                 &adapter.politeness(),
             )?;
-            Ok(Self { adapter, ctx })
+            Ok(Self {
+                adapter,
+                ctx,
+                _scratch: guard,
+            })
         }
     }
 

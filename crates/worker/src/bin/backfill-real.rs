@@ -113,6 +113,10 @@ async fn main() -> anyhow::Result<()> {
     seed_regime(&pool, &us_house::seed::regime_seed()).await?;
 
     let adapter = UsHouseAdapter::default();
+    // NOT wrapped in ScratchDir: this ctx backs the REAL write pass below
+    // (Runner::run_over) — its Bronze root is durably referenced via
+    // raw_document.storage_uri (invariant 2, raw is sacred), unlike the
+    // gate's own scratch Bronze (ClerkArchive, wrapped) a few lines down.
     let bronze =
         std::env::temp_dir().join(format!("govfolio-backfill-real-{}", std::process::id()));
     let ctx = RunCtx::new(

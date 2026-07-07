@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use sqlx::{AssertSqlSafe, PgPool};
 
 use govfolio_core::domain::gold::GoldCandidate;
-use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx};
+use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx, ScratchDir};
 use pipeline::conformance::{fixtures_dir, workspace_root};
 use pipeline::run::{LocalFiling, Runner};
 use pipeline::stages::roster::seed_roster;
@@ -107,13 +107,19 @@ struct FixtureArchive {
     ctx: RunCtx,
     pdfs: Vec<PathBuf>,
     year: i32,
+    /// Removes this archive's scratch Bronze root on drop — it never writes
+    /// `raw_document` (`process` below calls `parse`/`normalize` directly,
+    /// bypassing the `Runner`), so nothing durably references the path.
+    _scratch: ScratchDir,
 }
 
 impl FixtureArchive {
     fn new(pool: &PgPool) -> Self {
         let adapter = UsHouseAdapter::default();
+        let root = temp_bronze("fixture-archive");
+        let guard = ScratchDir::new(root.clone());
         let ctx = RunCtx::new(
-            BronzeStore::open(temp_bronze("fixture-archive")).unwrap(),
+            BronzeStore::open(root).unwrap(),
             Some(pool.clone()), // Some => normalize runs in unbound (prod) mode
             Clock::System,
             &adapter.politeness(),
@@ -124,6 +130,7 @@ impl FixtureArchive {
             ctx,
             pdfs: electronic_fixture_pdfs(),
             year: 2026,
+            _scratch: guard,
         }
     }
 
@@ -213,6 +220,10 @@ async fn dry_run_after_publish_reports_unchanged_and_writes_nothing(pool: PgPool
     migrate_seed_regime_and_roster(&pool).await;
 
     // Publish the four electronic fixtures through the REAL pipeline first.
+    // NOT wrapped in ScratchDir: this ctx backs a real Runner.run_local
+    // publish (raw_document.storage_uri durably references it for the life
+    // of this test's schema), matching bin/backfill-real.rs's own real-write
+    // ctx — see ScratchDir's doc comment.
     let adapter = UsHouseAdapter::default();
     let binding = UsHouseBinding;
     let ctx = RunCtx::new(
@@ -262,6 +273,8 @@ async fn baseline_lookup_reproduces_publish_fingerprints(pool: PgPool) {
     use worker::backfill::GoldBaseline as _;
 
     migrate_seed_regime_and_roster(&pool).await;
+    // NOT wrapped in ScratchDir: real Runner.run_local publish, same
+    // reasoning as the "publish" ctx above.
     let adapter = UsHouseAdapter::default();
     let ctx = RunCtx::new(
         BronzeStore::open(temp_bronze("parity")).unwrap(),

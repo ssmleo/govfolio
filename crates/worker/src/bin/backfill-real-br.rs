@@ -52,7 +52,9 @@ use br::BrAdapter;
 use br::binding::BrBinding;
 use br::seed::discover_candidates_year;
 use govfolio_core::domain::gold::GoldCandidate;
-use pipeline::adapter::{BronzeStore, Clock, FilingRef, JurisdictionAdapter as _, RunCtx};
+use pipeline::adapter::{
+    BronzeStore, Clock, FilingRef, JurisdictionAdapter as _, RunCtx, ScratchDir,
+};
 use pipeline::run::{RunReport, Runner};
 use pipeline::stages::seed::seed_regime;
 use worker::backfill::{ArchiveSource, BudgetVerdict, DiscoveredFiling, PgBaseline};
@@ -112,6 +114,14 @@ struct UfScopedArchive {
     adapter: BrAdapter,
     ctx: RunCtx,
     ufs: Vec<String>,
+    /// Removes `scratch` on drop (success, error, or panic) — this gate's
+    /// Bronze root is a throwaway buffer (never durably referenced; `br`
+    /// documents carry real CPF/voter-registration numbers,
+    /// `docs/regimes/br/AUTHORITY.md`), unlike the real-write `ctx` this
+    /// bin's own `main` builds separately below (that one's Bronze root
+    /// stays unwrapped — it IS durably referenced via
+    /// `raw_document.storage_uri`, invariant 2).
+    _scratch: ScratchDir,
 }
 
 impl UfScopedArchive {
@@ -121,13 +131,19 @@ impl UfScopedArchive {
         ufs: Vec<String>,
     ) -> anyhow::Result<Self> {
         let adapter = BrAdapter::default();
+        let guard = ScratchDir::new(scratch.clone());
         let ctx = RunCtx::new(
             BronzeStore::open(scratch)?,
             pool,
             Clock::System,
             &adapter.politeness(),
         )?;
-        Ok(Self { adapter, ctx, ufs })
+        Ok(Self {
+            adapter,
+            ctx,
+            ufs,
+            _scratch: guard,
+        })
     }
 }
 
@@ -260,6 +276,10 @@ async fn main() -> anyhow::Result<()> {
     seed_regime(&pool, &br::seed::regime_seed()).await?;
 
     let adapter = BrAdapter::default();
+    // NOT wrapped in ScratchDir: this ctx backs the REAL write pass below
+    // (Runner::run_over) — its Bronze root is durably referenced via
+    // raw_document.storage_uri (invariant 2, raw is sacred), unlike the
+    // gate's own scratch Bronze (UfScopedArchive, wrapped) a few lines down.
     let bronze =
         std::env::temp_dir().join(format!("govfolio-backfill-real-br-{}", std::process::id()));
     let ctx = RunCtx::new(

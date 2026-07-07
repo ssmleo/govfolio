@@ -148,6 +148,45 @@ impl BronzeStore {
     }
 }
 
+/// RAII guard for an EPHEMERAL, local-only scratch directory: best-effort
+/// removes the directory (and everything under it) when dropped — including
+/// during panic unwinding — so a killed or crashed run never leaves fetched
+/// bytes sitting under the OS temp directory indefinitely. Real historical
+/// filings can carry real PII (e.g. `br`'s CPF/voter-registration numbers,
+/// `docs/regimes/br/AUTHORITY.md`), so this matters beyond tidiness.
+///
+/// Pairs with a scratch [`BronzeStore`] used ONLY to buffer bytes long enough
+/// to feed the deterministic parser during a discovery/dry-run/seed/gate-check
+/// pass — never the durable Bronze ledger. A real [`crate::run::Runner`]
+/// write pass (`bin/backfill-real.rs`, `bin/backfill-real-br.rs`,
+/// `bin/local.rs`, `bin/local_br.rs`) durably references its Bronze path via
+/// `raw_document.storage_uri` (invariant 2: raw is sacred) and therefore
+/// never wraps its root in this guard — deleting it out from under a live
+/// Postgres row would be a correctness bug, not a hygiene fix.
+#[derive(Debug)]
+pub struct ScratchDir {
+    root: PathBuf,
+}
+
+impl ScratchDir {
+    /// Marks `root` for best-effort removal when this guard drops. Does not
+    /// create the directory itself — pair with `BronzeStore::open` (or any
+    /// other opener) using the same path; construct this guard BEFORE the
+    /// fallible open so an early `?` return still cleans up.
+    #[must_use]
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self { root: root.into() }
+    }
+}
+
+impl Drop for ScratchDir {
+    fn drop(&mut self) {
+        // Best-effort: a missing directory (never created, or already
+        // cleaned up) is not an error worth surfacing during unwind.
+        let _ = std::fs::remove_dir_all(&self.root);
+    }
+}
+
 /// Digest bytes → lowercase hex.
 fn hex_lower(digest: &[u8]) -> String {
     const HEX: &[u8; 16] = b"0123456789abcdef";
@@ -416,6 +455,32 @@ mod tests {
         assert_eq!(a, b, "content addressing must be deterministic");
         let c = store.put(b"different").unwrap();
         assert_ne!(a.sha256, c.sha256);
+    }
+
+    #[test]
+    fn scratch_dir_removes_its_root_on_drop() {
+        let root =
+            std::env::temp_dir().join(format!("govfolio-scratch-dir-test-{}", std::process::id()));
+        {
+            let _guard = ScratchDir::new(root.clone());
+            let store = BronzeStore::open(&root).unwrap();
+            store.put(b"scratch bytes").unwrap();
+            assert!(root.exists(), "directory exists while the guard is alive");
+        }
+        assert!(!root.exists(), "guard drop removes the scratch directory");
+    }
+
+    #[test]
+    fn scratch_dir_drop_is_a_harmless_no_op_when_never_materialized() {
+        // A guard constructed before a fallible open (per its own doc
+        // comment) must not panic/error on drop when the directory was
+        // never actually created (the open failed, or was never called).
+        let root = std::env::temp_dir().join(format!(
+            "govfolio-scratch-dir-test-never-created-{}",
+            std::process::id()
+        ));
+        drop(ScratchDir::new(root.clone()));
+        assert!(!root.exists());
     }
 
     #[tokio::test(start_paused = true)]
