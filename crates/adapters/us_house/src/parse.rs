@@ -815,13 +815,22 @@ fn scan_rows(region: &[String]) -> anyhow::Result<Vec<RowDraft>> {
 fn find_anchor(line: &str) -> anyhow::Result<Option<Anchor>> {
     let tokens = tokens_with_spans(line);
     for i in 0..tokens.len() {
-        if !is_date10(tokens[i].2) {
+        // goal 081 Task 4.13: the row-anchor transaction/notification dates
+        // can also be non-zero-padded (distinct from Task 4.11's already-
+        // fixed SIGNATURE date) — real evidence: Filing ID #20000800 (2014,
+        // sha256 40babda90c0d13a76da969956206164657a5d7004c8e49809fdfecf8f024ac9c)
+        // renders `"...P 11/1/2013 11/1/2013 $100,001 - $250,000"`, which the
+        // strict `is_date10` never recognized as an anchor at all. Reuses
+        // `is_lenient_date` (Task 4.11), a confirmed strict superset of
+        // `is_date10` — every existing zero-padded row keeps matching exactly
+        // as before.
+        if !is_lenient_date(tokens[i].2) {
             continue;
         }
         let Some(&(_, _, second)) = tokens.get(i + 1) else {
             break;
         };
-        if !is_date10(second) {
+        if !is_lenient_date(second) {
             continue;
         }
         let Some(&(amount_start, _, _)) = tokens.get(i + 2) else {
@@ -888,17 +897,6 @@ fn tokens_with_spans(line: &str) -> Vec<(usize, usize, &str)> {
         tokens.push((s, line.len(), &line[s..]));
     }
     tokens
-}
-
-/// Strict `MM/DD/YYYY` (zero-padded, as printed in the table).
-fn is_date10(token: &str) -> bool {
-    let bytes = token.as_bytes();
-    bytes.len() == 10
-        && bytes[2] == b'/'
-        && bytes[5] == b'/'
-        && [0, 1, 3, 4, 6, 7, 8, 9]
-            .iter()
-            .all(|&at| bytes[at].is_ascii_digit())
 }
 
 /// `[row_id]? [owner_code]? <asset…>` — leading cells of the joined row text
@@ -1887,6 +1885,41 @@ Mr. Michael C. Burgess , 04/14/2014
     }
 
     #[test]
+    fn find_anchor_accepts_real_non_zero_padded_transaction_and_notification_dates() {
+        // Goal 081 Task 4.13: distinct from Task 4.11's already-fixed
+        // SIGNATURE date — the row-anchor transaction/notification dates can
+        // also be non-zero-padded. Real `pdf_extract::extract_text_from_mem`
+        // line verbatim from a live 2014 electronic PTR, Filing ID
+        // #20000800, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2014/20000800.pdf
+        // (pdf sha256 40babda90c0d13a76da969956206164657a5d7004c8e49809fdfecf8f024ac9c)
+        // — both dates are `11/1/2013` (single-digit day, no leading zero),
+        // previously invisible to `find_anchor`'s strict `is_date10` (the
+        // whole row fell into unattached text: `unattached asset text after
+        // the last row`). `is_lenient_date` (Task 4.11), a confirmed strict
+        // superset of `is_date10`, is reused here directly.
+        let anchor = find_anchor(
+            "builds handcrafted solid wood furniture P 11/1/2013 11/1/2013 \
+             $100,001 - $250,000",
+        )
+        .unwrap()
+        .unwrap();
+        assert_eq!(anchor.pre, "builds handcrafted solid wood furniture");
+        assert_eq!(anchor.type_token, "P");
+        assert_eq!(anchor.transaction_date, "11/1/2013");
+        assert_eq!(anchor.notification_date, "11/1/2013");
+        assert_eq!(anchor.amount, "$100,001 - $250,000");
+
+        // Already zero-padded rows keep matching exactly as before (strict
+        // superset — no regression to `anchor_splits_type_dates_and_band`).
+        let anchor = find_anchor("Foo Corp [ST] P 01/02/2020 01/03/2020 $1,001 - $15,000")
+            .unwrap()
+            .unwrap();
+        assert_eq!(anchor.transaction_date, "01/02/2020");
+        assert_eq!(anchor.notification_date, "01/03/2020");
+    }
+
+    #[test]
     fn scan_rows_joins_a_real_wrapped_comments_sub_line_continuation() {
         // Goal 081 Task 4.12(b): a sub-line's own free-text VALUE can wrap
         // onto further physical lines with no repeated label — previously
@@ -2244,6 +2277,56 @@ Digitally Signed: Jane Filer , 01/13/2014
         assert_eq!(doc.rows.len(), 1);
         assert_eq!(doc.rows[0].row.transaction_type_raw, "S");
         assert!(doc.rows[0].row.asset_raw.contains("Hill International"));
+        assert_eq!(doc.rows[0].row.filing_status_raw, "New");
+    }
+
+    #[test]
+    fn parse_document_succeeds_against_real_2014_non_zero_padded_row_date_evidence() {
+        // Goal 081 Task 4.13 end-to-end proof. The header block, asset-name
+        // line, and full row (with its non-zero-padded transaction/
+        // notification dates) below are REAL `pdf_extract::
+        // extract_text_from_mem` text verbatim from a live 2014 electronic
+        // PTR, Filing ID #20000800, fetched directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2014/20000800.pdf
+        // (pdf sha256 40babda90c0d13a76da969956206164657a5d7004c8e49809fdfecf8f024ac9c)
+        // — previously the whole row fell into unattached text (`unattached
+        // asset text after the last row`). Doc id / filer info / signature
+        // are clean synthetic grammar, matching this suite's existing
+        // convention; the real document's own `FILINg sTaTUs:`/`LoCaTIoN:`/
+        // `DEsCRIPTIoN:` sub-lines are replaced with a single clean
+        // `FILINg sTaTUs:` line to isolate this fix from a separate,
+        // out-of-scope gap this session also found in the same real
+        // document (its DESCRIPTION value wraps across a BLANK line, which
+        // Task 4.12(b)'s mid-sub-line join deliberately does not bridge).
+        let text = "\
+Filing ID #20099993
+
+name: Jane Filer
+Status: Member
+State/District: XX00
+
+tranSactionS
+
+iD owner asset transaction
+type Date notification
+Date amount
+
+The Joinery (part interest) - Company
+builds handcrafted solid wood furniture P 11/1/2013 11/1/2013 $100,001 - $250,000
+
+FILINg sTaTUs: New
+
+initial Public offeringS
+
+Digitally Signed: Jane Filer , 01/13/2014
+";
+        let doc = parse_document(text).unwrap();
+        assert_eq!(doc.rows.len(), 1);
+        assert_eq!(doc.rows[0].row.transaction_type_raw, "P");
+        assert_eq!(doc.rows[0].row.transaction_date_raw, "11/1/2013");
+        assert_eq!(doc.rows[0].row.notification_date_raw, "11/1/2013");
+        assert_eq!(doc.rows[0].row.amount_raw, "$100,001 - $250,000");
+        assert!(doc.rows[0].row.asset_raw.contains("Joinery"));
         assert_eq!(doc.rows[0].row.filing_status_raw, "New");
     }
 }

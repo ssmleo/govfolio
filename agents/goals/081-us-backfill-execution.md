@@ -828,7 +828,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   `Digitally Signed:` line variants, the `gfedc`/`gfedcb` artifacts, the 2014 footnote-absence gap,
   `needs_llm_extraction` with no `ANTHROPIC_API_KEY` configured) recur as expected and are not
   re-litigated here either.
-- [ ] **Task 4.13 — non-zero-padded transaction/notification dates in `find_anchor` (blocks
+- [x] **Task 4.13 — non-zero-padded transaction/notification dates in `find_anchor` (blocks
   Task 5's full-range run; flagged by Task 4.12 as the dominant remaining 2014/2018 blocker).**
   Real finding, distinct from Task 4.11's already-fixed SIGNATURE date case: row-level
   transaction/notification dates (the two adjacent `MM/DD/YYYY` tokens `find_anchor` anchors a
@@ -844,6 +844,70 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   (matching Task 4.12's own cited real examples if practical) now anchors and parses correctly,
   with all existing tests continuing to pass. Re-run a real dry-run sample against 2014/2018 and
   confirm this specific failure mode's occurrence count drops substantially.
+  **Closed 2026-07-07**: exactly the swap this task scoped —
+  `crates/adapters/us_house/src/parse.rs`'s `find_anchor` now checks both anchor date tokens with
+  `is_lenient_date` instead of `is_date10` (Task 4.11's confirmed strict superset — every
+  existing zero-padded row keeps matching, proven by `anchor_splits_type_dates_and_band` and the
+  2-digit-year-rejection case in `non_anchor_lines_pass_through`, both still green unmodified).
+  Real evidence, reusing Task 4.12's own cited example directly: Filing ID #20000800 (2014, pdf
+  sha256 40babda90c0d13a76da969956206164657a5d7004c8e49809fdfecf8f024ac9c, independently
+  re-fetched and re-verified this session — sha256 matches exactly), whose real row `"...P
+  11/1/2013 11/1/2013 $100,001 - $250,000"` was previously invisible to `find_anchor` entirely
+  (`is_date10` hard-rejects a 1-digit day), falling into `unattached asset text after the last
+  row`.
+  One consequence surfaced by the swap, not by any separate investigation: `is_date10` had
+  exactly two call sites in the whole crate, both inside `find_anchor` — with both swapped to
+  `is_lenient_date`, `is_date10` became fully dead code (the goal text's premise that it was
+  "still used elsewhere for signature dates' base check" does not hold — `extract_signed_date`
+  calls `is_lenient_date` directly and never called `is_date10`, confirmed by grep across the
+  whole crate before making this change). Left in place, `cargo clippy --all-targets -- -D
+  warnings` fails on `dead_code`. Removed the now-unused `is_date10` function per root
+  CLAUDE.md's own orphan-cleanup rule ("Remove imports/variables/functions that YOUR changes
+  made unused") — no other logic touched, `is_date10`'s doc comments elsewhere (Task 4.11's,
+  describing `is_lenient_date` as its strict superset) are left as-is, unmodified per "touch only
+  what you must".
+  2 new tests, both real-evidence-cited:
+  `find_anchor_accepts_real_non_zero_padded_transaction_and_notification_dates` (unit, real
+  #20000800 line, plus a same-test zero-padded regression check) and an end-to-end
+  `parse_document_succeeds_against_real_2014_non_zero_padded_row_date_evidence` (real header
+  block + asset-name + anchor line from #20000800, spliced with clean synthetic doc
+  id/filer-info/signature and a single clean `FILINg sTaTUs:` line — isolates this fix from a
+  separate, out-of-scope gap this session found in the SAME real document: its DESCRIPTION
+  sub-line value wraps across a genuinely BLANK line, which Task 4.12(b)'s mid-sub-line join
+  deliberately does not bridge, so the full, unedited real document still fails closed today on
+  `unattached asset text after the last row: ["requirement to report."]` — a different root
+  cause, not fixed here). `cargo test -p us_house`: 78 passed + 1 ignored (baseline measured
+  directly at this task's start, on the last-committed tree: 76 passed + 1 ignored — the goal
+  file's own prior "75+1 at Task 4.12's close" note appears to be a pre-existing one-off
+  undercount, not something this task re-litigates). `cargo fmt --check` and `cargo clippy
+  --all-targets -- -D warnings` both clean, workspace-wide; `cargo test --workspace`: 433 passed,
+  63 ignored, 0 failed (was 431 at Task 4.12's close — exactly +2, matching the 2 new tests).
+  Live re-verification against `govfolio_081_rehearsal`: `cargo run -p worker --bin backfill --
+  adapter us_house --from <year> --to <year> --dry-run --limit 60` for 2014 and 2018, before
+  (stashed fix) vs. after. The direct symptom of this failure mode —
+  `sub-line "..." amid unattached asset text — grammar break`, caused by the row's own anchor
+  never being recognized so its later FILING STATUS/LOCATION sub-line collides with the
+  unattached asset-name text — dropped substantially in both years: 2014 18→7, 2018 9→4 (both
+  real Filing IDs #20000800 and #20001769, Task 4.12's own two named examples, confirmed directly:
+  #20000800 now progresses past the row entirely to the separate DESCRIPTION-wrap gap noted
+  above; #20001769 now parses successfully through to the benign `needs_llm_extraction` seam).
+  Per-year `adds` stayed at 0/60 in this particular 60-sample slice for both years — expected and
+  not a miss: most formerly-hard-rejecting rows now correctly parse but route to the
+  pre-existing, benign `needs_llm_extraction` seam (no `ANTHROPIC_API_KEY` configured), exactly
+  invariant 6 working as designed, matching Task 4.12's own close-out precedent.
+  REAL FINDINGS surfaced, explicitly NOT fixed (separate, out of scope per this task): the
+  remaining 2014 occurrences were independently re-fetched and confirmed to be Task 4.12's own
+  already-named finding (3) — the unrecognized "Asset Class Details" section heading (real
+  Filing ID #20000780, pdf sha256
+  af3d1d3e89ee1d0475cfde8d93f0c823966c8eb7cccc5679841601febb656d9a, confirmed directly), not a
+  date issue. The remaining 2018 occurrences surface a genuinely NEW, previously undocumented
+  artifact: a standalone `"/."` token (distinct from the already-known `gfedc`/`gfedcb` glyph-leak
+  family) trailing a mid-document `Filing ID #` page-footer, orphaned before the next row's own
+  `FILINg sTaTus:` sub-line — real evidence, independently re-fetched: Filing ID #20010109 (2018,
+  pdf sha256 7c5cbcb691b686fd0e01c3ffc11a96ac7b4581b861795771ad8c34b0b2a16d1d), text verbatim
+  `"...gIlD) [sT] P 07/17/2018 08/15/2018 $1,001 - $15,000 gfedc"` / blank / `"Filing ID
+  #20010109"` / blank / `"/."` / blank / `"FIlINg sTaTus: New"`. Left correctly fail-closed, not
+  attempted; flagged here for whoever picks up the next narrowing pass.
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres
