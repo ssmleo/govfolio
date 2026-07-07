@@ -572,6 +572,46 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   signature dates and `Digitally Signed:` variants, `needs_llm_extraction` (expected, no
   `ANTHROPIC_API_KEY` configured), and an `L:` sub-line inside the Transactions region. These
   remain real, legitimate, separately-tracked blockers for Task 5's full yield, not fixed here.
+- [ ] **Task 4.11 — signature/certification-section cluster (blocks Task 5's full-range run).**
+  Three real, related gaps clustered around the certification/signature area of the document
+  (`extract_signed_date` and its surrounding text), accumulated across Tasks 4.6/4.9's findings:
+  (a) non-zero-padded signature dates (e.g. `"05/6/2014"`, `"02/1/2016"`) failing the strict
+  `MM/DD/YYYY` parse; (b) garbled/missing `Digitally Signed:` line variants (`unsplittable
+  signature line`, `missing \`Digitally Signed:\` line`, seen 2016-2026); (c) a `gfedcb`
+  checkbox-widget artifact bleeding into certification-section text (Task 4.9's own finding,
+  distinct from Task 4.10's already-fixed band-artifact occurrence — same underlying PDF
+  glyph-name-leak mechanism, different location in the document, needs its own fix at the
+  signature-line call site).
+  Investigate real evidence first (same discipline as prior Task 4.x fixes): fetch several real
+  filings spanning 2014-2026 that exhibit each variant, confirm the exact shapes, then fix
+  `extract_signed_date` (and whatever else in that area) additively — tolerate non-zero-padded
+  dates, tolerate/strip the `gfedcb` artifact, and widen the `Digitally Signed:` line match to
+  cover confirmed-real variants — without breaking the existing well-formed cases. Do not touch
+  Tasks 4.5-4.10's already-closed logic, and do not attempt Task 4.12's row-grammar cluster
+  (dispatched separately, possibly concurrently in the same file — keep this diff scoped to the
+  signature/certification area only to minimize collision risk).
+  Acceptance: tests proving each of the three sub-issues resolves against real evidence, with
+  all existing tests continuing to pass. Re-run a real dry-run sample across a few affected years
+  and confirm these specific failure modes' occurrence counts drop substantially.
+- [ ] **Task 4.12 — row-grammar cluster (blocks Task 5's full-range run).** Four real, related
+  gaps in row/transaction-level parsing, accumulated across goal 080's original findings plus
+  Tasks 4.8/4.9's own discoveries: (a) scrambled-case lowercase row-level type tokens (e.g.
+  `unknown transaction type token Some("s")`, `Some("(partial)")`) failing `find_anchor`'s
+  exact-uppercase match; (b) 2022's "unattached asset text after the last row"; (c) 2023's "band
+  wrap not followed by a `$…` continuation"; (d) 2026's `L:` sub-line inside the Transactions
+  region (goal 080's own original known issue) — plus, discovered by Task 4.9's investigation,
+  2014's genuinely different, shorter 3-line table header-block shape (no Cap. Gains > $200?
+  columns), which needs its own additive `HEADER_BLOCK`-equivalent variant.
+  Investigate real evidence first for each sub-issue (same discipline as prior fixes) before
+  changing anything — these are graphically distinct row-grammar issues, not one root cause; fix
+  each on its own merits, additively, without weakening the existing well-formed row grammar. Do
+  not touch Tasks 4.5-4.11's already-closed logic, and coordinate scope with Task 4.11 if
+  dispatched concurrently in the same file (row-grammar vs. signature/certification-area diffs
+  should not overlap).
+  Acceptance: tests proving each of the (up to) five sub-issues resolves against real evidence,
+  with all existing tests continuing to pass. Re-run a real dry-run sample across the affected
+  years (2014, 2022, 2023, 2026 at minimum) and confirm these specific failure modes' occurrence
+  counts drop substantially.
 - [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
   - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
     `backfill-real` for the full 2012-2026 range against local dev Postgres
