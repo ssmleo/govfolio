@@ -670,6 +670,140 @@ prose rather than a replaced CSV row, that would need re-evaluating.
       historical range, the full 2022 nationwide population (11423 candidates),
       and `SENADOR`/suplente resolution — all flagged above as later,
       independently-audited increments.
+- 2026-07-07 · **Full nationwide 2022 real write completed (rust-builder)** —
+  widened the bounded AC+AL proof above to ALL 27 states, one complete real
+  annual disclosure cycle for Brazil's federal deputies (not the full
+  1994-2024 historical range, still out of scope). `seed-br-candidates --from
+  2022 --to 2022` (no `--uf`): 11423 candidates discovered/considered
+  nationwide, 793 non-`DEPUTADO FEDERAL` (skipped, correct scope), 10630
+  `DEPUTADO FEDERAL` candidates in scope.
+  - **REAL DEFECT FOUND + FIXED before any write: a same-pass `(alias,
+    district)` identity collision, exactly the risk the AC+AL proof's own
+    Quirks entry flagged as "worth watching at larger scale."** The FIRST
+    nationwide seed pass (before the fix) silently merged 89 pairs (178
+    distinct real candidates, verified via distinct `SQ_CANDIDATO`, e.g.
+    "VIVIANE BARBOSA FERNANDES"/BA, "TELÊMACO BRANDÃO"/GO — common-name
+    collisions within one state's proportional-list ballot) onto ONE shared
+    politician row each, because `seed_roster`'s own ambiguity check only
+    rejects when 2+ rows are ALREADY COMMITTED before a call starts — it
+    never sees two DIFFERENT candidates discovered in the SAME call before
+    either is committed. Caught before any real Gold write (an orchestrator
+    mid-task halt on this exact finding), reconciled by deleting all 89
+    silently-created politician/alias/mandate rows (verified zero downstream
+    filing/disclosure_record/review_task references first — safe, since
+    `backfill-real-br` had not yet run), then fixed at the source:
+    `crates/adapters/br/src/seed.rs` gained `identity_collision_counts()`, a
+    pure pre-count over the considered `DEPUTADO FEDERAL` set that refuses
+    EVERY candidate sharing a colliding identity (order-independent — neither
+    member of a pair is preferred over the other, since picking one would
+    itself be an arbitrary guess; invariant 3). Re-verified end to end after
+    the fix: re-running the nationwide seed reproducibly reports `seeded 0,
+    178 error(s)` (89 pairs x 2, symmetric), with the previously-good 10452
+    politicians left untouched. Final seeded roster: **10452 `DEPUTADO
+    FEDERAL` politicians nationwide** (10630 in-scope minus 178 refused to
+    the collision). 2 new unit tests added
+    (`identity_collision_counts_flags_same_pass_duplicates_both_ways`,
+    `identity_collision_counts_respects_uf_filter`); `cargo test -p br`
+    30/30, conformance 3/3, fmt/clippy clean throughout.
+  - **A second, narrower identity-collision axis was found by due diligence
+    (not fixed — verified benign, not a defect) while investigating the run's
+    filing-vs-candidate count reconciliation**: `resolve_politician` matches
+    purely on `(alias, district, body)` with no cargo/`SQ_CANDIDATO`
+    awareness, so a `SENADOR`/suplente candidate whose filed name+state
+    happens to match an already-seeded `DEPUTADO FEDERAL` politician's
+    identity CAN resolve onto that politician's row (my same-pass fix only
+    guards the `DEPUTADO FEDERAL`-vs-`DEPUTADO FEDERAL` axis, by design,
+    since `seed_candidates_year` only ever seeds that one cargo). Checked
+    EXHAUSTIVELY, not sampled: cross-referenced all 793 non-`DEPUTADO
+    FEDERAL` candidates nationwide against the filings this run actually
+    created — exactly 3 resolved (not 0, not more): "ANDREA GOMES FONTES
+    RODRIGUES"/RJ (`DEPUTADO FEDERAL` `SQ_CANDIDATO` 190001596778 + `2º
+    SUPLENTE` 190001724188), "FÁBIO DE MELO SÉRVIO"/PI (`DEPUTADO FEDERAL`
+    180001734011 + `SENADOR` 180001713961), and "ADRIANO PIETRO SANTIAGO
+    VIANA"/PA (`DEPUTADO FEDERAL` 140001727612 + `2º SUPLENTE` 140001648645).
+    All 3 independently verified via the source's own `NR_CPF_CANDIDATO` AND
+    `NR_TITULO_ELEITORAL_CANDIDATO` (both genuine unique national identifiers)
+    to be the licensed SAME real individual under both registrations, not two
+    different people sharing a name — so none of these 3 is a wrong
+    attribution in practice. The remaining 790 non-`DEPUTADO FEDERAL`
+    candidates correctly never resolved. Flagged here as a residual,
+    UNPROTECTED architectural risk for future runs/years (this axis has no
+    mechanical guard the way the same-cargo one now does) — related to the
+    already-documented "`RegimeBinding` carries one `body` string" limitation
+    above; a future fix would need either CPF-aware disambiguation (CPF is
+    presently internal-resolution-only, never public per personal_data_to_redact)
+    or a cargo-scoped roster match, a genuine design question out of scope
+    for this pass.
+  - **Real write** (`backfill-real-br --from 2022 --to 2022`, no `--uf`):
+    `BACKFILL_BUDGET` needed = **50000** (sized generously up front from the
+    AC+AL proof's `record_delta=904` over 371 candidates, scaled ~30x for
+    11423 nationwide, to avoid a second full nationwide dry-run fetch just to
+    observe the exact number). Gate's own reported real number:
+    **`record_delta 40427`** (comfortably inside the budget; this figure
+    counts every candidate's declared-asset rows regardless of whether
+    `resolve_politician` would later succeed, so it is intentionally larger
+    than the actual Gold total below — the gap is exactly the 678 candidates
+    that failed closed). Real result: 11423 filings in scope, published
+    10402, replayed 343, **35129 Gold rows inserted**, 35129 outbox events
+    written, 0 review tasks (this regime's `review_reasons()` is always
+    empty, per the earlier `RunnerBinding` Quirks entry), **678 failed
+    closed** (`unresolved_filer`, invariant 3).
+
+    **CORRECTION (independent audit caught this, original write-back was
+    wrong)**: the failed-closed breakdown is NOT a clean "178 collision +
+    500 other" split. Only **~90** of the 678 are actually attributable to
+    the 89 collision pairs (38 pairs both members failed, 14 pairs one
+    member failed, 37 pairs NEITHER member produced a failed line) — not
+    178. Root cause: a collision-refused candidate who also filed zero
+    assets never reaches `resolve_politician`/`unresolved_filer` at all —
+    `Runner::publish_document`'s pre-existing zero-row early return (the
+    same mechanism `pipeline::zero_rows` documents elsewhere in this file)
+    fires first, so there's no roster lookup, no failure, no trace either
+    way. This is NOT a safety defect (a zero-asset candidacy has no
+    disclosure content to misattribute regardless of roster state), just a
+    correction to this write-back's own arithmetic. True split: ~90
+    collision-attributable, ~588 genuine `SENADOR`/suplente/other-cargo
+    unresolvable candidates — cross-checked against the DB's `review_task`
+    count (678 = 28 pre-existing deduped + 650 new this run), which is
+    internally consistent independent of the wrong 178/500 framing above.
+    `published`/`replayed` split is
+    explained, not alarming: TSE bulk-retimestamps declaration content
+    server-side (documented `DT_ULT_ATUAL_BEM_CANDIDATO` behavior, see the
+    fingerprint-content Quirks entries above) between the earlier AC+AL proof
+    and this run, so many previously-processed candidates got a fresh Bronze
+    sha256 (registering as a new "publish" claim, not a "replay") even though
+    their Gold-level fingerprint content is unchanged — the ACTUAL
+    correctness proof is the idempotency check below, not the claim-ledger
+    labels.
+  - **Idempotency, directly re-verified against Postgres (not inferred from
+    the CLI report)**: the 161 filings that existed BEFORE this run (the 2
+    original `local_br.rs` proof filings + the 159 from the AC+AL bounded
+    proof) carry EXACTLY 757 `disclosure_record` rows after this run too —
+    byte-for-byte unchanged, confirmed via a `discovered_at` cutoff query
+    isolating exactly those 161 pre-existing rows. `ON CONFLICT (fingerprint)
+    DO NOTHING` absorbed every re-touched-but-content-identical record with
+    zero new rows, exactly as invariants 1 and 4 require.
+  - **Alert-suppression, exhaustive (mandatory per this session's own
+    standing directive, not sampled)**: every one of the 35129 NEW
+    `outbox_event` rows this run created carries `dispatched_at` equal to
+    `created_at` (pre-stamped at insert time, backfill mode). The ONLY 6
+    non-suppressed (`dispatched_at is null`) `br` outbox rows in the entire
+    table, before and after this run, are the SAME PRE-EXISTING
+    `local_br.rs` rows (external ids `2022:10001595344`/`2022:20001716829`)
+    from before backfill-mode suppression existed — confirmed identical ids
+    and timestamps to the baseline captured before this run started, not
+    newly created. `worker::alerts::matcher::match_pass`'s `dispatched_at IS
+    NULL` filter structurally cannot fire on any of this run's 35129 new
+    rows.
+  - Final `br` totals after this pass: **10452 politicians** (10449
+    `DEPUTADO FEDERAL` + 3 pre-existing mixed-case `Deputado Federal`),
+    **6691 filings**, **35886 disclosure_records**, **35886 outbox_events**
+    (35880 dispatched + the same 6 pre-existing undispatched). 178 real
+    candidates (89 pairs) remain unresolved pending future disambiguation
+    (invariant 3: never guess, stays NULL) — not fixed further this pass.
+  - Not attempted (still explicitly out of scope): the full 1933-2024
+    historical range remains the clear next increment, to be pursued
+    incrementally with the same `BACKFILL_BUDGET`/audit discipline.
 
 ## Operational notes (politeness incidents, outages)
 

@@ -256,6 +256,40 @@ pub struct YearSeedResult {
     pub errors: Vec<CandidateSeedError>,
 }
 
+/// Counts, per `(NM_CANDIDATO, SG_UF)` identity, how many DISTINCT
+/// `SEEDED_CARGO` candidates THIS PASS share it (after the same `uf_filter`
+/// scoping [`seed_candidates_year`] itself applies). Pure and
+/// network/DB-free — the safety net `seed_roster`'s own ambiguity check
+/// cannot provide on its own: that check only rejects when 2+ rows are
+/// ALREADY COMMITTED in the database before a call starts, so it never sees
+/// two DIFFERENT candidates (different `SQ_CANDIDATO`) discovered in the
+/// SAME call before either is committed — the second one silently resolves
+/// onto the first's just-inserted (or just-matched) row instead, with no
+/// error and no trace. Confirmed REAL at nationwide 2022 scale, not
+/// hypothetical: 89 such `(alias, district)` pairs (178 distinct real
+/// candidates) — common-name collisions within one state's proportional-list
+/// ballot. A count `> 1` means every candidate sharing that identity must be
+/// refused (invariant 3: never guess entities), not just whichever one a
+/// caller happens to process second.
+fn identity_collision_counts(
+    candidates: &[DiscoveredCandidate],
+    uf_filter: &[String],
+) -> std::collections::HashMap<(String, String), u32> {
+    let mut counts = std::collections::HashMap::new();
+    for candidate in candidates {
+        if candidate.ds_cargo != SEEDED_CARGO {
+            continue;
+        }
+        if !uf_filter.is_empty() && !uf_filter.iter().any(|uf| uf == &candidate.sg_uf) {
+            continue;
+        }
+        *counts
+            .entry((candidate.nm_candidato.clone(), candidate.sg_uf.clone()))
+            .or_insert(0u32) += 1;
+    }
+    counts
+}
+
 /// Seeds one year's `DEPUTADO FEDERAL` candidates as politicians (module doc
 /// comment's judgment call). `uf_filter`, when non-empty, additionally
 /// bounds seeding to those states only — a PROOF-scale bound, not meant for
@@ -280,6 +314,7 @@ pub async fn seed_candidates_year(
         discovered: candidates.len(),
         ..Default::default()
     };
+    let collision_counts = identity_collision_counts(&candidates, uf_filter);
     for candidate in candidates {
         if !uf_filter.is_empty() && !uf_filter.iter().any(|uf| uf == &candidate.sg_uf) {
             continue;
@@ -287,6 +322,21 @@ pub async fn seed_candidates_year(
         result.considered += 1;
         if candidate.ds_cargo != SEEDED_CARGO {
             result.skipped_other_cargo += 1;
+            continue;
+        }
+        let key = (candidate.nm_candidato.clone(), candidate.sg_uf.clone());
+        let collisions = collision_counts.get(&key).copied().unwrap_or(0);
+        if collisions > 1 {
+            result.errors.push(CandidateSeedError {
+                external_id: candidate.filing_ref.external_id.clone(),
+                filed_alias: candidate.nm_candidato,
+                district: candidate.sg_uf,
+                error: format!(
+                    "same-pass (alias, district) collision: {collisions} distinct candidates \
+                     this pass share this identity — refusing to guess which is which \
+                     (invariant 3)"
+                ),
+            });
             continue;
         }
         let member = RosterMember {
@@ -360,5 +410,64 @@ mod tests {
     #[test]
     fn extract_identity_fails_closed_on_non_json() {
         assert!(extract_identity(b"not json", "2022:1").is_err());
+    }
+
+    /// Builds a bare [`DiscoveredCandidate`] for identity-collision tests —
+    /// only the fields `identity_collision_counts` reads matter.
+    fn candidate(external_id: &str, name: &str, uf: &str, cargo: &str) -> DiscoveredCandidate {
+        DiscoveredCandidate {
+            filing_ref: FilingRef {
+                external_id: external_id.to_owned(),
+                url: format!("file://{external_id}"),
+            },
+            nm_candidato: name.to_owned(),
+            sg_uf: uf.to_owned(),
+            ds_cargo: cargo.to_owned(),
+        }
+    }
+
+    /// Reproduces this session's real nationwide-2022 finding at unit scale:
+    /// two DIFFERENT candidates (different `external_id`/`SQ_CANDIDATO`)
+    /// filing under the exact same `(NM_CANDIDATO, SG_UF)` must BOTH count
+    /// as a collision (order-independent — neither is silently preferred),
+    /// while a same-name-different-state pair, a genuinely-unique name, and
+    /// an out-of-scope cargo are all left alone.
+    #[test]
+    fn identity_collision_counts_flags_same_pass_duplicates_both_ways() {
+        let candidates = vec![
+            candidate("2022:1", "MARIA TESTE", "AC", "DEPUTADO FEDERAL"),
+            candidate("2022:2", "MARIA TESTE", "AC", "DEPUTADO FEDERAL"),
+            candidate("2022:3", "JOAO TESTE", "AC", "DEPUTADO FEDERAL"),
+            candidate("2022:4", "MARIA TESTE", "AL", "DEPUTADO FEDERAL"),
+            candidate("2022:5", "PEDRO TESTE", "AC", "SENADOR"),
+        ];
+        let counts = identity_collision_counts(&candidates, &[]);
+        assert_eq!(
+            counts[&("MARIA TESTE".to_owned(), "AC".to_owned())],
+            2,
+            "two distinct candidates sharing one identity must both be counted"
+        );
+        assert_eq!(counts[&("JOAO TESTE".to_owned(), "AC".to_owned())], 1);
+        assert_eq!(
+            counts[&("MARIA TESTE".to_owned(), "AL".to_owned())],
+            1,
+            "same name, different district — not a collision"
+        );
+        assert!(
+            !counts.contains_key(&("PEDRO TESTE".to_owned(), "AC".to_owned())),
+            "out-of-scope cargo (SENADOR) is never counted"
+        );
+    }
+
+    #[test]
+    fn identity_collision_counts_respects_uf_filter() {
+        let candidates = vec![
+            candidate("2022:1", "MARIA TESTE", "AC", "DEPUTADO FEDERAL"),
+            candidate("2022:2", "MARIA TESTE", "AC", "DEPUTADO FEDERAL"),
+        ];
+        // Filtered out of scope entirely — a real collision, but not one
+        // this pass considers, so it must not be reported as one.
+        let counts = identity_collision_counts(&candidates, &["AL".to_owned()]);
+        assert!(counts.is_empty());
     }
 }
