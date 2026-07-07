@@ -413,7 +413,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   variants / unattached-asset-text/band-wrap/`L:` gaps, remain real, legitimate,
   separately-tracked blockers for Task 5's full yield — flagged here for whoever picks up the
   next narrowing pass, not fixed in this task.
-- [ ] **Task 4.9 — tolerate an absent Transactions footnote (blocks Task 5's full-range run; now
+- [x] **Task 4.9 — tolerate an absent Transactions footnote (blocks Task 5's full-range run; now
   the dominant 2014 failure).** Real finding from Task 4.8's own live re-verification: some real
   2014-era filings (confirmed directly against Filing IDs #20000077 and #20001787's actual
   extracted text) never contain the `"* For the complete list..."` footnote line at all —
@@ -437,6 +437,67 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   real 2014 evidence lacking the footnote, with existing footnote-present fixtures (2015+)
   continuing to pass unchanged. Re-run a real dry-run sample against 2014 (and nearby years) and
   confirm this specific failure mode's occurrence count drops substantially.
+  **Closed 2026-07-07**: investigated first, against real, independently live-fetched and
+  sha256-pinned 2014 electronic PTRs — six of them, not just the two named above: Filing IDs
+  #20000077 (sha256 ea936ce15201393a2fbfc61c9e9670e016fd5c6b0010aae8b750e34ebc924691),
+  #20000710 (sha256 80a4bc944f3e59d85c59d59647e292144b37ca2985789beb5b063739a48b0963),
+  #20000800 (sha256 40babda90c0d13a76da969956206164657a5d7004c8e49809fdfecf8f024ac9c),
+  #20000998 (sha256 49ff83fd5abb33ffc234cf748065c3bb64c053926f6a85da60e3c92fa8554c62),
+  #20001787 (sha256 29bfb95acf4679614ded1fb085743c9eb4220bb9964169b850307f584b06d11c),
+  #20001934 (sha256 035ddd992057a2e608b3a0720eff31ee9b0a2fd6d7e813172150502fca9f9dfb) — none
+  contain any case-variant of "complete list" anywhere in their real extracted text (grep-
+  confirmed against the live `pdf_extract::extract_text_from_mem` output of each). In 5 of the 6,
+  the real next line after the last row/sub-line is the "Comments" section heading (rendered
+  `commentS`, scrambled-case, no colon); in the 6th (#20000077) that section renders no text at
+  all and the real next line is "Initial Public Offerings" (`initial Public offeringS`) directly.
+  Confirms the hypothesis: when the footnote is absent, the boundary is the next real section
+  heading — exactly the vocabulary `vehicle_region`'s own end-boundary already recognizes
+  (`"I V D" | "C" | "I P O" | "C S"`), just directly evidenced here for the Task 4.8 scrambled-
+  case degradation pattern too.
+  Fix (`crates/adapters/us_house/src/parse.rs`, additive, `transactions_region`'s own `end`
+  search only): the boundary now matches the existing footnote line OR a new
+  `is_next_section_heading` helper, checked in the same `.position()` scan so the FIRST match
+  wins — footnote-present documents are unaffected (the footnote always precedes any of these
+  section headings in the anatomy, so it's still found first every time). The helper recognizes
+  both real degradation forms: the NUL-survivor abbreviation (`"I V D"`, `"C"`, `"I P O"`,
+  `"C S"`) and the scrambled-case full-word form (`"INVESTMENT VEHICLE DETAILS"`, `"COMMENTS"`,
+  `"INITIAL PUBLIC OFFERINGS"`, `"CERTIFICATION AND SIGNATURE"`, matched case-insensitively,
+  whitespace-collapsed). Only "Comments"/"Initial Public Offerings" were directly observed
+  footnote-absent in this sample (none of the 6 had subholdings); "Investment Vehicle
+  Details"/"Certification and Signature" are included for the same structural reason
+  `vehicle_region` already relies on them — fixed, always-present anatomy sections, not a guess.
+  3 new tests: `transactions_region_accepts_a_genuinely_absent_footnote` (both real endings —
+  via "Comments" and directly via "Initial Public Offerings" — plus the NUL-survivor form),
+  `transactions_region_prefers_the_footnote_when_both_are_present` (regression guard: a footnote
+  followed by a later section heading still stops at the footnote), and an end-to-end
+  `parse_document_succeeds_against_real_2014_evidence_lacking_the_footnote` (real heading +
+  real Comments/IPO ending from Filing ID #20001787, spliced with clean synthetic row/header-
+  block grammar to isolate this fix from two separate, out-of-scope gaps this same
+  investigation surfaced but did not fix — see below). `cargo test -p us_house`: 52 passed + 1
+  ignored (was 49+1 at Task 4.8's close), every pre-existing test unchanged and green.
+  `cargo fmt --check` and `cargo clippy --all-targets -- -D warnings` both clean, workspace-wide;
+  `cargo test --workspace` green (0 failed).
+  Live re-verification against `govfolio_081_rehearsal`: `cargo run -p worker --bin backfill --
+  adapter us_house --from 2014 --to 2014 --dry-run --limit 60` and the same for `--from 2013
+  --to 2013` — **zero** occurrences of `Transactions footnote (* For the complete list…) not
+  found` or any "complete list" text in either sample's failure log (was, per Task 4.8's own
+  close note, "now the dominant 2014 failure"). All 60 sampled 2014 filings still fail closed,
+  but now on different, already-separately-tracked errors instead.
+  REAL FINDINGS surfaced, explicitly NOT fixed (separate, out of scope per this task,
+  discovered by this same investigation): (1) the 2014-era table header block is a genuinely
+  DIFFERENT, shorter shape than the 5-line `HEADER_BLOCK` this code recognizes — real 2014 text
+  renders only 3 lines (`iD owner asset transaction` / `type Date notification` / `Date
+  amount`, no "Cap. Gains > $200?" continuation at all, a column the 2014-era paper form may
+  genuinely lack) — now the single most common 2014 failure (`unrecognized table header block`,
+  ~50% of the 60-sample); (2) non-zero-padded signature dates (`"05/6/2014"`, `"10/3/2014"`) are
+  the second most common, already named in Task 4.6's findings, still unfixed; (3) a `gfedcb`
+  checkbox-widget artifact appears bleeding into some certification-section text (distinct from
+  Task 4.10's own named `gfedc`-after-band artifact — this one is elsewhere in the document, not
+  investigated further here); (4) the already-named `Digitally Signed:` variants
+  (unsplittable/missing) and `needs_llm_extraction` (expected, no `ANTHROPIC_API_KEY`) both
+  recur as before. These remain real, legitimate, separately-tracked blockers for Task 5's full
+  yield — flagged here for whoever picks up the next narrowing pass (the header-block-shape
+  finding in particular looks like it could be its own follow-up task), not fixed in this task.
 - [ ] **Task 4.10 — tolerate the `gfedc` band-parsing artifact (blocks Task 5's full-range run;
   now the dominant 2018-2022 failure).** Real finding from Task 4.8's own live re-verification: a
   `gfedc`-shaped token trails the amount band on many 2018-2022 rows whenever the Cap. Gains

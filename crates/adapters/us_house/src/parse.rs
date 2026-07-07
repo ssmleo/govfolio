@@ -237,7 +237,10 @@ fn extract_signed_date(lines: &[String]) -> anyhow::Result<String> {
 /// The Transactions table region: after the heading — either the `T`
 /// small-caps survivor of "TRANSACTIONS", or the scrambled-case full-word
 /// form (`tranSactionS`, goal 081 Task 4.8 — real 2014-2022 evidence, e.g.
-/// Filing ID #20000077) — up to the `* For the complete list…` footnote.
+/// Filing ID #20000077) — up to the `* For the complete list…` footnote, or
+/// (goal 081 Task 4.9 — real evidence: the footnote is genuinely absent from
+/// some 2014-era filings, e.g. Filing IDs #20000077/#20001787) the next
+/// section heading, whichever comes first.
 fn transactions_region(lines: &[String]) -> anyhow::Result<&[String]> {
     let start = lines
         .iter()
@@ -245,10 +248,43 @@ fn transactions_region(lines: &[String]) -> anyhow::Result<&[String]> {
         .context("Transactions heading (`T`) not found")?;
     let end = lines[start..]
         .iter()
-        .position(|line| line.starts_with("* For the complete list"))
+        .position(|line| {
+            line.starts_with("* For the complete list") || is_next_section_heading(line)
+        })
         .map(|offset| start + offset)
-        .context("Transactions footnote (`* For the complete list…`) not found")?;
+        .context("Transactions end boundary (footnote or next section heading) not found")?;
     Ok(&lines[start + 1..end])
+}
+
+/// Whether `line` is one of the section headings that can immediately follow
+/// Transactions in the document anatomy (`docs/regimes/us-house.md` §3: 4.
+/// Investment Vehicle Details, 5. Comments, 6. Initial Public Offerings, 7.
+/// Certification and Signature) — the same vocabulary `vehicle_region`'s own
+/// end boundary already recognizes (`"I V D" | "C" | "I P O" | "C S"`).
+/// Matched under either real degradation pattern: the NUL-survivor
+/// abbreviation, or the scrambled-case full-word form (goal 081 Task 4.9 —
+/// directly observed as `commentS` and `initial Public offeringS` across six
+/// live-fetched real 2014 electronic PTRs, Filing IDs #20000077, #20000710,
+/// #20000800, #20000998, #20001787, #20001934, none of which contain the
+/// `* For the complete list…` footnote at all). `"I V D"`/`"C S"` full-word
+/// forms were not directly observed absent the footnote (none of the sampled
+/// filings had subholdings) but are included for the same structural reason
+/// `vehicle_region` already relies on them: Investment Vehicle Details and
+/// Certification and Signature are fixed, always-present sections at those
+/// same anatomy positions.
+fn is_next_section_heading(line: &str) -> bool {
+    const SURVIVOR_FORMS: [&str; 4] = ["I V D", "C", "I P O", "C S"];
+    const FULL_FORMS: [&str; 4] = [
+        "INVESTMENT VEHICLE DETAILS",
+        "COMMENTS",
+        "INITIAL PUBLIC OFFERINGS",
+        "CERTIFICATION AND SIGNATURE",
+    ];
+    let collapsed = collapse_ws(line);
+    SURVIVOR_FORMS.contains(&collapsed.as_str())
+        || FULL_FORMS
+            .iter()
+            .any(|full| collapsed.eq_ignore_ascii_case(full))
 }
 
 /// Whether `line` is the Transactions heading, under either real
@@ -785,6 +821,75 @@ mod tests {
     }
 
     #[test]
+    fn transactions_region_accepts_a_genuinely_absent_footnote() {
+        // Goal 081 Task 4.9: real finding, distinct from Task 4.8's
+        // scrambled-case heading fix above — some 2014-era filings never
+        // render the `* For the complete list…` footnote AT ALL (not
+        // scrambled, genuinely absent). Confirmed directly against SIX
+        // independently live-fetched real 2014 electronic PTRs, none of
+        // which contain any case-variant of "complete list" anywhere in
+        // their extracted text: Filing IDs #20000077 (sha256
+        // ea936ce15201393a2fbfc61c9e9670e016fd5c6b0010aae8b750e34ebc924691),
+        // #20000710 (sha256
+        // 80a4bc944f3e59d85c59d59647e292144b37ca2985789beb5b063739a48b0963),
+        // #20000800 (sha256
+        // 40babda90c0d13a76da969956206164657a5d7004c8e49809fdfecf8f024ac9c),
+        // #20000998 (sha256
+        // 49ff83fd5abb33ffc234cf748065c3bb64c053926f6a85da60e3c92fa8554c62),
+        // #20001787 (sha256
+        // 29bfb95acf4679614ded1fb085743c9eb4220bb9964169b850307f584b06d11c),
+        // #20001934 (sha256
+        // 035ddd992057a2e608b3a0720eff31ee9b0a2fd6d7e813172150502fca9f9dfb),
+        // all fetched from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2014/<id>.pdf.
+        // In 5 of the 6, the real next line after the row content is the
+        // "Comments" section heading (rendered `commentS`, scrambled-case);
+        // in the 6th (#20000077) that section renders no text at all and the
+        // real next line is "Initial Public Offerings" (`initial Public
+        // offeringS`) directly. Both real shapes below are verbatim from
+        // that live sample.
+        let ends_via_comments_heading: Vec<String> = vec![
+            "tranSactionS".to_owned(),
+            "some row content".to_owned(),
+            "commentS".to_owned(),
+            "initial Public offeringS".to_owned(),
+        ];
+        let region = transactions_region(&ends_via_comments_heading).unwrap();
+        assert_eq!(region, ["some row content".to_owned()]);
+
+        let ends_via_ipo_heading_directly: Vec<String> = vec![
+            "tranSactionS".to_owned(),
+            "some row content".to_owned(),
+            "initial Public offeringS".to_owned(),
+        ];
+        let region = transactions_region(&ends_via_ipo_heading_directly).unwrap();
+        assert_eq!(region, ["some row content".to_owned()]);
+
+        // The NUL-survivor forms of the same section headings must be
+        // recognized too (goal 081 Task 4.8's own dual-form precedent).
+        let nul_survivor_ipo: Vec<String> =
+            vec!["T".to_owned(), "row".to_owned(), "I P O".to_owned()];
+        assert!(transactions_region(&nul_survivor_ipo).is_ok());
+    }
+
+    #[test]
+    fn transactions_region_prefers_the_footnote_when_both_are_present() {
+        // Regression guard: existing footnote-present fixtures (2015+) must
+        // keep stopping at the footnote, never scanning past it to a later
+        // section heading, once this task's fallback marker is added.
+        let lines: Vec<String> = vec![
+            "T".to_owned(),
+            "row one".to_owned(),
+            "* For the complete list of asset type abbreviations".to_owned(),
+            "I V D".to_owned(),
+            "some vehicle".to_owned(),
+            "C".to_owned(),
+        ];
+        let region = transactions_region(&lines).unwrap();
+        assert_eq!(region, ["row one".to_owned()]);
+    }
+
+    #[test]
     fn scan_rows_accepts_real_scrambled_case_header_block() {
         // Goal 081 Task 4.8: the table-header block rendered in the SAME
         // scrambled-case pattern as the heading, instead of the modern
@@ -1034,6 +1139,65 @@ Digitally Signed: Jane Filer , 07/01/2020
 ";
         let doc = parse_document(text).unwrap();
         assert_eq!(doc.doc_id, "20099999");
+        assert_eq!(doc.rows.len(), 1);
+        assert_eq!(doc.rows[0].row.filing_status_raw, "New");
+        assert_eq!(doc.rows[0].row.transaction_type_raw, "P");
+        assert!(doc.rows[0].row.asset_raw.contains("Example Corp"));
+    }
+
+    #[test]
+    fn parse_document_succeeds_against_real_2014_evidence_lacking_the_footnote() {
+        // Goal 081 Task 4.9 end-to-end proof: `parse_document` now succeeds
+        // on a document with NO Transactions footnote at all, which
+        // previously failed closed with "Transactions footnote (`* For the
+        // complete list…`) not found". The Transactions heading and the
+        // closing "Comments"/"Initial Public Offerings" section headings
+        // below are REAL `pdf_extract::extract_text_from_mem` text verbatim
+        // from a live 2014 electronic PTR: Filing ID #20001787, fetched
+        // directly from
+        // https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2014/20001787.pdf
+        // (pdf sha256 29bfb95acf4679614ded1fb085743c9eb4220bb9964169b850307f584b06d11c)
+        // — that real document's own text contains no case-variant of
+        // "complete list" anywhere. The header block, row, and sub-line are
+        // the same clean/real-evidence forms Task 4.8's own end-to-end test
+        // (immediately above) already proved — this test changes ONLY the
+        // ending, isolating the footnote-absence fix; the real 2014 header
+        // block is a separate, shorter shape (no Cap. Gains columns) that is
+        // its own out-of-scope gap, not conflated with this fix. The real
+        // row itself also hits the separate, out-of-scope non-zero-padded-
+        // date gap (`10/1/2014`), so this test's row stays clean synthetic
+        // grammar too, matching Task 4.8's own convention.
+        let text = "\
+Filing ID #20099998
+
+name: Jane Filer
+Status: Member
+State/District: XX00
+
+tranSactionS
+
+iD owner asset transaction
+type Date notification
+Date amount cap.
+gains >
+$200?
+
+Example Corp (EX) [ST] P 06/15/2014 06/20/2014 $1,001 - $15,000
+
+FILINg sTATus: New
+
+commentS
+
+initial Public offeringS
+
+nmlkj  Yes  nmlkji  No
+
+certification anD Signature
+
+Digitally Signed: Jane Filer , 07/01/2014
+";
+        let doc = parse_document(text).unwrap();
+        assert_eq!(doc.doc_id, "20099998");
         assert_eq!(doc.rows.len(), 1);
         assert_eq!(doc.rows[0].row.filing_status_raw, "New");
         assert_eq!(doc.rows[0].row.transaction_type_raw, "P");
