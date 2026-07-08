@@ -37,7 +37,12 @@ cargo run -p worker --bin backfill-real -- --from 2012 --to 2026 --limit 2
 ```
 
 ## Checklist
-- [ ] `--limit` flag + sampled-gate bound implemented (additive; no-`--limit` path unchanged)
-- [ ] workspace green (fmt/clippy/test)
-- [ ] historical rosters seeded locally; sampled run executed against local pg
-- [ ] side-by-side verification delivered (original PDF ↔ extracted rows); rerun replay proven
+- [x] `--limit` flag + sampled-gate bound implemented (additive; no-`--limit` path unchanged) (commit 97deca1)
+- [x] workspace green (fmt/clippy/test — 435 passed, 2026-07-08)
+- [x] historical rosters seeded locally (5,510 members, 315 ambiguous fail-closed skips); sampled run executed: 28 filings, 14 published / 38 Gold rows (incl. live LLM extractions of scanned filings + one Haiku↔Sonnet crosscheck freeze), 14 fail-closed
+- [x] side-by-side verification delivered (doc 20033751 original ↔ 2 extracted rows, exact match); replay proven (second run: 14 replayed, 0 published, 0 gold inserted — invariant 4)
+
+DONE 2026-07-08. Residual observations for future goals: 9 historical text-layer grammar
+variants (LOCATION:/LoCATIoN: sub-lines, mangled signature lines, trailing asset blocks —
+parser-extension candidates); doc 20024277 duplicate-lot rows (A1 scenario, reviewer-UI
+adjudication); sample is alphabetical-prefix biased (random sampling = trivial future tweak).
