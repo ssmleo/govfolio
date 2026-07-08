@@ -10930,7 +10930,7 @@ EOF
 
 ## HALT items (automation-policy: a halt files a goal; the loop continues)
 
-- **HARD CAP values** (founder/money; carried from Phase 2, recorded in `agents/goals/021-llm-extraction.md`): blocks H41b/H45/H46 spend; `require_budget()` refuses while unset. Follow-up goal remains "set extractor spend caps".
+- **HARD CAP values — RESOLVED 2026-07-08 (founder, chat): USD 200/month**, subdivided in the amended Task 9 `[budget]` block (`max_batch_tokens = 20_000_000` per submission ≈ $25; `per_run_token_ceiling = 80_000_000` per bin run ≈ $100; derivation comment lives with the values). `require_budget()` remains the fail-closed gate; H41b/H45/H46 unblock mechanically once Task 9 lands. Anthropic-console $200 monthly limit = platform-side backstop covering the un-gated sync path. No follow-up goal — resolved before filing.
 - **Non-Google vendor ToS** (conditional, founder legal lane): if H45's winner is not the Vertex path, file the vendor-ToS goal at the H45→H46 boundary; H46 stays blocked until it closes. Never filed preemptively.
 
 ## Execution handoff

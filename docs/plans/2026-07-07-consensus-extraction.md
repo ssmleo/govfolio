@@ -2075,14 +2075,22 @@ output_per_mtok = "5.00"
 input_per_mtok = "3.00"
 output_per_mtok = "15.00"
 
-# [budget]
-# Founder-deferred batch caps (docs/decisions/automation-policy.md "Billing/
-# money: auto within HARD CAP ... over cap halts"). Deliberately ABSENT: no
-# key here means ExtractorConfig::require_budget() returns BudgetUnset and
-# the batch extraction path refuses rather than running uncapped. Set both
-# keys under an actual [budget] table to enable batch mode:
-# max_batch_tokens = <integer>
-# per_run_token_ceiling = <integer>
+[budget]
+# HARD CAP (docs/decisions/automation-policy.md "Billing/money: auto within
+# HARD CAP ... over cap halts"). FOUNDER-SET 2026-07-08, chat: USD 200/month.
+# Token derivation (recorded; re-derive if prices or the [budget.estimate]
+# heuristics change): real batch cost ~= $0.017/doc (13.5k in + 3k out Haiku
+# batch rates + ~15% Sonnet escalation share); the pre-flight estimator counts
+# ~14,100 tokens/doc (2 pages x 1600 x 3 passes + 1500 x 3) -> ~$1.25 real per
+# 1M ESTIMATED tokens. Subdivision of the founder cap:
+#   max_batch_tokens      = one Batch API submission ceiling (~$25 blast radius)
+#   per_run_token_ceiling = one worker-bin run ceiling (~$100; <=2 full runs/mo)
+# Cross-run monthly accumulation is enforced operationally (Anthropic console
+# monthly spend limit set to $200 as the platform-side backstop — it also
+# covers the sync path, which this file does not gate) until a cumulative gate
+# exists. Removing either key returns the batch path to fail-closed refusal.
+max_batch_tokens = 20000000
+per_run_token_ceiling = 80000000
 
 [budget.estimate]
 # Conservative pre-flight token estimation heuristics for the batch
@@ -2199,8 +2207,44 @@ mod tests {
     }
 
     #[test]
-    fn absent_budget_names_the_missing_key() {
+    fn committed_budget_resolves_to_the_founder_caps() {
+        // HARD CAP founder-set 2026-07-08 (USD 200/month); see the [budget]
+        // derivation comment in config/extractor.toml.
         let cfg = ExtractorConfig::load_from(&config_path(), |_| None).unwrap();
+        let budget = cfg.require_budget().unwrap();
+        assert_eq!(budget.max_batch_tokens, 20_000_000);
+        assert_eq!(budget.per_run_token_ceiling, 80_000_000);
+    }
+
+    #[test]
+    fn absent_budget_names_the_missing_key() {
+        // Fail-closed coverage survives the caps being set: a config WITHOUT a
+        // [budget] table must still refuse batch mode naming the missing key.
+        let dir = std::env::temp_dir().join("govfolio-extractor-cfg-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("no-budget.toml");
+        std::fs::write(
+            &path,
+            r#"
+[models]
+primary = "claude-haiku-4-5-20251001"
+escalation = "claude-sonnet-5"
+
+[sampling]
+n = 3
+temperature = 0.7
+
+[preprocess]
+max_edge = 1568
+
+[versions]
+prompt = "p2"
+policy = "pol2"
+quality = "q1"
+"#,
+        )
+        .unwrap();
+        let cfg = ExtractorConfig::load_from(&path, |_| None).unwrap();
         let err = cfg.require_budget().unwrap_err();
         assert_eq!(err.missing_key, "max_batch_tokens");
     }

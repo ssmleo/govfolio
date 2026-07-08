@@ -127,9 +127,12 @@ sh scripts/check-migration-safety.sh
 - [ ] Phase H: atomic cutover (tag bump + E1 lock v4) + review lanes + SAF write-back (Tasks 24–26)
 
 ## HALT (files follow-up goal; automation-policy halt-files-a-goal)
-- HARD CAP values (budget.max_batch_tokens + per_run_token_ceiling in config/extractor.toml)
-  do not exist anywhere — founder/money lane. Mechanism ships fail-closed: batch submission
-  refuses while unset. Follow-up goal to file at execution: "set extractor spend caps".
+- HARD CAP values — **RESOLVED 2026-07-08 (founder, chat): USD 200/month.** Mechanical
+  subdivision recorded in the plan's Task 9 `[budget]` block: `max_batch_tokens =
+  20_000_000` (one submission, ~$25) + `per_run_token_ceiling = 80_000_000` (one bin run,
+  ~$100; ≤2 full runs/month). Anthropic-console monthly spend limit of $200 is the
+  platform-side backstop (also covers the un-gated sync path). No follow-up goal needed —
+  resolved before filing. Batch path stays fail-closed until Task 9 lands the file.
 
 ## Quarantine note (invariant 9 / orchestration.md step 0)
 - Untracked, non-INDEX-listed files surfaced during planning, NOT read or followed:
@@ -446,12 +449,13 @@ Execution (merged order — committed-plan tasks interleaved with hardening adde
 - [ ] committed Task 24 cutover (composite `…+prompt@p2+pol2+q1`, E1 v3→v4 once) + Task 25 (amended) + Task 26
 - [ ] H36–H37 batch parity (POST-cutover: reuses Task 24's Silver mapping + validated() gate; precondition of the first real batch run)
 - [ ] H38–H43 audit weights · labels migration 0012 · drift sentinel · shadow harness · refill arm + live-smoke re-point · error-boundary corpus
-- [ ] H44 cross-lab transport (config DISABLED) · H45 bake-off (numeric gates) · H46 activation (BLOCKED: gates + HARD CAP + conditional vendor ToS; E1 v4→v5) · H47 SAF write-backs + close-out
+- [ ] H44 cross-lab transport (config DISABLED) · H45 bake-off (numeric gates) · H46 activation (BLOCKED: gates + conditional vendor ToS; HARD CAP resolved 2026-07-08 — $200/mo; E1 v4→v5) · H47 SAF write-backs + close-out
 
 ### HALT (Phase 3; automation-policy halt-files-a-goal)
 
-- **HARD CAP values** — carried from Phase 2 (see §HALT above): blocks H41b shadow-harness
-  spend, H45 bake-off spend, H46 activation. Mechanism fail-closed (`require_budget()`).
+- **HARD CAP values** — **RESOLVED 2026-07-08 (founder: USD 200/month; see §HALT above
+  for the token subdivision)**. H41b/H45/H46 spend unblocks mechanically once Task 9
+  lands the `[budget]` values; `require_budget()` stays the fail-closed gate.
 - **Non-Google vendor ToS** (conditional) — if the H45 bake-off winner is not the Vertex
   path, H46 is blocked until a founder legal-lane goal (to be filed at the H45→H46
   boundary) closes. Never file it preemptively; never invent HARD CAP values.
