@@ -1,16 +1,11 @@
 # Agent governance
 
-## Agent-creation protocol (FOUNDER GATE)
-1. Any new agent role (or change to an existing role's skill set) starts as a proposal
-   using agents/roles/_PROPOSAL_TEMPLATE.md.
-2. The proposal MUST list proposed skills with a one-line rationale each.
-3. HARD STOP: the founder reviews and opines on the skill selection. No role file gains
-   or changes a `Skills:` section without recorded founder approval (PR comment or chat,
-   referenced in the commit message).
-4. On approval: finalize the role file (Skills: section), update agents/SKILLS-MATRIX.md,
-   commit with reference to the approval.
-Applies retroactively: roles created before this protocol get their Skills sections only
-after founder review of the initial matrix.
+## Agent-creation protocol (AUTOMATED — allocator, no founder gate)
+Founder decision 2026-07-04: skill selection is automated via the deterministic allocator
+in docs/decisions/automation-policy.md. A new agent self-allocates skills from its output
+contract using the artifact->skill map, applies the 6-slot ceiling and pack rule, and
+commits. The auditor spot-checks ceiling/pack compliance (mechanical, non-blocking).
+The former founder gate is LIFTED and recorded here as automated.
 
 ## Chassis rule
 Every role file follows the six-slot chassis (agents/archetypes/_CHASSIS.md) and names its

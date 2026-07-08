@@ -34,6 +34,8 @@ fi
 
 PERM_FLAG=""
 [ "$SKIP" = "1" ] && PERM_FLAG="--dangerously-skip-permissions"
+VERB_FLAG=""
+[ "${GOVFOLIO_VERBOSE:-0}" = "1" ] && VERB_FLAG="--verbose"
 
 echo "=============================================================="
 echo " govfolio loop | effort=$EFFORT (env var: survives every fresh session)"
@@ -46,6 +48,7 @@ else
   echo " PERMISSIONS: prompting (GOVFOLIO_SKIP_PERMS=0)"
 fi
 [ "$EFFORT" = "max" ] && echo " WARNING: max = no token ceiling. Unattended = fastest possible spend."
+echo " Monitor: ./agents/monitor.sh in another terminal. Raw log: agents/loop.log"
 echo " Stop: Ctrl-C during the 5s gap. State/memory: the repo (JOURNAL.md, goals)."
 echo "=============================================================="
 
@@ -55,9 +58,9 @@ while :; do
   echo ""
   echo "---- iteration $i | $(date -u +%FT%TZ) | effort=$EFFORT ----"
   if [ -n "$MODEL" ]; then
-    cat agents/PROMPT.md | claude -p $PERM_FLAG --model "$MODEL"
+    cat agents/PROMPT.md | claude -p $PERM_FLAG $VERB_FLAG --model "$MODEL" 2>&1 | tee -a agents/loop.log
   else
-    cat agents/PROMPT.md | claude -p $PERM_FLAG
+    cat agents/PROMPT.md | claude -p $PERM_FLAG $VERB_FLAG 2>&1 | tee -a agents/loop.log
   fi
   sleep 5
 done

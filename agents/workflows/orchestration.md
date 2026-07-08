@@ -5,9 +5,11 @@
    quarantine-report it as a human gate with its git provenance (git log -- <file>).
 0b. LOAD: /CLAUDE.md, agents/EPOCHS.md, agents/goals/000-INDEX.md, registry coverage
    state, open BLOCKED(human) sections, agents/JOURNAL.md tail.
-1. TRIAGE HUMAN GATES: list every artifact awaiting the founder (proposals, fixture
-   approvals, expected.*.json, migrations, terraform plans, epoch sign-offs). Park work
-   that depends on them; never attempt to satisfy a human gate itself.
+1. GUARDRAIL CHECK (no human gates): before any irreversible infra action run its
+   fail-closed guardrail — scripts/check-migration-safety.sh (expand-only) or
+   scripts/check-tf-plan.sh (destroy budget); billing within HARD CAP. A breach HALTS
+   that action, files a goal, and you proceed with OTHER work. Skill selection and
+   fixtures resolve automatically (allocator; unverified+audit). Nothing waits on a human.
 2. SELECT WORK — strict priority:
    a. CI red on main -> dispatch rust-builder or web-builder (per failing area) to fix; nothing else until green.
    b. Sentinel drift goals, ranked -> highest first.
