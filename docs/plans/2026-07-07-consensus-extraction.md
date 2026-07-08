@@ -3,6 +3,16 @@
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 > Work on a branch (`goal/021-consensus`). Read `/CLAUDE.md` and `agents/goals/021-llm-extraction.md` (Phase 2) before each task. Repo is memory: update the goal's checklist and commit every task.
 
+> **AMENDED 2026-07-08 (goal 021 Phase 3, founder-approved 2026-07-07):** this plan is
+> amended by `docs/plans/2026-07-07-consensus-hardening.md` (addendum Tasks H27–H47) per
+> design amendment `docs/plans/2026-07-07-consensus-extraction-amendment-1.md`. Tasks
+> 3/9/10/13/17/18/19/20/22/23/24/25 below carry in-place surgical edits (marked
+> **AMENDED**); execute them AS EDITED. Read the hardening plan's Merged Execution Order
+> before starting any task numbered ≥ 18. Global Constraints: the E1 line below is amended
+> — E1 artifacts may change inside Task 24's atomic v4 supersession OR hardening Task
+> H46's atomic v5 supersession (same mechanical trail); the one-live-test budget is
+> unchanged (the hardening plan's eval surfaces are worker BINS, never `#[ignore]` tests).
+
 **Goal:** Replace the goal-021-v1 constant-confidence LLM extraction wrapper with founder-approved (2026-07-07) consensus extraction: N-sample cheap-model extraction → mechanical row alignment + field-agreement scoring → deterministic confidence policy + routing (publish `unverified` / escalate once / hold row + review_task) → deterministic image preprocessing, SHA caching, cost instrumentation, and a Batch-API path for M8 backfill. Fail closed at every fork.
 
 **Architecture:** Design doc: `docs/plans/2026-07-07-consensus-extraction-design.md` (authoritative, Approved). Consensus internals are ADDITIVE in `crates/pipeline/src/extraction/` (`consensus.rs`, `preprocess.rs`, `config.rs`) behind the frozen per-adapter `Extractor` trait; us_house's `LlmExtractor` tier-3 live path delegates to `ConsensusExtractor`. Fingerprint-ordinal reservation for held rows rides a new `GoldCandidate.ordinal_override: Option<u32>` consumed at publish. Batch path = polling worker bins (no scheduler/terraform in this goal).
@@ -12,7 +22,7 @@
 ## Global Constraints
 
 - All ten `/CLAUDE.md` invariants. Hot here: **2** (`asset_description_raw` VERBATIM), **3** (never publish a diverging row — hold it), **4** (idempotent writes, stable ordinals; existing published fingerprints must NOT change), **5** (details contract untouched byte-identical), **6** (fail closed at every fork), **7** (rust_decimal money; the model NEVER emits amounts — band enum strings only), **8** (no `unwrap()`/`expect()` outside tests), **10** (backoff + jitter + bounded concurrency on vendor calls).
-- Confidence policy_v1 closed set: `CONF_AGREED = 0.9f32` (exactly), `CONF_ESCALATED = 0.75`, `CONF_SANITY_CAPPED = 0.79`. No path emits ≥ 0.95 or a value outside the set; acceptance gates use set membership, never a `>=` threshold. LLM-path records never auto-verify.
+- Confidence policy_v1 closed set: `CONF_AGREED = 0.9f32` (exactly), `CONF_ESCALATED = 0.75`, `CONF_SANITY_CAPPED = 0.79`. No path emits ≥ 0.95 or a value outside the set; acceptance gates use set membership, never a `>=` threshold. LLM-path records never auto-verify. policy_v1 semantics are superseded by pol2 (amendment-1 §2; SET unchanged — {0.90, 0.75, 0.79} exactly).
 - policy_v1 → design §7.1 lane mapping (normative; mirrors the design doc §4):
 
   | Outcome | `extraction_confidence` | §7.1 lane | Action |
@@ -28,7 +38,7 @@
 - Config-not-code: model ids, prices, caps, N, temperature, max_edge in `config/extractor.toml` with source URLs + retrieval dates. Budget values are ABSENT (founder-deferred HARD CAP) — batch submission refuses while unset.
 - v1 surfaces FROZEN: `LlmDocumentExtractor`, `build_request`, `Models` defaults, the per-adapter `Extractor` trait signature. Consensus code is additive beside them.
 - Every task independently green: `cargo fmt --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test --workspace` · `cargo run -p pipeline --bin conformance -- us_house` at each commit. db-gated lanes use `DATABASE_URL=postgres://postgres:postgres@localhost:5433/govfolio`.
-- E1-pinned artifacts (`docs/regimes/us-house/reference/E1.lock.json` v3) may only change inside Task 24's atomic supersession (v4 with supersedes-sha + reason + date).
+- E1-pinned artifacts (`docs/regimes/us-house/reference/E1.lock.json` v3) may only change inside Task 24's atomic supersession (v4 with supersedes-sha + reason + date) or hardening Task H46's atomic v5 supersession (same trail).
 
 ---
 ### Task 1: Consensus DTOs + content-key derivation
@@ -477,13 +487,15 @@ EOF
 
 ### Task 3: `score()` + `route()` with escalation stubbed as hold
 
+> **AMENDED (goal 021 Phase 3):** Disputed carries the aligned RowKey + per-sample UNdeduped candidates (A1); modal publication of Agreed rows lands later in H30b. See amendment-1 A1/A6.
+
 **Files:**
 - Modify: `crates/pipeline/src/extraction/consensus.rs` (append after Task 2's `align`, before `align_tests`)
 - Test: `crates/pipeline/src/extraction/consensus.rs` (new inline `#[cfg(test)] mod score_tests`)
 
 **Interfaces:**
 - Consumes (Task 2): `AlignedRows { rows: Vec<AlignedRow> }`; `AlignedRow { ordinal0: u32, key: RowKey, candidates: Vec<Value>, presence: PresenceClass }`; `PresenceClass::{InAll, Majority, Minority}`. Consumes (Task 1): `ConsensusSpec { critical_fields, .. }`; `policy::{CONF_AGREED, CONF_ESCALATED, CONF_SANITY_CAPPED}`.
-- Produces (used by Task 4 and later tasks): `pub enum RowVerdict { Agreed { ordinal0: u32, row: Value }, Disputed { ordinal0: u32, candidates: Vec<Value>, disputed_fields: Vec<String> } }`; `pub fn score(aligned: &AlignedRows, spec: &ConsensusSpec) -> Vec<RowVerdict>`; `pub struct PublishedRow { pub ordinal0: u32, pub row: Value, pub confidence: f32 }`; `pub struct HeldRow { pub ordinal0: u32, pub competing: Vec<Value> }`; `pub struct ExtractionStats { pub calls: u32, pub input_tokens: u64, pub output_tokens: u64, pub cache_read_tokens: u64, pub estimated_cost: rust_decimal::Decimal, pub agreement: Value }` (`Default`); `pub struct DocOutcome { pub published: Vec<PublishedRow>, pub held: Vec<HeldRow>, pub stats: ExtractionStats, pub header: Value, pub samples: Vec<SamplePass> }` (`Default` — `header` is `Value::Null` and `samples` empty until Task 13 populates them via `vote_header`/`extract`); `pub fn route(verdicts: Vec<RowVerdict>) -> DocOutcome` — the ONE router: Task 4 evolves it to `route(verdicts, sanity)` and Task 17 to `route(verdicts, spec, sanity, escalation)` (evolution chain 3 → 4 → 17; each evolving task updates every call site the previous one created — there is never a second `route`).
+- Produces (used by Task 4 and later tasks): `pub enum RowVerdict { Agreed { ordinal0: u32, row: Value }, Disputed { ordinal0: u32, key: RowKey, candidates: Vec<Value> /* one per carrying sample, sample order, UNDEDUPED */, disputed_fields: Vec<String> } }`; `pub fn score(aligned: &AlignedRows, spec: &ConsensusSpec) -> Vec<RowVerdict>`; `pub struct PublishedRow { pub ordinal0: u32, pub row: Value, pub confidence: f32 }`; `pub struct HeldRow { pub ordinal0: u32, pub competing: Vec<Value> }`; `pub struct ExtractionStats { pub calls: u32, pub input_tokens: u64, pub output_tokens: u64, pub cache_read_tokens: u64, pub estimated_cost: rust_decimal::Decimal, pub agreement: Value }` (`Default`); `pub struct DocOutcome { pub published: Vec<PublishedRow>, pub held: Vec<HeldRow>, pub stats: ExtractionStats, pub header: Value, pub samples: Vec<SamplePass> }` (`Default` — `header` is `Value::Null` and `samples` empty until Task 13 populates them via `vote_header`/`extract`); `pub fn route(verdicts: Vec<RowVerdict>) -> DocOutcome` — the ONE router: Task 4 evolves it to `route(verdicts, sanity)` and Task 17 to `route(verdicts, spec, sanity, escalation)` (evolution chain 3 → 4 → 17; each evolving task updates every call site the previous one created — there is never a second `route`).
 
 - [ ] **Step 1: Write the failing test**
 Append to `crates/pipeline/src/extraction/consensus.rs`, after Task 2's `align` function and BEFORE `align_tests`:
@@ -566,11 +578,7 @@ mod score_tests {
 
         assert_eq!(outcome.held.len(), 1);
         assert_eq!(outcome.held[0].ordinal0, 1, "original ordinal preserved");
-        assert_eq!(
-            outcome.held[0].competing.len(),
-            2,
-            "two distinct competing values (2 samples agree, 1 disagrees)"
-        );
+        assert_eq!(outcome.held[0].competing.len(), 3, "one competing payload per carrying sample — multiplicity preserved");
     }
 
     #[test]
@@ -615,8 +623,12 @@ pub enum RowVerdict {
     /// later task — until then every `Disputed` row holds.
     Disputed {
         ordinal0: u32,
-        /// Distinct competing row values (deduplicated — repeated
-        /// candidates across samples collapse to one entry each).
+        /// The aligned RowKey including occurrence — premium matching is
+        /// occurrence-aware (A1).
+        key: RowKey,
+        /// One entry per carrying sample, in sample order — NEVER
+        /// deduplicated; vote multiplicity is load-bearing for the
+        /// ≥3-of-4 escalation rule (H29).
         candidates: Vec<Value>,
         /// Row-relative JSON pointers of the critical fields that
         /// disagreed (empty when the ONLY problem was partial presence).
@@ -643,7 +655,8 @@ pub fn score(aligned: &AlignedRows, spec: &ConsensusSpec) -> Vec<RowVerdict> {
             } else {
                 RowVerdict::Disputed {
                     ordinal0: aligned_row.ordinal0,
-                    candidates: dedupe(&aligned_row.candidates),
+                    key: aligned_row.key.clone(),
+                    candidates: aligned_row.candidates.clone(),
                     disputed_fields,
                 }
             }
@@ -666,17 +679,6 @@ fn disagreeing_fields(candidates: &[Value], critical_fields: &[String]) -> Vec<S
         })
         .cloned()
         .collect()
-}
-
-/// Deduplicates candidate row values, preserving first-seen order.
-fn dedupe(candidates: &[Value]) -> Vec<Value> {
-    let mut out: Vec<Value> = Vec::new();
-    for candidate in candidates {
-        if !out.contains(candidate) {
-            out.push(candidate.clone());
-        }
-    }
-    out
 }
 
 /// One row published at full or sanity-capped confidence.
@@ -2016,6 +2018,8 @@ git commit -m "feat(pipeline): preprocess_document composition + PreprocessCfg (
 
 ### Task 9: config/extractor.toml + loader
 
+> **AMENDED (goal 021 Phase 3):** versions p2/pol2 + quality q1; new [quality]/[escalation]/[families]/[audit]/[drift]/[cross_lab] tables, all #[serde(default)]. See amendment-1 §3 + H31/H33/H38/H40/H44.
+
 **Files:**
 - Create: `config/extractor.toml`
 - Create: `crates/pipeline/src/extraction/config.rs`
@@ -2092,8 +2096,31 @@ image_tokens_per_page = 1600
 prompt_tokens_per_pass = 1500
 
 [versions]
-prompt = "p1"
-policy = "pol1"
+prompt = "p2"
+policy = "pol2"
+quality = "q1"
+
+[quality]
+# Preprocess-quality routing thresholds (amendment-1 A16, wired in H31). Values are
+# calibrated on the committed PNGs in H31 — these are the shipped defaults.
+max_residual_skew_deg = 1.5
+min_otsu_variance = 0.02
+max_noise_count = 1200
+
+[escalation]
+# Premium-pass output shaping (amendment-1 A7, wired in H33). effort omitted = adaptive.
+# effort = "medium"
+max_tokens = 8192
+
+[families]
+# model id -> lab family (amendment-1 AD; family-aware voting, H30).
+"claude-haiku-4-5-20251001" = "anthropic"
+"claude-sonnet-5" = "anthropic"
+
+# [audit] — stratified sampling weights land in H38 (amendment-1 A8).
+# [drift] — drift-sentinel thresholds land in H40 (amendment-1 A9).
+# [cross_lab] — DISABLED third-vote config lands in H44 (amendment-1 AD); enabled = false
+# until H46's gated activation.
 ```
 
 Register the (not-yet-implemented) module in `crates/pipeline/src/extraction/mod.rs` by changing:
@@ -2148,8 +2175,9 @@ mod tests {
         assert_eq!(cfg.sampling.n, 3);
         assert!((cfg.sampling.temperature - 0.7).abs() < f32::EPSILON);
         assert_eq!(cfg.preprocess.max_edge, 1568);
-        assert_eq!(cfg.versions.prompt, "p1");
-        assert_eq!(cfg.versions.policy, "pol1");
+        assert_eq!(cfg.versions.prompt, "p2");
+        assert_eq!(cfg.versions.policy, "pol2");
+        assert_eq!(cfg.versions.quality, "q1");
         let haiku = cfg.pricing.get("claude-haiku-4-5-20251001").unwrap();
         assert_eq!(haiku.input_per_mtok.to_string(), "1.00");
         assert_eq!(haiku.output_per_mtok.to_string(), "5.00");
@@ -2182,7 +2210,7 @@ mod tests {
         let cfg = ExtractorConfig::load_from(&config_path(), |_| None).unwrap();
         assert_eq!(
             composite_model_id(&cfg),
-            "claude-haiku-4-5-20251001x3@t0.7+claude-sonnet-5+prompt@p1+pol1"
+            "claude-haiku-4-5-20251001x3@t0.7+claude-sonnet-5+prompt@p2+pol2+q1"
         );
     }
 }
@@ -2246,7 +2274,7 @@ pub use anthropic::{
 pub use cache::{
     CacheKey, CachedExtraction, FileCache, pg_get, pg_put, prime_from_expected_silver,
 };
-pub use config::{Budget, BudgetUnset, ExtractorConfig, composite_model_id};
+pub use config::{Budget, BudgetUnset, Effort, ExtractorConfig, composite_model_id};
 ```
 
 Prepend the implementation to `crates/pipeline/src/extraction/config.rs`, ABOVE the existing `#[cfg(test)] mod tests { ... }` block from Step 1 (leave that block unchanged):
@@ -2322,13 +2350,58 @@ impl Default for EstimateConfig {
     }
 }
 
-/// `[versions]` — prompt and consensus-policy version tags folded into the
-/// composite model id (cache key + `extracted_by` provenance).
+/// `[versions]` — prompt, consensus-policy, and quality-routing version tags
+/// folded into the composite model id (cache key + `extracted_by` provenance).
 #[derive(Debug, Clone, Deserialize)]
 pub struct VersionsConfig {
     pub prompt: String,
     pub policy: String,
+    pub quality: String,
 }
+
+/// `[quality]` — preprocess-quality routing thresholds (amendment-1 A16,
+/// wired in H31). `#[serde(default)]` so config fixtures without the table
+/// still parse.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct QualityConfig {
+    pub max_residual_skew_deg: f32,
+    pub min_otsu_variance: f32,
+    pub max_noise_count: u32,
+}
+
+/// Escalation output-shaping effort (amendment-1 A7). Lives in config.rs because the
+/// TOML loader deserializes it; the request builder (Task 10) imports it from here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Effort { Low, Medium, High }
+
+/// `[escalation]` — premium-pass output shaping (amendment-1 A7, wired in
+/// H33). `effort` omitted (`None`) means adaptive (no `output_config.effort`
+/// emitted). `#[serde(default)]` so config fixtures without the table still
+/// parse.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct EscalationConfig {
+    pub effort: Option<Effort>,
+    pub max_tokens: u32,
+}
+
+/// `[audit]` — stratified sampling weights; fields land in H38 (amendment-1
+/// A8). Shell only here so `ExtractorConfig` has a stable, `#[serde(default)]`
+/// field from Task 9 onward.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct AuditConfig {}
+
+/// `[drift]` — drift-sentinel thresholds; fields land in H40 (amendment-1
+/// A9). Shell only here so `ExtractorConfig` has a stable, `#[serde(default)]`
+/// field from Task 9 onward.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct DriftConfig {}
+
+/// `[cross_lab]` — disabled third-vote config; fields land in H44
+/// (amendment-1 AD). Shell only here so `ExtractorConfig` has a stable,
+/// `#[serde(default)]` field from Task 9 onward.
+#[derive(Debug, Clone, Default, Deserialize)]
+pub struct CrossLabConfig {}
 
 /// Parsed `config/extractor.toml`.
 #[derive(Debug, Clone, Deserialize)]
@@ -2340,6 +2413,18 @@ pub struct ExtractorConfig {
     #[serde(default)]
     pub budget: BudgetConfig,
     pub versions: VersionsConfig,
+    #[serde(default)]
+    pub quality: QualityConfig,
+    #[serde(default)]
+    pub escalation: EscalationConfig,
+    #[serde(default)]
+    pub families: BTreeMap<String, String>,
+    #[serde(default)]
+    pub audit: AuditConfig,
+    #[serde(default)]
+    pub drift: DriftConfig,
+    #[serde(default)]
+    pub cross_lab: CrossLabConfig,
 }
 
 /// Resolved, present budget caps — only constructible via
@@ -2454,17 +2539,18 @@ fn find_config() -> anyhow::Result<PathBuf> {
 
 /// Formats the composite model id embedded in `extracted_by` provenance and
 /// the extraction cache key:
-/// `"{primary}x{n}@t{temperature}+{escalation}+prompt@{prompt}+{policy}"`.
+/// `"{primary}x{n}@t{temperature}+{escalation}+prompt@{prompt}+{policy}+{quality}"`.
 #[must_use]
 pub fn composite_model_id(cfg: &ExtractorConfig) -> String {
     format!(
-        "{}x{}@t{}+{}+prompt@{}+{}",
+        "{}x{}@t{}+{}+prompt@{}+{}+{}",
         cfg.models.primary,
         cfg.sampling.n,
         cfg.sampling.temperature,
         cfg.models.escalation,
         cfg.versions.prompt,
         cfg.versions.policy,
+        cfg.versions.quality,
     )
 }
 ```
@@ -2490,12 +2576,14 @@ git commit -m "feat(pipeline): config/extractor.toml + ExtractorConfig loader (g
 
 ### Task 10: `build_image_request` + `SamplingParams` (additive, `anthropic.rs`)
 
+> **AMENDED (goal 021 Phase 3):** SamplingParams gains effort (Copy enum); build_image_request emits strict:true + output_config.effort; never a thinking key. See amendment-1 A7/A11 + H33.
+
 **Files:**
 - Modify: `crates/pipeline/src/extraction/anthropic.rs` (add `SamplingParams`, `build_image_request` near `build_request` at line 342; add tests inside the existing `#[cfg(test)] mod tests { .. }` block at line 456)
 
 **Interfaces:**
-- Consumes: `DocumentToolSpec` (`anthropic.rs:78`, fields `tool_name`, `tool_description`, `input_schema`, `prompt`); `base64::engine::general_purpose::STANDARD` (already imported at `anthropic.rs:21` via `use base64::Engine as _;`)
-- Produces: `pub struct SamplingParams { pub temperature: Option<f32> }`; `pub fn build_image_request(model: &str, images_png: &[Vec<u8>], spec: &DocumentToolSpec, sampling: &SamplingParams) -> serde_json::Value` — consumed by Task 12's `run_samples` in `consensus.rs`. `build_request` (line 342, PDF-document-block shape) is left byte-for-byte untouched — this is a second, additive request builder for the pre-rasterized-image consensus sample tier (design §3.2), not a replacement.
+- Consumes: `DocumentToolSpec` (`anthropic.rs:78`, fields `tool_name`, `tool_description`, `input_schema`, `prompt`); `base64::engine::general_purpose::STANDARD` (already imported at `anthropic.rs:21` via `use base64::Engine as _;`); `crate::extraction::config::Effort` (Task 9 — the TOML loader deserializes it there, so it is defined in `config.rs`, not here; this task imports it, never redefines it — F3 forward-reference fix).
+- Produces: `pub struct SamplingParams { pub temperature: Option<f32>, pub effort: Option<Effort> }` (`Copy`, unchanged); `pub fn build_image_request(model: &str, images_png: &[Vec<u8>], spec: &DocumentToolSpec, sampling: &SamplingParams) -> serde_json::Value` — consumed by Task 12's `run_samples` in `consensus.rs`. `build_request` (line 342, PDF-document-block shape) is left byte-for-byte untouched — this is a second, additive request builder for the pre-rasterized-image consensus sample tier (design §3.2), not a replacement.
 
 - [ ] **Step 1: Write the failing test**
 Add inside the `#[cfg(test)] mod tests { use super::*; .. }` block in `crates/pipeline/src/extraction/anthropic.rs`, after `value_diff_reports_field_level_paths` (after line 495):
@@ -2516,7 +2604,7 @@ Add inside the `#[cfg(test)] mod tests { use super::*; .. }` block in `crates/pi
     #[test]
     fn build_image_request_sends_one_image_block_per_page_before_the_text_block() {
         let images = vec![b"page-one-png".to_vec(), b"page-two-png".to_vec()];
-        let sampling = SamplingParams { temperature: Some(0.7) };
+        let sampling = SamplingParams { temperature: Some(0.7), effort: None };
         let request = build_image_request("m", &images, &image_spec(), &sampling);
 
         let content = request["messages"][0]["content"].as_array().unwrap();
@@ -2538,18 +2626,31 @@ Add inside the `#[cfg(test)] mod tests { use super::*; .. }` block in `crates/pi
             "same forced tool_choice contract as build_request"
         );
         assert_eq!(request["temperature"], serde_json::json!(0.7));
+        assert_eq!(request["tools"][0]["strict"], serde_json::json!(true));
+        assert!(
+            request.get("thinking").is_none(),
+            "no `thinking` key is EVER emitted by this builder (amendment-1 A7)"
+        );
     }
 
     #[test]
     fn build_image_request_omits_temperature_key_entirely_when_none() {
         let images = vec![b"page-one-png".to_vec()];
-        let sampling = SamplingParams { temperature: None };
+        let sampling = SamplingParams { temperature: None, effort: None };
         let request = build_image_request("m", &images, &image_spec(), &sampling);
         assert!(
             request.get("temperature").is_none(),
             "the premium/escalation model rejects ANY sampling param with 400 (design D8) — \
              the key must be absent, not null"
         );
+    }
+
+    #[test]
+    fn build_image_request_emits_effort_in_output_config_when_some() {
+        let images = vec![b"page-one-png".to_vec()];
+        let sampling = SamplingParams { temperature: None, effort: Some(Effort::Medium) };
+        let request = build_image_request("m", &images, &image_spec(), &sampling);
+        assert_eq!(request["output_config"]["effort"], serde_json::json!("medium"));
     }
 ```
 - [ ] **Step 2: Run test to verify it fails**
@@ -2558,20 +2659,27 @@ Expected: FAIL to compile — `cannot find function 'build_image_request' in thi
 - [ ] **Step 3: Write minimal implementation**
 Add to `crates/pipeline/src/extraction/anthropic.rs`, directly after `build_request` (after line 368):
 ```rust
+use crate::extraction::config::Effort;
+
 /// Sampling parameters for [`build_image_request`]. `temperature` is
 /// serialized into the request body ONLY when `Some` — the premium
 /// escalation model rejects any non-default sampling param with a 400
 /// (design D8), so escalation callers pass `SamplingParams { temperature: None }`
-/// while sample-tier callers pass `Some(cfg.sampling.temperature)`.
+/// while sample-tier callers pass `Some(cfg.sampling.temperature)`. `effort` is
+/// serialized as `output_config.effort` ONLY when `Some` (amendment-1 A7).
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct SamplingParams {
     pub temperature: Option<f32>,
+    /// Emitted as `output_config.effort` ("low"|"medium"|"high") only when Some.
+    pub effort: Option<Effort>,
 }
 
 /// Builds a Messages API request over PRE-RASTERIZED page images (the
 /// consensus sample tier, design §3.2) rather than a raw PDF document block:
 /// one `image` content block per page (base64 PNG), placed BEFORE the text
-/// prompt, under the same forced-tool-use contract as [`build_request`].
+/// prompt, under the same forced-tool-use contract as [`build_request`]. No
+/// `thinking` key is EVER emitted by this builder — premium output shaping is
+/// `output_config.effort` only (amendment-1 A7).
 #[must_use]
 pub fn build_image_request(
     model: &str,
@@ -2603,16 +2711,21 @@ pub fn build_image_request(
             "name": spec.tool_name,
             "description": spec.tool_description,
             "input_schema": spec.input_schema,
+            "strict": true,
         }],
         "tool_choice": { "type": "tool", "name": spec.tool_name },
     });
     if let Some(temperature) = sampling.temperature {
         body["temperature"] = json!(temperature);
     }
+    if let Some(effort) = sampling.effort {
+        let level = match effort { Effort::Low => "low", Effort::Medium => "medium", Effort::High => "high" };
+        body["output_config"] = json!({ "effort": level });
+    }
     body
 }
 ```
-Also add `SamplingParams, build_image_request` to the `pub use anthropic::{ .. };` re-export list in `crates/pipeline/src/extraction/mod.rs:28-31` (alongside the existing `build_request`) so Task 12's `consensus.rs` can reach it via `pipeline::extraction::{SamplingParams, build_image_request}`.
+Also add `SamplingParams, build_image_request` to the `pub use anthropic::{ .. };` re-export list in `crates/pipeline/src/extraction/mod.rs:28-31` (alongside the existing `build_request`) — `Effort` is deliberately NOT added here (F3 forward-reference fix): it is defined in `config.rs` and already re-exported by Task 9's `pub use config::{..}` line, so Task 12's `consensus.rs` still reaches it via `pipeline::extraction::{Effort, SamplingParams, build_image_request}`, just sourced from that other re-export line.
 - [ ] **Step 4: Run tests to verify they pass**
 Run: `cargo test -p pipeline --lib extraction::anthropic`
 Expected: PASS. Then: `cargo fmt --check && cargo clippy --all-targets -- -D warnings`
@@ -2876,7 +2989,7 @@ pub async fn run_samples<T: Transport>(
 ) -> anyhow::Result<Vec<SamplePass>> {
     let validator = jsonschema::validator_for(&spec.tool.input_schema)
         .map_err(|e| anyhow::anyhow!("compiling consensus schema: {e}"))?;
-    let sampling = SamplingParams { temperature: Some(cfg.sampling.temperature) };
+    let sampling = SamplingParams { temperature: Some(cfg.sampling.temperature), effort: None };
     let n = cfg.sampling.n;
     anyhow::ensure!(n >= 1, "extractor config sampling.n must be >= 1, got {n}");
 
@@ -3003,13 +3116,15 @@ git commit -m "feat(pipeline): consensus run_samples sync fan-out + usage accumu
 
 ### Task 13: ConsensusExtractor::extract (sync, escalation-less)
 
+> **AMENDED (goal 021 Phase 3):** Disputed interface quote updated (A1); tests use the shared tests/common MockTransport (Task 5) instead of a local FIFO mock.
+
 **Files:**
 - Modify: `crates/pipeline/src/extraction/consensus.rs` (already holds `ConsensusSpec`, `SamplePass`, `RowKey`/`row_key`, `align`, `RowVerdict`, `score`, `PublishedRow`, `HeldRow`, `DocOutcome`, the ONE `route`, `SanityCheck`, `policy` module, `run_samples`, `ExtractionStats`, `composite_model_id` from earlier tasks in this goal — this task ADDS `ConsensusExtractor`, `vote_header`, and stats plumbing beside them, extends Task 3's `DocOutcome` with `header`/`samples`, and CALLS the existing Task-4 `route` — it does NOT define a second `route`; do not touch the other existing items)
 - Modify: `crates/pipeline/src/extraction/mod.rs` (export `ConsensusExtractor` alongside the other `pub use consensus::{...}` names already re-exported there)
 - Create: `crates/pipeline/tests/consensus_extraction.rs`
 
 **Interfaces:**
-- Consumes (from earlier tasks in `crates/pipeline/src/extraction/consensus.rs`, per the goal's shared interface contract — read the actual file for exact field/variant shapes before writing code, these are the trusted names): `ConsensusSpec { tool: DocumentToolSpec, rows_pointer: String, key_fields: Vec<String>, critical_fields: Vec<String> }`, `SamplePass { model_id: String, payload: Value, usage: Value }`, `async fn run_samples<T: Transport>(transport: &T, model: &str, images: &[Vec<u8>], spec: &ConsensusSpec, cfg: &ExtractorConfig) -> anyhow::Result<Vec<SamplePass>>`, `fn align(samples: &[Value], spec: &ConsensusSpec) -> anyhow::Result<AlignedRows>`, `enum RowVerdict { Agreed { ordinal0: u32, row: Value }, Disputed { ordinal0: u32, candidates: Vec<Value>, disputed_fields: Vec<String> } }`, `fn score(aligned: &AlignedRows, spec: &ConsensusSpec) -> Vec<RowVerdict>`, `struct PublishedRow { ordinal0: u32, row: Value, confidence: f32 }`, `struct HeldRow { ordinal0: u32, competing: Vec<Value> }`, `struct DocOutcome { published: Vec<PublishedRow>, held: Vec<HeldRow>, stats: ExtractionStats, header: Value, samples: Vec<SamplePass> }` (`header`/`samples` are added to Task 3's definition by fixes in this task — see Step 3), the ONE `pub fn route(verdicts: Vec<RowVerdict>, sanity: SanityCheck<'_>) -> DocOutcome` (Task 4 — `extract` CALLS it, does not redefine it), `type SanityCheck<'a> = &'a (dyn Fn(&Value) -> Vec<String> + Send + Sync)`, `mod policy { CONF_AGREED: f32 = 0.9; CONF_ESCALATED: f32 = 0.75; CONF_SANITY_CAPPED: f32 = 0.79; }`, `struct ExtractionStats { calls: u32, input_tokens: u64, output_tokens: u64, cache_read_tokens: u64, estimated_cost: rust_decimal::Decimal, agreement: serde_json::Value }`. Also consumes `crates/pipeline/src/extraction/config.rs`'s `ExtractorConfig` (fields `models.primary`/`models.escalation`, `preprocess`, `pricing`) and `crates/pipeline/src/extraction/preprocess.rs`'s `fn preprocess_document(pdf: &[u8], cfg: &PreprocessCfg) -> anyhow::Result<Vec<Vec<u8>>>`. Also consumes `crates/pipeline/src/extraction/anthropic.rs`'s existing `pub trait Transport { async fn send(&self, body: &Value) -> anyhow::Result<Value>; }` and `pub struct DocumentToolSpec` (both already in the repo, read at `crates/pipeline/src/extraction/anthropic.rs:78-99`).
+- Consumes (from earlier tasks in `crates/pipeline/src/extraction/consensus.rs`, per the goal's shared interface contract — read the actual file for exact field/variant shapes before writing code, these are the trusted names): `ConsensusSpec { tool: DocumentToolSpec, rows_pointer: String, key_fields: Vec<String>, critical_fields: Vec<String> }`, `SamplePass { model_id: String, payload: Value, usage: Value }`, `async fn run_samples<T: Transport>(transport: &T, model: &str, images: &[Vec<u8>], spec: &ConsensusSpec, cfg: &ExtractorConfig) -> anyhow::Result<Vec<SamplePass>>`, `fn align(samples: &[Value], spec: &ConsensusSpec) -> anyhow::Result<AlignedRows>`, `enum RowVerdict { Agreed { ordinal0: u32, row: Value }, Disputed { ordinal0: u32, key: RowKey, candidates: Vec<Value> /* one per carrying sample, sample order, UNDEDUPED */, disputed_fields: Vec<String> } }`, `fn score(aligned: &AlignedRows, spec: &ConsensusSpec) -> Vec<RowVerdict>`, `struct PublishedRow { ordinal0: u32, row: Value, confidence: f32 }`, `struct HeldRow { ordinal0: u32, competing: Vec<Value> }`, `struct DocOutcome { published: Vec<PublishedRow>, held: Vec<HeldRow>, stats: ExtractionStats, header: Value, samples: Vec<SamplePass> }` (`header`/`samples` are added to Task 3's definition by fixes in this task — see Step 3), the ONE `pub fn route(verdicts: Vec<RowVerdict>, sanity: SanityCheck<'_>) -> DocOutcome` (Task 4 — `extract` CALLS it, does not redefine it), `type SanityCheck<'a> = &'a (dyn Fn(&Value) -> Vec<String> + Send + Sync)`, `mod policy { CONF_AGREED: f32 = 0.9; CONF_ESCALATED: f32 = 0.75; CONF_SANITY_CAPPED: f32 = 0.79; }`, `struct ExtractionStats { calls: u32, input_tokens: u64, output_tokens: u64, cache_read_tokens: u64, estimated_cost: rust_decimal::Decimal, agreement: serde_json::Value }`. Also consumes `crates/pipeline/src/extraction/config.rs`'s `ExtractorConfig` (fields `models.primary`/`models.escalation`, `preprocess`, `pricing`) and `crates/pipeline/src/extraction/preprocess.rs`'s `fn preprocess_document(pdf: &[u8], cfg: &PreprocessCfg) -> anyhow::Result<Vec<Vec<u8>>>`. Also consumes `crates/pipeline/src/extraction/anthropic.rs`'s existing `pub trait Transport { async fn send(&self, body: &Value) -> anyhow::Result<Value>; }` and `pub struct DocumentToolSpec` (both already in the repo, read at `crates/pipeline/src/extraction/anthropic.rs:78-99`).
 - Produces: `pub struct ConsensusExtractor<'a, T: Transport> { transport: &'a T, cfg: &'a ExtractorConfig }` with `pub fn new(transport: &'a T, cfg: &'a ExtractorConfig) -> Self` and `pub async fn extract(&self, pdf_bytes: &[u8], spec: &ConsensusSpec, sanity: SanityCheck<'_>) -> anyhow::Result<DocOutcome>`; `pub fn vote_header(samples: &[Value], spec: &ConsensusSpec) -> anyhow::Result<Value>` (majority value per top-level non-`rows` field across the sample payloads; a field with NO majority — e.g. a 3-way split — is an `Err`, a fail-closed document freeze; escalation is deliberately NOT consulted for header fields — a recorded simplification); the private stats helpers `build_stats`/`usage_tokens`/`estimate_cost`/`summarize_agreement`; `#[cfg(test)] pub fn with_fixed_images(transport: &'a T, cfg: &'a ExtractorConfig, images: Vec<Vec<u8>>) -> Self` (test-only seam so CI never needs pdfium). **This task does NOT define `route`** — `extract` CALLS the existing Task-4 `route(verdicts, sanity) -> DocOutcome` and composes `DocOutcome.stats`/`.header`/`.samples` itself; Task 17 later evolves that ONE `route` to add escalation (chain 3 → 4 → 17).
 - POPULATES the `header`/`samples` fields Task 3 defined on `DocOutcome` (`header` via `vote_header`, `samples` moved in from `run_samples`) — this task does not change the struct's shape, only fills the two fields `route`/pure-routing tests leave at `Default`.
 
@@ -3030,44 +3145,14 @@ Create `crates/pipeline/tests/consensus_extraction.rs`:
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::float_cmp)]
 
-use std::sync::Mutex;
-
-use async_trait::async_trait;
 use serde_json::{Value, json};
 
-use pipeline::extraction::anthropic::{DocumentToolSpec, Transport};
+use pipeline::extraction::anthropic::DocumentToolSpec;
 use pipeline::extraction::config::ExtractorConfig;
 use pipeline::extraction::consensus::{ConsensusExtractor, ConsensusSpec};
 
-/// Records every request, replays canned responses in order — same shape as
-/// `crates/pipeline/tests/extraction.rs`'s `MockTransport` (goal 021).
-struct MockTransport {
-    requests: Mutex<Vec<Value>>,
-    responses: Mutex<Vec<Value>>,
-}
-
-impl MockTransport {
-    fn returning(responses: Vec<Value>) -> Self {
-        Self {
-            requests: Mutex::new(Vec::new()),
-            responses: Mutex::new(responses),
-        }
-    }
-
-    fn requests(&self) -> Vec<Value> {
-        self.requests.lock().unwrap().clone()
-    }
-}
-
-#[async_trait]
-impl Transport for MockTransport {
-    async fn send(&self, body: &Value) -> anyhow::Result<Value> {
-        self.requests.lock().unwrap().push(body.clone());
-        let mut responses = self.responses.lock().unwrap();
-        anyhow::ensure!(!responses.is_empty(), "mock transport exhausted");
-        Ok(responses.remove(0))
-    }
-}
+mod common;
+use common::MockTransport;
 
 fn spec() -> ConsensusSpec {
     ConsensusSpec {
@@ -3152,7 +3237,17 @@ fn test_cfg() -> ExtractorConfig {
         preprocess: PreprocessConfig { max_edge: 1568 },
         pricing,
         budget: BudgetConfig::default(), // caps unset; estimate defaults (1600/1500)
-        versions: VersionsConfig { prompt: "p1".to_owned(), policy: "pol1".to_owned() },
+        versions: VersionsConfig {
+            prompt: "p2".to_owned(),
+            policy: "pol2".to_owned(),
+            quality: "q1".to_owned(),
+        },
+        quality: Default::default(),
+        escalation: Default::default(),
+        families: Default::default(),
+        audit: Default::default(),
+        drift: Default::default(),
+        cross_lab: Default::default(),
     }
 }
 
@@ -4267,6 +4362,8 @@ git commit -m "feat(pipeline): RunCtx extraction-stats sink into parse-stage sta
 
 ### Task 17: Premium escalation on disputed rows
 
+> **AMENDED (goal 021 Phase 3):** resolve_disputed threads the aligned RowKey (occurrence-aware premium matching, A1); vote-multiplicity ≥3-of-4 acceptance lands in H29 as an evolution of THIS task's helpers. See amendment-1 A1/A14.
+
 **Files:**
 - Modify: `crates/pipeline/src/extraction/consensus.rs` — evolve the ONE `route` (Task 4's) to be escalation-aware, add the dispute-resolution helpers, and extend `ConsensusExtractor::extract` (from Task 13); update the `score_tests`/`sanity_tests` `route(...)` call sites for the new signature
 - Modify: `crates/pipeline/tests/consensus_extraction.rs` (from Task 13 — add escalation tests)
@@ -4277,9 +4374,9 @@ git commit -m "feat(pipeline): RunCtx extraction-stats sink into parse-stage sta
 
 **Interfaces:**
 - Consumes: everything Task 13 produced (`ConsensusExtractor`, `build_stats`, `usage_tokens`, `summarize_agreement`, `vote_header`, `policy::{CONF_ESCALATED, CONF_AGREED, CONF_SANITY_CAPPED}`); the ONE `route` (`pub fn route(verdicts, sanity) -> DocOutcome`, defined in Task 3 / evolved in Task 4) which THIS task evolves further; the goal's shared `RowKey`/`fn row_key(row: &Value, key_fields: &[String], occurrence: usize) -> RowKey`, `SamplePass`, and `DocOutcome`/`PublishedRow`/`HeldRow` from `consensus.rs`; `ExtractorConfig.models.escalation: String` (`crates/pipeline/src/extraction/config.rs`); and Task 10's `pipeline::extraction::anthropic::{SamplingParams, build_image_request}` (NOT redefined here — imported).
-- Produces: the escalation-aware evolution of the ONE `route` — `pub fn route(verdicts: Vec<RowVerdict>, spec: &ConsensusSpec, sanity: SanityCheck<'_>, escalation: Option<&SamplePass>) -> DocOutcome` (evolution chain 3 → 4 → 17; `spec` is added because dispute resolution matches the escalation pass's rows to disputed candidates by `spec.rows_pointer`/`spec.key_fields`); `pub fn resolve_disputed(ordinal0: u32, candidates: &[Value], disputed_fields: &[String], spec: &ConsensusSpec, premium: &Value) -> Option<PublishedRow>` (`pub` so Task 23's batch path reuses it verbatim); and `ConsensusExtractor::extract` makes exactly one extra `Transport::send` call when any `RowVerdict::Disputed` exists, building the premium `SamplePass` it feeds to `route`.
+- Produces: the escalation-aware evolution of the ONE `route` — `pub fn route(verdicts: Vec<RowVerdict>, spec: &ConsensusSpec, sanity: SanityCheck<'_>, escalation: Option<&SamplePass>) -> DocOutcome` (evolution chain 3 → 4 → 17; `spec` is added because dispute resolution matches the escalation pass's rows to disputed candidates by `spec.rows_pointer`/`spec.key_fields`); `pub fn resolve_disputed(ordinal0: u32, key: &RowKey, candidates: &[Value], disputed_fields: &[String], spec: &ConsensusSpec, premium: &Value) -> Option<PublishedRow>` (`pub` so Task 23's batch path reuses it verbatim; H29 evolves the body to strict ≥3-of-4 with true multiplicity — Task 23 consumes THIS final arity); and `ConsensusExtractor::extract` makes exactly one extra `Transport::send` call when any `RowVerdict::Disputed` exists, building the premium `SamplePass` it feeds to `route`.
 
-The escalation request uses Task 10's `build_image_request(model, images_png, &spec.tool, &SamplingParams { temperature: None })` — temperature is absent (not `null`) because the premium tier (`claude-sonnet-5`) rejects any sampling param with an HTTP 400 (design D8, verified repo fact). `build_request` (the frozen v1 PDF-block builder) is untouched.
+The escalation request uses Task 10's `build_image_request(model, images_png, &spec.tool, &SamplingParams { temperature: None, effort: self.cfg.escalation.effort })` — temperature is absent (not `null`) because the premium tier (`claude-sonnet-5`) rejects any sampling param with an HTTP 400 (design D8, verified repo fact); `effort` rides `cfg.escalation.effort` from `extractor.toml` (`cfg` here is `self.cfg` inside `ConsensusExtractor::extract`). `build_request` (the frozen v1 PDF-block builder) is untouched.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -4386,7 +4483,7 @@ fn build_image_request_omits_temperature_when_none_and_includes_it_when_some() {
         "claude-haiku-4-5-20251001",
         &[b"png-bytes".to_vec()],
         &spec().tool,
-        &SamplingParams { temperature: Some(0.7) },
+        &SamplingParams { temperature: Some(0.7), effort: None },
     );
     assert_eq!(with_temp["temperature"], json!(0.7));
 
@@ -4394,7 +4491,7 @@ fn build_image_request_omits_temperature_when_none_and_includes_it_when_some() {
         "claude-sonnet-5",
         &[b"png-bytes".to_vec()],
         &spec().tool,
-        &SamplingParams { temperature: None },
+        &SamplingParams { temperature: None, effort: None },
     );
     assert!(without_temp.get("temperature").is_none());
     assert_eq!(without_temp["model"], json!("claude-sonnet-5"));
@@ -4452,9 +4549,9 @@ pub fn route(
                 };
                 outcome.published.push(PublishedRow { ordinal0, row, confidence });
             }
-            RowVerdict::Disputed { ordinal0, candidates, disputed_fields } => {
+            RowVerdict::Disputed { ordinal0, key, candidates, disputed_fields } => {
                 let resolution = escalation.and_then(|pass| {
-                    resolve_disputed(ordinal0, &candidates, &disputed_fields, spec, &pass.payload)
+                    resolve_disputed(ordinal0, &key, &candidates, &disputed_fields, spec, &pass.payload)
                 });
                 match resolution {
                     Some(resolved) => {
@@ -4488,6 +4585,9 @@ enum FieldResolution {
     Tied,
 }
 
+/// Counts one vote per candidate entry — candidates are per-sample and undeduped as of
+/// the A1 edit, so counts are true multiplicities; H29 tightens acceptance to strict
+/// ≥3-of-4.
 fn field_resolution(field: &str, candidates: &[serde_json::Value], premium_row: &serde_json::Value) -> FieldResolution {
     let premium_value = premium_row.pointer(field).cloned().unwrap_or(serde_json::Value::Null);
     let mut counts: Vec<(serde_json::Value, u32)> = Vec::new();
@@ -4516,21 +4616,28 @@ fn field_resolution(field: &str, candidates: &[serde_json::Value], premium_row: 
     }
 }
 
-/// Locates the premium payload's row matching a disputed row's content key.
-/// Premium is a FRESH independent pass — it is not guaranteed to preserve
-/// document order, so rows are matched by `spec.key_fields`, never by
-/// position. Occurrence 0 only: no fixture in this task exercises duplicate
-/// content keys within one premium payload.
+/// Locates the premium payload's row matching a disputed row's FULL RowKey — content AND
+/// occurrence. Premium is a fresh pass (order not preserved), so rows are matched by
+/// content key with the SAME per-payload occurrence counting `align()` uses (A1): the
+/// n-th premium row sharing a content key matches occurrence n.
 fn premium_row_at(premium: &serde_json::Value, disputed_key: &RowKey, spec: &ConsensusSpec) -> Option<serde_json::Value> {
     let rows = premium.pointer(&spec.rows_pointer)?.as_array()?;
-    rows.iter()
-        .find(|row| row_key(row, &spec.key_fields, 0) == *disputed_key)
-        .cloned()
+    let mut occurrence_of: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for row in rows {
+        let content = key_fields_content(row, &spec.key_fields);
+        let occurrence = occurrence_of.entry(content.clone()).or_insert(0);
+        let key = RowKey(content, *occurrence);
+        *occurrence += 1;
+        if key == *disputed_key {
+            return Some(row.clone());
+        }
+    }
+    None
 }
 
 /// Resolves ONE disputed row against the premium tiebreaker: locates the
-/// premium pass's copy of this row (by `spec.key_fields`) and, for every
-/// disputed field, publishes the premium-broken-tie value at
+/// premium pass's copy of this row (by the aligned `RowKey`, occurrence-aware — A1) and,
+/// for every disputed field, publishes the premium-broken-tie value at
 /// `policy::CONF_ESCALATED`; any novel value or unbroken tie → `None` (hold).
 /// `pub` so the batch path (Task 23) reuses this EXACT tiebreaker rather than
 /// re-implementing it — sync and batch must never diverge on how a
@@ -4538,13 +4645,13 @@ fn premium_row_at(premium: &serde_json::Value, disputed_key: &RowKey, spec: &Con
 #[must_use]
 pub fn resolve_disputed(
     ordinal0: u32,
+    key: &RowKey,
     candidates: &[serde_json::Value],
     disputed_fields: &[String],
     spec: &ConsensusSpec,
     premium: &serde_json::Value,
 ) -> Option<PublishedRow> {
-    let disputed_key = row_key(&candidates[0], &spec.key_fields, 0);
-    let premium_row = premium_row_at(premium, &disputed_key, spec)?;
+    let premium_row = premium_row_at(premium, key, spec)?;
     let mut resolved_row = candidates[0].clone();
     for field in disputed_fields {
         match field_resolution(field, candidates, &premium_row) {
@@ -4602,8 +4709,10 @@ Update `ConsensusExtractor::extract` (replace the body from Task 13, keep the si
         // disputed — built into a `SamplePass` so `route` and `build_stats`
         // share the same value (and it can be persisted with the samples).
         let has_dispute = verdicts.iter().any(|v| matches!(v, RowVerdict::Disputed { .. }));
+        // H32 widens this trigger to quality/pixel/high-impact (single premium slot; see hardening plan).
         let escalation: Option<SamplePass> = if has_dispute {
-            let sampling = SamplingParams { temperature: None };
+            // `cfg` here is `self.cfg`.
+            let sampling = SamplingParams { temperature: None, effort: self.cfg.escalation.effort };
             let request = build_image_request(&self.cfg.models.escalation, &images, &spec.tool, &sampling);
             let response = self
                 .transport
@@ -4694,6 +4803,11 @@ git commit -m "feat(pipeline): premium escalation resolves disputed rows at 0.75
 
 ### Task 18: ROI checkbox cross-check (us_house)
 
+> **AMENDED (goal 021 Phase 3):** consensus_tool_spec FORKS from v1 —
+> LlmConsensusRow strict closed-vocab DTO (band_column A..J + over_1m_spouse_dc), document-
+> order contract + few-shot 9115811 worked example in the prompt (prompt p2), key_fields =
+> [asset, date]. v1 tool_spec()/LlmTransactionRow stay FROZEN. See amendment-1 A2/A5/A11/A12.
+
 **Files:**
 - Create: crates/adapters/us_house/src/consensus.rs
 - Modify: crates/adapters/us_house/src/lib.rs (add `pub mod consensus;` after `pub(crate) mod index;` at lib.rs:13)
@@ -4701,8 +4815,8 @@ git commit -m "feat(pipeline): premium escalation resolves disputed rows at 0.75
 - Test: crates/adapters/us_house/src/consensus.rs (inline `#[cfg(test)] mod tests`) — writes committed PNG fixtures to crates/adapters/us_house/tests/fixtures/checkbox/ (NEW dir; do NOT touch crates/adapters/us_house/fixtures/, which is E1-pinned)
 
 **Interfaces:**
-- Consumes: `pipeline::extraction::preprocess::{ink_density, NormRect}` (Task 6 — `pub fn ink_density(img: &image::GrayImage, rect: NormRect) -> f32`, `pub struct NormRect { pub x: f32, pub y: f32, pub w: f32, pub h: f32 }`, normalized 0..1); `pipeline::extraction::consensus::SanityCheck` (Task 4 — `pub type SanityCheck<'a> = &'a (dyn Fn(&serde_json::Value) -> Vec<String> + Send + Sync)`, NOT constructed here but the shape this task's closure is bound into by Task 24); `crate::tables::BANDS` (existing, `pub(crate) const BANDS: &[(&str, &str, Option<&str>)]`, tables.rs:11-30, 10 entries A..J in table order); `image::GrayImage`; `pipeline::extraction::anthropic::DocumentToolSpec` and `pipeline::extraction::consensus::ConsensusSpec` (for `consensus_tool_spec`/`consensus_spec`); the v1 `crate::extractor::tool_spec()` (widen to `pub(crate)` if private).
-- Produces: `pub fn consensus_tool_spec() -> DocumentToolSpec` (reuses the v1 forced-tool contract — same tool name/schema/prompt; consumed by Tasks 22/24); `pub fn consensus_spec() -> ConsensusSpec` (tool: `consensus_tool_spec()`, rows_pointer `"/rows"`, key_fields `["/asset_raw","/transaction_date_raw","/transaction_type_raw","/amount_raw"]`, critical_fields `["/amount_raw","/transaction_type_raw","/transaction_date_raw","/notification_date_raw","/owner_code_raw","/asset_raw"]`; consumed by Tasks 22/23/24/25); `pub struct RowBandGeometry { pub page_index: usize, pub type_p: NormRect, pub type_s: NormRect, pub type_s_partial: NormRect, pub type_e: NormRect, pub bands: [NormRect; 10], pub over_1m_flag: NormRect }`; `pub struct FormGeometry { pub rows: Vec<RowBandGeometry> }`; `pub const INK_THRESHOLD: f32`; `pub fn fixture_2f4b2b6e() -> FormGeometry`; `pub fn checkbox_sanity<'a>(page_images: &'a [image::GrayImage], geometry: &'a FormGeometry) -> impl Fn(&serde_json::Value) -> Vec<String> + Send + Sync + 'a`. **Note for Task 24:** it binds the closure to a `let`, then takes a reference to satisfy `SanityCheck<'_>`, e.g. `let closure = us_house::consensus::checkbox_sanity(&pages, &us_house::consensus::fixture_2f4b2b6e()); let sanity: pipeline::extraction::consensus::SanityCheck<'_> = &closure;`. The closure carries a documented precondition (see doc comment below): it must be called exactly once per extracted row, in ascending document row order, because `Fn(&Value) -> Vec<String>` carries no explicit ordinal — row-band lookup uses an internal call counter (`Cell<usize>`), and calls past `geometry.rows.len()` return no violations rather than erroring (the pixel check is supplementary evidence; it never blocks the model transcription path, invariant 6 stays intact).
+- Consumes: `pipeline::extraction::preprocess::{ink_density, NormRect}` (Task 6 — `pub fn ink_density(img: &image::GrayImage, rect: NormRect) -> f32`, `pub struct NormRect { pub x: f32, pub y: f32, pub w: f32, pub h: f32 }`, normalized 0..1); `pipeline::extraction::consensus::SanityCheck` (Task 4 — `pub type SanityCheck<'a> = &'a (dyn Fn(&serde_json::Value) -> Vec<String> + Send + Sync)`, NOT constructed here but the shape this task's closure is bound into by Task 24); `crate::tables::BANDS` (existing, `pub(crate) const BANDS: &[(&str, &str, Option<&str>)]`, tables.rs:11-30, 10 entries A..J in table order); `image::GrayImage`; `pipeline::extraction::anthropic::DocumentToolSpec` and `pipeline::extraction::consensus::ConsensusSpec` (for `consensus_tool_spec`/`consensus_spec`); `crates/adapters/us_house/fixtures/scanned_paper_ptr/expected.silver.json` (read for the few-shot worked example's literal values, A5). **v1's `crate::extractor::tool_spec()`/`LlmTransactionRow`/`LlmDocExtraction` (`extractor.rs:69-256`) are read ONLY for their header-field shape and prompt-instruction phrasing — NOT called; `consensus_tool_spec` FORKS a wholly separate `DocumentToolSpec`, v1 stays FROZEN and untouched (amendment-1).**
+- Produces: `pub struct LlmConsensusRow { .. }` (strict closed-vocab row DTO — `OwnerCode`/`TransactionType`/`BandColumn`/`FilingStatus` closed enums, `band_column: BandColumn` + `over_1m_spouse_dc: bool` replace v1's free-`String` `amount_raw`; amendment-1 A11); `pub struct LlmConsensusExtraction { pub filer_name_raw: String, pub filer_status_raw: String, pub state_district_raw: String, pub signed_date_raw: String, pub rows: Vec<LlmConsensusRow> }` (SAME header shape as v1's `LlmDocExtraction` — `vote_header` unaffected); `pub fn band_from_column(letter: BandColumn) -> &'static str`; `pub fn local_validation_schema() -> serde_json::Value` (schema + date `pattern`, local re-validation only); `pub fn consensus_tool_spec() -> DocumentToolSpec` (FORKS from v1 — new tool name `record_ptr_transactions_v2`, schema over `LlmConsensusExtraction`, document-order contract + 9115811 few-shot worked example in the prompt; consumed by Tasks 22/24; v1's `tool_spec()`/`LlmTransactionRow` stay FROZEN); `pub fn consensus_spec() -> ConsensusSpec` (tool: `consensus_tool_spec()`, rows_pointer `"/rows"`, key_fields `["/asset_raw","/transaction_date_raw"]` (A12 — voted fields OUT), critical_fields `["/band_column","/over_1m_spouse_dc","/transaction_type_raw","/transaction_date_raw","/notification_date_raw","/owner_code_raw","/asset_raw"]`; consumed by Tasks 22/23/24/25); `pub struct RowBandGeometry { pub page_index: usize, pub type_p: NormRect, pub type_s: NormRect, pub type_s_partial: NormRect, pub type_e: NormRect, pub bands: [NormRect; 10], pub over_1m_flag: NormRect }`; `pub struct FormGeometry { pub rows: Vec<RowBandGeometry> }`; `pub const INK_THRESHOLD: f32`; `pub fn fixture_2f4b2b6e() -> FormGeometry`; `pub fn checkbox_sanity<'a>(page_images: &'a [image::GrayImage], geometry: &'a FormGeometry) -> impl Fn(&serde_json::Value) -> Vec<String> + Send + Sync + 'a`. **Note for Task 24:** it binds the closure to a `let`, then takes a reference to satisfy `SanityCheck<'_>`, e.g. `let closure = us_house::consensus::checkbox_sanity(&pages, &us_house::consensus::fixture_2f4b2b6e()); let sanity: pipeline::extraction::consensus::SanityCheck<'_> = &closure;`. The closure carries a documented precondition (see doc comment below): it must be called exactly once per extracted row, in ascending document row order, because `Fn(&Value) -> Vec<String>` carries no explicit ordinal — row-band lookup uses an internal call counter (`Cell<usize>`), and calls past `geometry.rows.len()` return no violations rather than erroring (the pixel check is supplementary evidence; it never blocks the model transcription path, invariant 6 stays intact).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -4780,7 +4894,7 @@ mod tests {
         let band = geometry.rows[0];
         let page = painted_page("type-checked-p.png", &[band.type_p]);
         let sanity = checkbox_sanity(&[page], &geometry);
-        let row = json!({"transaction_type_raw": "S", "amount_raw": "$15,001 - $50,000"});
+        let row = json!({"transaction_type_raw": "S", "band_column": "B"});
         let violations = sanity(&row);
         assert!(
             violations.contains(&"roi_checkbox_conflict:transaction_type_raw".to_owned()),
@@ -4794,7 +4908,7 @@ mod tests {
         let band = geometry.rows[0];
         let page = painted_page("type-checked-p-again.png", &[band.type_p]);
         let sanity = checkbox_sanity(&[page], &geometry);
-        let row = json!({"transaction_type_raw": "P", "amount_raw": "$15,001 - $50,000"});
+        let row = json!({"transaction_type_raw": "P", "band_column": "B"});
         assert!(sanity(&row).is_empty());
     }
 
@@ -4804,7 +4918,7 @@ mod tests {
         let page = painted_page("type-all-unchecked.png", &[]);
         let sanity = checkbox_sanity(&[page], &geometry);
         // Absence is not conflict, no matter what the model transcribed.
-        let row = json!({"transaction_type_raw": "S (partial)", "amount_raw": "$1,001 - $15,000"});
+        let row = json!({"transaction_type_raw": "S (partial)", "band_column": "A"});
         assert!(sanity(&row).is_empty());
     }
 
@@ -4815,12 +4929,100 @@ mod tests {
         // Band B ($15,001-$50,000) checked on the page.
         let page = painted_page("amount-checked-band-b.png", &[band.bands[1]]);
         let sanity = checkbox_sanity(&[page], &geometry);
-        let row = json!({"transaction_type_raw": "P", "amount_raw": "$50,001 - $100,000"});
+        let row = json!({"transaction_type_raw": "P", "band_column": "C"});
         let violations = sanity(&row);
         assert!(
-            violations.contains(&"roi_checkbox_conflict:amount_raw".to_owned()),
+            violations.contains(&"roi_checkbox_conflict:band_column".to_owned()),
             "{violations:?}"
         );
+    }
+
+    #[test]
+    fn band_from_column_maps_the_letter_to_the_verbatim_band_string() {
+        assert_eq!(band_from_column(BandColumn::B), "$15,001 - $50,000");
+        // Round-trip over all 10: BANDS[i].0 == band_from_column(letter at index i).
+        let letters = [
+            BandColumn::A,
+            BandColumn::B,
+            BandColumn::C,
+            BandColumn::D,
+            BandColumn::E,
+            BandColumn::F,
+            BandColumn::G,
+            BandColumn::H,
+            BandColumn::I,
+            BandColumn::J,
+        ];
+        for (index, letter) in letters.into_iter().enumerate() {
+            assert_eq!(band_from_column(letter), BANDS[index].0);
+        }
+    }
+
+    /// The three sentinel literals from the prompt's 9115811 worked example (A5): if any of
+    /// these leak into a PUBLISHED row of an unrelated document, the "worked example, not
+    /// this document" framing failed and the model is copying example values instead of
+    /// transcribing the real page.
+    fn example_literals() -> [&'static str; 3] {
+        [
+            "Diana Harshbarger",
+            "Black Belt Energy Gas DI SR C RV BE/R/, Municipal Bond",
+            "4/17/2026",
+        ]
+    }
+
+    // NOTE on scope: the ideal leak check drives a FULL scripted `ConsensusExtractor::extract`
+    // run and asserts on `outcome.published`. That seam is unreachable from THIS crate's
+    // inline unit tests: `ConsensusExtractor::with_fixed_images` (Task 13's no-pdfium test
+    // seam) is `#[cfg(test)]` inside `pipeline`, which Cargo does not expose to a downstream
+    // crate's own test build (cfg(test) is per-crate, not transitive) — us_house would need a
+    // real pdfium call to exercise the real `extract()`, which is exactly what this
+    // mock-only/CI-offline leak check must NOT require. So this test asserts the ASSERTION
+    // INFRASTRUCTURE instead (per the brief): (a) the worked example really is embedded in the
+    // prompt (byte-wise from the fixture), and (b) a representative PUBLISHED row for an
+    // unrelated document — same shape `to_staging_rows` (Task 24) would build — contains none
+    // of the example's sentinel literals. If a future task wires a real end-to-end mock (e.g.
+    // once a shared cross-crate test-only Transport exists), replace step (b) with an actual
+    // `consensus_tool_spec()` + scripted-transport `extract()` call over `test_geometry()`.
+    #[test]
+    fn worked_example_literals_never_leak_into_an_unrelated_documents_published_rows() {
+        // The prompt's static prefix contains the example literals (sanity on the fixture
+        // itself: the example IS built from it).
+        let spec = consensus_tool_spec();
+        for literal in example_literals() {
+            assert!(
+                spec.prompt.contains(literal),
+                "expected the worked example to contain {literal:?} — the example must come \
+                 byte-wise from expected.silver.json"
+            );
+        }
+        // A representative PUBLISHED row for a synthetic OTHER document — DIFFERENT
+        // filer/asset/date entirely — must contain NONE of the sentinel literals.
+        let other_document_row = json!({
+            "row_id_raw": null,
+            "owner_code_raw": null,
+            "asset_raw": "Contoso Corp Common Stock",
+            "asset_type_code_raw": null,
+            "transaction_type_raw": "S",
+            "transaction_date_raw": "1/2/2027",
+            "notification_date_raw": "1/9/2027",
+            "band_column": "C",
+            "over_1m_spouse_dc": false,
+            "cap_gains_over_200": null,
+            "filing_status_raw": "New",
+            "subholding_of_raw": null,
+            "description_raw": null,
+            "comments_raw": null,
+            "vehicle_owner_code_raw": null,
+            "vehicle_location_raw": null
+        });
+        let published = serde_json::json!([other_document_row]).to_string();
+        for literal in example_literals() {
+            assert!(
+                !published.contains(literal),
+                "worked-example literal {literal:?} leaked into an unrelated document's \
+                 published rows — self-leak (A5)"
+            );
+        }
     }
 }
 ```
@@ -4856,13 +5058,16 @@ pub mod consensus;
 //! ROI (checkbox) cross-check for the scanned paper US House PTR (regime
 //! doc §"paper-form anatomy", docs/regimes/us-house.md:523-539): supplies
 //! `Task 4`'s `SanityCheck` shape with pixel evidence over the LLM's
-//! `transaction_type_raw` / `amount_raw` transcription. This is a
+//! `transaction_type_raw` / `band_column` transcription. This is a
 //! CONFIDENCE-CAPPING signal only — it never rewrites an extracted value
 //! (verbatim invariant, CLAUDE.md invariant 2 / repo invariant "Raw is
 //! sacred"). Geometry is measured against
 //! crates/adapters/us_house/fixtures/scanned_paper_ptr/input.pdf
 //! (sha256 2f4b2b6e98e044e6368a072275804bc61dda52f6f1e15c09ddb9074ea1b8952c);
-//! see `fixture_2f4b2b6e` for the measurement procedure.
+//! see `fixture_2f4b2b6e` for the measurement procedure. `consensus_tool_spec`/
+//! `LlmConsensusRow` (amendment-1 A2/A5/A11/A12) FORK from v1's
+//! `crate::extractor::tool_spec()`/`LlmTransactionRow` — v1 stays FROZEN,
+//! untouched, and unused by this module (prompt p2, this module's tool).
 
 use std::cell::Cell;
 
@@ -4875,37 +5080,283 @@ use pipeline::extraction::preprocess::{ink_density, NormRect};
 
 use crate::tables::BANDS;
 
-/// The consensus forced-tool spec — IDENTICAL tool name / input schema /
-/// prompt as the v1 single-pass `crate::extractor::tool_spec()` (design §3.2:
-/// consensus reuses the exact same extraction contract; only the sampling
-/// strategy differs). Reuses the v1 construction directly rather than
-/// duplicating the schema — widen the v1 `tool_spec()` to `pub(crate)` if it
-/// is still private (it is otherwise untouched, per design §3.2). If v1's
-/// `tool_spec()` is fallible on your branch, unwrap it here with a
-/// `.expect("static forced-tool schema")` — the schema is a compile-time
-/// constant, not runtime input.
-#[must_use]
-pub fn consensus_tool_spec() -> DocumentToolSpec {
-    crate::extractor::tool_spec()
+/// Owner-code closed vocabulary (amendment-1 A11). A blank owner box stays
+/// `null`/`None` on the DTO — the model never guesses one of these three.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub enum OwnerCode {
+    SP,
+    DC,
+    JT,
 }
 
-/// The us_house consensus spec: the forced-tool contract plus which fields
-/// identify "the same row" across samples (`key_fields`) and which must agree
-/// verbatim for a row to publish at full confidence (`critical_fields`).
-/// Consumed by the sync live path (Task 24) and both batch bins (Tasks 22/23).
+/// Transaction-type closed vocabulary; each `serde(rename)` maps to the SAME
+/// printed token v1's free-`String` `transaction_type_raw` carried, so
+/// downstream comparators (band/type sanity, Silver mapping) see identical
+/// strings either way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub enum TransactionType {
+    #[serde(rename = "P")]
+    Purchase,
+    #[serde(rename = "S")]
+    Sale,
+    #[serde(rename = "S (partial)")]
+    SalePartial,
+    #[serde(rename = "E")]
+    Exchange,
+}
+
+/// The printed amount-column LETTER, A..J left to right — POSITION, never a
+/// dollar value (amendment-1 A11): the model transcribes which column is
+/// checked; [`band_from_column`] maps the letter to the verbatim band string
+/// AFTER extraction, in Rust, never in the model's own judgment. Decorrelates
+/// shared band-transcription errors across samples and makes the pixel
+/// cross-check (this module's `checkbox_sanity`) index-to-index exact.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub enum BandColumn {
+    A,
+    B,
+    C,
+    D,
+    E,
+    F,
+    G,
+    H,
+    I,
+    J,
+}
+
+/// Filing-status closed vocabulary — identical electronic-form vocabulary v1
+/// already used as a free `String`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+pub enum FilingStatus {
+    New,
+    Amended,
+}
+
+/// Consensus-path row DTO (prompt p2, amendment-1 A11). Closed vocabularies everywhere a
+/// paper PTR has a closed answer space; the model NEVER emits a dollar amount or band
+/// string — bands are the printed column LETTER (position, not value: decorrelates shared
+/// transcription errors and makes the pixel cross-check index-to-index exact).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LlmConsensusRow {
+    pub row_id_raw: Option<String>,
+    /// "SP" | "DC" | "JT" | null — a blank owner box stays null; never guessed.
+    pub owner_code_raw: Option<OwnerCode>,
+    /// VERBATIM printed asset text (invariant 2).
+    pub asset_raw: String,
+    pub asset_type_code_raw: Option<String>,
+    pub transaction_type_raw: TransactionType,
+    pub transaction_date_raw: String,
+    pub notification_date_raw: String,
+    /// The printed amount COLUMN LETTER (A..J, left to right).
+    pub band_column: BandColumn,
+    /// Column K: the separate over-$1,000,000 spouse/DC flag — NOT an 11th band.
+    pub over_1m_spouse_dc: bool,
+    pub cap_gains_over_200: Option<bool>,
+    pub filing_status_raw: FilingStatus,
+    pub subholding_of_raw: Option<String>,
+    pub description_raw: Option<String>,
+    pub comments_raw: Option<String>,
+    pub vehicle_owner_code_raw: Option<String>,
+    pub vehicle_location_raw: Option<String>,
+}
+
+/// Document-level consensus DTO: the SAME header fields as v1's private
+/// `crate::extractor::LlmDocExtraction` (`filer_name_raw`/`filer_status_raw`/
+/// `state_district_raw`/`signed_date_raw`), so Task 13's `vote_header` is
+/// UNAFFECTED by this row-schema fork — only the `rows` shape changes.
+/// `consensus_tool_spec`'s `input_schema` is derived from THIS wrapper (not
+/// from `LlmConsensusRow` alone), matching `spec.rows_pointer == "/rows"`.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct LlmConsensusExtraction {
+    pub filer_name_raw: String,
+    pub filer_status_raw: String,
+    pub state_district_raw: String,
+    pub signed_date_raw: String,
+    pub rows: Vec<LlmConsensusRow>,
+}
+
+/// Maps a printed band-column letter to its verbatim band string via
+/// `tables::BANDS` INDEX order (index 0 = A … 9 = J) — the SAME table v1
+/// uses for band bounds, so the mapped string is byte-identical to what v1
+/// would have transcribed directly (Silver shape stays unchanged, Task 24).
+#[must_use]
+pub fn band_from_column(letter: BandColumn) -> &'static str {
+    let index = match letter {
+        BandColumn::A => 0,
+        BandColumn::B => 1,
+        BandColumn::C => 2,
+        BandColumn::D => 3,
+        BandColumn::E => 4,
+        BandColumn::F => 5,
+        BandColumn::G => 6,
+        BandColumn::H => 7,
+        BandColumn::I => 8,
+        BandColumn::J => 9,
+    };
+    BANDS[index].0
+}
+
+/// The API-side schema PLUS an M/D/YYYY (or MM/DD/YYYY) `pattern` constraint on
+/// `transaction_date_raw`/`notification_date_raw` — used to LOCALLY re-validate every tool
+/// response via the `jsonschema` crate. NEVER sent to the API: Anthropic's `strict: true`
+/// structured-output mode rejects the `pattern` keyword, so `consensus_tool_spec`'s
+/// `input_schema` omits it (amendment-1 A11) and this function is the only place the date
+/// format is enforced.
+///
+/// CONFIRM THE JSON POINTER PATH ON YOUR BRANCH before shipping this: schemars 1.2.1 may
+/// place `LlmConsensusRow`'s properties directly under `/properties/rows/items/properties`
+/// (inlined) OR behind a `$ref`/`$defs` indirection for the named nested struct — dump
+/// `serde_json::to_string_pretty(&schemars::schema_for!(LlmConsensusExtraction))` in a
+/// throwaway test/`dbg!` first and adjust the pointer(s) below to match. The code assumes
+/// inlined properties as the starting hypothesis.
+#[must_use]
+pub fn local_validation_schema() -> Value {
+    let mut schema = serde_json::to_value(schemars::schema_for!(LlmConsensusExtraction))
+        .expect("static consensus schema serializes");
+    let date_pattern = serde_json::json!(r"^\d{1,2}/\d{1,2}/\d{4}$");
+    if let Some(props) = schema.pointer_mut("/properties/rows/items/properties") {
+        if let Some(field) = props.get_mut("transaction_date_raw") {
+            field["pattern"] = date_pattern.clone();
+        }
+        if let Some(field) = props.get_mut("notification_date_raw") {
+            field["pattern"] = date_pattern;
+        }
+    }
+    schema
+}
+
+/// The consensus forced-tool contract — FORKS from v1's `crate::extractor::tool_spec()`
+/// (amendment-1 A2/A5/A11/A12): a NEW tool name/schema over [`LlmConsensusExtraction`]
+/// (closed vocabularies, letter-form bands), a document-order emission contract (A2), and a
+/// few-shot worked example from the committed 9115811 fixture in the static (cache-eligible)
+/// prefix (A5). v1's `tool_spec()`/`LlmTransactionRow` stay FROZEN and untouched — this is a
+/// fork, not an edit; v1's live path (`extractor.rs`) does not call this function.
+#[must_use]
+pub fn consensus_tool_spec() -> DocumentToolSpec {
+    let schema = schemars::schema_for!(LlmConsensusExtraction);
+    let input_schema = serde_json::to_value(schema).expect("static consensus schema serializes");
+
+    let transcription_rules = "This is a US House of Representatives Periodic Transaction \
+        Report (PTR). It may be a scanned paper form. Transcribe the filer block and every \
+        transaction row exactly as printed using the record_ptr_transactions_v2 tool. \
+        Paper-form conventions: checked transaction-type columns map to the electronic \
+        tokens (Purchase→P, Sale→S, Partial Sale→S (partial), Exchange→E); the checked \
+        amount column maps to its printed column LETTER (A through J, left to right) — \
+        NEVER transcribe a dollar amount or band string, only the letter; column K (the \
+        separate over-$1,000,000 spouse/DC flag) is a distinct boolean, never an eleventh \
+        band letter; Initial Report→New, Amendment→Amended; a checked 'Member of the U.S. \
+        House of Representatives' box→Member; state_district_raw is State plus zero-padded \
+        2-digit District (e.g. TN01); the clerk received stamp (e.g. '2026 MAY -6') is the \
+        signed_date_raw when no signature block exists. Transcribe asset names verbatim \
+        even when the handwriting or scan is unclear.";
+
+    let document_order_contract = "Transcribe rows strictly in the printed top-to-bottom \
+        order, continuing across pages in sequence. Emit each printed row exactly once, in \
+        that order. Do not reorder, merge, or repeat rows — a row that continues onto the \
+        next page is still one row.";
+
+    // Built byte-wise from crates/adapters/us_house/fixtures/scanned_paper_ptr/
+    // expected.silver.json (the committed 9115811 fixture, A5): filer header + the ONE
+    // transaction row, band string "$15,001 - $50,000" mapped to its column letter "B"
+    // (tables::BANDS index 1).
+    let worked_example_json = serde_json::to_string_pretty(&serde_json::json!({
+        "filer_name_raw": "Diana Harshbarger",
+        "filer_status_raw": "Member",
+        "state_district_raw": "TN01",
+        "signed_date_raw": "2026 MAY -6",
+        "rows": [{
+            "row_id_raw": null,
+            "owner_code_raw": null,
+            "asset_raw": "Black Belt Energy Gas DI SR C RV BE/R/, Municipal Bond",
+            "asset_type_code_raw": null,
+            "transaction_type_raw": "P",
+            "transaction_date_raw": "4/17/2026",
+            "notification_date_raw": "4/29/2026",
+            "band_column": "B",
+            "over_1m_spouse_dc": false,
+            "cap_gains_over_200": null,
+            "filing_status_raw": "New",
+            "subholding_of_raw": null,
+            "description_raw": null,
+            "comments_raw": null,
+            "vehicle_owner_code_raw": null,
+            "vehicle_location_raw": null
+        }]
+    }))
+    .expect("static worked example serializes");
+
+    let worked_example = format!(
+        "Worked example of the FORM's format — this is NOT the document you are \
+         transcribing; never copy its values. This example shows the tool-call payload for \
+         a real committed fixture (regime doc §\"paper-form anatomy\") with one filer \
+         header and one transaction row, so you can see the EXACT shape and letter-band \
+         convention record_ptr_transactions_v2 expects:\n\n```json\n{worked_example_json}\n```\n\n\
+         Field-by-field notes on the SHAPE, not the values above (never copy these values \
+         onto a different document): `filer_name_raw` is the NAME line verbatim, without a \
+         'Hon.' honorific; `filer_status_raw` is 'Member' when the Member-of-the-House box \
+         is checked, 'Officer or Employee' otherwise; `state_district_raw` is the State \
+         plus zero-padded 2-digit District; `signed_date_raw` is the clerk received stamp \
+         verbatim when the form has no signature block, else the 'Digitally Signed:' date; \
+         `row_id_raw` is present only on amended electronic rows and is null on every paper \
+         form; `owner_code_raw` is 'SP', 'DC', or 'JT' exactly as printed, null when the \
+         owner box is blank — never guessed; `asset_raw` is the full asset cell, verbatim, \
+         line wraps joined by single spaces; `transaction_type_raw` is the checked type box \
+         mapped to its electronic token; `transaction_date_raw`/`notification_date_raw` are \
+         printed exactly as M/D/YYYY or MM/DD/YYYY; `band_column` is the LETTER of the \
+         checked amount column, A through J left to right — never a dollar string; \
+         `over_1m_spouse_dc` is column K, the separate over-$1,000,000 spouse/DC flag, a \
+         plain boolean, never folded into `band_column`; `cap_gains_over_200`, \
+         `subholding_of_raw`, `description_raw`, `comments_raw`, `vehicle_owner_code_raw`, \
+         and `vehicle_location_raw` are null whenever the form carries no such value — \
+         never guessed."
+    );
+
+    DocumentToolSpec {
+        tool_name: "record_ptr_transactions_v2".to_owned(),
+        tool_description: "Record every transaction row of this US House Periodic \
+            Transaction Report exactly as printed using the record_ptr_transactions_v2 \
+            tool. Transcribe verbatim — never normalize, summarize, infer, or guess a \
+            value that is not visibly on the form. The amount is recorded as the printed \
+            column LETTER, never a dollar string. Use null for any field the form does \
+            not carry."
+            .to_owned(),
+        input_schema,
+        prompt: format!("{transcription_rules}\n\n{document_order_contract}\n\n{worked_example}"),
+    }
+}
+
+/// VERIFY (once, when this task lands — not re-checked by CI): the worked-example block
+/// above (the `worked_example` string, including its field-by-field prose) is ≥ ~1.1k
+/// tokens — the cache-eligibility rationale (A5) needs the STATIC prefix over Haiku's
+/// 4096-token cache minimum for a typical 1-page scan. A rough proxy (no tokenizer
+/// dependency in this crate): `worked_example.len() / 4 >= 1100`. If short, expand the
+/// field-by-field walkthrough prose (never fabricate additional example ROWS — the
+/// leak-check test below asserts exactly 3 sentinel literals from THIS example never
+/// appear in an unrelated document's published rows, so only ONE example row may exist).
+/// Also confirm every literal in `worked_example_json` above is byte-identical to
+/// `crates/adapters/us_house/fixtures/scanned_paper_ptr/expected.silver.json`.
+
+/// The us_house consensus spec: the forced-tool contract plus which fields identify "the
+/// same row" across samples (`key_fields`) and which must agree verbatim for a row to
+/// publish at full confidence (`critical_fields`). `key_fields` DROPS the voted fields
+/// (band, type) — key on asset + date only, occurrence index handles duplicates
+/// (amendment-1 A12): with band/type in the key, a band dispute key-splits into two
+/// aligned rows and the premium tiebreak becomes unreachable. `critical_fields` swaps
+/// `/amount_raw` for `/band_column` and adds `/over_1m_spouse_dc` (A11 — the model no
+/// longer emits `amount_raw` at all). Consumed by the sync live path (Task 24) and both
+/// batch bins (Tasks 22/23).
 #[must_use]
 pub fn consensus_spec() -> ConsensusSpec {
     ConsensusSpec {
         tool: consensus_tool_spec(),
         rows_pointer: "/rows".to_owned(),
-        key_fields: vec![
-            "/asset_raw".to_owned(),
-            "/transaction_date_raw".to_owned(),
-            "/transaction_type_raw".to_owned(),
-            "/amount_raw".to_owned(),
-        ],
+        key_fields: vec!["/asset_raw".to_owned(), "/transaction_date_raw".to_owned()],
         critical_fields: vec![
-            "/amount_raw".to_owned(),
+            "/band_column".to_owned(),
+            "/over_1m_spouse_dc".to_owned(),
             "/transaction_type_raw".to_owned(),
             "/transaction_date_raw".to_owned(),
             "/notification_date_raw".to_owned(),
@@ -5023,17 +5474,21 @@ pub fn checkbox_sanity<'a>(
             violations.push("roi_checkbox_conflict:transaction_type_raw".to_owned());
         }
 
-        let checked_bands: Vec<&str> = BANDS
+        // BANDS zip stays (positional parity with the geometry table); the checked
+        // token is now the LETTER (A..J, index position) — the model's `band_column`
+        // is a letter, never a dollar string (amendment-1 A11).
+        let checked_bands: Vec<char> = BANDS
             .iter()
             .zip(band.bands.iter())
-            .filter(|(_, rect)| ink_density(page, **rect) > INK_THRESHOLD)
-            .map(|((label, _, _), _)| *label)
+            .enumerate()
+            .filter(|(_, (_, rect))| ink_density(page, **rect) > INK_THRESHOLD)
+            .map(|(index, _)| (b'A' + index as u8) as char)
             .collect();
         if let [only] = checked_bands.as_slice()
-            && let Some(model_amount) = row.get("amount_raw").and_then(Value::as_str)
-            && model_amount != *only
+            && let Some(model_band_letter) = row.get("band_column").and_then(Value::as_str)
+            && model_band_letter.chars().next() != Some(*only)
         {
-            violations.push("roi_checkbox_conflict:amount_raw".to_owned());
+            violations.push("roi_checkbox_conflict:band_column".to_owned());
         }
 
         violations
@@ -5043,7 +5498,7 @@ pub fn checkbox_sanity<'a>(
 
 - [ ] **Step 4: Run tests to verify they pass**
 Run: `cargo test -p us_house --lib consensus::tests`
-Expected: PASS — all 4 tests green (`type_checkbox_conflict_fires_when_pixel_says_p_but_model_says_s`, `type_checkbox_matching_the_model_produces_no_violation`, `all_type_checkboxes_unchecked_is_not_a_conflict`, `amount_band_conflict_fires_when_pixel_band_disagrees_with_model`). Then: `cargo fmt --check && cargo clippy --all-targets -- -D warnings`
+Expected: PASS — all 6 tests green (`type_checkbox_conflict_fires_when_pixel_says_p_but_model_says_s`, `type_checkbox_matching_the_model_produces_no_violation`, `all_type_checkboxes_unchecked_is_not_a_conflict`, `amount_band_conflict_fires_when_pixel_band_disagrees_with_model`, `band_from_column_maps_the_letter_to_the_verbatim_band_string`, `worked_example_literals_never_leak_into_an_unrelated_documents_published_rows`). Then: `cargo fmt --check && cargo clippy --all-targets -- -D warnings`
 
 - [ ] **Step 5: Commit**
 ```bash
@@ -5058,6 +5513,10 @@ git commit -m "feat(us_house): ROI checkbox cross-check sanity signal (goal 021 
 
 ### Task 19: Migration 0011 (`extraction_sample` + `extraction_batch`) + stale-count fix
 
+> **AMENDED (goal 021 Phase 3):** 0011 additionally creates extraction_doc_signal
+(per-doc quality/pixel signals for batch premium-trigger parity, H37). See amendment-1
+A15/A16.
+
 **Files:**
 - Create: `crates/core/migrations/0011_consensus_extraction.sql`
 - Modify: `crates/core/tests/migrate.rs`
@@ -5065,7 +5524,7 @@ git commit -m "feat(us_house): ROI checkbox cross-check sanity signal (goal 021 
 
 **Interfaces:**
 - Consumes: `govfolio_core::db::migrate(&pool) -> anyhow::Result<()>` (existing, unchanged — runs every file under `crates/core/migrations/` in order via sqlx's embedded migrator).
-- Produces (the SINGLE migration that creates these two tables — Tasks 20/22/23 all consume them, none creates a second): `extraction_sample (document_sha256, consensus_tag, pass_idx int, model_id, payload, usage, created_at)` PK `(document_sha256, consensus_tag, pass_idx)` — consumed by Task 20's `consensus_store` (sync persist, binds `pass_idx` as `i32`) and Task 23's batch ingest (binds `i16`; both bind cleanly against `int`); and `extraction_batch (anthropic_batch_id PK, regime_code, consensus_tag, composite_model_id, shas jsonb, status default 'submitted' check in ('submitted','ended','ingested','failed'), submitted_at, ended_at, ingested_at)` — consumed by Task 22's `record_batch_submitted`/`submitted_batches` and Task 23's poll/ingest UPDATEs.
+- Produces (the SINGLE migration that creates these THREE tables — Tasks 20/22/23 all consume the first two, none creates a second copy): `extraction_sample (document_sha256, consensus_tag, pass_idx int, model_id, payload, usage, created_at)` PK `(document_sha256, consensus_tag, pass_idx)` — consumed by Task 20's `consensus_store` (sync persist, binds `pass_idx` as `i32`) and Task 23's batch ingest (binds `i16`; both bind cleanly against `int`); `extraction_batch (anthropic_batch_id PK, regime_code, consensus_tag, composite_model_id, shas jsonb, status default 'submitted' check in ('submitted','ended','ingested','failed'), submitted_at, ended_at, ingested_at)` — consumed by Task 22's `record_batch_submitted`/`submitted_batches` and Task 23's poll/ingest UPDATEs; and `extraction_doc_signal (document_sha256, consensus_tag, quality jsonb, pixel jsonb, created_at)` PK `(document_sha256, consensus_tag)` (amendment-1 A15/A16) — persisted by the batch submit path and read by the batch poll path in H37, so the poll side's premium-trigger disjunction matches the sync path's exactly.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -5087,7 +5546,9 @@ async fn migrator_is_idempotent(pool: sqlx::PgPool) {
     assert_eq!(n, 12); // 0000_init + 0001_core + 0002_silver_us_house + 0003_registry_columns
                         // + 0004_extraction_cache + 0005_alerts + 0006_review_audit
                         // + 0007_productization + 0008_sentinel_watch + 0009_sample_audit
-                        // + 0010_silver_br + 0011_consensus_extraction
+                        // + 0010_silver_br + 0011_consensus_extraction (extraction_sample +
+                        // extraction_batch + extraction_doc_signal — same single file, count
+                        // unchanged, amendment-1 A15/A16/H37)
 }
 ```
 
@@ -5148,6 +5609,18 @@ create table extraction_batch (
   ended_at            timestamptz,
   ingested_at         timestamptz
 );
+
+-- Per-document preprocess/pixel signals persisted at batch submit so the poll side can
+-- evaluate the SAME premium-trigger disjunction the sync path uses (amendment-1 A15/A16,
+-- wired in H37). Expand-only; absent rows mean "no signals" (sync path may skip writing).
+create table extraction_doc_signal (
+  document_sha256 text        not null,
+  consensus_tag   text        not null,
+  quality         jsonb       not null default '{}'::jsonb,
+  pixel           jsonb       not null default '{}'::jsonb,
+  created_at      timestamptz not null default now(),
+  primary key (document_sha256, consensus_tag)
+);
 ```
 
 - [ ] **Step 4: Run tests to verify they pass**
@@ -5184,6 +5657,11 @@ EOF
 
 ### Task 20: Consensus persistence wiring (samples, published cache, held review tasks)
 
+> **AMENDED (goal 021 Phase 3):** persist_consensus_run/persist_published take
+MAPPED Silver rows (&[StagingRow]) — raw DTO rows in the pg cache would fail Task 24's
+validated() SilverRow gate (pre-existing regression, amendment-1 A11 makes it fatal).
+Provenance policy literal is pol2.
+
 **Files:**
 - Create: `crates/pipeline/src/extraction/consensus_store.rs`
 - Modify: `crates/pipeline/src/extraction/mod.rs` (add `pub mod consensus_store;` and re-export its public entry point)
@@ -5201,9 +5679,9 @@ EOF
   - `pub const CONSENSUS_TAG: &str = "us_house_ptr/consensus@1";`
   - `pub const REVIEW_REASON_ROW_HOLD: &str = "consensus_row_hold";`
   - `pub async fn persist_samples(pool: &PgPool, document_sha256: &str, consensus_tag: &str, samples: &[SamplePass]) -> anyhow::Result<()>`
-  - `pub async fn persist_published(pool: &PgPool, document_sha256: &str, outcome: &DocOutcome, cfg: &ExtractorConfig, escalated: bool) -> anyhow::Result<()>`
+  - `pub async fn persist_published(pool: &PgPool, document_sha256: &str, silver_rows: &[StagingRow], outcome: &DocOutcome, cfg: &ExtractorConfig, escalated: bool) -> anyhow::Result<()>` (**AMENDED**: `silver_rows` are the caller's already-mapped Silver-shaped rows — e.g. Task 24's `to_staging_rows(&outcome.published, ..)` output — NOT rebuilt here from `outcome.published`'s raw DTO payloads; `outcome` is still needed for `.stats`/provenance)
   - `pub async fn persist_held(pool: &PgPool, document_sha256: &str, held: &[HeldRow]) -> anyhow::Result<u32>` (returns count of NEWLY opened tasks)
-  - `pub async fn persist_consensus_run(pool: &PgPool, document_sha256: &str, samples: &[SamplePass], outcome: &DocOutcome, cfg: &ExtractorConfig, escalated: bool) -> anyhow::Result<()>` — the single entry point a caller invokes when `ctx.pool` (`crate::adapter::RunCtx::pool: Option<sqlx::PgPool>`, `crates/pipeline/src/adapter.rs:346-357`) is `Some`; calls the three functions above in order (samples, then published cache, then held tasks). A future adapter-wiring task calls this from the `us_house` LLM seam; it is out of scope here — this task only has to make `persist_consensus_run` correct and idempotent standalone.
+  - `pub async fn persist_consensus_run(pool: &PgPool, document_sha256: &str, samples: &[SamplePass], silver_rows: &[StagingRow], outcome: &DocOutcome, cfg: &ExtractorConfig, escalated: bool) -> anyhow::Result<()>` — the single entry point a caller invokes when `ctx.pool` (`crate::adapter::RunCtx::pool: Option<sqlx::PgPool>`, `crates/pipeline/src/adapter.rs:346-357`) is `Some`; calls the three functions above in order (samples, then published cache — using the caller-supplied `silver_rows` — then held tasks). A future adapter-wiring task calls this from the `us_house` LLM seam; it is out of scope here — this task only has to make `persist_consensus_run` correct and idempotent standalone.
 
 Read `crates/pipeline/src/extraction/consensus.rs` and `crates/pipeline/src/extraction/config.rs` on the actual branch before writing code — if any field/type name above differs from what those files actually declare (they are produced by parallel tasks in this same plan), use the real names; do not silently invent a shape that compiles against a guess.
 
@@ -5221,6 +5699,7 @@ Create `crates/pipeline/tests/consensus_store.rs`. It builds `SamplePass`/`DocOu
 use serde_json::json;
 use sqlx::PgPool;
 
+use pipeline::adapter::StagingRow;
 use pipeline::extraction::cache::CacheKey;
 use pipeline::extraction::config::ExtractorConfig;
 use pipeline::extraction::consensus::{
@@ -5275,6 +5754,19 @@ fn outcome() -> DocOutcome {
     }
 }
 
+/// The caller-mapped Silver rows for `outcome()`'s ONE published row
+/// (amendment-1: `persist_published` takes already-mapped Silver-shaped rows,
+/// never the raw consensus DTO — a real caller, e.g. Task 24's
+/// `to_staging_rows`, produces the real Silver shape; a minimal stand-in is
+/// fine here since `SilverRow`-deserializability is not required in
+/// pipeline-crate tests).
+fn silver_rows() -> Vec<StagingRow> {
+    vec![StagingRow {
+        payload: json!({"doc_id": "9115811", "row_ordinal": 1, "asset_raw": "Test Corp Stock"}),
+        confidence: 0.9,
+    }]
+}
+
 #[sqlx::test(migrations = false)]
 #[ignore = "needs postgres"]
 async fn persists_samples_cache_and_one_hold_task_idempotently(pool: PgPool) {
@@ -5282,8 +5774,9 @@ async fn persists_samples_cache_and_one_hold_task_idempotently(pool: PgPool) {
     let cfg = ExtractorConfig::load().unwrap();
     let out = outcome();
     let smp = samples();
+    let silver = silver_rows();
 
-    persist_consensus_run(&pool, SHA, &smp, &out, &cfg, true)
+    persist_consensus_run(&pool, SHA, &smp, &silver, &out, &cfg, true)
         .await
         .unwrap();
 
@@ -5316,7 +5809,7 @@ async fn persists_samples_cache_and_one_hold_task_idempotently(pool: PgPool) {
         .unwrap()
         .expect("published rows cached");
     assert_eq!(cached.len(), 1, "only the agreed row is cached, not the held one");
-    assert_eq!(cached[0].payload, json!({"amount_raw": "$1,000"}));
+    assert_eq!(cached[0].payload, silver[0].payload, "cached payload IS the caller-mapped Silver row, not the raw DTO");
     assert_eq!(cached[0].confidence, 0.9f32);
     let provenance: serde_json::Value =
         sqlx::query_scalar("select provenance from extraction_cache where document_sha256 = $1")
@@ -5325,7 +5818,7 @@ async fn persists_samples_cache_and_one_hold_task_idempotently(pool: PgPool) {
             .await
             .unwrap();
     assert_eq!(provenance["escalated"], json!(true));
-    assert_eq!(provenance["policy"], json!("pol1"));
+    assert_eq!(provenance["policy"], json!("pol2"));
 
     // review_task: exactly one open consensus_row_hold task for the held row.
     let target_id = format!("us_house:{SHA}");
@@ -5342,7 +5835,7 @@ async fn persists_samples_cache_and_one_hold_task_idempotently(pool: PgPool) {
     assert_eq!(n_tasks, 1);
 
     // Idempotency: rerunning the identical outcome inserts nothing new anywhere.
-    persist_consensus_run(&pool, SHA, &smp, &out, &cfg, true)
+    persist_consensus_run(&pool, SHA, &smp, &silver, &out, &cfg, true)
         .await
         .unwrap();
     let n_samples_again: i64 = sqlx::query_scalar(
@@ -5457,30 +5950,29 @@ pub async fn persist_samples(
     Ok(())
 }
 
-/// Writes only the AGREED rows of a consensus outcome into `extraction_cache`
-/// under the composite consensus model id, with provenance describing how
-/// the run got there (pass count, whether escalation fired, token usage,
-/// policy/prompt versions, preprocessing config).
+/// Writes the caller-supplied, ALREADY-MAPPED Silver-shaped rows into
+/// `extraction_cache` under the composite consensus model id, with
+/// provenance describing how the run got there (pass count, whether
+/// escalation fired, token usage, policy/prompt versions, preprocessing
+/// config). `silver_rows` MUST be the caller's Silver mapping of
+/// `outcome.published` (e.g. Task 24's `to_staging_rows(&outcome.published,
+/// ..)`), NEVER the raw consensus DTO payloads directly — the pg cache is a
+/// Silver-shaped surface (Task 24's `validated()` gate deserializes cached
+/// rows as `SilverRow`; caching the raw DTO shape here would fail that gate,
+/// amendment-1 makes this pre-existing mismatch fatal rather than latent).
 ///
 /// # Errors
 /// Database or serialization failure.
 pub async fn persist_published(
     pool: &PgPool,
     document_sha256: &str,
+    silver_rows: &[StagingRow],
     outcome: &DocOutcome,
     cfg: &ExtractorConfig,
     escalated: bool,
 ) -> anyhow::Result<()> {
     let model_id = composite_model_id(cfg);
     let key = CacheKey::new(document_sha256, CONSENSUS_TAG, &model_id);
-    let rows: Vec<StagingRow> = outcome
-        .published
-        .iter()
-        .map(|p| StagingRow {
-            payload: p.row.clone(),
-            confidence: p.confidence,
-        })
-        .collect();
     let provenance = json!({
         "passes": outcome.stats.calls,
         "escalated": escalated,
@@ -5493,7 +5985,7 @@ pub async fn persist_published(
         "prompt": cfg.versions.prompt,
         "preprocess": { "max_edge": cfg.preprocess.max_edge },
     });
-    pg_put(pool, &key, &rows, &provenance).await
+    pg_put(pool, &key, silver_rows, &provenance).await
 }
 
 /// Opens one `consensus_row_hold` review task per held (disputed) row.
@@ -5533,12 +6025,13 @@ pub async fn persist_consensus_run(
     pool: &PgPool,
     document_sha256: &str,
     samples: &[SamplePass],
+    silver_rows: &[StagingRow],
     outcome: &DocOutcome,
     cfg: &ExtractorConfig,
     escalated: bool,
 ) -> anyhow::Result<()> {
     persist_samples(pool, document_sha256, CONSENSUS_TAG, samples).await?;
-    persist_published(pool, document_sha256, outcome, cfg, escalated).await?;
+    persist_published(pool, document_sha256, silver_rows, outcome, cfg, escalated).await?;
     persist_held(pool, document_sha256, &outcome.held).await?;
     Ok(())
 }
@@ -5972,6 +6465,10 @@ git commit -m "feat(pipeline): BatchTransport + poll_until_ended for Anthropic M
 
 ### Task 22: consensus-batch-submit
 
+> **AMENDED (goal 021 Phase 3):** preprocess_document returns PreprocessOutput
+(pages + QualityMetrics, H31); submit persists extraction_doc_signal rows (H37);
+[versions] p2/pol2/q1.
+
 **Files:**
 - Create: `crates/worker/src/consensus_batch.rs`
 - Create: `crates/worker/src/bin/consensus-batch-submit.rs`
@@ -5989,7 +6486,7 @@ git commit -m "feat(pipeline): BatchTransport + poll_until_ended for Anthropic M
 **Interfaces:**
 - Consumes (given verbatim by the shared plan contract — these types/fns are produced by EARLIER tasks in this plan; if their exact field/module names differ from what's written below when you execute this task, read the cited file first and adjust the names only, not the logic):
   - `crates/pipeline/src/extraction/config.rs`: `pub struct ExtractorConfig` with `pub sampling: Sampling { pub n: u16, pub temperature: f32 }` and `pub fn require_budget(&self) -> Result<Budget, BudgetUnset>` where `Budget { pub max_batch_tokens: u64, pub per_run_token_ceiling: u64 }`; `ExtractorConfig::load() -> anyhow::Result<Self>` (reads `config/extractor.toml` from repo root; `GOVFOLIO_EXTRACTOR_CONFIG` env overrides the path). **Read this file first** — it does not exist at plan-authoring time; an earlier task creates it.
-  - `crates/pipeline/src/extraction/preprocess.rs`: `pub struct PreprocessCfg { pub max_edge: u32 }`, `pub fn preprocess_document(pdf: &[u8], cfg: &PreprocessCfg) -> anyhow::Result<Vec<Vec<u8>>>` (one PNG per page). **Read this file first.**
+  - `crates/pipeline/src/extraction/preprocess.rs`: `pub struct PreprocessCfg { pub max_edge: u32 }`, `pub fn preprocess_document(pdf: &[u8], cfg: &PreprocessCfg) -> anyhow::Result<PreprocessOutput>` (**AMENDED**, H31 — `pub struct PreprocessOutput { pub pages_png: Vec<Vec<u8>>, pub quality: Vec<QualityMetrics> }`, one `QualityMetrics` per page; `pages_png` replaces the bare `Vec<Vec<u8>>` this task's committed text originally had — quality metrics are persisted into `extraction_doc_signal` per H37 below). **Read this file first.**
   - `pipeline::extraction::anthropic::{DocumentToolSpec, SamplingParams, build_image_request}` — `pub fn build_image_request(model: &str, images_png: &[Vec<u8>], spec: &DocumentToolSpec, sampling: &SamplingParams) -> serde_json::Value`. Produced by an earlier task alongside the sync `ConsensusExtractor`'s sampling path.
   - `pipeline::extraction::{BatchTransport, HttpTransport}` from Task 21 (this plan).
   - `pipeline::adapter::{BronzeStore, RawDocRef}` (existing, verified: `crates/pipeline/src/adapter.rs:88-149`).
@@ -6029,8 +6526,9 @@ temperature = 0.7
 max_edge = 1568
 
 [versions]
-prompt = "p1"
-policy = "pol1"
+prompt = "p2"
+policy = "pol2"
+quality = "q1"
 
 {budget_toml}
 "#
@@ -6464,6 +6962,7 @@ async fn main() -> anyhow::Result<()> {
     let tool_spec = us_house::consensus::consensus_tool_spec(); // Task 18 (infallible)
     let sampling = SamplingParams {
         temperature: Some(cfg.sampling.temperature),
+        effort: None,
     };
 
     let mut docs = Vec::with_capacity(shas.len());
@@ -6472,10 +6971,12 @@ async fn main() -> anyhow::Result<()> {
         let bytes = bronze
             .get(&RawDocRef { sha256: sha.clone() })
             .with_context(|| format!("reading bronze doc {sha}"))?;
-        let images = preprocess_document(&bytes, &preprocess_cfg)
+        // `.quality` (per-page QualityMetrics, H31) is not persisted by THIS task — H37
+        // wires it into `extraction_doc_signal` alongside the pixel signal.
+        let preprocessed = preprocess_document(&bytes, &preprocess_cfg)
             .with_context(|| format!("preprocessing {sha}"))?;
-        page_counts.push(images.len());
-        docs.push((sha.clone(), images));
+        page_counts.push(preprocessed.pages_png.len());
+        docs.push((sha.clone(), preprocessed.pages_png));
     }
 
     // Precise gate over the ACTUAL page counts (still before the API call).
@@ -6517,6 +7018,11 @@ git commit -m "feat(worker): consensus-batch-submit over Task 19's extraction_ba
 
 ### Task 23: consensus-batch-poll
 
+> **AMENDED (goal 021 Phase 3):** resolve_disputed consumed at its FINAL arity
+(key-threaded, H29 semantics); resolve_document maps through the shared Silver mapping
+(H36) before pg_put; known gaps enumerated below are closed by H36/H37 and are
+PRECONDITIONS of the first real batch run.
+
 **Files:**
 - Modify: `crates/worker/src/consensus_batch.rs` (add poll/ingest/routing fns)
 - Modify: `crates/pipeline/src/extraction/anthropic.rs` (add `pub async fn escalate`)
@@ -6524,7 +7030,7 @@ git commit -m "feat(worker): consensus-batch-submit over Task 19's extraction_ba
 - Test: `crates/worker/tests/consensus_batch_poll.rs`
 
 **Interfaces:**
-- Consumes: everything from Task 22's `worker::consensus_batch` (`ExtractionBatchRow`, `submitted_batches`); Task 21's `pipeline::extraction::{BatchTransport, HttpTransport, Transport}`; the shared consensus contract from `pipeline::extraction::consensus` — `pub fn align(samples: &[Value], spec: &ConsensusSpec) -> anyhow::Result<AlignedRows>`, `pub fn score(aligned: &AlignedRows, spec: &ConsensusSpec) -> Vec<RowVerdict>`, `pub enum RowVerdict { Agreed { ordinal0, row }, Disputed { ordinal0, candidates, disputed_fields } }`, `pub mod policy { CONF_AGREED, CONF_ESCALATED }`, `pub struct SamplePass { pub model_id: String, pub payload: Value, pub usage: Value }`, `pub struct ConsensusSpec { pub tool: DocumentToolSpec, pub rows_pointer: String, pub key_fields: Vec<String>, pub critical_fields: Vec<String> }`, and `pub fn resolve_disputed(ordinal0: u32, candidates: &[Value], disputed_fields: &[String], spec: &ConsensusSpec, premium: &Value) -> Option<PublishedRow>` (Task 17's dispute tiebreaker, made `pub` there — reused verbatim so batch and sync never diverge; NO local copy in this task). **Read `crates/pipeline/src/extraction/consensus.rs` first** — it does not exist at plan-authoring time; an earlier task creates it exactly to this shape per the shared plan contract.
+- Consumes: everything from Task 22's `worker::consensus_batch` (`ExtractionBatchRow`, `submitted_batches`); Task 21's `pipeline::extraction::{BatchTransport, HttpTransport, Transport}`; the shared consensus contract from `pipeline::extraction::consensus` — `pub fn align(samples: &[Value], spec: &ConsensusSpec) -> anyhow::Result<AlignedRows>`, `pub fn score(aligned: &AlignedRows, spec: &ConsensusSpec) -> Vec<RowVerdict>`, `pub enum RowVerdict { Agreed { ordinal0, row }, Disputed { ordinal0, key: RowKey, candidates: Vec<Value> /* UNDEDUPED */, disputed_fields } }`, `pub mod policy { CONF_AGREED, CONF_ESCALATED }`, `pub struct SamplePass { pub model_id: String, pub payload: Value, pub usage: Value }`, `pub struct ConsensusSpec { pub tool: DocumentToolSpec, pub rows_pointer: String, pub key_fields: Vec<String>, pub critical_fields: Vec<String> }`, and `pub fn resolve_disputed(ordinal0: u32, key: &RowKey, candidates: &[Value], disputed_fields: &[String], spec: &ConsensusSpec, premium: &Value) -> Option<PublishedRow>` (Task 17's dispute tiebreaker at its FINAL arity — key-threaded, occurrence-aware premium matching (A1); H29 evolves the body to strict ≥3-of-4, made `pub` there — reused verbatim so batch and sync never diverge; NO local copy in this task). **Read `crates/pipeline/src/extraction/consensus.rs` first** — it does not exist at plan-authoring time; an earlier task creates it exactly to this shape per the shared plan contract.
   - `pipeline::extraction::{CacheKey, pg_put}` (existing, verified: `crates/pipeline/src/extraction/cache.rs:26-46,168-190`).
   - `pipeline::stages::roster::open_review_task_once` (existing, verified: `crates/pipeline/src/stages/roster.rs:157-188`).
   - `pipeline::adapter::StagingRow { payload: Value, confidence: f32 }` (existing, verified: `crates/pipeline/src/adapter.rs:76-82`).
@@ -6635,7 +7141,10 @@ pub async fn escalate<T: Transport>(
     images_png: &[Vec<u8>],
     spec: &DocumentToolSpec,
 ) -> anyhow::Result<Value> {
-    let sampling = SamplingParams { temperature: None };
+    // No `ExtractorConfig` in scope at this call site (narrow-parameter fn) —
+    // effort stays adaptive (`None`) here; H33 wires `cfg.escalation.effort`
+    // through once the batch poll path threads config end-to-end.
+    let sampling = SamplingParams { temperature: None, effort: None };
     let request = build_image_request(escalation_model, images_png, spec, &sampling);
     let response = transport
         .send(&request)
@@ -6855,6 +7364,14 @@ pub async fn mark_batch_ingested(pool: &PgPool, anthropic_batch_id: &str) -> any
 /// applied on this batch-ingest path yet. Rows here publish at `CONF_AGREED`
 /// or `CONF_ESCALATED` only, never sanity-capped — tracked as a follow-up,
 /// not a silent behavior difference: this comment is the record of the gap.
+/// Also out of scope for THIS task, closed by the hardening addendum:
+/// quality-routing signals, pixel-ambiguity premium trigger, row-count gate,
+/// template guard — persisted/evaluated per H36/H37; doc_id + header threading
+/// + Silver mapping per H36 (this fn currently caches the raw DTO payload,
+/// not a mapped Silver row — H36 makes it call the shared `silver_rows`
+/// mapping fn before `pg_put`, matching Task 20's amended `persist_published`
+/// contract). First REAL batch run requires H36+H37 landed (recorded
+/// precondition — do not point this bin at production documents before then).
 ///
 /// # Errors
 /// Escalation transport/schema failure, or a database failure persisting the
@@ -6883,8 +7400,8 @@ pub async fn resolve_document<T: Transport>(
         let doc_bytes = bronze.get(&RawDocRef {
             sha256: sha.to_owned(),
         })?;
-        let images = preprocess_document(&doc_bytes, preprocess_cfg)?;
-        Some(escalate(transport, escalation_model, &images, &spec.tool).await?)
+        let preprocessed = preprocess_document(&doc_bytes, preprocess_cfg)?;
+        Some(escalate(transport, escalation_model, &preprocessed.pages_png, &spec.tool).await?)
     } else {
         None
     };
@@ -6900,13 +7417,14 @@ pub async fn resolve_document<T: Transport>(
             }
             RowVerdict::Disputed {
                 ordinal0,
+                key,
                 candidates,
                 disputed_fields,
             } => {
-                // Reuse the sync path's tiebreaker verbatim (Task 17) — same
-                // resolution, same CONF_ESCALATED, no batch/sync divergence.
+                // Reuse the sync path's tiebreaker verbatim (Task 17, H29 semantics) — same
+                // key-threaded resolution, same CONF_ESCALATED, no batch/sync divergence.
                 let resolved = escalation_row.as_ref().and_then(|premium| {
-                    resolve_disputed(ordinal0, &candidates, &disputed_fields, spec, premium)
+                    resolve_disputed(ordinal0, &key, &candidates, &disputed_fields, spec, premium)
                 });
                 match resolved {
                     Some(published_row) => published_rows.push(StagingRow {
@@ -7056,6 +7574,12 @@ git commit -m "feat(worker): consensus-batch-poll — ingest, route, and resubmi
 ---
 
 ### Task 24: Consensus cutover — atomic cascade (extractor, fixtures, docs, lock)
+
+> **AMENDED (goal 021 Phase 3):** composite +prompt@p2+pol2+q1; to_staging_rows
+maps LlmConsensusRow band letters → band strings; high_impact is letter-aware AND its
+floor is enforced via the single premium slot (H32 + the Phase-2 controller resolution in
+.superpowers/sdd/progress.md); extract() carries the pixel-signal arity; persistence
+passes Silver rows (Task 20 edit). E1 v3→v4 reason text extended.
 
 **This task deliberately exceeds the 1h guideline.** It is one atomic commit by design: any
 split leaves `cargo test -p pipeline` (the `evals::reference` E1-lock-supersession pin test
@@ -7270,8 +7794,16 @@ pub(crate) async fn extract_live<T: Transport>(
     // `grep -n "consensus_spec\|checkbox_sanity" crates/adapters/us_house/src/`
     // and adjust these two calls.
     let spec = crate::consensus::consensus_spec();
+    // The pixel-ambiguity signal (H32, amendment-1 A15) is an `us_house::consensus`
+    // deliverable that lands BEFORE this task in the hardening plan's Merged Execution
+    // Order — confirm the exact fn name via `grep -n "pixel_signal\|PixelSignal"
+    // crates/adapters/us_house/src/` and adjust this call; it should mirror how the
+    // sanity closure above is built (bound to a `let`, then referenced to satisfy
+    // `pipeline::extraction::consensus::PixelSignal<'_>`).
+    let pixel_closure = crate::consensus::pixel_signal(&pages, &crate::consensus::fixture_2f4b2b6e());
+    let pixel_signal: pipeline::extraction::consensus::PixelSignal<'_> = &pixel_closure;
     let extractor = ConsensusExtractor::new(transport, cfg);
-    let outcome = extractor.extract(&bytes, &spec, &sanity_check).await?;
+    let outcome = extractor.extract(&bytes, &spec, &sanity_check, pixel_signal).await?;
 
     anyhow::ensure!(
         !outcome.published.is_empty(),
@@ -7281,19 +7813,18 @@ pub(crate) async fn extract_live<T: Transport>(
         doc.sha256
     );
 
-    // §6.3 second-model cross-check floor, RETAINED adapter-side (design §3.6,
-    // bias decorrelation) — no third constructor arg, no change to
-    // ConsensusExtractor. Reconstruct the published document and evaluate the
-    // existing `high_impact` predicate (kept verbatim, band >= "500001.00" /
-    // watchlist filer) over the published rows: a high-impact document that
-    // had ANY disputed row already rode the consensus escalation path inside
-    // ConsensusExtractor, so the floor is still evaluated on the same seam
-    // rather than a standalone downstream comparison. (`high_impact` operates
-    // on one sample's `{"rows": [...]}`-shaped Value — Step 3e keeps its body.)
-    let published_doc = serde_json::json!({
-        "rows": outcome.published.iter().map(|p| p.row.clone()).collect::<Vec<_>>(),
-    });
-    let _high_impact_document = high_impact(&published_doc);
+    // §6.3 high-impact floor: fires INSIDE the consensus path, not as a
+    // post-hoc check here (F4 fix — the Phase-2 controller resolution in
+    // `.superpowers/sdd/progress.md`; implemented by H32, hardening plan).
+    // `spec` (built by `crate::consensus::consensus_spec()` above) carries
+    // `high_impact_values`/`watchlist_pointer`; `ConsensusExtractor::extract`
+    // evaluates the floor over the RAW SAMPLE payloads as part of its single
+    // `premium_needed` disjunction (`has_dispute || quality_flagged ||
+    // pixel_ambiguous || high_impact_floor`) BEFORE deciding whether to fire
+    // the one escalation pass — never a second, post-`extract()` comparison
+    // against `outcome.published`. No `published_doc`/`high_impact_floor`
+    // local is computed here; a mismatch on a high-impact document already
+    // caps the row to 0.79 (or holds it) inside `extract()`, never silently.
 
     // Majority-voted document header (goal 021 fix): row-level consensus scores
     // only the `/rows` array, so header identity fields are majority-voted by
@@ -7306,30 +7837,112 @@ pub(crate) async fn extract_live<T: Transport>(
     if let Some(pool) = &ctx.pool {
         // ONE persistence entry point, ONE provenance shape (Task 20's
         // `persist_consensus_run`): writes every raw pass to extraction_sample,
-        // the published rows to extraction_cache with provenance, and one
+        // the published rows (the MAPPED Silver `rows` computed above, per Task
+        // 20's amended `persist_published`/`persist_consensus_run` signatures — never
+        // the raw consensus DTO) to extraction_cache with provenance, and one
         // `consensus_row_hold` review_task per document with held rows — all
         // idempotent. Supersedes the old hand-rolled pg_put + open_review_task
         // (which left extraction_sample unpopulated and used a divergent
         // provenance json). `escalated` = whether the one premium pass fired
         // (stats.calls counts it, outcome.samples does not).
         let escalated = outcome.stats.calls as usize > outcome.samples.len();
-        persist_consensus_run(pool, &doc.sha256, &outcome.samples, &outcome, cfg, escalated).await?;
+        persist_consensus_run(pool, &doc.sha256, &outcome.samples, &rows, &outcome, cfg, escalated).await?;
     }
     Ok(rows)
 }
 ```
 
-**3e. Keep `tool_spec`, `high_impact`, `high_impact_rows`, `resolve_doc_id`, `doc_id_from_url`
-verbatim** (lines 232–352 in the pre-Task-24 file) — only reword doc comments that say "v1
-wrapper"/"cross-check freezes the document" to say "escalation-model check retained per §6.3
-(bias decorrelation, design §3.6) — routes through the consensus extractor's own escalation path
-now, not a standalone downstream comparison." `high_impact`/`high_impact_rows` keep their exact
-current bodies (they operate on one sample's `LlmDocExtraction`-shaped `Value`, which is still
-what each consensus sample is — the per-call tool schema, `tool_spec()`, is unchanged).
+**3e. Keep `tool_spec`, `resolve_doc_id`, `doc_id_from_url` verbatim** (lines 232–352 in the
+pre-Task-24 file) — only reword doc comments that say "v1 wrapper"/"cross-check freezes the
+document" to say "escalation-model check retained per §6.3 (bias decorrelation, design §3.6) —
+routes through the consensus extractor's own escalation path now, not a standalone downstream
+comparison."
 
-**3f. `to_staging_rows` (lines 289–330).** Replace with:
+**AMENDED (goal 021 Phase 3):** `high_impact`/`high_impact_rows` are letter-aware, NOT verbatim
+— consensus rows carry `band_column` (a letter), never `amount_raw` (a dollar string,
+amendment-1 A11), so deserializing into the FROZEN v1 `LlmDocExtraction`/`LlmTransactionRow`
+would fail closed on every call (the required `amount_raw` field is simply absent). Adjust the
+band comparison to letter INDICES ≥ 5 (F) — derived from `CROSS_CHECK_BAND_LOW_MIN` against
+`tables::BANDS` rather than hardcoded, so the two floors can never silently drift apart;
+watchlist logic stays verbatim. **F4 note:** this standalone predicate is kept, but ONLY to
+populate H32's `ConsensusSpec.high_impact_values`/`watchlist_pointer` (via
+`crate::consensus::consensus_spec()`) and for this task's own tests — 3d no longer calls it
+post-`extract()` against `outcome.published`; the floor itself fires inside the consensus path
+(H32):
 
 ```rust
+fn high_impact(value: &Value) -> anyhow::Result<bool> {
+    let extraction: crate::consensus::LlmConsensusExtraction = serde_json::from_value(value.clone())
+        .context("high-impact predicate: tool output does not deserialize")?;
+    high_impact_rows(&extraction)
+}
+
+fn band_column_index(letter: crate::consensus::BandColumn) -> usize {
+    use crate::consensus::BandColumn::{A, B, C, D, E, F, G, H, I, J};
+    match letter {
+        A => 0,
+        B => 1,
+        C => 2,
+        D => 3,
+        E => 4,
+        F => 5,
+        G => 6,
+        H => 7,
+        I => 8,
+        J => 9,
+    }
+}
+
+fn high_impact_rows(extraction: &crate::consensus::LlmConsensusExtraction) -> anyhow::Result<bool> {
+    if WATCHLIST_POLITICIANS.contains(&extraction.filer_name_raw.as_str()) {
+        return Ok(true);
+    }
+    // Letter-aware floor (amendment-1 A11): the SAME §6.3 dollar floor
+    // (CROSS_CHECK_BAND_LOW_MIN), expressed as the column INDEX whose low bound equals
+    // it — band_column replaces amount_raw on this DTO, so the comparison is by column
+    // POSITION, never by parsing a dollar string.
+    let floor_index = tables::BANDS
+        .iter()
+        .position(|(_, low, _)| *low == CROSS_CHECK_BAND_LOW_MIN)
+        .context("CROSS_CHECK_BAND_LOW_MIN does not match any tables::BANDS low bound")?;
+    for row in &extraction.rows {
+        if band_column_index(row.band_column) >= floor_index {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+```
+
+(`floor_index` resolves to 5 — `tables::BANDS[5] == ("$500,001 - $1,000,000", "500001.00", ..)`,
+i.e. letter F — matching the unchanged §6.3 dollar floor exactly. `high_impact_rows` was the
+ONLY user of `rust_decimal::Decimal` in this file (confirm with `grep -n Decimal
+crates/adapters/us_house/src/extractor.rs` — if still the only hit, delete the top-of-file `use
+rust_decimal::Decimal;` import too, or `cargo clippy -D warnings` fails on the now-unused
+import, per Step 3c's unused-import discipline).
+
+**3f. `to_staging_rows` (lines 289–330). AMENDED (goal 021 Phase 3):** deserializes
+`crate::consensus::LlmConsensusRow` (Task 18's strict closed-vocab DTO), NOT the frozen v1
+`LlmTransactionRow` — `amount_raw` is mapped from the letter via
+`crate::consensus::band_from_column`. Silver SHAPE is byte-identical to v1
+(`expected.silver.json` values unchanged): `LlmConsensusRow`'s closed-vocab enums
+(`OwnerCode`/`TransactionType`/`FilingStatus`) serialize to the SAME strings v1's free
+`String` fields carried (Task 18 chose `serde(rename)`s/variant names for exactly this).
+Replace with:
+
+```rust
+/// Renders one of `LlmConsensusRow`'s closed-vocab enum fields back to the verbatim
+/// string v1's free-`String` equivalent carried — the enums' `Serialize` impls (Task 18)
+/// were deliberately named/renamed to match those strings exactly, so this is a
+/// mechanical round-trip through `serde_json`, not a lossy remapping.
+fn enum_field_str<T: serde::Serialize>(value: &T) -> anyhow::Result<String> {
+    let rendered = serde_json::to_value(value).context("serializing consensus enum field")?;
+    rendered
+        .as_str()
+        .map(str::to_owned)
+        .context("consensus enum field did not serialize to a JSON string")
+}
+
 /// Assembles Silver rows from a consensus outcome: `doc_id` and `row_ordinal`
 /// are threaded here (the model never knows them), the tag is stamped, and
 /// each row's confidence is exactly whatever `consensus::score` assigned —
@@ -7345,8 +7958,8 @@ fn to_staging_rows(
     );
     let mut rows = Vec::with_capacity(published.len());
     for candidate in published {
-        let row: LlmTransactionRow = serde_json::from_value(candidate.row.clone())
-            .context("consensus-agreed row does not match the LlmTransactionRow shape — fail closed")?;
+        let row: crate::consensus::LlmConsensusRow = serde_json::from_value(candidate.row.clone())
+            .context("consensus-agreed row does not match the LlmConsensusRow shape — fail closed")?;
         let row_ordinal = candidate
             .ordinal0
             .checked_add(1)
@@ -7358,15 +7971,15 @@ fn to_staging_rows(
             filer_status_raw: header.filer_status_raw.clone(),
             state_district_raw: header.state_district_raw.clone(),
             row_id_raw: row.row_id_raw,
-            owner_code_raw: row.owner_code_raw,
+            owner_code_raw: row.owner_code_raw.as_ref().map(enum_field_str).transpose()?,
             asset_raw: row.asset_raw,
             asset_type_code_raw: row.asset_type_code_raw,
-            transaction_type_raw: row.transaction_type_raw,
+            transaction_type_raw: enum_field_str(&row.transaction_type_raw)?,
             transaction_date_raw: row.transaction_date_raw,
             notification_date_raw: row.notification_date_raw,
-            amount_raw: row.amount_raw,
+            amount_raw: crate::consensus::band_from_column(row.band_column).to_owned(),
             cap_gains_over_200: row.cap_gains_over_200,
-            filing_status_raw: row.filing_status_raw,
+            filing_status_raw: enum_field_str(&row.filing_status_raw)?,
             subholding_of_raw: row.subholding_of_raw,
             description_raw: row.description_raw,
             comments_raw: row.comments_raw,
@@ -7429,6 +8042,34 @@ fn validated(rows: Vec<StagingRow>, sha256: &str) -> anyhow::Result<Vec<StagingR
 `cache_miss_without_api_key_fails_closed`, and the `#[ignore]` live test UNCHANGED):
 
 ```rust
+/// AMENDED (goal 021 Phase 3): builds an `LlmConsensusRow`-shaped `Value` directly — the
+/// pre-existing `extraction(band_str)` helper (used unchanged by the tests `3h` leaves
+/// alone, e.g. `tool_schema_requires_the_row_vocabulary_fields`) returns the FROZEN v1
+/// `LlmDocExtraction`/`LlmTransactionRow` shape (`amount_raw: String`), which
+/// `to_staging_rows` no longer deserializes (Step 3f); `#[serde(deny_unknown_fields)]` on
+/// `LlmConsensusRow` would hard-reject it. `band` is the column letter (e.g. `"B"`), not a
+/// dollar string.
+fn consensus_row(band: &str) -> Value {
+    json!({
+        "row_id_raw": null,
+        "owner_code_raw": null,
+        "asset_raw": "Black Belt Energy Gas DI SR C RV BE/R/, Municipal Bond",
+        "asset_type_code_raw": null,
+        "transaction_type_raw": "P",
+        "transaction_date_raw": "4/17/2026",
+        "notification_date_raw": "4/29/2026",
+        "band_column": band,
+        "over_1m_spouse_dc": false,
+        "cap_gains_over_200": null,
+        "filing_status_raw": "New",
+        "subholding_of_raw": null,
+        "description_raw": null,
+        "comments_raw": null,
+        "vehicle_owner_code_raw": null,
+        "vehicle_location_raw": null
+    })
+}
+
 #[test]
 fn staging_rows_thread_doc_id_and_stamp_header_plus_confidence() {
     let header = ConsensusHeader {
@@ -7437,7 +8078,7 @@ fn staging_rows_thread_doc_id_and_stamp_header_plus_confidence() {
         state_district_raw: "TN01".to_owned(),
         signed_date_raw: "2026 MAY -6".to_owned(),
     };
-    let row_value = serde_json::to_value(&extraction("$15,001 - $50,000").rows[0]).unwrap();
+    let row_value = consensus_row("B"); // "B" == "$15,001 - $50,000"
     let published = vec![PublishedRow {
         ordinal0: 0,
         row: row_value,
@@ -7475,7 +8116,7 @@ fn cached_rows_foreign_tag_or_garbage_payload_fail_closed() {
         state_district_raw: "TN01".to_owned(),
         signed_date_raw: "2026 MAY -6".to_owned(),
     };
-    let row_value = serde_json::to_value(&extraction("$15,001 - $50,000").rows[0]).unwrap();
+    let row_value = consensus_row("B"); // "B" == "$15,001 - $50,000"
     let published = vec![PublishedRow {
         ordinal0: 0,
         row: row_value,
@@ -7510,7 +8151,7 @@ let key = CacheKey::new(
     // fixtures/MANIFEST.json cases.scanned_paper_ptr.sha256
     "2f4b2b6e98e044e6368a072275804bc61dda52f6f1e15c09ddb9074ea1b8952c",
     "us_house_ptr/consensus@1",
-    "claude-haiku-4-5-20251001x3@t0.7+claude-sonnet-5+prompt@p1+pol1",
+    "claude-haiku-4-5-20251001x3@t0.7+claude-sonnet-5+prompt@p2+pol2+q1",
 );
 ```
 
@@ -7536,6 +8177,7 @@ UPDATE_EXTRACTION_CACHE=1 cargo test -p pipeline extraction_cache_entry_is_prime
 
 Confirm the regenerated file's `key.extractor_tag` == `"us_house_ptr/consensus@1"` and
 `key.model_id` == the composite string from 3i, and that `rows[0].payload.extractor` matches.
+The regenerated cache key's `model_id` must end `+prompt@p2+pol2+q1`.
 
 **3m. `crates/adapters/us_house/fixtures/MANIFEST.json:92`.** Change only the tag substring inside
 `paper_form_conventions.extractor`:
@@ -7600,7 +8242,7 @@ Then bump to:
   "frozen_at_utc": "2026-07-05T00:00:00Z",
   "policy": "... (copy verbatim from v3) ...",
   "supersedes": "<sha256 computed above>",
-  "reason": "goal 021 Phase 2 consensus extraction cutover, founder-approved platform strategy (agents/goals/021-llm-extraction.md, approval recorded 2026-07-07): re-pins the 5 files this task's commit changed — fixtures/MANIFEST.json (paper_form_conventions.extractor tag string only), scanned_paper_ptr/expected.silver.json (extractor field only), scanned_paper_ptr/expected.gold.json (extracted_by field only), scanned_paper_ptr/extraction.cache.json (regenerated: new extractor_tag + composite model_id cache key), docs/regimes/us-house.md (§6 appended item 6 + item 3 superseded-note). All other v3 pins are unchanged (byte-identical) — confidence literals in every re-pinned file are UNCHANGED, only tag/key strings moved.",
+  "reason": "goal 021 Phase 2 consensus extraction cutover, founder-approved platform strategy (agents/goals/021-llm-extraction.md, approval recorded 2026-07-07): re-pins the 5 files this task's commit changed — fixtures/MANIFEST.json (paper_form_conventions.extractor tag string only), scanned_paper_ptr/expected.silver.json (extractor field only), scanned_paper_ptr/expected.gold.json (extracted_by field only), scanned_paper_ptr/extraction.cache.json (regenerated: new extractor_tag + composite model_id cache key), docs/regimes/us-house.md (§6 appended item 6 + item 3 superseded-note). All other v3 pins are unchanged (byte-identical) — confidence literals in every re-pinned file are UNCHANGED, only tag/key strings moved; goal 021 Phase 3 amendment-1 folded into this same cutover (prompt p2 + policy pol2 + quality q1 in the composite) — one supersession, no interim v4.5.",
   "date": "2026-07-07",
   "pins": {
     "... copy every v3 key verbatim, recomputing sha256sum only for the 5 files named in \"reason\" above ..."
@@ -7658,6 +8300,12 @@ EOF
 ---
 
 ### Task 25: Review lanes + e2e stats + live-smoke repurpose
+
+> **AMENDED (goal 021 Phase 3):** live smoke asserts MECHANICS (stop_reason ==
+tool_use, schema-valid payload, no temperature/thinking on premium, request counts) and
+logs value comparisons non-fatally — the 9115811 transcription rides the prompt as the
+few-shot example (A5 self-leak); hard value assertions return on a refill artifact in
+H42. DTO = LlmConsensusRow.
 
 **Files:**
 - Modify: `crates/adapters/us_house/src/binding.rs:209-222` (`review_reasons`)
@@ -7771,11 +8419,58 @@ sink (same one-liner, no lock handling at the call site):
 ctx.extraction_stats.deposit(serde_json::json!({"source": "live", "stats": outcome.stats}));
 ```
 
-**3e. Repurpose the live test.** In `crates/adapters/us_house/src/extractor.rs`, replace the
+**3e. Repurpose the live test. AMENDED (goal 021 Phase 3):** In
+`crates/adapters/us_house/src/extractor.rs`, replace the
 `#[ignore = "needs ANTHROPIC_API_KEY"] async fn live_extraction_agrees_with_ground_truth` test
-body to drive the full consensus path instead of the old `LlmDocumentExtractor` one-shot call:
+body to drive the full consensus path instead of the old `LlmDocumentExtractor` one-shot call —
+and to assert MECHANICS, not values (A5 self-leak: the 9115811 transcription rides the prompt
+itself as the few-shot worked example, so the model could legitimately reproduce ground truth by
+copying the example rather than reading the real scan; hard value asserts against 9115811 are no
+longer trustworthy signal until H42 re-points this test at a refill artifact the model has never
+seen). `DocOutcome` does not itself expose response-level fields like `stop_reason`, so a small
+capturing transport wrapper records every raw response body (same naming convention as Task 5's
+`MockTransport::captured()`, but this wraps the REAL `HttpTransport` rather than replaying canned
+ones):
 
 ```rust
+/// Wraps a real [`Transport`] and records every (request, response) PAIR, in call order —
+/// used ONLY by this live-gated smoke test, so mechanics assertions (`stop_reason`,
+/// tool_use block presence, no `temperature`/`thinking` on the premium REQUEST) can read
+/// the raw Messages API bodies directly even though `DocOutcome` exposes neither.
+struct CapturingTransport<T: Transport> {
+    inner: T,
+    pairs: std::sync::Arc<std::sync::Mutex<Vec<(serde_json::Value, serde_json::Value)>>>,
+}
+
+impl<T: Transport> CapturingTransport<T> {
+    fn new(inner: T) -> Self {
+        Self {
+            inner,
+            pairs: std::sync::Arc::new(std::sync::Mutex::new(Vec::new())),
+        }
+    }
+
+    fn captured(&self) -> std::sync::Arc<std::sync::Mutex<Vec<(serde_json::Value, serde_json::Value)>>> {
+        std::sync::Arc::clone(&self.pairs)
+    }
+}
+
+#[async_trait]
+impl<T: Transport> Transport for CapturingTransport<T> {
+    async fn send(&self, body: &Value) -> anyhow::Result<Value> {
+        let response = self.inner.send(body).await?;
+        self.pairs.lock().unwrap().push((body.clone(), response.clone()));
+        Ok(response)
+    }
+}
+
+/// AMENDED (goal 021 Phase 3): asserts MECHANICS ONLY — stop_reason, tool_use block
+/// presence, at-least-one-published — and LOGS (never asserts) value comparisons against
+/// 9115811 ground truth. The few-shot worked example (Task 18, A5) rides the SAME prompt
+/// this live call sends, so a value match here would not distinguish "the model read the
+/// scan" from "the model copied the example" — hard value assertions return once H42 lands
+/// a refill artifact (a programmatically-filled form with known ground truth the model has
+/// never seen in ANY prompt) and re-points this exact test at it.
 #[tokio::test]
 #[ignore = "needs ANTHROPIC_API_KEY"]
 async fn live_extraction_agrees_with_ground_truth() {
@@ -7786,11 +8481,58 @@ async fn live_extraction_agrees_with_ground_truth() {
     let (ctx, doc) = scanned_fixture_ctx("live");
     let bytes = ctx.bronze.get(&doc).unwrap();
     let cfg = ExtractorConfig::load().unwrap();
-    let transport = HttpTransport::from_env().unwrap();
+    let transport = CapturingTransport::new(HttpTransport::from_env().unwrap());
+    let captured = transport.captured();
     let spec = crate::consensus::consensus_spec(); // Task 18 deliverable
+    // AMENDED (goal 021 Phase 3, F5 fix): ConsensusExtractor::extract takes a 4th
+    // pixel-ambiguity-signal argument as of H32 (hardening plan) — build it the
+    // same way Task 24's extract_live does; confirm the exact fn name via
+    // `grep -n "pixel_signal\|PixelSignal" crates/adapters/us_house/src/` and
+    // adjust this call if it differs. The smoke runs post-cutover — H32's 4-arg
+    // signature is live by then (Merged Execution Order).
+    let pixel_closure = crate::consensus::pixel_signal(&pages, &crate::consensus::fixture_2f4b2b6e());
+    let pixel_signal: pipeline::extraction::consensus::PixelSignal<'_> = &pixel_closure;
     let extractor = ConsensusExtractor::new(&transport, &cfg);
-    let outcome = extractor.extract(&bytes, &spec, &sanity_check).await.unwrap();
+    let outcome = extractor.extract(&bytes, &spec, &sanity_check, pixel_signal).await.unwrap();
 
+    // MECHANICS (hard asserts):
+    let pairs = captured.lock().unwrap();
+    assert!(!pairs.is_empty(), "at least one request must have been sent");
+    for (request, response) in pairs.iter() {
+        assert_eq!(
+            response["stop_reason"],
+            json!("tool_use"),
+            "every captured response must stop on tool_use, never max_tokens/end_turn \
+             (amendment-1 A7 — escalation max_tokens sized so thinking never starves the \
+             tool call): {response}"
+        );
+        assert!(
+            response
+                .get("content")
+                .and_then(Value::as_array)
+                .is_some_and(|blocks| blocks
+                    .iter()
+                    .any(|b| b.get("type").and_then(Value::as_str) == Some("tool_use"))),
+            "every captured response must carry a tool_use block: {response}"
+        );
+        if request["model"] == json!(cfg.models.escalation) {
+            assert!(
+                request.get("temperature").is_none(),
+                "the premium/escalation request must carry NO temperature key (design D8): {request}"
+            );
+            assert!(
+                request.get("thinking").is_none(),
+                "no `thinking` key is EVER emitted for the premium request (amendment-1 A7): {request}"
+            );
+        }
+    }
+    assert!(!outcome.published.is_empty(), "at least one row must publish");
+    let live_row: crate::consensus::LlmConsensusRow =
+        serde_json::from_value(outcome.published[0].row.clone())
+            .expect("published row must deserialize as the strict LlmConsensusRow schema");
+
+    // Non-fatal value comparisons (self-leak risk — logged for a human to eyeball, never
+    // asserted; H42 restores hard asserts against a refill artifact):
     let truth = extraction("$15,001 - $50,000");
     if !outcome.held.is_empty() {
         eprintln!(
@@ -7799,12 +8541,18 @@ async fn live_extraction_agrees_with_ground_truth() {
             outcome.held
         );
     }
-    assert!(!outcome.published.is_empty(), "at least the one ground-truth row must publish");
-    let live_row: LlmTransactionRow =
-        serde_json::from_value(outcome.published[0].row.clone()).unwrap();
-    assert_eq!(live_row.transaction_type_raw, "P");
-    assert_eq!(live_row.amount_raw, truth.rows[0].amount_raw);
-    assert_eq!(live_row.transaction_date_raw, truth.rows[0].transaction_date_raw);
+    eprintln!(
+        "band_column: live={:?} truth=B (self-leak risk — not asserted, see H42)",
+        live_row.band_column
+    );
+    eprintln!(
+        "transaction_type_raw: live={:?} truth=P (self-leak risk — not asserted, see H42)",
+        live_row.transaction_type_raw
+    );
+    eprintln!(
+        "transaction_date_raw: live={:?} truth={:?} (self-leak risk — not asserted, see H42)",
+        live_row.transaction_date_raw, truth.rows[0].transaction_date_raw
+    );
 }
 ```
 
@@ -7814,7 +8562,7 @@ Then grep for any other live-key-gated test workspace-wide and confirm this is t
 grep -rn 'ignore = "needs ANTHROPIC_API_KEY"' --include=*.rs .
 ```
 
-Expected: exactly one match, at this test.
+Expected: exactly one match, at this test. # H42 re-points this same test at a refill artifact and restores hard asserts
 
 **3f. `crates/pipeline/tests/e2e_local.rs:176-191`.** Update the SQL literal and the confidence
 assertion:
