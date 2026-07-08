@@ -109,6 +109,27 @@ pub fn app(pool: PgPool, config: ApiConfig) -> Router {
             state.clone(),
             auth::admin_gate,
         ));
+    // Read-only ops observability surface (goal 090), same admin gate as the
+    // review subtree: run/backfill/cost data would leak operational detail.
+    let ops = Router::new()
+        .route("/v1/admin/ops/overview", get(routes::ops::overview))
+        .route("/v1/admin/ops/runs", get(routes::ops::list_runs))
+        .route("/v1/admin/ops/runs/summary", get(routes::ops::runs_summary))
+        .route("/v1/admin/ops/backfill", get(routes::ops::backfill))
+        .route("/v1/admin/ops/freezes", get(routes::ops::freezes))
+        .route(
+            "/v1/admin/ops/review-health",
+            get(routes::ops::review_health),
+        )
+        .route("/v1/admin/ops/deliveries", get(routes::ops::deliveries))
+        .route(
+            "/v1/admin/ops/extraction-costs",
+            get(routes::ops::extraction_costs),
+        )
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth::admin_gate,
+        ));
     Router::new()
         .route("/v1/records", get(routes::records::list_records))
         .route("/v1/records/{id}", get(routes::records::get_record))
@@ -152,6 +173,7 @@ pub fn app(pool: PgPool, config: ApiConfig) -> Router {
         // Stripe subscription mirror (signature-verified, config-gated).
         .route("/v1/stripe/webhook", post(routes::stripe::stripe_webhook))
         .merge(review)
+        .merge(ops)
         // Strong ETags + If-None-Match → 304 on every successful GET
         // (design §6.1: ETags everywhere).
         .layer(axum::middleware::from_fn(etag::etag))
@@ -161,6 +183,11 @@ pub fn app(pool: PgPool, config: ApiConfig) -> Router {
             state.clone(),
             auth::authenticate,
         ))
+        // Liveness probe, added AFTER the two layers on purpose: axum layers
+        // only wrap routes added before them, so /healthz bypasses
+        // authenticate (no metering, no anonymous limiter) AND etag (no
+        // ETag/304 caching on a probe).
+        .route("/healthz", get(routes::ops::healthz))
         .with_state(state)
 }
 
@@ -207,6 +234,15 @@ pub fn app(pool: PgPool, config: ApiConfig) -> Router {
         routes::review::get_review_task,
         routes::review::resolve_review_task,
         routes::review::review_task_audit,
+        routes::ops::healthz,
+        routes::ops::overview,
+        routes::ops::list_runs,
+        routes::ops::runs_summary,
+        routes::ops::backfill,
+        routes::ops::freezes,
+        routes::ops::review_health,
+        routes::ops::deliveries,
+        routes::ops::extraction_costs,
     ),
     tags(
         (name = "records", description = "Canonical disclosure records (Gold)"),
@@ -230,6 +266,13 @@ pub fn app(pool: PgPool, config: ApiConfig) -> Router {
          context and extraction evidence; resolutions go through the pipeline \
          promote path (supersede-never-update) and every attempt is \
          audit-logged."),
+        (name = "ops", description = "Read-only admin ops observability \
+         (goal 090), X-Admin-Token gated: backfill progress, pipeline runs, \
+         sentinel freezes/drift, review-queue health, alert delivery and LLM \
+         extraction cost vs the USD 200.00 monthly HARD CAP. Poll-friendly: \
+         every body carries a strong ETag."),
+        (name = "health", description = "Liveness probe: unauthenticated, \
+         un-ETagged, carries nothing sensitive."),
     )
 )]
 pub struct ApiDoc;

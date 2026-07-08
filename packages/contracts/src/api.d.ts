@@ -4,6 +4,203 @@
  */
 
 export interface paths {
+    "/healthz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Liveness probe. Unauthenticated and un-ETagged by mounting position
+         *     (added AFTER the middleware layers in `lib.rs` — axum layers only wrap
+         *     routes added before them). Always `200`; database trouble is reported in
+         *     the body, not as a 5xx, so the probe distinguishes "process dead" (no
+         *     answer) from "db unreachable" (degraded).
+         */
+        get: operations["healthz"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/ops/backfill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Per-regime, per-year backfill progress: filings/documents/gold split by
+         *     filing year, politicians-vs-roster coverage, stage-level run outcomes.
+         * @description # Errors
+         *     `401` outside the admin gate; `500` on backend failure.
+         */
+        get: operations["backfill"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/ops/deliveries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Alert-delivery health (design §6.3): ledger counts, outbox backlog, DLQ.
+         * @description # Errors
+         *     `401` outside the admin gate; `500` on backend failure.
+         */
+        get: operations["deliveries"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/ops/extraction-costs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Monthly LLM extraction cost rollup vs the USD 200.00 HARD CAP.
+         * @description # Errors
+         *     `400` on out-of-range `months`; `401` outside the admin gate; `500` on
+         *     backend failure.
+         */
+        get: operations["extraction_costs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/ops/freezes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Sentinel freeze state + ranked drift reports (design §5.6/§5.8).
+         * @description # Errors
+         *     `400` on a bad `status`; `401` outside the admin gate; `500` on backend
+         *     failure.
+         */
+        get: operations["freezes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/ops/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The composite ops overview: totals, 24h run pulse, current-month
+         *     extraction spend vs the HARD CAP, and last-activity timestamps.
+         * @description # Errors
+         *     `401` outside the admin gate; `500` on backend failure.
+         */
+        get: operations["overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/ops/review-health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review-queue health (design §7.1–7.2, §7.4).
+         * @description # Errors
+         *     `401` outside the admin gate; `500` on backend failure.
+         */
+        get: operations["review_health"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/ops/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Lists pipeline runs, newest first, with adapter/stage/status/time filters.
+         * @description # Errors
+         *     `400` on a malformed status, cursor or limit; `401` outside the admin
+         *     gate; `500` on backend failure.
+         */
+        get: operations["list_runs"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/ops/runs/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Windowed run rollup with duration percentiles and a throughput series.
+         * @description # Errors
+         *     `400` on out-of-range `hours` or a bad `bucket`; `401` outside the admin
+         *     gate; `500` on backend failure.
+         */
+        get: operations["runs_summary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/alert-rules": {
         parameters: {
             query?: never;
@@ -507,6 +704,11 @@ export interface components {
          * @enum {string}
          */
         AssetClass: "equity" | "bond" | "fund" | "option" | "crypto" | "commodity" | "real_estate" | "private" | "other";
+        /** @description Backfill progress across every regime that has at least one filing. */
+        BackfillProgress: {
+            /** @description Per-regime progress, ordered by regime id. */
+            regimes: components["schemas"]["RegimeBackfill"][];
+        };
         /** @description Body of `POST /v1/keys`. */
         CreateKey: {
             /** @description Human label for the key (shown in listings). */
@@ -546,7 +748,76 @@ export interface components {
          *     schema snapshot).
          * @enum {string}
          */
-        Currency: "EUR" | "GBP" | "USD";
+        Currency: "EUR" | "GBP" | "USD" | "BRL";
+        /** @description One dead-lettered delivery. */
+        DeadDelivery: {
+            /** @description The alert rule it belonged to. */
+            alert_rule_id: string;
+            /**
+             * Format: int32
+             * @description Attempts made before dead-lettering.
+             */
+            attempts: number;
+            /** @description `email` | `webhook`. */
+            channel: string;
+            /** @description Delivery ULID. */
+            id: string;
+            /** @description The final failure. */
+            last_error?: string | null;
+            /**
+             * Format: date-time
+             * @description When it dead-lettered.
+             */
+            updated_at: string;
+        };
+        /**
+         * @description Alert-delivery health: ledger counts, 24h throughput, outbox backlog and
+         *     the recent DLQ.
+         */
+        DeliveryHealth: {
+            /** @description Delivery counts per status. */
+            by_status: components["schemas"]["DeliveryStatusCounts"];
+            /** @description The 20 most recently dead-lettered deliveries. */
+            dead_recent: components["schemas"]["DeadDelivery"][];
+            /**
+             * Format: date-time
+             * @description Oldest undispatched event's creation time (backlog age).
+             */
+            oldest_undispatched_at?: string | null;
+            /**
+             * Format: int64
+             * @description Outbox events awaiting dispatch.
+             */
+            outbox_undispatched: number;
+            /**
+             * Format: int64
+             * @description Deliveries sent in the trailing 24 hours.
+             */
+            sent_24h: number;
+        };
+        /** @description Delivery counts per status (design §6.3 ledger). */
+        DeliveryStatusCounts: {
+            /**
+             * Format: int64
+             * @description Dead-lettered after exhausted retries.
+             */
+            dead: number;
+            /**
+             * Format: int64
+             * @description Awaiting dispatch.
+             */
+            pending: number;
+            /**
+             * Format: int64
+             * @description Held for the digest window.
+             */
+            pending_digest: number;
+            /**
+             * Format: int64
+             * @description Delivered.
+             */
+            sent: number;
+        };
         /**
          * @description One canonical disclosure record (Gold `disclosure_record`, design §4.2).
          *     `verification_state` is present on EVERY record — honesty travels with
@@ -616,6 +887,45 @@ export interface components {
             /** @description Two-stage publication state (design §7.1) — on every record. */
             verification_state: components["schemas"]["VerificationState"];
         };
+        /** @description One ranked drift anomaly (`drift_report`). */
+        DriftReportEntry: {
+            /** @description Dedup key (`regime_code:kind:signature`). */
+            dedup_key: string;
+            /** @description Anomaly detail payload. */
+            detail: Record<string, never>;
+            /**
+             * Format: int32
+             * @description How many times the same open anomaly re-detected.
+             */
+            detections: number;
+            /** @description Anomaly kind, e.g. `layout_shift`. */
+            drift_kind: string;
+            /**
+             * Format: date-time
+             * @description First detection.
+             */
+            first_detected_at: string;
+            /** @description Whether this anomaly froze publication. */
+            freezes_publication: boolean;
+            /** @description Report ULID. */
+            id: string;
+            /**
+             * Format: date-time
+             * @description Most recent detection.
+             */
+            last_detected_at: string;
+            /**
+             * Format: float
+             * @description Severity rank — the orchestrator picks the worst first.
+             */
+            priority_score: number;
+            /** @description Adapter regime code. */
+            regime_code: string;
+            /** @description The auto-filed review task, when one was opened. */
+            review_task_id?: string | null;
+            /** @description `open` | `resolved` | `superseded`. */
+            status: string;
+        };
         /** @description The error envelope every non-2xx response carries. */
         ErrorBody: {
             /** @description The error itself. */
@@ -668,6 +978,80 @@ export interface components {
              */
             extraction_confidence?: number | null;
         };
+        /** @description One month of LLM extraction spend. */
+        ExtractionCostMonth: {
+            /**
+             * Format: int64
+             * @description Extraction-cache entries created that month.
+             */
+            cache_entries_created: number;
+            /** @description Estimated spend, decimal string (invariant 7). */
+            estimated_cost_usd: string;
+            /**
+             * Format: int64
+             * @description Parse-stage runs that recorded a `stats.extraction` block.
+             */
+            extraction_runs: number;
+            /** @description Month label, `YYYY-MM` (UTC). */
+            month: string;
+            /**
+             * Format: int64
+             * @description Input tokens consumed.
+             */
+            tokens_in: number;
+            /**
+             * Format: int64
+             * @description Output tokens produced.
+             */
+            tokens_out: number;
+        };
+        /**
+         * @description Monthly LLM extraction spend vs the HARD CAP.
+         *
+         *     COST INTERFACE CONTRACT with goal 021 Phase 2: parse-stage
+         *     `pipeline_run.stats.extraction` is expected to carry
+         *     `{tokens_in, tokens_out, estimated_cost_usd (decimal string), passes}`.
+         *     Nothing writes that block yet — every month reports zeros until 021 lands
+         *     it (the SQL is null-tolerant by design). 021 owners must adopt these key
+         *     names or update [`EXTRACTION_COSTS_SQL`].
+         */
+        ExtractionCostReport: {
+            /** @description The monthly HARD CAP, decimal string — always `"200.00"`. */
+            hard_cap_usd: string;
+            /**
+             * @description Months, oldest first — every requested month present, zeros when
+             *     nothing was spent.
+             */
+            months: components["schemas"]["ExtractionCostMonth"][];
+        };
+        /**
+         * @description Current-month LLM extraction spend vs the HARD CAP. Zeros until goal 021
+         *     Phase 2 starts writing `pipeline_run.stats.extraction` (see
+         *     [`extraction_costs`] for the key contract).
+         */
+        ExtractionMonth: {
+            /**
+             * Format: double
+             * @description Spend as a percentage of the cap (derived display number, not money).
+             */
+            cap_utilization_pct: number;
+            /** @description Estimated spend, decimal string (invariant 7). */
+            estimated_cost_usd: string;
+            /** @description The monthly HARD CAP, decimal string — always `"200.00"`. */
+            hard_cap_usd: string;
+            /** @description Month label, `YYYY-MM` (UTC). */
+            month: string;
+            /**
+             * Format: int64
+             * @description Input tokens consumed this month.
+             */
+            tokens_in: number;
+            /**
+             * Format: int64
+             * @description Output tokens produced this month.
+             */
+            tokens_out: number;
+        };
         /** @description Filing provenance: the source filing the record came from. */
         FilingProvenance: {
             /** @description Source-native filing id when the source has one. */
@@ -684,6 +1068,26 @@ export interface components {
              * @description When the government made it public.
              */
             published_at?: string | null;
+        };
+        /** @description Sentinel baselines + ranked drift reports. */
+        FreezeStatus: {
+            /** @description Drift reports, worst first. */
+            drift: components["schemas"]["DriftReportEntry"][];
+            /** @description Every watched source's baseline (freeze state included). */
+            sources: components["schemas"]["SentinelSource"][];
+        };
+        /**
+         * @description Liveness probe body: process is up; `db` reports pool reachability.
+         *     Deliberately carries NOTHING sensitive (served without auth).
+         */
+        Healthz: {
+            /** @description `ok` | `error` — result of `select 1` on the pool. */
+            db: string;
+            /**
+             * @description `ok` when the process and its database both answer; `degraded` when
+             *     the database does not.
+             */
+            status: string;
         };
         /** @description One instrument hit. */
         InstrumentHit: {
@@ -737,6 +1141,34 @@ export interface components {
              */
             regimes: components["schemas"]["Regime"][];
         };
+        /** @description Last-seen timestamps — the "is anything alive" pulse row. */
+        LastActivity: {
+            /**
+             * Format: date-time
+             * @description Latest Gold row creation.
+             */
+            last_gold_created_at?: string | null;
+            /**
+             * Format: date-time
+             * @description Latest outbox dispatch.
+             */
+            last_outbox_dispatch_at?: string | null;
+            /**
+             * Format: date-time
+             * @description Latest successful publish finish.
+             */
+            last_publish_succeeded_at?: string | null;
+            /**
+             * Format: date-time
+             * @description Latest `pipeline_run.started_at`.
+             */
+            last_run_started_at?: string | null;
+            /**
+             * Format: date-time
+             * @description Latest sentinel probe (`sentinel_watch.last_checked_at`).
+             */
+            last_sentinel_check_at?: string | null;
+        };
         /** @description One mandate (Gold `mandate`): a role held in a jurisdiction body. */
         Mandate: {
             /** @description The body, e.g. `US House`. */
@@ -762,12 +1194,143 @@ export interface components {
              */
             start_date: string;
         };
+        /** @description One open-task rollup per reason. */
+        OpenReason: {
+            /**
+             * Format: float
+             * @description Highest priority among them.
+             */
+            max_priority: number;
+            /**
+             * Format: date-time
+             * @description Oldest open task's creation time.
+             */
+            oldest_created_at: string;
+            /**
+             * Format: int64
+             * @description Open tasks with this reason.
+             */
+            open: number;
+            /** @description Task reason, e.g. `unresolved_filer`. */
+            reason: string;
+        };
+        /**
+         * @description The composite overview panel — one cheap body per poll (5–15s cadence),
+         *     high `ETag` 304 hit-rate when nothing moved.
+         */
+        OpsOverview: {
+            /** @description Current-month extraction spend vs the HARD CAP. */
+            extraction_month: components["schemas"]["ExtractionMonth"];
+            /**
+             * Format: date-time
+             * @description When this body was computed (UTC).
+             */
+            generated_at: string;
+            /** @description Last-seen activity timestamps. */
+            last_activity: components["schemas"]["LastActivity"];
+            /** @description Trailing-24h run pulse. */
+            runs_24h: components["schemas"]["Runs24h"];
+            /** @description Whole-system totals. */
+            totals: components["schemas"]["OpsTotals"];
+        };
+        /** @description Whole-system totals (design §4.2 tables, one count each). */
+        OpsTotals: {
+            /**
+             * Format: int64
+             * @description Bronze `raw_document` rows (sha256-addressed, immutable).
+             */
+            bronze_documents: number;
+            /**
+             * Format: int64
+             * @description Dead-letter deliveries (design §6.3 DLQ).
+             */
+            deliveries_dead: number;
+            /**
+             * Format: int64
+             * @description Open drift reports.
+             */
+            drift_open: number;
+            /**
+             * Format: int64
+             * @description `filing` rows.
+             */
+            filings: number;
+            /**
+             * Format: int64
+             * @description Regimes currently frozen by the sentinel (design §5.6 fail closed).
+             */
+            frozen_regimes: number;
+            /**
+             * Format: int64
+             * @description Gold `disclosure_record` rows.
+             */
+            gold_records: number;
+            /**
+             * Format: int64
+             * @description Gold rows still `unverified` (design §7.1 two-stage publication).
+             */
+            gold_unverified: number;
+            /**
+             * Format: int64
+             * @description Outbox events not yet dispatched.
+             */
+            outbox_undispatched: number;
+            /**
+             * Format: int64
+             * @description `politician` rows.
+             */
+            politicians: number;
+            /**
+             * Format: int64
+             * @description Open review tasks.
+             */
+            review_open: number;
+            /**
+             * Format: int64
+             * @description Silver staging rows across the per-regime `stg_*` tables.
+             */
+            silver_rows: number;
+        };
         /**
          * @description `owner` CHECK: whose asset the record concerns. `self` is a Rust keyword,
          *     hence the `Self_` variant with an explicit wire rename.
          * @enum {string}
          */
         Owner: "self" | "spouse" | "dependent" | "joint" | "unknown";
+        /** @description One `pipeline_run` row (design §5.2 audit trail). */
+        PipelineRun: {
+            /** @description Adapter regime code, e.g. `us_house`. */
+            adapter: string;
+            /** @description Failure message, for `failed` runs. */
+            error?: string | null;
+            /**
+             * Format: date-time
+             * @description When it finished; `null` while running.
+             */
+            finished_at?: string | null;
+            /** @description Run ULID, minted at claim — time-ordered, the pagination cursor. */
+            id: string;
+            /** @description Deterministic stage-unit key (crash-safe replay short-circuit). */
+            idempotency_key: string;
+            /** @description Stage name, e.g. `fetch` | `parse` | `normalize` | `publish`. */
+            stage: string;
+            /**
+             * Format: date-time
+             * @description When the run was claimed.
+             */
+            started_at: string;
+            /** @description Stage audit stats (e.g. `PublishStats`; `{}` until finish). */
+            stats: Record<string, never>;
+            /** @description `running` | `succeeded` | `failed`. */
+            status: string;
+        };
+        /** @description One page of runs, newest first. */
+        PipelineRunPage: {
+            /** @description Runs in descending id (= claim-time) order. */
+            items: components["schemas"]["PipelineRun"][];
+            /** @description Pass back as `cursor` for the next (older) page; `null` at the end. */
+            next_cursor?: string | null;
+        };
         /** @description One politician (Gold `politician`, design §4.2). */
         Politician: {
             /** @description Canonical person name (no honorific). */
@@ -965,6 +1528,71 @@ export interface components {
              */
             value_precision: string;
         };
+        /** @description Backfill progress of one regime. */
+        RegimeBackfill: {
+            /** @description Owning `jurisdiction.id`. */
+            jurisdiction_id: string;
+            /**
+             * @description Adapter regime code (`us_house`, `br`, ...); `null` when no static or
+             *     publish-derived mapping exists for the regime row (module docs).
+             */
+            regime_code?: string | null;
+            /**
+             * @description Seeded `disclosure_regime.id`. Deliberately un-patterned:
+             *     `disclosure_regime.id` is unconstrained text (registry- and
+             *     adapter-seeded ids both exist), so publishing a ULID pattern here
+             *     would be a lie and `.*` would be dead weight.
+             */
+            regime_id: string;
+            /**
+             * @description Per-stage run progress for the regime's adapter code (shared across
+             *     regime rows of a multi-body adapter, e.g. both br chambers).
+             */
+            stages: components["schemas"]["StageProgress"][];
+            /** @description Whole-history totals. */
+            totals: components["schemas"]["RegimeTotals"];
+            /** @description Year-by-year progress, oldest first; the `null` year bucket last. */
+            years: components["schemas"]["YearProgress"][];
+        };
+        /** @description Per-regime whole-history totals. */
+        RegimeTotals: {
+            /**
+             * Format: int64
+             * @description Distinct Bronze documents that produced filings for this regime.
+             */
+            bronze_documents: number;
+            /**
+             * Format: int64
+             * @description Filings.
+             */
+            filings: number;
+            /**
+             * Format: int64
+             * @description Gold records.
+             */
+            gold_records: number;
+            /**
+             * Format: int64
+             * @description Gold records still `unverified`.
+             */
+            gold_unverified: number;
+            /**
+             * Format: int64
+             * @description Open review tasks attributed to this regime (three target kinds:
+             *     record → `regime_id` join, bare filing id → `filing` join, and
+             *     code-keyed `regime`/`filing` targets — code-keyed counts repeat on
+             *     every regime row sharing the adapter code, e.g. both br chambers).
+             */
+            review_open: number;
+            /**
+             * Format: int64
+             * @description Silver staging rows, attributed per DOCUMENT: a document shared by
+             *     filings of more than one regime (e.g. one br CSV feeding both
+             *     chambers) reports its full row count under each — Silver rows carry
+             *     no regime linkage of their own.
+             */
+            silver_rows: number;
+        };
         /**
          * @description Resolve request: reviewer identity plus one verdict. `regime_code` and
          *     `corrected` travel only with `verdict = "edit"` (they select the details
@@ -1001,6 +1629,22 @@ export interface components {
             superseding_record_id?: string | null;
         };
         /**
+         * @description Tasks resolved per UTC day (any terminal status — `resolved_at` is
+         *     stamped for dismissals too).
+         */
+        ResolvedDay: {
+            /**
+             * Format: date-time
+             * @description Day start (UTC).
+             */
+            day: string;
+            /**
+             * Format: int64
+             * @description Tasks resolved that day.
+             */
+            resolved: number;
+        };
+        /**
          * @description One resolve attempt in the audit log — exactly one row per attempt,
          *     whatever came of it.
          */
@@ -1029,6 +1673,25 @@ export interface components {
             verdict: string;
         };
         /**
+         * @description Review-queue health: status counts, open-by-reason, 14-day resolution
+         *     series, and the monthly sampling-audit precision source.
+         */
+        ReviewHealth: {
+            /** @description Task counts per status. */
+            by_status: components["schemas"]["ReviewStatusCounts"];
+            /**
+             * Format: date-time
+             * @description Creation time of the oldest still-open task.
+             */
+            oldest_open_at?: string | null;
+            /** @description Open tasks rolled up by reason, largest first. */
+            open_by_reason: components["schemas"]["OpenReason"][];
+            /** @description Tasks resolved per UTC day over the trailing 14 days. */
+            resolved_by_day: components["schemas"]["ResolvedDay"][];
+            /** @description Sampling-audit slices, newest month first. */
+            sample_audit: components["schemas"]["SampleAuditSlice"][];
+        };
+        /**
          * @description One queue entry: the task plus its target-record summary (`null` when the
          *     task targets something other than a disclosure record).
          */
@@ -1049,6 +1712,24 @@ export interface components {
              *     end. Ranking (not id order) is preserved across pages.
              */
             next_cursor?: string | null;
+        };
+        /** @description Task counts per status. */
+        ReviewStatusCounts: {
+            /**
+             * Format: int64
+             * @description `dismissed` tasks.
+             */
+            dismissed: number;
+            /**
+             * Format: int64
+             * @description `open` tasks.
+             */
+            open: number;
+            /**
+             * Format: int64
+             * @description `resolved` tasks.
+             */
+            resolved: number;
         };
         /** @description Target-record summary on a queue item — the reviewer's scan surface. */
         ReviewTargetSummary: {
@@ -1114,6 +1795,132 @@ export interface components {
             /** @description The task itself. */
             task: components["schemas"]["ReviewTask"];
         };
+        /** @description One (adapter, stage, status) rollup over the window. */
+        RunGroup: {
+            /** @description Adapter regime code. */
+            adapter: string;
+            /**
+             * Format: double
+             * @description Median run duration in seconds (finished runs only; `null` when none
+             *     finished — `percentile_cont` ignores null `finished_at` durations).
+             */
+            p50_seconds?: number | null;
+            /**
+             * Format: double
+             * @description 95th-percentile run duration in seconds (finished runs only).
+             */
+            p95_seconds?: number | null;
+            /**
+             * Format: int64
+             * @description Runs in the group.
+             */
+            runs: number;
+            /** @description Stage name. */
+            stage: string;
+            /** @description `running` | `succeeded` | `failed`. */
+            status: string;
+        };
+        /** @description One (bucket, adapter) point of the throughput series. */
+        RunSeriesPoint: {
+            /** @description Adapter regime code. */
+            adapter: string;
+            /**
+             * Format: date-time
+             * @description Bucket start (UTC, `date_trunc` of the requested bucket).
+             */
+            bucket_start: string;
+            /**
+             * Format: int64
+             * @description Runs finished `failed` in the bucket (by start time).
+             */
+            failed: number;
+            /**
+             * Format: int64
+             * @description Gold rows inserted (summed from publish-run `stats.gold_inserted`).
+             */
+            gold_inserted: number;
+            /**
+             * Format: int64
+             * @description Review tasks opened (summed from publish-run `stats.review_tasks`).
+             */
+            review_tasks: number;
+            /**
+             * Format: int64
+             * @description Runs finished `succeeded` in the bucket (by start time).
+             */
+            succeeded: number;
+        };
+        /**
+         * @description Pipeline-run pulse over the trailing 24 hours (running counts are global,
+         *     not window-bounded — a run started days ago and still `running` is stale
+         *     wherever it started).
+         */
+        Runs24h: {
+            /**
+             * Format: int64
+             * @description Of those, finished `failed`.
+             */
+            failed: number;
+            /**
+             * Format: int64
+             * @description Runs currently `running` (any age).
+             */
+            running_now: number;
+            /**
+             * Format: int64
+             * @description Runs `running` for over an hour — likely crashed before finish.
+             */
+            stale_running: number;
+            /**
+             * Format: int64
+             * @description Runs started in the window.
+             */
+            started: number;
+            /**
+             * Format: int64
+             * @description Of those, finished `succeeded`.
+             */
+            succeeded: number;
+        };
+        /**
+         * @description Windowed run rollup: per-(adapter, stage, status) groups with duration
+         *     percentiles, plus a bucketed throughput series.
+         */
+        RunsSummary: {
+            /** @description Series bucket unit: `hour` | `day`. */
+            bucket: string;
+            /** @description Per-(adapter, stage, status) rollup. */
+            groups: components["schemas"]["RunGroup"][];
+            /** @description Bucketed throughput series. */
+            series: components["schemas"]["RunSeriesPoint"][];
+            /**
+             * Format: int32
+             * @description The trailing window the rollup covers, in hours.
+             */
+            window_hours: number;
+        };
+        /** @description One month × regime slice of the sampling audit (design §7.4 precision). */
+        SampleAuditSlice: {
+            /**
+             * Format: int64
+             * @description Confirmed correct.
+             */
+            confirmed: number;
+            /**
+             * Format: int64
+             * @description Found discrepant.
+             */
+            discrepancy: number;
+            /**
+             * Format: int64
+             * @description Drawn records awaiting a verdict.
+             */
+            pending: number;
+            /** @description Gold regime the sample was drawn from. */
+            regime_id: string;
+            /** @description Batch label, `YYYY-MM`. */
+            sample_month: string;
+        };
         /**
          * @description Typed search results: one arm per entity kind, each capped at 20 hits in
          *     id order.
@@ -1126,11 +1933,70 @@ export interface components {
             /** @description The query as evaluated (trimmed). */
             query: string;
         };
+        /** @description One sentinel per-source baseline row (`sentinel_watch`, design §5.6/§5.8). */
+        SentinelSource: {
+            /** @description Whether the regime's publication is currently frozen (fail closed). */
+            frozen: boolean;
+            /**
+             * Format: date-time
+             * @description When it froze.
+             */
+            frozen_at?: string | null;
+            /** @description The drift kind that froze it. */
+            frozen_kind?: string | null;
+            /**
+             * Format: date-time
+             * @description When the sentinel last probed the source.
+             */
+            last_checked_at: string;
+            /**
+             * Format: int64
+             * @description Last discoverable filing count.
+             */
+            last_count?: number | null;
+            /** @description Last observed `ETag`. */
+            last_etag?: string | null;
+            /** @description Last structural layout hash of the listing markup. */
+            last_layout_hash?: string | null;
+            /** @description Last observed `Last-Modified`. */
+            last_modified?: string | null;
+            /**
+             * Format: int32
+             * @description Last observed HTTP status.
+             */
+            last_status?: number | null;
+            /** @description Adapter regime code the sentinel watches. */
+            regime_code: string;
+        };
         /**
          * @description `side` CHECK: direction of a transaction.
          * @enum {string}
          */
         Side: "buy" | "sell" | "exchange";
+        /**
+         * @description Stage progress for the regime's adapter code. Failure attribution is
+         *     regime+stage level only — run idempotency keys carry `sha`/`external_id`, no
+         *     year (plan "Non-obvious query decisions").
+         */
+        StageProgress: {
+            /**
+             * Format: int64
+             * @description Runs `failed`.
+             */
+            failed: number;
+            /**
+             * Format: int64
+             * @description Runs `running`.
+             */
+            running: number;
+            /** @description Stage name. */
+            stage: string;
+            /**
+             * Format: int64
+             * @description Runs `succeeded`.
+             */
+            succeeded: number;
+        };
         /**
          * @description `user_account.tier` CHECK (design §6.2 freemium table): the tier decides
          *     freshness (free = 24h-delayed via the ONE visibility bound in
@@ -1168,6 +2034,52 @@ export interface components {
          * @enum {string}
          */
         VerificationState: "unverified" | "verified" | "corrected" | "disputed";
+        /**
+         * @description One filing-year bucket. `year` is `extract(year from filing.filed_date)`;
+         *     a filing without a `filed_date` lands in the honest `year: null` bucket —
+         *     `external_id` is NEVER parsed for a year (its shape is regime-specific).
+         */
+        YearProgress: {
+            /**
+             * Format: int64
+             * @description Distinct Bronze documents behind those filings.
+             */
+            documents: number;
+            /**
+             * Format: int64
+             * @description Filings filed that year.
+             */
+            filings: number;
+            /**
+             * Format: int64
+             * @description Gold records from those filings.
+             */
+            gold_records: number;
+            /**
+             * Format: int64
+             * @description Of those, still `unverified`.
+             */
+            gold_unverified: number;
+            /**
+             * Format: int64
+             * @description Distinct politicians with at least one filing that year.
+             */
+            politicians_with_filings: number;
+            /**
+             * Format: int64
+             * @description Roster denominator: distinct politicians holding a mandate on the
+             *     regime's `(jurisdiction_id, body)` during that year (`mandate.body`
+             *     values are written from the same adapter constants as
+             *     `disclosure_regime.body`, so the join is exact). `null` for the
+             *     unknown-year bucket.
+             */
+            roster_members?: number | null;
+            /**
+             * Format: int32
+             * @description Filing year; `null` = filings whose `filed_date` is unknown.
+             */
+            year?: number | null;
+        };
     };
     responses: never;
     parameters: never;
@@ -1177,6 +2089,401 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    healthz: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Process liveness + database reachability */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Healthz"];
+                };
+            };
+        };
+    };
+    backfill: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Adapter regime-code filter, e.g. `us_house` (matches the resolved
+                 *     `regime_code`; a multi-body adapter returns all its regime rows).
+                 */
+                adapter?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Per-regime, per-year backfill progress */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BackfillProgress"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    deliveries: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Delivery ledger counts, outbox backlog and recent DLQ */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeliveryHealth"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    extraction_costs: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Trailing months to report (current month included), `1..=24`;
+                 *     defaults to 3.
+                 */
+                months?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Monthly extraction spend vs the HARD CAP */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExtractionCostReport"];
+                };
+            };
+            /** @description Malformed months */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    freezes: {
+        parameters: {
+            query?: {
+                /** @description Drift-report scope: `open` (default) | `all`. */
+                status?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sentinel baselines + drift reports, worst first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FreezeStatus"];
+                };
+            };
+            /** @description Malformed status */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    overview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Whole-system ops overview */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpsOverview"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    review_health: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Review-queue health + sampling-audit precision source */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewHealth"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    list_runs: {
+        parameters: {
+            query?: {
+                /** @description Adapter regime-code filter, e.g. `us_house`. */
+                adapter?: string;
+                /** @description Stage filter, e.g. `publish`. */
+                stage?: string;
+                /** @description Status filter: `running` | `succeeded` | `failed`. */
+                status?: string;
+                /** @description Only runs started at/after this instant (RFC 3339). */
+                since?: string;
+                /** @description Only runs started before this instant (RFC 3339). */
+                until?: string;
+                /** @description Pagination cursor: the run id of the last item on the previous page. */
+                cursor?: string;
+                /** @description Page size, `1..=200`; defaults to 50. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of pipeline runs, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PipelineRunPage"];
+                };
+            };
+            /** @description Malformed status, cursor or limit */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    runs_summary: {
+        parameters: {
+            query?: {
+                /** @description Trailing window in hours, `1..=720`; defaults to 24. */
+                hours?: number;
+                /** @description Series bucket: `hour` (default) | `day`. */
+                bucket?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Windowed run rollup + throughput series */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunsSummary"];
+                };
+            };
+            /** @description Malformed hours or bucket */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_alert_rules: {
         parameters: {
             query?: never;

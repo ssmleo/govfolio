@@ -182,6 +182,22 @@
         ],
         "type": "string"
       },
+      "BackfillProgress": {
+        "description": "Backfill progress across every regime that has at least one filing.",
+        "properties": {
+          "regimes": {
+            "description": "Per-regime progress, ordered by regime id.",
+            "items": {
+              "$ref": "#/components/schemas/RegimeBackfill"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "regimes"
+        ],
+        "type": "object"
+      },
       "CreateKey": {
         "description": "Body of `POST /v1/keys`.",
         "properties": {
@@ -261,9 +277,126 @@
         "enum": [
           "EUR",
           "GBP",
-          "USD"
+          "USD",
+          "BRL"
         ],
         "type": "string"
+      },
+      "DeadDelivery": {
+        "description": "One dead-lettered delivery.",
+        "properties": {
+          "alert_rule_id": {
+            "description": "The alert rule it belonged to.",
+            "type": "string"
+          },
+          "attempts": {
+            "description": "Attempts made before dead-lettering.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "channel": {
+            "description": "`email` | `webhook`.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Delivery ULID.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "last_error": {
+            "description": "The final failure.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updated_at": {
+            "description": "When it dead-lettered.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "alert_rule_id",
+          "channel",
+          "attempts",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "DeliveryHealth": {
+        "description": "Alert-delivery health: ledger counts, 24h throughput, outbox backlog and\nthe recent DLQ.",
+        "properties": {
+          "by_status": {
+            "$ref": "#/components/schemas/DeliveryStatusCounts",
+            "description": "Delivery counts per status."
+          },
+          "dead_recent": {
+            "description": "The 20 most recently dead-lettered deliveries.",
+            "items": {
+              "$ref": "#/components/schemas/DeadDelivery"
+            },
+            "type": "array"
+          },
+          "oldest_undispatched_at": {
+            "description": "Oldest undispatched event's creation time (backlog age).",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outbox_undispatched": {
+            "description": "Outbox events awaiting dispatch.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "sent_24h": {
+            "description": "Deliveries sent in the trailing 24 hours.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "by_status",
+          "sent_24h",
+          "outbox_undispatched",
+          "dead_recent"
+        ],
+        "type": "object"
+      },
+      "DeliveryStatusCounts": {
+        "description": "Delivery counts per status (design §6.3 ledger).",
+        "properties": {
+          "dead": {
+            "description": "Dead-lettered after exhausted retries.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pending": {
+            "description": "Awaiting dispatch.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pending_digest": {
+            "description": "Held for the digest window.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "sent": {
+            "description": "Delivered.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pending",
+          "pending_digest",
+          "sent",
+          "dead"
+        ],
+        "type": "object"
       },
       "DisclosureRecord": {
         "description": "One canonical disclosure record (Gold `disclosure_record`, design §4.2).\n`verification_state` is present on EVERY record — honesty travels with\nthe data.",
@@ -427,6 +560,81 @@
         ],
         "type": "object"
       },
+      "DriftReportEntry": {
+        "description": "One ranked drift anomaly (`drift_report`).",
+        "properties": {
+          "dedup_key": {
+            "description": "Dedup key (`regime_code:kind:signature`).",
+            "type": "string"
+          },
+          "detail": {
+            "description": "Anomaly detail payload.",
+            "type": "object"
+          },
+          "detections": {
+            "description": "How many times the same open anomaly re-detected.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "drift_kind": {
+            "description": "Anomaly kind, e.g. `layout_shift`.",
+            "type": "string"
+          },
+          "first_detected_at": {
+            "description": "First detection.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "freezes_publication": {
+            "description": "Whether this anomaly froze publication.",
+            "type": "boolean"
+          },
+          "id": {
+            "description": "Report ULID.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "last_detected_at": {
+            "description": "Most recent detection.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "priority_score": {
+            "description": "Severity rank — the orchestrator picks the worst first.",
+            "format": "float",
+            "type": "number"
+          },
+          "regime_code": {
+            "description": "Adapter regime code.",
+            "type": "string"
+          },
+          "review_task_id": {
+            "description": "The auto-filed review task, when one was opened.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "description": "`open` | `resolved` | `superseded`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "regime_code",
+          "drift_kind",
+          "priority_score",
+          "freezes_publication",
+          "dedup_key",
+          "detail",
+          "status",
+          "detections",
+          "first_detected_at",
+          "last_detected_at"
+        ],
+        "type": "object"
+      },
       "ErrorBody": {
         "description": "The error envelope every non-2xx response carries.",
         "properties": {
@@ -517,6 +725,110 @@
         ],
         "type": "object"
       },
+      "ExtractionCostMonth": {
+        "description": "One month of LLM extraction spend.",
+        "properties": {
+          "cache_entries_created": {
+            "description": "Extraction-cache entries created that month.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "estimated_cost_usd": {
+            "description": "Estimated spend, decimal string (invariant 7).",
+            "type": "string"
+          },
+          "extraction_runs": {
+            "description": "Parse-stage runs that recorded a `stats.extraction` block.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "month": {
+            "description": "Month label, `YYYY-MM` (UTC).",
+            "type": "string"
+          },
+          "tokens_in": {
+            "description": "Input tokens consumed.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "tokens_out": {
+            "description": "Output tokens produced.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "tokens_in",
+          "tokens_out",
+          "estimated_cost_usd",
+          "extraction_runs",
+          "cache_entries_created"
+        ],
+        "type": "object"
+      },
+      "ExtractionCostReport": {
+        "description": "Monthly LLM extraction spend vs the HARD CAP.\n\nCOST INTERFACE CONTRACT with goal 021 Phase 2: parse-stage\n`pipeline_run.stats.extraction` is expected to carry\n`{tokens_in, tokens_out, estimated_cost_usd (decimal string), passes}`.\nNothing writes that block yet — every month reports zeros until 021 lands\nit (the SQL is null-tolerant by design). 021 owners must adopt these key\nnames or update [`EXTRACTION_COSTS_SQL`].",
+        "properties": {
+          "hard_cap_usd": {
+            "description": "The monthly HARD CAP, decimal string — always `\"200.00\"`.",
+            "type": "string"
+          },
+          "months": {
+            "description": "Months, oldest first — every requested month present, zeros when\nnothing was spent.",
+            "items": {
+              "$ref": "#/components/schemas/ExtractionCostMonth"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "hard_cap_usd",
+          "months"
+        ],
+        "type": "object"
+      },
+      "ExtractionMonth": {
+        "description": "Current-month LLM extraction spend vs the HARD CAP. Zeros until goal 021\nPhase 2 starts writing `pipeline_run.stats.extraction` (see\n[`extraction_costs`] for the key contract).",
+        "properties": {
+          "cap_utilization_pct": {
+            "description": "Spend as a percentage of the cap (derived display number, not money).",
+            "format": "double",
+            "type": "number"
+          },
+          "estimated_cost_usd": {
+            "description": "Estimated spend, decimal string (invariant 7).",
+            "type": "string"
+          },
+          "hard_cap_usd": {
+            "description": "The monthly HARD CAP, decimal string — always `\"200.00\"`.",
+            "type": "string"
+          },
+          "month": {
+            "description": "Month label, `YYYY-MM` (UTC).",
+            "type": "string"
+          },
+          "tokens_in": {
+            "description": "Input tokens consumed this month.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "tokens_out": {
+            "description": "Output tokens produced this month.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "tokens_in",
+          "tokens_out",
+          "estimated_cost_usd",
+          "hard_cap_usd",
+          "cap_utilization_pct"
+        ],
+        "type": "object"
+      },
       "FilingProvenance": {
         "description": "Filing provenance: the source filing the record came from.",
         "properties": {
@@ -550,6 +862,48 @@
         },
         "required": [
           "id"
+        ],
+        "type": "object"
+      },
+      "FreezeStatus": {
+        "description": "Sentinel baselines + ranked drift reports.",
+        "properties": {
+          "drift": {
+            "description": "Drift reports, worst first.",
+            "items": {
+              "$ref": "#/components/schemas/DriftReportEntry"
+            },
+            "type": "array"
+          },
+          "sources": {
+            "description": "Every watched source's baseline (freeze state included).",
+            "items": {
+              "$ref": "#/components/schemas/SentinelSource"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "sources",
+          "drift"
+        ],
+        "type": "object"
+      },
+      "Healthz": {
+        "description": "Liveness probe body: process is up; `db` reports pool reachability.\nDeliberately carries NOTHING sensitive (served without auth).",
+        "properties": {
+          "db": {
+            "description": "`ok` | `error` — result of `select 1` on the pool.",
+            "type": "string"
+          },
+          "status": {
+            "description": "`ok` when the process and its database both answer; `degraded` when\nthe database does not.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "db"
         ],
         "type": "object"
       },
@@ -655,6 +1009,52 @@
         ],
         "type": "object"
       },
+      "LastActivity": {
+        "description": "Last-seen timestamps — the \"is anything alive\" pulse row.",
+        "properties": {
+          "last_gold_created_at": {
+            "description": "Latest Gold row creation.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_outbox_dispatch_at": {
+            "description": "Latest outbox dispatch.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_publish_succeeded_at": {
+            "description": "Latest successful publish finish.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_run_started_at": {
+            "description": "Latest `pipeline_run.started_at`.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_sentinel_check_at": {
+            "description": "Latest sentinel probe (`sentinel_watch.last_checked_at`).",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "Mandate": {
         "description": "One mandate (Gold `mandate`): a role held in a jurisdiction body.",
         "properties": {
@@ -711,6 +1111,145 @@
         ],
         "type": "object"
       },
+      "OpenReason": {
+        "description": "One open-task rollup per reason.",
+        "properties": {
+          "max_priority": {
+            "description": "Highest priority among them.",
+            "format": "float",
+            "type": "number"
+          },
+          "oldest_created_at": {
+            "description": "Oldest open task's creation time.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "open": {
+            "description": "Open tasks with this reason.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "reason": {
+            "description": "Task reason, e.g. `unresolved_filer`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "open",
+          "oldest_created_at",
+          "max_priority"
+        ],
+        "type": "object"
+      },
+      "OpsOverview": {
+        "description": "The composite overview panel — one cheap body per poll (5–15s cadence),\nhigh `ETag` 304 hit-rate when nothing moved.",
+        "properties": {
+          "extraction_month": {
+            "$ref": "#/components/schemas/ExtractionMonth",
+            "description": "Current-month extraction spend vs the HARD CAP."
+          },
+          "generated_at": {
+            "description": "When this body was computed (UTC).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_activity": {
+            "$ref": "#/components/schemas/LastActivity",
+            "description": "Last-seen activity timestamps."
+          },
+          "runs_24h": {
+            "$ref": "#/components/schemas/Runs24h",
+            "description": "Trailing-24h run pulse."
+          },
+          "totals": {
+            "$ref": "#/components/schemas/OpsTotals",
+            "description": "Whole-system totals."
+          }
+        },
+        "required": [
+          "generated_at",
+          "totals",
+          "runs_24h",
+          "extraction_month",
+          "last_activity"
+        ],
+        "type": "object"
+      },
+      "OpsTotals": {
+        "description": "Whole-system totals (design §4.2 tables, one count each).",
+        "properties": {
+          "bronze_documents": {
+            "description": "Bronze `raw_document` rows (sha256-addressed, immutable).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "deliveries_dead": {
+            "description": "Dead-letter deliveries (design §6.3 DLQ).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "drift_open": {
+            "description": "Open drift reports.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "filings": {
+            "description": "`filing` rows.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "frozen_regimes": {
+            "description": "Regimes currently frozen by the sentinel (design §5.6 fail closed).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "gold_records": {
+            "description": "Gold `disclosure_record` rows.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "gold_unverified": {
+            "description": "Gold rows still `unverified` (design §7.1 two-stage publication).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "outbox_undispatched": {
+            "description": "Outbox events not yet dispatched.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "politicians": {
+            "description": "`politician` rows.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "review_open": {
+            "description": "Open review tasks.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "silver_rows": {
+            "description": "Silver staging rows across the per-regime `stg_*` tables.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bronze_documents",
+          "silver_rows",
+          "filings",
+          "gold_records",
+          "gold_unverified",
+          "politicians",
+          "review_open",
+          "frozen_regimes",
+          "drift_open",
+          "deliveries_dead",
+          "outbox_undispatched"
+        ],
+        "type": "object"
+      },
       "Owner": {
         "description": "`owner` CHECK: whose asset the record concerns. `self` is a Rust keyword,\nhence the `Self_` variant with an explicit wire rename.",
         "enum": [
@@ -721,6 +1260,90 @@
           "unknown"
         ],
         "type": "string"
+      },
+      "PipelineRun": {
+        "description": "One `pipeline_run` row (design §5.2 audit trail).",
+        "properties": {
+          "adapter": {
+            "description": "Adapter regime code, e.g. `us_house`.",
+            "type": "string"
+          },
+          "error": {
+            "description": "Failure message, for `failed` runs.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "description": "When it finished; `null` while running.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "Run ULID, minted at claim — time-ordered, the pagination cursor.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "description": "Deterministic stage-unit key (crash-safe replay short-circuit).",
+            "type": "string"
+          },
+          "stage": {
+            "description": "Stage name, e.g. `fetch` | `parse` | `normalize` | `publish`.",
+            "type": "string"
+          },
+          "started_at": {
+            "description": "When the run was claimed.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "stats": {
+            "description": "Stage audit stats (e.g. `PublishStats`; `{}` until finish).",
+            "type": "object"
+          },
+          "status": {
+            "description": "`running` | `succeeded` | `failed`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "adapter",
+          "stage",
+          "status",
+          "idempotency_key",
+          "stats",
+          "started_at"
+        ],
+        "type": "object"
+      },
+      "PipelineRunPage": {
+        "description": "One page of runs, newest first.",
+        "properties": {
+          "items": {
+            "description": "Runs in descending id (= claim-time) order.",
+            "items": {
+              "$ref": "#/components/schemas/PipelineRun"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "Pass back as `cursor` for the next (older) page; `null` at the end.",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "type": "object"
       },
       "Politician": {
         "description": "One politician (Gold `politician`, design §4.2).",
@@ -1135,6 +1758,96 @@
         ],
         "type": "object"
       },
+      "RegimeBackfill": {
+        "description": "Backfill progress of one regime.",
+        "properties": {
+          "jurisdiction_id": {
+            "description": "Owning `jurisdiction.id`.",
+            "type": "string"
+          },
+          "regime_code": {
+            "description": "Adapter regime code (`us_house`, `br`, ...); `null` when no static or\npublish-derived mapping exists for the regime row (module docs).",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "regime_id": {
+            "description": "Seeded `disclosure_regime.id`. Deliberately un-patterned:\n`disclosure_regime.id` is unconstrained text (registry- and\nadapter-seeded ids both exist), so publishing a ULID pattern here\nwould be a lie and `.*` would be dead weight.",
+            "type": "string"
+          },
+          "stages": {
+            "description": "Per-stage run progress for the regime's adapter code (shared across\nregime rows of a multi-body adapter, e.g. both br chambers).",
+            "items": {
+              "$ref": "#/components/schemas/StageProgress"
+            },
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/RegimeTotals",
+            "description": "Whole-history totals."
+          },
+          "years": {
+            "description": "Year-by-year progress, oldest first; the `null` year bucket last.",
+            "items": {
+              "$ref": "#/components/schemas/YearProgress"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "regime_id",
+          "jurisdiction_id",
+          "totals",
+          "stages",
+          "years"
+        ],
+        "type": "object"
+      },
+      "RegimeTotals": {
+        "description": "Per-regime whole-history totals.",
+        "properties": {
+          "bronze_documents": {
+            "description": "Distinct Bronze documents that produced filings for this regime.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "filings": {
+            "description": "Filings.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "gold_records": {
+            "description": "Gold records.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "gold_unverified": {
+            "description": "Gold records still `unverified`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "review_open": {
+            "description": "Open review tasks attributed to this regime (three target kinds:\nrecord → `regime_id` join, bare filing id → `filing` join, and\ncode-keyed `regime`/`filing` targets — code-keyed counts repeat on\nevery regime row sharing the adapter code, e.g. both br chambers).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "silver_rows": {
+            "description": "Silver staging rows, attributed per DOCUMENT: a document shared by\nfilings of more than one regime (e.g. one br CSV feeding both\nchambers) reports its full row count under each — Silver rows carry\nno regime linkage of their own.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bronze_documents",
+          "silver_rows",
+          "filings",
+          "gold_records",
+          "gold_unverified",
+          "review_open"
+        ],
+        "type": "object"
+      },
       "ResolveRequest": {
         "description": "Resolve request: reviewer identity plus one verdict. `regime_code` and\n`corrected` travel only with `verdict = \"edit\"` (they select the details\ncontract and carry the corrected facts); supplying them with any other\nverdict fails closed. Corrected identity fields (`filing_id`,\n`politician_id`, `regime_id`) may be omitted — promote pins identity from\nthe original row and ignores reviewer-supplied values.",
         "properties": {
@@ -1201,6 +1914,26 @@
         ],
         "type": "object"
       },
+      "ResolvedDay": {
+        "description": "Tasks resolved per UTC day (any terminal status — `resolved_at` is\nstamped for dismissals too).",
+        "properties": {
+          "day": {
+            "description": "Day start (UTC).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "resolved": {
+            "description": "Tasks resolved that day.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "resolved"
+        ],
+        "type": "object"
+      },
       "ReviewAuditEntry": {
         "description": "One resolve attempt in the audit log — exactly one row per attempt,\nwhatever came of it.",
         "properties": {
@@ -1257,6 +1990,51 @@
         ],
         "type": "object"
       },
+      "ReviewHealth": {
+        "description": "Review-queue health: status counts, open-by-reason, 14-day resolution\nseries, and the monthly sampling-audit precision source.",
+        "properties": {
+          "by_status": {
+            "$ref": "#/components/schemas/ReviewStatusCounts",
+            "description": "Task counts per status."
+          },
+          "oldest_open_at": {
+            "description": "Creation time of the oldest still-open task.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "open_by_reason": {
+            "description": "Open tasks rolled up by reason, largest first.",
+            "items": {
+              "$ref": "#/components/schemas/OpenReason"
+            },
+            "type": "array"
+          },
+          "resolved_by_day": {
+            "description": "Tasks resolved per UTC day over the trailing 14 days.",
+            "items": {
+              "$ref": "#/components/schemas/ResolvedDay"
+            },
+            "type": "array"
+          },
+          "sample_audit": {
+            "description": "Sampling-audit slices, newest month first.",
+            "items": {
+              "$ref": "#/components/schemas/SampleAuditSlice"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "by_status",
+          "open_by_reason",
+          "resolved_by_day",
+          "sample_audit"
+        ],
+        "type": "object"
+      },
       "ReviewQueueItem": {
         "description": "One queue entry: the task plus its target-record summary (`null` when the\ntask targets something other than a disclosure record).",
         "properties": {
@@ -1302,6 +2080,32 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "ReviewStatusCounts": {
+        "description": "Task counts per status.",
+        "properties": {
+          "dismissed": {
+            "description": "`dismissed` tasks.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "open": {
+            "description": "`open` tasks.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "resolved": {
+            "description": "`resolved` tasks.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "open",
+          "resolved",
+          "dismissed"
         ],
         "type": "object"
       },
@@ -1466,6 +2270,203 @@
         ],
         "type": "object"
       },
+      "RunGroup": {
+        "description": "One (adapter, stage, status) rollup over the window.",
+        "properties": {
+          "adapter": {
+            "description": "Adapter regime code.",
+            "type": "string"
+          },
+          "p50_seconds": {
+            "description": "Median run duration in seconds (finished runs only; `null` when none\nfinished — `percentile_cont` ignores null `finished_at` durations).",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "p95_seconds": {
+            "description": "95th-percentile run duration in seconds (finished runs only).",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "runs": {
+            "description": "Runs in the group.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "stage": {
+            "description": "Stage name.",
+            "type": "string"
+          },
+          "status": {
+            "description": "`running` | `succeeded` | `failed`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "adapter",
+          "stage",
+          "status",
+          "runs"
+        ],
+        "type": "object"
+      },
+      "RunSeriesPoint": {
+        "description": "One (bucket, adapter) point of the throughput series.",
+        "properties": {
+          "adapter": {
+            "description": "Adapter regime code.",
+            "type": "string"
+          },
+          "bucket_start": {
+            "description": "Bucket start (UTC, `date_trunc` of the requested bucket).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "failed": {
+            "description": "Runs finished `failed` in the bucket (by start time).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "gold_inserted": {
+            "description": "Gold rows inserted (summed from publish-run `stats.gold_inserted`).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "review_tasks": {
+            "description": "Review tasks opened (summed from publish-run `stats.review_tasks`).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "succeeded": {
+            "description": "Runs finished `succeeded` in the bucket (by start time).",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bucket_start",
+          "adapter",
+          "succeeded",
+          "failed",
+          "gold_inserted",
+          "review_tasks"
+        ],
+        "type": "object"
+      },
+      "Runs24h": {
+        "description": "Pipeline-run pulse over the trailing 24 hours (running counts are global,\nnot window-bounded — a run started days ago and still `running` is stale\nwherever it started).",
+        "properties": {
+          "failed": {
+            "description": "Of those, finished `failed`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "running_now": {
+            "description": "Runs currently `running` (any age).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "stale_running": {
+            "description": "Runs `running` for over an hour — likely crashed before finish.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "started": {
+            "description": "Runs started in the window.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "succeeded": {
+            "description": "Of those, finished `succeeded`.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "started",
+          "succeeded",
+          "failed",
+          "running_now",
+          "stale_running"
+        ],
+        "type": "object"
+      },
+      "RunsSummary": {
+        "description": "Windowed run rollup: per-(adapter, stage, status) groups with duration\npercentiles, plus a bucketed throughput series.",
+        "properties": {
+          "bucket": {
+            "description": "Series bucket unit: `hour` | `day`.",
+            "type": "string"
+          },
+          "groups": {
+            "description": "Per-(adapter, stage, status) rollup.",
+            "items": {
+              "$ref": "#/components/schemas/RunGroup"
+            },
+            "type": "array"
+          },
+          "series": {
+            "description": "Bucketed throughput series.",
+            "items": {
+              "$ref": "#/components/schemas/RunSeriesPoint"
+            },
+            "type": "array"
+          },
+          "window_hours": {
+            "description": "The trailing window the rollup covers, in hours.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "window_hours",
+          "bucket",
+          "groups",
+          "series"
+        ],
+        "type": "object"
+      },
+      "SampleAuditSlice": {
+        "description": "One month × regime slice of the sampling audit (design §7.4 precision).",
+        "properties": {
+          "confirmed": {
+            "description": "Confirmed correct.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "discrepancy": {
+            "description": "Found discrepant.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pending": {
+            "description": "Drawn records awaiting a verdict.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "regime_id": {
+            "description": "Gold regime the sample was drawn from.",
+            "type": "string"
+          },
+          "sample_month": {
+            "description": "Batch label, `YYYY-MM`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sample_month",
+          "regime_id",
+          "pending",
+          "confirmed",
+          "discrepancy"
+        ],
+        "type": "object"
+      },
       "SearchResults": {
         "description": "Typed search results: one arm per entity kind, each capped at 20 hits in\nid order.",
         "properties": {
@@ -1495,6 +2496,82 @@
         ],
         "type": "object"
       },
+      "SentinelSource": {
+        "description": "One sentinel per-source baseline row (`sentinel_watch`, design §5.6/§5.8).",
+        "properties": {
+          "frozen": {
+            "description": "Whether the regime's publication is currently frozen (fail closed).",
+            "type": "boolean"
+          },
+          "frozen_at": {
+            "description": "When it froze.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "frozen_kind": {
+            "description": "The drift kind that froze it.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_checked_at": {
+            "description": "When the sentinel last probed the source.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_count": {
+            "description": "Last discoverable filing count.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "last_etag": {
+            "description": "Last observed `ETag`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_layout_hash": {
+            "description": "Last structural layout hash of the listing markup.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_modified": {
+            "description": "Last observed `Last-Modified`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_status": {
+            "description": "Last observed HTTP status.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "regime_code": {
+            "description": "Adapter regime code the sentinel watches.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "regime_code",
+          "frozen",
+          "last_checked_at"
+        ],
+        "type": "object"
+      },
       "Side": {
         "description": "`side` CHECK: direction of a transaction.",
         "enum": [
@@ -1503,6 +2580,37 @@
           "exchange"
         ],
         "type": "string"
+      },
+      "StageProgress": {
+        "description": "Stage progress for the regime's adapter code. Failure attribution is\nregime+stage level only — run idempotency keys carry `sha`/`external_id`, no\nyear (plan \"Non-obvious query decisions\").",
+        "properties": {
+          "failed": {
+            "description": "Runs `failed`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "running": {
+            "description": "Runs `running`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "stage": {
+            "description": "Stage name.",
+            "type": "string"
+          },
+          "succeeded": {
+            "description": "Runs `succeeded`.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "stage",
+          "succeeded",
+          "failed",
+          "running"
+        ],
+        "type": "object"
       },
       "Tier": {
         "description": "`user_account.tier` CHECK (design §6.2 freemium table): the tier decides\nfreshness (free = 24h-delayed via the ONE visibility bound in\n`core::query`) and the daily request quota. Default is `free`.",
@@ -1574,6 +2682,60 @@
           "disputed"
         ],
         "type": "string"
+      },
+      "YearProgress": {
+        "description": "One filing-year bucket. `year` is `extract(year from filing.filed_date)`;\na filing without a `filed_date` lands in the honest `year: null` bucket —\n`external_id` is NEVER parsed for a year (its shape is regime-specific).",
+        "properties": {
+          "documents": {
+            "description": "Distinct Bronze documents behind those filings.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "filings": {
+            "description": "Filings filed that year.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "gold_records": {
+            "description": "Gold records from those filings.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "gold_unverified": {
+            "description": "Of those, still `unverified`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "politicians_with_filings": {
+            "description": "Distinct politicians with at least one filing that year.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "roster_members": {
+            "description": "Roster denominator: distinct politicians holding a mandate on the\nregime's `(jurisdiction_id, body)` during that year (`mandate.body`\nvalues are written from the same adapter constants as\n`disclosure_regime.body`, so the join is exact). `null` for the\nunknown-year bucket.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "year": {
+            "description": "Filing year; `null` = filings whose `filed_date` is unknown.",
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "filings",
+          "documents",
+          "gold_records",
+          "gold_unverified",
+          "politicians_with_filings"
+        ],
+        "type": "object"
       }
     }
   },
@@ -1584,6 +2746,533 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/healthz": {
+      "get": {
+        "operationId": "healthz",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Healthz"
+                }
+              }
+            },
+            "description": "Process liveness + database reachability"
+          }
+        },
+        "summary": "Liveness probe. Unauthenticated and un-ETagged by mounting position\n(added AFTER the middleware layers in `lib.rs` — axum layers only wrap\nroutes added before them). Always `200`; database trouble is reported in\nthe body, not as a 5xx, so the probe distinguishes \"process dead\" (no\nanswer) from \"db unreachable\" (degraded).",
+        "tags": [
+          "health"
+        ]
+      }
+    },
+    "/v1/admin/ops/backfill": {
+      "get": {
+        "description": "# Errors\n`401` outside the admin gate; `500` on backend failure.",
+        "operationId": "backfill",
+        "parameters": [
+          {
+            "description": "Adapter regime-code filter, e.g. `us_house` (matches the resolved\n`regime_code`; a multi-body adapter returns all its regime rows).",
+            "in": "query",
+            "name": "adapter",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackfillProgress"
+                }
+              }
+            },
+            "description": "Per-regime, per-year backfill progress"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Per-regime, per-year backfill progress: filings/documents/gold split by\nfiling year, politicians-vs-roster coverage, stage-level run outcomes.",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/v1/admin/ops/deliveries": {
+      "get": {
+        "description": "# Errors\n`401` outside the admin gate; `500` on backend failure.",
+        "operationId": "deliveries",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeliveryHealth"
+                }
+              }
+            },
+            "description": "Delivery ledger counts, outbox backlog and recent DLQ"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Alert-delivery health (design §6.3): ledger counts, outbox backlog, DLQ.",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/v1/admin/ops/extraction-costs": {
+      "get": {
+        "description": "# Errors\n`400` on out-of-range `months`; `401` outside the admin gate; `500` on\nbackend failure.",
+        "operationId": "extraction_costs",
+        "parameters": [
+          {
+            "description": "Trailing months to report (current month included), `1..=24`;\ndefaults to 3.",
+            "in": "query",
+            "name": "months",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "maximum": 24,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractionCostReport"
+                }
+              }
+            },
+            "description": "Monthly extraction spend vs the HARD CAP"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Malformed months"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Monthly LLM extraction cost rollup vs the USD 200.00 HARD CAP.",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/v1/admin/ops/freezes": {
+      "get": {
+        "description": "# Errors\n`400` on a bad `status`; `401` outside the admin gate; `500` on backend\nfailure.",
+        "operationId": "freezes",
+        "parameters": [
+          {
+            "description": "Drift-report scope: `open` (default) | `all`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FreezeStatus"
+                }
+              }
+            },
+            "description": "Sentinel baselines + drift reports, worst first"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Malformed status"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Sentinel freeze state + ranked drift reports (design §5.6/§5.8).",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/v1/admin/ops/overview": {
+      "get": {
+        "description": "# Errors\n`401` outside the admin gate; `500` on backend failure.",
+        "operationId": "overview",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpsOverview"
+                }
+              }
+            },
+            "description": "Whole-system ops overview"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "The composite ops overview: totals, 24h run pulse, current-month\nextraction spend vs the HARD CAP, and last-activity timestamps.",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/v1/admin/ops/review-health": {
+      "get": {
+        "description": "# Errors\n`401` outside the admin gate; `500` on backend failure.",
+        "operationId": "review_health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewHealth"
+                }
+              }
+            },
+            "description": "Review-queue health + sampling-audit precision source"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Review-queue health (design §7.1–7.2, §7.4).",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/v1/admin/ops/runs": {
+      "get": {
+        "description": "# Errors\n`400` on a malformed status, cursor or limit; `401` outside the admin\ngate; `500` on backend failure.",
+        "operationId": "list_runs",
+        "parameters": [
+          {
+            "description": "Adapter regime-code filter, e.g. `us_house`.",
+            "in": "query",
+            "name": "adapter",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Stage filter, e.g. `publish`.",
+            "in": "query",
+            "name": "stage",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Status filter: `running` | `succeeded` | `failed`.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only runs started at/after this instant (RFC 3339).",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Only runs started before this instant (RFC 3339).",
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Pagination cursor: the run id of the last item on the previous page.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Page size, `1..=200`; defaults to 50.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "maximum": 200,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineRunPage"
+                }
+              }
+            },
+            "description": "One page of pipeline runs, newest first"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Malformed status, cursor or limit"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Lists pipeline runs, newest first, with adapter/stage/status/time filters.",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
+    "/v1/admin/ops/runs/summary": {
+      "get": {
+        "description": "# Errors\n`400` on out-of-range `hours` or a bad `bucket`; `401` outside the admin\ngate; `500` on backend failure.",
+        "operationId": "runs_summary",
+        "parameters": [
+          {
+            "description": "Trailing window in hours, `1..=720`; defaults to 24.",
+            "in": "query",
+            "name": "hours",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "maximum": 720,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Series bucket: `hour` (default) | `day`.",
+            "in": "query",
+            "name": "bucket",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunsSummary"
+                }
+              }
+            },
+            "description": "Windowed run rollup + throughput series"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Malformed hours or bucket"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Windowed run rollup with duration percentiles and a throughput series.",
+        "tags": [
+          "ops"
+        ]
+      }
+    },
     "/v1/alert-rules": {
       "get": {
         "description": "# Errors\n`401`/`403` without a pro/data key; `500` on backend failure.",
@@ -3012,6 +4701,14 @@
     {
       "description": "Admin review queue (design §7.1–7.2), X-Admin-Token gated: priority-ranked tasks with REAL-TIME record context and extraction evidence; resolutions go through the pipeline promote path (supersede-never-update) and every attempt is audit-logged.",
       "name": "review"
+    },
+    {
+      "description": "Read-only admin ops observability (goal 090), X-Admin-Token gated: backfill progress, pipeline runs, sentinel freezes/drift, review-queue health, alert delivery and LLM extraction cost vs the USD 200.00 monthly HARD CAP. Poll-friendly: every body carries a strong ETag.",
+      "name": "ops"
+    },
+    {
+      "description": "Liveness probe: unauthenticated, un-ETagged, carries nothing sensitive.",
+      "name": "health"
     }
   ]
 }
