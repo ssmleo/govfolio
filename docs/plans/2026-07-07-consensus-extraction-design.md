@@ -1,7 +1,7 @@
 # Govfolio.io — Consensus Extraction Design (goal 021 v2)
 
 - **Date:** 2026-07-07
-- **Status:** Approved (founder, 2026-07-07; approval recorded in `agents/goals/021-llm-extraction.md` § Phase 2). Produced as the committed terminal artifact of the goal-021-v2 brainstorming gate — the design dialogue itself concluded 2026-07-07 and is not re-run here.
+- **Status:** Approved (founder, 2026-07-07; approval recorded in `agents/goals/021-llm-extraction.md` § Phase 2). Produced as the committed terminal artifact of the goal-021-v2 brainstorming gate — the design dialogue itself concluded 2026-07-07 and is not re-run here. **Amended 2026-07-07 (recorded 2026-07-08) by `docs/plans/2026-07-07-consensus-extraction-amendment-1.md` (goal 021 Phase 3, founder-approved): comparator policy pol1 → pol2 (family-aware voting, ≥3-of-4 escalation acceptance, two-plane comparison), strict tool schema (prompt p2), pixel/quality-triggered premium scrutiny, cross-lab third vote (bake-off-gated).**
 - **Scope:** LLM extraction of scanned/paper disclosure documents — us_house first, platform strategy for every regime that hits the LLM seam. Extraction only: instrument resolution is out of scope and unchanged (invariant 3 governs it).
 - **Relation:** Implements design §5.3 (parsing strategy) and §7.1 (verification lanes) of `docs/plans/2026-07-04-govfolio-design.md`; supersedes the goal-021-v1 fixed-confidence wrapper (`AnthropicExtractor` stamping a constant 0.9). Implementation plan: `docs/plans/2026-07-07-consensus-extraction.md`.
 
