@@ -13,6 +13,17 @@
 
 - All ten `/CLAUDE.md` invariants. Hot here: **2** (`asset_description_raw` VERBATIM), **3** (never publish a diverging row — hold it), **4** (idempotent writes, stable ordinals; existing published fingerprints must NOT change), **5** (details contract untouched byte-identical), **6** (fail closed at every fork), **7** (rust_decimal money; the model NEVER emits amounts — band enum strings only), **8** (no `unwrap()`/`expect()` outside tests), **10** (backoff + jitter + bounded concurrency on vendor calls).
 - Confidence policy_v1 closed set: `CONF_AGREED = 0.9f32` (exactly), `CONF_ESCALATED = 0.75`, `CONF_SANITY_CAPPED = 0.79`. No path emits ≥ 0.95 or a value outside the set; acceptance gates use set membership, never a `>=` threshold. LLM-path records never auto-verify.
+- policy_v1 → design §7.1 lane mapping (normative; mirrors the design doc §4):
+
+  | Outcome | `extraction_confidence` | §7.1 lane | Action |
+  |---|---|---|---|
+  | 3/3 agreement on all critical fields, sanity green | **0.90** (exactly `0.9f32`) | Sampled spot-check (~0.8–0.95) | publish `unverified` |
+  | Escalation resolves (premium + ≥1 sample agree, no tie) | **0.75** | Mandatory review (<0.8) | publish `unverified` + `consensus_mandatory_review` task |
+  | Sanity fail / top-band outlier / ROI-checkbox conflict | **0.79** (forced cap) | Mandatory review | publish + review_task; value never rewritten |
+  | Still ambiguous after escalation | — | — | hold row: no candidate, ordinal reserved, `consensus_row_hold` task, competing payloads retained |
+  | Zero publishable rows / preprocessing failure | — | — | freeze document + review_task (§5.6) |
+
+  High-impact rows (≥ $500,001 bands, watchlist) additionally keep the second-model cross-check regardless of agreement.
 - CI stays offline + deterministic. Exactly ONE `#[ignore]` key-gated live test exists repo-wide (v1's, repurposed in Task 25). Conformance never touches the network (primed cache).
 - Config-not-code: model ids, prices, caps, N, temperature, max_edge in `config/extractor.toml` with source URLs + retrieval dates. Budget values are ABSENT (founder-deferred HARD CAP) — batch submission refuses while unset.
 - v1 surfaces FROZEN: `LlmDocumentExtractor`, `build_request`, `Models` defaults, the per-adapter `Extractor` trait signature. Consensus code is additive beside them.

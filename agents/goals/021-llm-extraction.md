@@ -136,3 +136,26 @@ sh scripts/check-migration-safety.sh
   `agents/goals/022-adversarial-review-loop.md`, `agents/goals/023-extraction-tier-labeling.md`
   (both `??`, zero commit history, mtimes 2026-07-06 12:33/12:50), and `.agents/` at repo
   root. Orchestrator/founder to adjudicate registration or removal.
+
+## Phase 2 amendment candidates (recorded 2026-07-07 — NOT adopted; founder adjudication)
+
+Cost-lever review (certainty-per-dollar analysis, 2026-07-07) surfaced six levers. Three are
+design amendments to the approved §3 architecture and are therefore RECORDED here per goal
+§0 (conflicts are findings, not redesign authority) — the approved design (N=3, uniform
+t=0.7, full-page images every pass) stands until the founder adjudicates. Decide before
+Tasks 12/17/22 execute (cheap now, rework later):
+
+1. **Adaptive N** — fire 2 samples; 2/2 unanimous → publish, else fire sample 3 + normal
+   escalation. ~33% sample-cost cut on clean docs (~$0.029 → ~$0.019 sync); messy docs keep
+   full treatment. Amends §3.B "N = 3".
+2. **Vote decorrelation** — mix decoding paths (1× t=0 + 2× t=0.7), and/or swap one Haiku
+   pass for a Sonnet pass on high-impact docs only (~+$0.01 on ~10%). Real bias
+   decorrelation; also closes the unanimous-but-high-impact gap. Amends §3.B sampling.
+3. **Per-pass crop** — full page on pass 1; table-region crop for passes 2..N (~30% input
+   tokens); adaptive resolution by ink-density signal. Amends §3.A single-raster design.
+
+Three levers are already compatible with the approved design — execution guidance, no
+amendment needed: route non-watchlist bulk through the Batch path (policy choice at run
+time); extend deterministic pixel checks (column-K flag vs band, date-region ink) inside the
+Task 4/18 sanity seam; calibrate INK_THRESHOLD / critical_fields from print→scan→rasterize
+synthetic fixtures of known electronic PTRs (free ground truth) + the monthly sampled audit.
