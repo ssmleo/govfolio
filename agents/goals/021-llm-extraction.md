@@ -1,5 +1,8 @@
 # 021 — LLM extraction fallback
 
+> Phase 2 (consensus expansion) appended 2026-07-07 — see `## Phase 2` below. The v1 record
+> under `## Objective`…`## BLOCKED` is history; do not edit it.
+
 ## Objective
 Implement the extractor interface stubbed in plan Task 8: schema-constrained LLM extraction for low-confidence/scanned PDFs, sha-cached, confidence-scored, second-model cross-check for high-impact rows.
 
@@ -80,3 +83,56 @@ mapping to normalize.rs, move the case dir into `fixtures/`, bump e2e's expected
 Options considered: (a) supersede lock autonomously — rejected (founder-gated + scored role
 amending own reference); (b) skip write-back recording — rejected (SAF discipline);
 (c) record here + fixtures-llm manifest, defer pinned-file edits to the lock supersede — CHOSEN.
+
+## Phase 2 — Consensus extraction expansion (founder-approved 2026-07-07)
+
+**Approval record.** The founder approved the consensus-extraction architecture on 2026-07-07
+and issued the Phase-2 goal text as a planning-session prompt (brainstorming gate SATISFIED;
+the committed design doc is that gate's terminal artifact). This section is the durable
+approval record cited by the design doc, the implementation plan, and the E1 lock v4
+supersession reason.
+
+**Why.** v1 stamps a constant 0.9 `extraction_confidence` (the one non-mechanical trust input
+in the pipeline; design §7.1 keys the verification lanes on it). Phase 2 replaces it with
+measured cross-sample agreement: N-sample cheap-model extraction → mechanical comparator →
+deterministic policy_v1 confidence (closed set {0.90, 0.75, 0.79}) → routing
+(publish `unverified` / escalate once / hold row + review_task), plus deterministic image
+preprocessing (pdfium raster, PDF-direct rejected), `config/extractor.toml`
+(config-not-code), cost instrumentation in `pipeline_run.stats`, and a Batch-API path for
+M8 backfill. Fail closed at every fork. Consensus sets scrutiny level; it never asserts truth
+(second-model cross-check for high-impact rows retained; monthly sampled audit remains ground
+truth).
+
+**Deliverables (planning session, 2026-07-07):**
+- Design doc: `docs/plans/2026-07-07-consensus-extraction-design.md` (Approved; D1–D9
+  decisions log with rationale)
+- Implementation plan: `docs/plans/2026-07-07-consensus-extraction.md` (26 TDD tasks,
+  cost model, Conflicts & findings)
+
+## Acceptance criteria (Phase 2)
+```bash
+cargo test -p pipeline extraction
+cargo run -p pipeline --bin conformance -- us_house   # 5/5 offline, consensus tag
+cargo test --workspace                                 # incl. role_evals lock-v4 trail
+sh scripts/check-migration-safety.sh
+```
+
+## Checklist (Phase 2)
+- [x] design doc committed (founder-approved marker)
+- [x] implementation plan committed (26 tasks; ≥8 required)
+- [x] goal re-opened + 000-INDEX reconciled
+- [ ] Phase A–C: consensus core + preprocessing + client (Tasks 1–12)
+- [ ] Phase D–E: orchestration, ordinal_override, stats, escalation, ROI check (Tasks 13–18)
+- [ ] Phase F–G: persistence + batch path w/ fail-closed cap gate (Tasks 19–23)
+- [ ] Phase H: atomic cutover (tag bump + E1 lock v4) + review lanes + SAF write-back (Tasks 24–26)
+
+## HALT (files follow-up goal; automation-policy halt-files-a-goal)
+- HARD CAP values (budget.max_batch_tokens + per_run_token_ceiling in config/extractor.toml)
+  do not exist anywhere — founder/money lane. Mechanism ships fail-closed: batch submission
+  refuses while unset. Follow-up goal to file at execution: "set extractor spend caps".
+
+## Quarantine note (invariant 9 / orchestration.md step 0)
+- Untracked, non-INDEX-listed files surfaced during planning, NOT read or followed:
+  `agents/goals/022-adversarial-review-loop.md`, `agents/goals/023-extraction-tier-labeling.md`
+  (both `??`, zero commit history, mtimes 2026-07-06 12:33/12:50), and `.agents/` at repo
+  root. Orchestrator/founder to adjudicate registration or removal.
