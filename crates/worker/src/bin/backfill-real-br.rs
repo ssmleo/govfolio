@@ -80,7 +80,10 @@ use pipeline::adapter::{
 use pipeline::conformance::workspace_root;
 use pipeline::run::{RunReport, Runner};
 use pipeline::stages::seed::seed_regime;
-use worker::backfill::{ArchiveSource, BudgetVerdict, DiscoveredFiling, PgBaseline};
+use worker::backfill::{
+    ArchiveSource, BackfillRunKind, BackfillRunRecord, BackfillRunStatus, BudgetVerdict,
+    DiscoveredFiling, PgBaseline, counter_i64, record_backfill_run,
+};
 
 struct Args {
     from: i32,
@@ -289,7 +292,16 @@ fn merge_reports(a: RunReport, b: RunReport) -> RunReport {
 /// then, on [`BudgetVerdict::Proceed`], runs the real write pass over BOTH
 /// bodies' refs (`runner_camara`/`runner_senado`, module doc comment point
 /// 3). Returns `None` on a budget skip (logged to `agents/JOURNAL.md`,
-/// nothing blocks the range).
+/// nothing blocks the range). Every arm — `skipped_budget` / `succeeded` /
+/// `failed` — records one per-year `backfill_run` row through `pool`
+/// (admin observability, plan §Architecture 3); `scope` is the row's
+/// `--uf`/nationwide note.
+// The observability additions (pool + scope parameters, three per-arm
+// `backfill_run` rows) push this otherwise-unchanged gate-then-write
+// orchestration past clippy's 7-argument and 100-line bounds — not a
+// genuine design regression; bundling/splitting would be pure ceremony for
+// a single private call site.
+#[allow(clippy::too_many_arguments, clippy::too_many_lines)]
 async fn gate_and_write_year(
     runner_camara: &Runner<'_>,
     runner_senado: &Runner<'_>,
@@ -298,8 +310,11 @@ async fn gate_and_write_year(
     journal_root: &std::path::Path,
     budget: usize,
     filings: &YearFilings,
+    pool: &sqlx::PgPool,
+    scope: Option<&str>,
 ) -> anyhow::Result<Option<RunReport>> {
     let year = filings.year;
+    let started_at = chrono::Utc::now();
     let record_delta =
         match worker::backfill::gate_year(gate_source, gate_baseline, "br", year, budget).await? {
             BudgetVerdict::Skip { record_delta } => {
@@ -308,6 +323,23 @@ async fn gate_and_write_year(
                          {budget}; logged to agents/JOURNAL.md, continuing (nothing blocks)"
                 );
                 worker::backfill::log_budget_skip(journal_root, "br", year, record_delta, budget)?;
+                record_backfill_run(
+                    pool,
+                    &BackfillRunRecord {
+                        scope: scope.map(str::to_owned),
+                        record_delta: counter_i64(record_delta),
+                        budget: Some(counter_i64(budget)),
+                        ..BackfillRunRecord::new(
+                            "br",
+                            year,
+                            BackfillRunKind::Backfill,
+                            "backfill-real-br",
+                            BackfillRunStatus::SkippedBudget,
+                            started_at,
+                        )
+                    },
+                )
+                .await?;
                 return Ok(None);
             }
             BudgetVerdict::Proceed { record_delta } => record_delta,
@@ -316,15 +348,46 @@ async fn gate_and_write_year(
         "{year}: budget OK (record_delta {record_delta} <= BACKFILL_BUDGET {budget}) — \
          proceeding to the real write"
     );
-    let camara_report = runner_camara
-        .run_over(&filings.camara)
-        .await
-        .with_context(|| format!("real write pass (Câmara) for {year}"))?;
-    let senado_report = runner_senado
-        .run_over(&filings.senado)
-        .await
-        .with_context(|| format!("real write pass (Senado) for {year}"))?;
-    let report = merge_reports(camara_report, senado_report);
+    let write_result: anyhow::Result<RunReport> = async {
+        let camara_report = runner_camara
+            .run_over(&filings.camara)
+            .await
+            .with_context(|| format!("real write pass (Câmara) for {year}"))?;
+        let senado_report = runner_senado
+            .run_over(&filings.senado)
+            .await
+            .with_context(|| format!("real write pass (Senado) for {year}"))?;
+        Ok(merge_reports(camara_report, senado_report))
+    }
+    .await;
+    let report = match write_result {
+        Ok(report) => report,
+        Err(error) => {
+            // Failed row first, then propagate. The row INSERT itself is
+            // best-effort here: it must never mask the year's real error
+            // (which is about to abort the run anyway).
+            let failed_row = BackfillRunRecord {
+                scope: scope.map(str::to_owned),
+                record_delta: counter_i64(record_delta),
+                budget: Some(counter_i64(budget)),
+                error: Some(format!("{error:#}")),
+                ..BackfillRunRecord::new(
+                    "br",
+                    year,
+                    BackfillRunKind::Backfill,
+                    "backfill-real-br",
+                    BackfillRunStatus::Failed,
+                    started_at,
+                )
+            };
+            if let Err(record_error) = record_backfill_run(pool, &failed_row).await {
+                eprintln!(
+                    "WARNING: backfill_run row for failed {year} not recorded: {record_error:#}"
+                );
+            }
+            return Err(error);
+        }
+    };
     println!(
         "{year}: published {} | replayed {} | gold inserted {} | outbox written {} | \
          review tasks {} | failed {}",
@@ -335,6 +398,24 @@ async fn gate_and_write_year(
         report.review_tasks,
         report.failed.len()
     );
+    record_backfill_run(
+        pool,
+        &BackfillRunRecord {
+            scope: scope.map(str::to_owned),
+            record_delta: counter_i64(record_delta),
+            budget: Some(counter_i64(budget)),
+            ..BackfillRunRecord::new(
+                "br",
+                year,
+                BackfillRunKind::Backfill,
+                "backfill-real-br",
+                BackfillRunStatus::Succeeded,
+                started_at,
+            )
+            .with_report(&report)
+        },
+    )
+    .await?;
     Ok(Some(report))
 }
 
@@ -413,6 +494,14 @@ async fn main() -> anyhow::Result<()> {
     let gate_baseline = PgBaseline::new(pool.clone(), br::seed::REGIME_ID.to_owned());
     let journal_root = worker::backfill::workspace_root();
 
+    // The scope note every backfill_run row carries (migration 0011's own
+    // vocabulary): the --uf bound when set, nationwide otherwise.
+    let scope = if args.ufs.is_empty() {
+        "nationwide".to_owned()
+    } else {
+        format!("--uf {}", args.ufs.join(","))
+    };
+
     let mut total = RunReport::default();
     for year_filings in &by_year {
         if let Some(report) = gate_and_write_year(
@@ -423,6 +512,8 @@ async fn main() -> anyhow::Result<()> {
             &journal_root,
             budget,
             year_filings,
+            &pool,
+            Some(&scope),
         )
         .await?
         {

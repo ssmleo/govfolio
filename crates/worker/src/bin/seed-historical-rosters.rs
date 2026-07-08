@@ -35,6 +35,9 @@ use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx, Sc
 use pipeline::stages::seed::seed_regime;
 use us_house::UsHouseAdapter;
 use us_house::seed::{LiveIndexSource, seed_historical_rosters};
+use worker::backfill::{
+    BackfillRunKind, BackfillRunRecord, BackfillRunStatus, counter_i64, record_backfill_run,
+};
 
 struct Args {
     from: i32,
@@ -72,6 +75,10 @@ fn parse_args() -> anyhow::Result<Args> {
 }
 
 #[tokio::main]
+// The per-year `backfill_run` observability rows (plan §Architecture 3)
+// push this otherwise-unchanged seed loop a few lines past the limit — the
+// same shape and justification as `bin/backfill-real.rs`'s own allow.
+#[allow(clippy::too_many_lines)]
 async fn main() -> anyhow::Result<()> {
     let args = parse_args()?;
     let database_url =
@@ -105,6 +112,11 @@ async fn main() -> anyhow::Result<()> {
     };
     let regime = us_house::seed::regime_binding();
 
+    // Admin observability (plan §Architecture 3): one `backfill_run` row per
+    // year below (kind='seed'). `seed_historical_rosters` runs the whole
+    // range opaquely, so `started_at` is honestly the RANGE start — per-year
+    // timing is not observable from out here.
+    let started_at = chrono::Utc::now();
     let results = seed_historical_rosters(&source, &pool, &regime, args.from, args.to).await;
 
     let mut total_inserted = 0u32;
@@ -128,11 +140,45 @@ async fn main() -> anyhow::Result<()> {
                         member_error.error
                     );
                 }
+                record_backfill_run(
+                    &pool,
+                    &BackfillRunRecord {
+                        failed_count: counter_i64(result.member_errors.len()),
+                        details: serde_json::json!({
+                            "seeded": result.inserted,
+                            "skipped_ambiguous": result.member_errors.len(),
+                        }),
+                        ..BackfillRunRecord::new(
+                            "us_house",
+                            result.year,
+                            BackfillRunKind::Seed,
+                            "seed-historical-rosters",
+                            BackfillRunStatus::Succeeded,
+                            started_at,
+                        )
+                    },
+                )
+                .await?;
                 total_inserted += result.inserted;
                 total_skipped_members += result.member_errors.len();
             }
             Some(error) => {
                 eprintln!("{}: FAILED CLOSED — {error}", result.year);
+                record_backfill_run(
+                    &pool,
+                    &BackfillRunRecord {
+                        error: Some(error.clone()),
+                        ..BackfillRunRecord::new(
+                            "us_house",
+                            result.year,
+                            BackfillRunKind::Seed,
+                            "seed-historical-rosters",
+                            BackfillRunStatus::Failed,
+                            started_at,
+                        )
+                    },
+                )
+                .await?;
                 failed_years += 1;
             }
         }

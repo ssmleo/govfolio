@@ -57,6 +57,9 @@ use pipeline::run::{RunReport, Runner};
 use pipeline::stages::seed::seed_regime;
 use us_house::UsHouseAdapter;
 use us_house::binding::UsHouseBinding;
+use worker::backfill::{
+    BackfillRunKind, BackfillRunRecord, BackfillRunStatus, counter_i64, record_backfill_run,
+};
 
 struct Args {
     from: i32,
@@ -197,6 +200,14 @@ async fn main() -> anyhow::Result<()> {
 
     let mut total = RunReport::default();
     for (year, refs) in by_year {
+        // Admin observability (plan §Architecture 3): every arm below —
+        // skipped_budget / succeeded / failed — records one per-year
+        // `backfill_run` row; `started_at` marks where this year's
+        // processing (gate included) began.
+        let started_at = chrono::Utc::now();
+        // The scope note the row carries: the --limit bound when sampling
+        // (goal 082), full-year otherwise.
+        let scope = args.limit.map(|n| format!("--limit {n}"));
         // Goal 082: under --limit the sample bound is the gate — at most
         // refs.len() filings can write, so the worst case (every sampled
         // filing an add) is compared to BACKFILL_BUDGET directly instead of
@@ -227,6 +238,23 @@ async fn main() -> anyhow::Result<()> {
                     record_delta,
                     budget,
                 )?;
+                record_backfill_run(
+                    &pool,
+                    &BackfillRunRecord {
+                        scope: scope.clone(),
+                        record_delta: counter_i64(record_delta),
+                        budget: Some(counter_i64(budget)),
+                        ..BackfillRunRecord::new(
+                            "us_house",
+                            year,
+                            BackfillRunKind::Backfill,
+                            "backfill-real",
+                            BackfillRunStatus::SkippedBudget,
+                            started_at,
+                        )
+                    },
+                )
+                .await?;
                 continue;
             }
             worker::backfill::BudgetVerdict::Proceed { record_delta } => record_delta,
@@ -235,10 +263,39 @@ async fn main() -> anyhow::Result<()> {
             "{year}: budget OK (record_delta {record_delta} <= BACKFILL_BUDGET {budget}) — \
              proceeding to the real write"
         );
-        let report = runner
+        let report = match runner
             .run_over(&refs)
             .await
-            .with_context(|| format!("real write pass for {year}"))?;
+            .with_context(|| format!("real write pass for {year}"))
+        {
+            Ok(report) => report,
+            Err(error) => {
+                // Failed row first, then propagate. The row INSERT itself is
+                // best-effort here: it must never mask the year's real error
+                // (which is about to abort the run anyway).
+                let failed_row = BackfillRunRecord {
+                    scope: scope.clone(),
+                    record_delta: counter_i64(record_delta),
+                    budget: Some(counter_i64(budget)),
+                    error: Some(format!("{error:#}")),
+                    ..BackfillRunRecord::new(
+                        "us_house",
+                        year,
+                        BackfillRunKind::Backfill,
+                        "backfill-real",
+                        BackfillRunStatus::Failed,
+                        started_at,
+                    )
+                };
+                if let Err(record_error) = record_backfill_run(&pool, &failed_row).await {
+                    eprintln!(
+                        "WARNING: backfill_run row for failed {year} not recorded: \
+                         {record_error:#}"
+                    );
+                }
+                return Err(error);
+            }
+        };
         println!(
             "{year}: published {} | replayed {} | gold inserted {} | outbox written {} | \
              review tasks {} | failed {}",
@@ -249,6 +306,24 @@ async fn main() -> anyhow::Result<()> {
             report.review_tasks,
             report.failed.len()
         );
+        record_backfill_run(
+            &pool,
+            &BackfillRunRecord {
+                scope: scope.clone(),
+                record_delta: counter_i64(record_delta),
+                budget: Some(counter_i64(budget)),
+                ..BackfillRunRecord::new(
+                    "us_house",
+                    year,
+                    BackfillRunKind::Backfill,
+                    "backfill-real",
+                    BackfillRunStatus::Succeeded,
+                    started_at,
+                )
+                .with_report(&report)
+            },
+        )
+        .await?;
         add_report(&mut total, year, report);
     }
 
