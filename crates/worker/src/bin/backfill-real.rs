@@ -31,8 +31,19 @@
 //!
 //! Usage:
 //! ```text
-//! cargo run -p worker --bin backfill-real -- --from 2012 [--to <year>]
+//! cargo run -p worker --bin backfill-real -- --from 2012 [--to <year>] [--limit <N>]
 //! ```
+//!
+//! `--limit <N>` (goal 082, founder-directed 2026-07-08): BOUNDED per-year sample —
+//! each year's discovered `FilingRef` list is truncated to N before the write pass
+//! (`sampled N of M` printed; never silently). Under `--limit` the full-year
+//! `gate_year` pre-pass (which dry-processes the ENTIRE year to measure
+//! `record_delta`) is replaced by the mechanical upper bound `sampled_count <=
+//! BACKFILL_BUDGET`: with at most N filings written, the worst case counts every
+//! sampled filing as an add, so the bound IS the gate — same fail-closed shape,
+//! no second full-year fetch pass. Without `--limit`, behavior is unchanged.
+//! Intended for LOCAL verification runs (`DATABASE_URL` = the dev Postgres on
+//! 5433); the goal-080/081 prod HALTs are untouched by this flag.
 //!
 //! Env: `DATABASE_URL` (required — this bin writes Bronze/Silver/Gold, unlike
 //! `bin/backfill.rs`'s optional connection for its no-write dry run).
@@ -50,12 +61,14 @@ use us_house::binding::UsHouseBinding;
 struct Args {
     from: i32,
     to: i32,
+    limit: Option<usize>,
 }
 
 fn parse_args() -> anyhow::Result<Args> {
     let current_year = chrono::Utc::now().year();
     let mut from: Option<i32> = None;
     let mut to: Option<i32> = None;
+    let mut limit: Option<usize> = None;
 
     let mut cli = std::env::args().skip(1);
     while let Some(flag) = cli.next() {
@@ -68,7 +81,14 @@ fn parse_args() -> anyhow::Result<Args> {
                 from = Some(value("--from")?.parse().context("--from must be a year")?);
             }
             "--to" => to = Some(value("--to")?.parse().context("--to must be a year")?),
-            other => anyhow::bail!("unknown argument {other:?} (expected --from/--to)"),
+            "--limit" => {
+                let n: usize = value("--limit")?
+                    .parse()
+                    .context("--limit must be a positive integer")?;
+                anyhow::ensure!(n > 0, "--limit must be >= 1 (omit it for the full run)");
+                limit = Some(n);
+            }
+            other => anyhow::bail!("unknown argument {other:?} (expected --from/--to/--limit)"),
         }
     }
 
@@ -79,7 +99,7 @@ fn parse_args() -> anyhow::Result<Args> {
         (2012..=current_year + 1).contains(&from),
         "--from {from} is outside the archived range (2012..={current_year})"
     );
-    Ok(Args { from, to })
+    Ok(Args { from, to, limit })
 }
 
 /// Accumulates one run's totals across every year processed.
@@ -140,11 +160,20 @@ async fn main() -> anyhow::Result<()> {
     // year's full `FilingRef` list is collected before any real write starts.
     let mut by_year: Vec<(i32, Vec<FilingRef>)> = Vec::new();
     for year in args.from..=args.to {
-        let refs = adapter
+        let mut refs = adapter
             .discover_year(year, &ctx)
             .await
             .with_context(|| format!("discovering {year}"))?;
-        println!("{year}: {} filing(s) discovered", refs.len());
+        match args.limit {
+            Some(n) if refs.len() > n => {
+                println!(
+                    "{year}: {} filing(s) discovered — sampling {n} (--limit; goal 082)",
+                    refs.len()
+                );
+                refs.truncate(n);
+            }
+            _ => println!("{year}: {} filing(s) discovered", refs.len()),
+        }
         by_year.push((year, refs));
     }
 
@@ -168,15 +197,24 @@ async fn main() -> anyhow::Result<()> {
 
     let mut total = RunReport::default();
     for (year, refs) in by_year {
-        let record_delta = match worker::backfill::gate_year(
-            &gate_source,
-            &gate_baseline,
-            "us_house",
-            year,
-            budget,
-        )
-        .await?
-        {
+        // Goal 082: under --limit the sample bound is the gate — at most
+        // refs.len() filings can write, so the worst case (every sampled
+        // filing an add) is compared to BACKFILL_BUDGET directly instead of
+        // dry-processing the ENTIRE year to measure record_delta.
+        let verdict = if args.limit.is_some() {
+            println!(
+                "{year}: sampled gate — {} filing(s) sampled; worst-case delta {} <= \
+                 BACKFILL_BUDGET {budget} required (full-year gate_year skipped under \
+                 --limit, goal 082)",
+                refs.len(),
+                refs.len()
+            );
+            worker::backfill::budget_verdict(refs.len(), budget)
+        } else {
+            worker::backfill::gate_year(&gate_source, &gate_baseline, "us_house", year, budget)
+                .await?
+        };
+        let record_delta = match verdict {
             worker::backfill::BudgetVerdict::Skip { record_delta } => {
                 println!(
                     "{year}: SKIPPED — record_delta {record_delta} exceeds BACKFILL_BUDGET \
