@@ -432,9 +432,9 @@ values invented for the HARD CAP.
 
 Planning session (2026-07-08):
 - [x] Phase 3 registered in 000-INDEX + this goal file (this commit)
-- [ ] design amendment committed FIRST (amendment-1 doc + one-line pointer in the original design doc)
-- [ ] hardening addendum plan (Tasks 27+) + surgical changeset to the committed plan — ONE atomic commit
-- [ ] planning close-out: this checklist reconciled + JOURNAL line
+- [x] design amendment committed FIRST (amendment-1 doc + one-line pointer in the original design doc) (done 2026-07-08, commit 7819a19)
+- [x] hardening addendum plan (Tasks 27+) + surgical changeset to the committed plan — ONE atomic commit (done 2026-07-08, commit 35af0b3)
+- [x] planning close-out: this checklist reconciled + JOURNAL line (done 2026-07-08, this commit)
 
 Execution (merged order — committed-plan tasks interleaved with hardening addendum tasks;
 "H" numbers live in docs/plans/2026-07-07-consensus-hardening.md):
@@ -442,8 +442,9 @@ Execution (merged order — committed-plan tasks interleaved with hardening adde
 - [ ] H28 canonical-plane comparison → H29 occurrence+multiplicity ≥3-of-4 → H30/H30b family-aware pol2 + modal publication
 - [ ] committed Task 18 (amended: strict schema, band letters, few-shot, key_fields)
 - [ ] H31–H35b quality routing · premium trigger disjunction · escalation params · row-count gate · template fingerprint guard
-- [ ] committed Tasks 19–23 (amended) + H36–H37 batch parity (Silver mapping, premium-trigger parity)
+- [ ] committed Tasks 19–23 (amended)
 - [ ] committed Task 24 cutover (composite `…+prompt@p2+pol2+q1`, E1 v3→v4 once) + Task 25 (amended) + Task 26
+- [ ] H36–H37 batch parity (POST-cutover: reuses Task 24's Silver mapping + validated() gate; precondition of the first real batch run)
 - [ ] H38–H43 audit weights · labels migration 0012 · drift sentinel · shadow harness · refill arm + live-smoke re-point · error-boundary corpus
 - [ ] H44 cross-lab transport (config DISABLED) · H45 bake-off (numeric gates) · H46 activation (BLOCKED: gates + HARD CAP + conditional vendor ToS; E1 v4→v5) · H47 SAF write-backs + close-out
 
