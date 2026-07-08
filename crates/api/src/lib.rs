@@ -34,6 +34,11 @@ pub struct ApiConfig {
     /// anonymous limiting lives at the CDN edge (design §6.4); this only
     /// stops a single instance from being trivially hammered.
     pub unauth_requests_per_minute: u32,
+    /// Repo checkout root (`GOVFOLIO_REPO_ROOT`) for the autonomous-loop
+    /// meta surface (`/v1/admin/loop`): goal queue, git activity, journal.
+    /// Unset (the cloud posture) = that endpoint answers 503 Unavailable by
+    /// design — never a guessed path, never faked data.
+    pub repo_root: Option<std::path::PathBuf>,
 }
 
 impl ApiConfig {
@@ -53,6 +58,10 @@ impl ApiConfig {
                 .ok()
                 .and_then(|raw| raw.parse().ok())
                 .unwrap_or(Self::DEFAULT_UNAUTH_PER_MINUTE),
+            repo_root: std::env::var("GOVFOLIO_REPO_ROOT")
+                .ok()
+                .filter(|p| !p.is_empty())
+                .map(std::path::PathBuf::from),
         }
     }
 

@@ -1,5 +1,6 @@
 //! `/v1` route handlers (design §6.1: resources mirror Gold ~1:1).
 
+pub mod admin;
 pub mod alert_rules;
 pub mod jurisdictions;
 pub mod keys;
