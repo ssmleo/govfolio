@@ -101,14 +101,14 @@ to the amendment task."
 - [ ] **Step 2: Verify each surgical edit target is still un-executed**
 
   The surgical changeset (`docs/plans/2026-07-07-consensus-extraction.md`'s working-tree diff)
-  touches committed-plan Tasks 3, 9, 10, 18, 19, 20, 22, 23, 24, 25 (per amendment-1.md §"Relation":
-  "surgical edits to `docs/plans/2026-07-07-consensus-extraction.md`"). For each, verify no commit
-  has landed the corresponding CODE (a plan-doc edit landing is expected and fine; a commit
-  IMPLEMENTING that task's code before the edit is what voids it):
+  touches committed-plan Tasks 3, 9, 10, 13, 17, 18, 19, 20, 22, 23, 24, 25 (per amendment-1.md
+  §"Relation": "surgical edits to `docs/plans/2026-07-07-consensus-extraction.md`"). For each,
+  verify no commit has landed the corresponding CODE (a plan-doc edit landing is expected and fine;
+  a commit IMPLEMENTING that task's code before the edit is what voids it):
   ```bash
-  git log --oneline --all -i -E --grep='goal 021.*task (3|9|10|18|19|20|22|23|24|25)\)'
+  git log --oneline --all -i -E --grep='goal 021.*task (3|9|10|13|17|18|19|20|22|23|24|25)\)'
   ```
-  Expected: no output (zero matches) — none of the ten targets has a landed implementation commit.
+  Expected: no output (zero matches) — none of the twelve targets has a landed implementation commit.
   If this ever returns a match for task N, THE RULE (Step 3) fires for that N; note which commit SHA
   landed the code and whether it predates or postdates the corresponding plan-doc edit (`git log -1
   --format=%cI -- docs/plans/2026-07-07-consensus-extraction.md` for the doc edit's own commit date,
@@ -119,12 +119,21 @@ to the amendment task."
   THE RULE: any surgical edit whose target task ALREADY EXECUTED (landed a code commit) BEFORE the
   edit itself landed is VOID for that task — its content reclassifies to the corresponding H-task as
   a code-amendment, never a retro-edit of the landed task's own plan section (goal §1
-  "Execution-frontier constraint"). The mapping for this goal's ten targets:
+  "Execution-frontier constraint"). The mapping for this goal's twelve targets:
   - **Task 3 edit → H29 absorbs** the `RowVerdict::Disputed` shape change (`key: RowKey` +
     undeduped candidates) as a code evolution of Task 3's landed enum, not a plan retro-edit.
   - **Task 9/10 edits → H33/H34-adjacent** config evolution (escalation params / row-count gate
     config additions land as evolutions of Task 9's `ExtractorConfig` and Task 10's
     `build_image_request`/`SamplingParams`, in whichever of H33/H34 owns the touched surface).
+  - **Task 13 edit → H32 absorbs** the shared MockTransport switch, `test_cfg` 12-field shape, and
+    Disputed interface quote change as a code amendment via H32's ConsensusSpec/test-helper sweep
+    (H32 already grep-and-patches every landed ConsensusSpec/test fixture), plus a one-line
+    mock-switch follow-up recorded in the goal checklist — if Task 13 already executed before this
+    edit landed.
+  - **Task 17 edit → H29 absorbs** the key-threaded `resolve_disputed` arity change and the
+    occurrence-aware `premium_row_at` helper as a code evolution — H29 already evolves exactly
+    these helpers and independently re-verifies Task 17's landed state at its own start — if Task
+    17 already executed before this edit landed.
   - **Task 18 edit → its own code-amendment task to be filed.** No H-task in this cluster (H27–H30b)
     or its known neighbors currently owns a Task-18-specific catch-up; if Task 18 (ROI checkbox
     cross-check, us_house) has already executed when this rule fires, file a new goal-021-Phase-3
@@ -150,7 +159,7 @@ to the amendment task."
     `#[ignore = "needs ANTHROPIC_API_KEY"]` test from the 9115811 bronze fixture to the refill
     artifact) as a code amendment to Task 25's landed test body.
 
-  As of Step 2's result at authoring time (all ten un-executed), THE RULE does not fire for any
+  As of Step 2's result at authoring time (all twelve un-executed), THE RULE does not fire for any
   target — every surgical edit stands as an ordinary plan amendment to a not-yet-executed task. This
   step's job is to re-run the check at whatever time H27 actually executes and apply the mapping
   above to any target the check flags.
