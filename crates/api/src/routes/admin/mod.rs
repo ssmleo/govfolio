@@ -43,7 +43,6 @@ pub mod storage;
 /// Rows whose `regime_id` never appears in `bridge` (e.g. fixture-seeded
 /// docs with no fetch run) must be surfaced as an explicit "unbridged"
 /// bucket, never silently dropped or guessed.
-#[allow(dead_code)] // consumed by the admin handlers as they land (P3 fill-in); allow is then redundant
 pub(crate) const BRIDGE_CTE: &str = "with bridge as (select distinct pr.adapter as regime_code, f.regime_id \
      from filing f \
      join raw_document rd on rd.id = f.raw_document_id \
