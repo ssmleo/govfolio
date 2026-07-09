@@ -4,6 +4,7 @@
 //! committed, never hand-edited; regen drift fails CI.
 
 pub mod auth;
+pub mod bronze;
 pub mod dto;
 pub mod error;
 pub mod etag;
