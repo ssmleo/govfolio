@@ -76,7 +76,7 @@ different) — no idempotency re-check needed since nothing new was written.
 ## Checklist
 - [x] 2014: seed + dry-run gate + real write + idempotency re-check + collision check + journal + commit — 6530 seeded, 29338 new Gold rows, 7 failed closed (invariant 3), idempotency confirmed 0 new writes second run. Collision check found ONE NEW finding (CARLOS ALBERTO DE SOUZA, cross-time, distinct from JULIO CESAR DOS SANTOS) — flagged in JOURNAL.md, not fixed (out of scope). Commit: (pending)
 - [x] 2010: verify (expect fail-closed, schema mismatch) + journal (no code change) — confirmed live: seed-br-candidates FAILED CLOSED at discovery (bem_candidato_2010_AC.csv missing NR_ORDEM_BEM_CANDIDATO), matches AUTHORITY.md doc. Commit: (pending)
-- [ ] 2006: verify (expect fail-closed, schema mismatch) + journal (no code change)
+- [x] 2006: verify (expect fail-closed, schema mismatch) + journal (no code change) — confirmed live: same NR_ORDEM_BEM_CANDIDATO schema mismatch as 2010. Commit: (pending)
 - [ ] 2002: verify (expect fail-closed, no asset data) + journal (no code change)
 - [ ] 2026: availability check only + journal
 
