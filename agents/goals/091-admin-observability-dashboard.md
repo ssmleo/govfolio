@@ -42,12 +42,16 @@ CORS; the reviewer surface (`/v1/review-tasks`, untouched).
   `apps/web/src/lib/api.ts` (typed client door, `adminHeaders()`).
 
 ## Acceptance
-- `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --workspace`
-- `docker compose up -d && cargo test --workspace -- --ignored`
-- `cargo run -p api --bin openapi` produces no diff; `pnpm --filter @govfolio/contracts generate` produces no diff
-- `pnpm --filter web typecheck && pnpm --filter web lint && pnpm --filter web test`
-- Public Playwright specs (`pnpm e2e`) pass unchanged (Tailwind-scoping regression gate)
-- New `apps/web/e2e/admin.spec.ts` passes: `/admin` tiles populate, `/admin/coverage` shows
-  a `us_house` row, `/admin/loop` shows the Unavailable panel when `GOVFOLIO_REPO_ROOT` unset
-- `docs/runbooks/admin-dashboard.md` written (env vars, local boot sequence, cloud migration note)
-- Work committed on `feat/admin-observability`; this checklist ticked
+- [x] `cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --workspace` — green (backend)
+- [x] `docker compose up -d && cargo test --workspace -- --ignored` — green against local pg :5433
+- [x] `cargo run -p api --bin openapi` produces no diff; `pnpm --filter @govfolio/contracts generate` produces no diff — confirmed byte-identical
+- [x] `pnpm --filter web typecheck && pnpm --filter web lint && pnpm --filter web test` — 50/50 vitest green (also fixed pre-existing BRL drift gap in ResolvePanel.tsx, surfaced by this contract regen)
+- [x] `pnpm --filter web build` — green against a live local API (sitemaps ISR-fetch at build time)
+- [x] Public Playwright specs pass unchanged (Tailwind-scoping regression gate) — 17/17
+- [x] New `apps/web/e2e/admin.spec.ts` passes: `/admin` tiles populate, `/admin/coverage` shows
+  a `us_house` row, `/admin/loop` renders without crashing — 3/3 (20/20 full suite)
+- [x] Visual QA via Playwright screenshots caught and fixed a real UX bug: the coverage page's
+  regime table listed all ~196 jurisdictions (13,000px tall); filtered to active regimes only
+  (2,600px), with a "+189 stub regimes" footnote pointing back to the coverage strip
+- [x] `docs/runbooks/admin-dashboard.md` written (env vars, local boot sequence, cloud migration note)
+- [x] Work committed on `feat/admin-observability`; this checklist ticked

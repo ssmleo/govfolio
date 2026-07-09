@@ -64,6 +64,7 @@ const CURRENCY_OPTIONS: Record<Currency, string> = {
   EUR: "EUR",
   GBP: "GBP",
   USD: "USD",
+  BRL: "BRL",
 };
 
 function isKeyOf<T extends string>(map: Record<T, string>, value: string): value is T {
