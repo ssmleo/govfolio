@@ -6,6 +6,8 @@
 # that script's header for why port-based killing matters here). Usable
 # directly via powershell if `just` isn't installed.
 
+set windows-shell := ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command"]
+
 # Start postgres + the admin API + the admin web dashboard (idempotent).
 admin-run:
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/admin-panel.ps1 run
