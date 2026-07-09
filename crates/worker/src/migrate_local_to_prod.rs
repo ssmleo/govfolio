@@ -117,10 +117,20 @@ pub struct GcloudUploader {
     pub bucket: String,
 }
 
+/// The `gcloud` CLI installs as a `.cmd` wrapper script on Windows, not a
+/// native `.exe` — `std::process::Command::new("gcloud")` cannot resolve a
+/// `.cmd` file without going through a shell, and fails with a raw "program
+/// not found" (confirmed: every upload failed this way in the first real
+/// migration run against prod). Unix installs the plain `gcloud` script.
+#[cfg(windows)]
+const GCLOUD_BIN: &str = "gcloud.cmd";
+#[cfg(not(windows))]
+const GCLOUD_BIN: &str = "gcloud";
+
 impl BronzeUploader for GcloudUploader {
     fn ensure_uploaded(&self, sha256: &str, local_path: &Path) -> anyhow::Result<UploadOutcome> {
         let uri = format!("gs://{}/{sha256}", self.bucket);
-        let exists = Command::new("gcloud")
+        let exists = Command::new(GCLOUD_BIN)
             .args(["storage", "ls", &uri])
             .output()
             .context("running `gcloud storage ls`")?;
@@ -136,7 +146,7 @@ impl BronzeUploader for GcloudUploader {
              upload a mismatched document (invariant 2: raw is sacred)",
             local_path.display()
         );
-        let status = Command::new("gcloud")
+        let status = Command::new(GCLOUD_BIN)
             .args(["storage", "cp", &local_path.display().to_string(), &uri])
             .status()
             .context("running `gcloud storage cp`")?;
