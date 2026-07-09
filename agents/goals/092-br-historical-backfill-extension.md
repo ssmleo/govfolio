@@ -78,7 +78,7 @@ different) — no idempotency re-check needed since nothing new was written.
 - [x] 2010: verify (expect fail-closed, schema mismatch) + journal (no code change) — confirmed live: seed-br-candidates FAILED CLOSED at discovery (bem_candidato_2010_AC.csv missing NR_ORDEM_BEM_CANDIDATO), matches AUTHORITY.md doc. Commit: (pending)
 - [x] 2006: verify (expect fail-closed, schema mismatch) + journal (no code change) — confirmed live: same NR_ORDEM_BEM_CANDIDATO schema mismatch as 2010. Commit: (pending)
 - [x] 2002: verify (expect fail-closed, no asset data) + journal (no code change) — confirmed live: bem_candidato_2002.zip 404. Also spot-checked 1998 (404, same gap class reconfirmed). Commit: (pending)
-- [ ] 2026: availability check only + journal
+- [x] 2026: availability check only + journal — confirmed live: consulta_cand_2026.zip 404 (not yet published, election is Oct 2026), single conditional GET, no write attempted. Commit: (pending)
 
 ## BLOCKED (human)
 (empty — schema-variant parsing for 2006/2010 is a flagged follow-up, not a human blocker)
