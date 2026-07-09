@@ -303,11 +303,12 @@ impl<'a> Runner<'a> {
         run_id: &str,
     ) -> anyhow::Result<(RawDocRef, String)> {
         let doc = self.adapter.fetch(filing_ref, &self.ctx).await?;
+        let bytes = self.ctx.bronze.get(&doc)?;
         let raw_document_id = ingest::ensure_raw_document(
             &self.pool,
             &doc,
             &self.storage_uri(&doc),
-            "application/pdf",
+            ingest::sniff_mime(&bytes),
             Some(&filing_ref.url),
             self.ctx.clock.now(),
             Some(run_id),
