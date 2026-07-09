@@ -18,30 +18,44 @@ DESTROY_BUDGET=2 scripts/check-tf-plan.sh tfplan.json   # within budget -> auto-
 ```
 
 ## Checklist
-- [x] modules  - [ ] plan clean (HALT below)  - [x] deploy workflow  - [x] runbook
+- [x] modules  - [x] plan clean  - [x] deploy workflow  - [x] runbook  - [x] first apply (below)
 
 ## Guardrail (auto, fail closed)
 apply: auto within `DESTROY_BUDGET` via `scripts/check-tf-plan.sh`; over budget halts to a work item.
 
-## HALT (interactive auth) — 2026-07-05
-`terraform plan` cannot run: host has gcloud user auth but no Application Default
-Credentials, and minting them is browser-interactive (founder-only). Plan attempt
-(after `init -backend=false`) halts at backend init; binding the real backend
-(`init -backend-config="bucket=govfolio-terraform-state"`) fails with the exact error:
+## Resolved 2026-07-06 — first apply complete
+Founder ran ADC (`gcloud auth application-default login`) and confirmed. Bootstrap
+sequence executed per `docs/runbooks/deploy.md`: billing linked to project (was
+disabled — founder approved linking account `01D5E1-FC1345-98F417`), state bucket
+`gs://govfolio-terraform-state` created + versioned, backend bound, `plan` → 82 to
+add/0 destroy → `check-tf-plan.sh` (0 <= budget 2) → apply.
 
-```
-Error: storage.NewClient() failed: dialing: credentials: could not find default credentials. See https://cloud.google.com/docs/authentication/external/set-up-adc for more information
-```
+Apply ran in two passes: first pass created 80/82 resources then hit a transient GCP
+propagation race (`role "cloudsqliamserviceaccount" does not exist` — the Cloud SQL
+IAM-auth service role isn't queryable for a short window right after instance create);
+second `plan`→`check`→`apply` pass (2 add, 3 cosmetic Cloud Run scaling-default
+changes, 0 destroy) created the two IAM DB users cleanly. Live now: Cloud SQL PG16
+`govfolio-pg` (PITR on), GCS `govfolio-bronze`/`govfolio-exports` (versioned), Cloud
+Run api/web/worker, Artifact Registry, Cloud Tasks x5, Scheduler jobs (paused), Secret
+Manager shells, WIF pool+provider. Outputs recorded in terraform state (`sql_connection_name`,
+`cloud_run_urls`, `deploy_service_account`, `terraform_service_account`, `wif_provider`).
 
-Founder must run, once, interactively:
+GitHub repo vars for WIF deploy auth set 2026-07-06 (`GCP_WIF_PROVIDER`, `GCP_DEPLOY_SA`,
+`GCP_TF_SA`, `GCP_STATE_BUCKET` — values pulled straight from terraform output, no
+ambiguity). `deploy.yml` now runs its real plan/apply path on `main` instead of no-op'ing.
 
-```bash
-gcloud auth application-default login
-```
-
-then follow the bootstrap sequence in `docs/runbooks/deploy.md` (state bucket → init
-backend → plan → `check-tf-plan.sh` → first apply → secret versions → WIF repo vars).
-No service-account keys were (or may be) created as a workaround; no plan was faked.
-Everything runnable without auth is green: `fmt -check`, `init -backend=false`,
-`validate` (provider hashicorp/google v6.50.0, terraform 1.15.7) — locally and in CI.
-`plan clean` stays unticked until the founder unblocks ADC.
+**Still open (human lane, not blocking this goal):**
+- `openfigi-api-key` secret VALUE — zero code consumers yet (future entity-matching
+  work); no key in agent possession; founder adds via `gcloud secrets versions add`
+  when the feature lands.
+- `database-url` secret VALUE — genuinely undesigned, not just unset: Cloud SQL has no
+  authorized networks (connector/proxy-only, per `sql.tf` comment) and IAM DB auth means
+  no static password is correct here. `cloudrun.tf` defers this deliberately ("lands with
+  the real images" — see its top comment) because the real answer (Cloud SQL Auth Proxy
+  sidecar vs. Cloud Run's native `--add-cloudsql-instances` unix-socket mount, exact
+  `postgres://user@/db?host=/cloudsql/...` + auto-IAM-authn wiring) is an architecture
+  decision for whoever builds the first real API/worker image, not a value to fabricate
+  now. Flag as an open design question for that goal, not a HALT on this one.
+- Scheduler jobs created PAUSED — unpause per tier as adapters clear conformance.
+This unblocks goal 080's real (write-to-prod) backfill step, which was HALTed on this
+exact substrate.

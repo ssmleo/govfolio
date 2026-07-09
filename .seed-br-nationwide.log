@@ -1,0 +1,22 @@
+   Compiling ring v0.17.14
+   Compiling rustls v0.23.41
+   Compiling rustls-webpki v0.103.13
+   Compiling sqlx-core v0.9.0
+   Compiling tokio-rustls v0.26.4
+   Compiling rustls-platform-verifier v0.7.0
+   Compiling hyper-rustls v0.27.9
+   Compiling lettre v0.11.22
+   Compiling reqwest v0.13.4
+   Compiling sqlx-postgres v0.9.0
+   Compiling sqlx-macros-core v0.9.0
+   Compiling sqlx-macros v0.9.0
+   Compiling sqlx v0.9.0
+   Compiling core v0.1.0 (C:\projects\govfolio.io\crates\core)
+   Compiling pipeline v0.1.0 (C:\projects\govfolio.io\crates\pipeline)
+   Compiling br v0.1.0 (C:\projects\govfolio.io\crates\adapters\br)
+   Compiling us_house v0.1.0 (C:\projects\govfolio.io\crates\adapters\us_house)
+   Compiling worker v0.1.0 (C:\projects\govfolio.io\crates\worker)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 24.17s
+     Running `.cargo-target-br-widen\debug\seed-br-candidates.exe --from 2022 --to 2022`
+2022: discovered 11423 | considered 11423 (uf filter []) | seeded 10217 | skipped (other cargo) 793 | errors 0
+TOTAL 2022..=2022: seeded 10217 candidate(s), 0 error(s), 0 year(s) failed closed
