@@ -71,3 +71,13 @@ resource "google_sql_user" "iam_service_accounts" {
   name     = trimsuffix(each.value, ".gserviceaccount.com")
   type     = "CLOUD_IAM_SERVICE_ACCOUNT"
 }
+
+# Goal 081 Task 5b: minimal, additive prod connectivity for the operating identity's own
+# ADC (Cloud SQL Auth Proxy, IAM DB auth, no password) — scoped to this backfill only, not
+# the separate Cloud-Run-service DATABASE_URL wiring (deferred, goal 020's own open note).
+# CLOUD_IAM_USER requires the full email address as `name` (unlike the SA form above).
+resource "google_sql_user" "iam_operator" {
+  instance = google_sql_database_instance.main.name
+  name     = "leon.ssmenezes@gmail.com"
+  type     = "CLOUD_IAM_USER"
+}

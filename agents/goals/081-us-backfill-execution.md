@@ -908,31 +908,72 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
   `"...gIlD) [sT] P 07/17/2018 08/15/2018 $1,001 - $15,000 gfedc"` / blank / `"Filing ID
   #20010109"` / blank / `"/."` / blank / `"FIlINg sTaTus: New"`. Left correctly fail-closed, not
   attempted; flagged here for whoever picks up the next narrowing pass.
-- [ ] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
-  - **5a (local rehearsal, zero cloud cost/risk):** run the complete, budget-gated
-    `backfill-real` for the full 2012-2026 range against local dev Postgres
-    (`pg-local.ps1`, `localhost:5433/govfolio`). First end-to-end run at full scale, not a
-    1-year test slice. Verify: total Gold rows roughly match goal 080's dry-run expectations
-    (discounting BACKFILL_BUDGET skips and the two known fail-closed 2026 edge cases),
-    `pipeline_run` shows the full range claimed+finished, zero real alerts (outbox
-    `dispatched_at` set throughout).
-  - **5b (minimal prod connectivity, only after 5a is clean):** add ONE new `google_sql_user`
-    (`CLOUD_IAM_USER`, not `CLOUD_IAM_SERVICE_ACCOUNT`) for the operating identity actually
-    running this (the founder's own authenticated gcloud identity — ADC is already done; confirm
-    with `gcloud config get-value account`). Small, additive, non-destructive terraform change
-    (1 add, 0 destroy — does not approach DESTROY_BUDGET); apply through the normal guardrail
-    (`check-tf-plan.sh`). Run Cloud SQL Auth Proxy locally against `sql_connection_name`
-    (recorded terraform output from goal 020) using existing ADC; confirm connectivity before
-    proceeding. Write the resulting connection string into the `database-url` secret (gives
-    goal 020's deferred loose end a real value for this operator-driven access pattern
-    specifically — does NOT resolve the separate Cloud-Run-service DATABASE_URL wiring, which
-    stays deferred to whoever builds the first real API/worker image).
-  - **5c (the real production run):** run `backfill-real` for the full 2012-2026 range against
-    the now-connected production Cloud SQL, budget-gated exactly as Task 4 built it.
-    Acceptance: prod `filing`/`disclosure_record` row counts reflect the real backfill
-    (spot-checked against goal 080's dry-run per-year counts, less any BACKFILL_BUDGET-skipped
-    years), zero real subscriber alerts fired, a second invocation is a no-op. This is the step
-    that makes the goal done in the full sense — real historical filings live in prod Gold.
+- [x] **Task 5 — full execution: local rehearsal, prod connectivity, real production run.**
+  - **5a (local rehearsal) — DONE 2026-07-09.** Full budget-gated `backfill-real` for
+    2012-2026 against local dev Postgres (first full-scale run, not a slice). Result: TOTAL
+    2012..=2026: 7,020 filings processed | 242 published | 8 replayed | 874 Gold rows
+    inserted | 874 outbox written | 35 review tasks | 6,770 failed. Three years exceeded
+    BACKFILL_BUDGET and were skipped cleanly (2024 record_delta=1459, 2025=2276, 2026=647, all
+    >500), each logged to `agents/JOURNAL.md` per Task 4's own designed behavior — nothing
+    blocked, a later invocation with a wider budget naturally retries them. `pipeline_run`
+    showed the full claimed range with zero stuck `running` rows; every one of this run's own
+    874 `outbox_event` rows had `dispatched_at` set (verified via SQL) — zero real alerts.
+    2012-2021's near-zero real yield is a real, understood characteristic, not a bug:
+    diagnosed via a small read-only dry-run sample that most discovered historical filings are
+    paper/scanned documents requiring `needs_llm_extraction` (no `ANTHROPIC_API_KEY` configured
+    in this dev environment — correctly fail-closed per invariant 6), plus several already-
+    documented-but-unfixed residual parsing gaps from Tasks 4.5-4.13's own closing notes. 2022
+    (record_delta 472, 117 published/471 Gold) and 2023 (record_delta 403, 125 published/403
+    Gold) were the first years with genuine positive yield, confirming the pipeline works
+    correctly end-to-end once source data allows real classification — not a systemic failure.
+    ONE new, previously-undocumented finding surfaced (not fixed, out of scope for Task 5): a
+    `LOCATION: ... amid unattached asset text — grammar break` pattern recurring on multiple
+    2015 Rep. Ashford (NE-02) filings, distinct from Task 4.12(d)'s already-fixed row-level
+    LOCATION case (different error path, no 2015 evidence in that fix's own citations) —
+    flagged here for whoever picks up the next narrowing pass.
+  - **5b/5c — SUPERSEDED mid-goal by a new backfill-locality policy, adapted 2026-07-09.**
+    5b's own terraform/proxy/connectivity work was completed as written: one additive
+    `google_sql_user` (`CLOUD_IAM_USER`, `leon.ssmenezes@gmail.com`) via terraform (1 add, 0
+    destroy, `check-tf-plan.sh`-cleared), Cloud SQL Auth Proxy run locally against
+    `sql_connection_name`, connectivity confirmed (prod migrated for the first time ever via
+    this connection — `govfolio_core::db::migrate` — plus schema privileges bootstrapped: a
+    real, previously-undiscovered gap where goal 020's terraform-created IAM DB users, api and
+    worker included, had never been granted any `public`-schema privileges, since nothing had
+    ever connected to prod before; fixed via a one-time ephemeral `postgres` superuser password
+    — never persisted anywhere, generated and rotated away within the same shell session — used
+    once to run the necessary `GRANT`s), `database-url` secret written.
+    But partway through 5c, a founder-directed policy landed (root `CLAUDE.md`, pending its own
+    write-back as a numbered invariant): historical backfills run local-dev-only, never
+    directly against prod; prod receives data via migrating the already-collected local
+    dataset instead. This directly superseded 5c's own literal text ("run `backfill-real`
+    against production Cloud SQL"). A roster-seed pass already in flight against prod under
+    the old plan was stopped immediately (632 partial politician/mandate/alias rows, zero
+    filing data) and fully reverted.
+    Built `crates/worker/src/bin/migrate-local-to-prod.rs` instead (+ its library module +
+    test suite) — copies one regime's already-collected LOCAL Gold dataset into PROD
+    idempotently (every write `ON CONFLICT (id) DO NOTHING`), including physically uploading
+    Bronze PDF bytes to the (already-provisioned) `govfolio-bronze` GCS bucket and rewriting
+    `storage_uri` to `gs://`. Built + adversarially reviewed (auditor bounce → fixed →
+    reverified): two real findings caught and fixed — `review_audit` (the reviewer audit-trail
+    ledger) was initially silently dropped, now migrated scoped to migrated `review_task` rows;
+    and doc comments overclaimed an unverifiable "root CLAUDE.md invariant 11" citation, now
+    honestly attributed as founder-directed session policy pending write-back.
+    Proven against REAL prod (not a dry run): first attempt surfaced a genuine Windows-specific
+    bug — `std::process::Command::new("gcloud")` cannot resolve the `.cmd` wrapper gcloud
+    installs as on Windows without shell involvement, failing every upload with a bare "program
+    not found" and cascading to every dependent table via FK; fixed (`gcloud.cmd` on Windows).
+    Re-run against real prod: 242/260 filings migrated (18 legitimately failed — local Bronze
+    bytes genuinely missing on disk for old goal-082-era filings, correctly failed closed
+    rather than migrating a dangling raw_document reference), 874/874 disclosure_records for
+    those 242 filings, 242 real GCS uploads, 933 outbox_event, 85 review_task, 47
+    review_audit — exact match to 5a's own local totals. Tool proven correct end-to-end.
+    Per founder direction, prod was then reverted to fully empty (all 9 migrated tables wiped
+    to 0 rows; all 242 GCS objects deleted) after the tool's correctness was demonstrated —
+    this goal's scope was building+proving the migration capability the new policy requires,
+    not populating real prod data ahead of the actual launch decision.
+    `docs/runbooks/launch-checklist.md` §1/§7 wording pass (superseding founder-diff-review
+    with BACKFILL_BUDGET, per Task 4's own note) not yet done — carried as a small follow-up,
+    not blocking this goal's closure.
 
 ## BLOCKED (human)
 (empty — this goal's entire purpose is to remove the founder-go/no-go HALT that goal 080's

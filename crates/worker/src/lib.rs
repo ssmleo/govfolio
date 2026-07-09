@@ -5,11 +5,15 @@
 //! [`sentinel`]; the monthly sampling audit + precision report (goal 070,
 //! design §7.4) in [`sampler`]; the local pipeline runner is the `local` bin;
 //! the US archive backfill dry-run + diff report (goal 080, design §5.6) in
-//! [`backfill`] (the `backfill` bin).
+//! [`backfill`] (the `backfill` bin); the local-only-backfill -> prod copy
+//! (per founder-directed policy, 2026-07-09 session direction — pending
+//! write-back into a future root `CLAUDE.md` invariant) in
+//! [`migrate_local_to_prod`] (the `migrate-local-to-prod` bin).
 
 pub mod alerts;
 pub mod backfill;
 pub mod billing;
+pub mod migrate_local_to_prod;
 pub mod sampler;
 pub mod sentinel;
 pub mod snapshot;
