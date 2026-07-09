@@ -1,9 +1,11 @@
-//! `worker::migrate_local_to_prod` coverage (root `CLAUDE.md` invariant 11):
-//! proves the LOCAL -> PROD row-copy logic against TWO local ephemeral
-//! Postgres databases standing in for "local" and "prod" — there is no way
-//! to safely test against real prod, and the module doc explains why two
-//! local databases are sufficient to prove the cross-database copy +
-//! idempotency logic. The `#[sqlx::test]` macro provisions the LOCAL
+//! `worker::migrate_local_to_prod` coverage (per founder-directed policy,
+//! 2026-07-09 session direction — pending write-back into a future root
+//! `CLAUDE.md` invariant): proves the LOCAL -> PROD row-copy logic against
+//! TWO local ephemeral Postgres databases standing in for "local" and
+//! "prod" — there is no way to safely test against real prod, and the
+//! module doc explains why two local databases are sufficient to prove the
+//! cross-database copy + idempotency logic. The `#[sqlx::test]` macro
+//! provisions the LOCAL
 //! stand-in; the PROD stand-in is created/dropped manually (same mechanism
 //! the macro itself uses, against `DATABASE_URL`'s server) since the macro
 //! only provisions one ephemeral database per test function.
@@ -38,6 +40,7 @@ const OUTBOX_ID: &str = "0OUT0000000000000000TEST1";
 const REVIEW_TASK_FILING_ID: &str = "0RVW0000000000000000TES1";
 const REVIEW_TASK_RECORD_ID: &str = "0RVW0000000000000000TES2";
 const REVIEW_TASK_REGIME_ID: &str = "0RVW0000000000000000TES3";
+const REVIEW_AUDIT_ID: &str = "0AUD0000000000000000TEST1";
 const SHA256: &str = "aaaabbbbccccddddeeeeffff00001111222233334444555566667777888899aa";
 
 /// Fakes [`BronzeUploader`]: never touches disk/GCS. Tracks which sha256s
@@ -113,10 +116,11 @@ fn with_database(url: &str, db_name: &str) -> String {
 
 /// Seeds LOCAL with one complete regime's worth of Gold data: a regime +
 /// jurisdiction, one politician (+ alias + mandate), one `raw_document`, one
-/// filing, one `disclosure_record`, one `outbox_event`, and THREE review
+/// filing, one `disclosure_record`, one `outbox_event`, THREE review
 /// tasks — one targeting the filing, one targeting the record (both must
 /// migrate), and one targeting the regime itself (must NOT migrate — see
-/// `worker::migrate_local_to_prod`'s module doc).
+/// `worker::migrate_local_to_prod`'s module doc) — and one `review_audit`
+/// row against the filing-scoped task (must migrate).
 // A linear sequence of one-row-per-table seed inserts, not real complexity.
 #[allow(clippy::too_many_lines)]
 async fn seed_local(local: &PgPool) {
@@ -261,6 +265,19 @@ async fn seed_local(local: &PgPool) {
     .execute(local)
     .await
     .unwrap();
+
+    sqlx::query(
+        "insert into review_audit (id, review_task_id, reviewer, verdict, outcome) \
+         values ($1, $2, $3, $4, $5)",
+    )
+    .bind(REVIEW_AUDIT_ID)
+    .bind(REVIEW_TASK_FILING_ID)
+    .bind("test-reviewer")
+    .bind("confirm")
+    .bind("applied")
+    .execute(local)
+    .await
+    .unwrap();
 }
 
 #[sqlx::test(migrations = false)]
@@ -292,9 +309,12 @@ async fn first_run_migrates_everything_second_run_is_a_no_op(local: PgPool) {
     assert_eq!(first.outbox_event.migrated, 1);
     // Exactly the filing- and record-scoped tasks — NOT the regime one.
     assert_eq!(first.review_task.migrated, 2);
+    assert_eq!(first.review_audit.migrated, 1);
     assert_eq!(first.politician.failed, 0);
     assert_eq!(first.filing.failed, 0);
     assert_eq!(first.disclosure_record.failed, 0);
+    assert_eq!(first.review_task.failed, 0);
+    assert_eq!(first.review_audit.failed, 0);
 
     // storage_uri was rewritten to gs://, and dispatched_at survived intact
     // (invariant 2 / the "never causes a real alert" requirement).
@@ -325,6 +345,21 @@ async fn first_run_migrates_everything_second_run_is_a_no_op(local: PgPool) {
         regime_task_count, 0,
         "regime-scoped review tasks must not migrate"
     );
+    let audit_row: (String, String, String) =
+        sqlx::query_as("select review_task_id, verdict, outcome from review_audit where id = $1")
+            .bind(REVIEW_AUDIT_ID)
+            .fetch_one(&prod)
+            .await
+            .unwrap();
+    assert_eq!(
+        audit_row,
+        (
+            REVIEW_TASK_FILING_ID.to_owned(),
+            "confirm".to_owned(),
+            "applied".to_owned()
+        ),
+        "review_audit row must migrate against its review_task"
+    );
 
     let second = migrate_regime(&local, &prod, REGIME_ID, &bronze_root, &uploader)
         .await
@@ -350,6 +385,15 @@ async fn first_run_migrates_everything_second_run_is_a_no_op(local: PgPool) {
     assert_eq!(second.outbox_event.already_present, 1);
     assert_eq!(second.review_task.migrated, 0);
     assert_eq!(second.review_task.already_present, 2);
+    assert_eq!(second.review_audit.migrated, 0);
+    assert_eq!(second.review_audit.already_present, 1);
+
+    let audit_count: i64 = sqlx::query_scalar("select count(*) from review_audit where id = $1")
+        .bind(REVIEW_AUDIT_ID)
+        .fetch_one(&prod)
+        .await
+        .unwrap();
+    assert_eq!(audit_count, 1, "second run must not duplicate the row");
 
     let record_count: i64 =
         sqlx::query_scalar("select count(*) from disclosure_record where id = $1")

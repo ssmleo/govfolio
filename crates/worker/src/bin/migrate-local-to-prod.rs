@@ -1,6 +1,10 @@
-//! `migrate-local-to-prod` (root `CLAUDE.md` invariant 11 "backfill
-//! locality"): copies one regime's already-collected LOCAL Gold dataset into
-//! PROD, idempotently. Thin CLI wrapper — all logic lives in
+//! `migrate-local-to-prod` (per founder-directed policy, 2026-07-09 session
+//! direction: historical backfills must run only against local dev
+//! Postgres; prod receives data via migration of the already-collected
+//! local dataset, not by re-running the backfill pipeline against prod —
+//! pending write-back into a future root `CLAUDE.md` invariant): copies one
+//! regime's already-collected LOCAL Gold dataset into PROD, idempotently.
+//! Thin CLI wrapper — all logic lives in
 //! [`worker::migrate_local_to_prod`] (kept there, not here, so
 //! `crates/worker/tests/migrate_local_to_prod.rs` can exercise it against
 //! two local ephemeral Postgres databases without shelling out to this

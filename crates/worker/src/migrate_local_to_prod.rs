@@ -1,9 +1,10 @@
-//! Local -> prod Gold migration (root `CLAUDE.md` invariant 11 "backfill
-//! locality": every historical backfill runs LOCAL-only; prod gets data by
-//! migrating the already-collected local dataset, never by re-running the
-//! backfill pipeline against prod). Supersedes goal 081 Task 5c's original
-//! "run `backfill-real` directly against prod" text — that approach is now
-//! forbidden.
+//! Local -> prod Gold migration (per founder-directed policy, 2026-07-09
+//! session direction: historical backfills must run only against local dev
+//! Postgres; prod receives data via migration of the already-collected
+//! local dataset, not by re-running the backfill pipeline against prod —
+//! pending write-back into a future root `CLAUDE.md` invariant). Supersedes
+//! goal 081 Task 5c's original "run `backfill-real` directly against prod"
+//! text — that approach is now forbidden.
 //!
 //! [`migrate_regime`] copies one regime's already-collected LOCAL Gold
 //! dataset into PROD. Every row keeps its LOCAL id verbatim (ULIDs are
@@ -25,6 +26,8 @@
 //! `filing` -> `disclosure_record` -> `outbox_event` (`dispatched_at` copied
 //! EXACTLY as-is, never `NULL`ed, so migration can never cause a real alert)
 //! -> `review_task` (scoped to the `filing`/`disclosure_record` rows just
+//! migrated) -> `review_audit` (FK `review_task_id references review_task
+//! (id)`, so it must land after; scoped to the `review_task` rows just
 //! migrated).
 //!
 //! `filing.supersedes_filing_id` and `disclosure_record.supersedes_record_id`
@@ -193,6 +196,8 @@ pub struct MigrationReport {
     pub outbox_event: TableCounts,
     /// `review_task` rows.
     pub review_task: TableCounts,
+    /// `review_audit` rows.
+    pub review_audit: TableCounts,
 }
 
 impl MigrationReport {
@@ -219,6 +224,7 @@ impl MigrationReport {
         Self::line("disclosure_record", self.disclosure_record);
         Self::line("outbox_event", self.outbox_event);
         Self::line("review_task", self.review_task);
+        Self::line("review_audit", self.review_audit);
         let total_failed = self.politician.failed
             + self.politician_alias.failed
             + self.mandate.failed
@@ -226,7 +232,8 @@ impl MigrationReport {
             + self.filing.failed
             + self.disclosure_record.failed
             + self.outbox_event.failed
-            + self.review_task.failed;
+            + self.review_task.failed
+            + self.review_audit.failed;
         println!("TOTAL failed rows: {total_failed} (see FAILED lines above for detail)");
     }
 }
@@ -270,7 +277,8 @@ pub async fn migrate_regime(
         migrate_filings(local, prod, regime_id, &bronze, uploader, &mut report).await?;
     let record_ids = migrate_records(local, prod, regime_id, &mut report).await?;
     migrate_outbox(local, prod, regime_id, &mut report).await?;
-    migrate_review_tasks(local, prod, &filing_ids, &record_ids, &mut report).await?;
+    let task_ids = migrate_review_tasks(local, prod, &filing_ids, &record_ids, &mut report).await?;
+    migrate_review_audit(local, prod, &task_ids, &mut report).await?;
 
     Ok(report)
 }
@@ -876,14 +884,16 @@ struct ReviewTaskRow {
 /// just migrated. Regime-level tasks (e.g. sentinel drift freezes,
 /// `target_kind = 'regime'`) are intentionally excluded — local operational
 /// bookkeeping about the LOCAL run's own drift state, not filing-scoped
-/// business data, mirroring the `pipeline_run` exclusion above.
+/// business data, mirroring the `pipeline_run` exclusion above. Returns the
+/// full LOCAL task id set (used to scope `review_audit` migration below)
+/// regardless of per-row outcome.
 async fn migrate_review_tasks(
     local: &PgPool,
     prod: &PgPool,
     filing_ids: &[String],
     record_ids: &[String],
     report: &mut MigrationReport,
-) -> anyhow::Result<()> {
+) -> anyhow::Result<Vec<String>> {
     let tasks: Vec<ReviewTaskRow> = sqlx::query_as(
         "select id, target_kind, target_id, reason, priority_score, status, assignee, \
            resolution, created_at, resolved_at \
@@ -898,6 +908,7 @@ async fn migrate_review_tasks(
     .await
     .context("listing review_task rows scoped to this regime's filings/records (LOCAL)")?;
 
+    let task_ids: Vec<String> = tasks.iter().map(|t| t.id.clone()).collect();
     for task in &tasks {
         let inserted: anyhow::Result<Option<String>> = sqlx::query_scalar(
             "insert into review_task \
@@ -925,6 +936,71 @@ async fn migrate_review_tasks(
             Err(error) => {
                 eprintln!("FAILED review_task {}: {error:#}", task.id);
                 report.review_task.failed += 1;
+            }
+        }
+    }
+    Ok(task_ids)
+}
+
+#[derive(sqlx::FromRow)]
+struct ReviewAuditRow {
+    id: String,
+    review_task_id: String,
+    reviewer: String,
+    verdict: String,
+    outcome: String,
+    note: Option<String>,
+    affected_record_ids: Value,
+    created_at: DateTime<Utc>,
+}
+
+/// Migrates the audit-trail ledger (design §7.2, `crates/core/migrations/
+/// 0006_review_audit.sql`) for the `review_task` rows just migrated. FK
+/// `review_task_id references review_task(id)`, so this must run after
+/// [`migrate_review_tasks`] — a task that failed to migrate leaves its
+/// audit rows' INSERTs to fail their own FK check, caught the normal
+/// per-row way.
+async fn migrate_review_audit(
+    local: &PgPool,
+    prod: &PgPool,
+    task_ids: &[String],
+    report: &mut MigrationReport,
+) -> anyhow::Result<()> {
+    let audits: Vec<ReviewAuditRow> = sqlx::query_as(
+        "select id, review_task_id, reviewer, verdict, outcome, note, affected_record_ids, \
+           created_at \
+         from review_audit where review_task_id = any($1) order by created_at asc, id asc",
+    )
+    .bind(task_ids)
+    .fetch_all(local)
+    .await
+    .context("listing review_audit rows scoped to this regime's review_task rows (LOCAL)")?;
+
+    for audit in &audits {
+        let inserted: anyhow::Result<Option<String>> = sqlx::query_scalar(
+            "insert into review_audit \
+               (id, review_task_id, reviewer, verdict, outcome, note, affected_record_ids, \
+                created_at) \
+             values ($1, $2, $3, $4, $5, $6, $7, $8) \
+             on conflict (id) do nothing returning id",
+        )
+        .bind(&audit.id)
+        .bind(&audit.review_task_id)
+        .bind(&audit.reviewer)
+        .bind(&audit.verdict)
+        .bind(&audit.outcome)
+        .bind(&audit.note)
+        .bind(&audit.affected_record_ids)
+        .bind(audit.created_at)
+        .fetch_optional(prod)
+        .await
+        .with_context(|| format!("inserting review_audit {} into PROD", audit.id));
+        match inserted {
+            Ok(Some(_)) => report.review_audit.migrated += 1,
+            Ok(None) => report.review_audit.already_present += 1,
+            Err(error) => {
+                eprintln!("FAILED review_audit {}: {error:#}", audit.id);
+                report.review_audit.failed += 1;
             }
         }
     }
