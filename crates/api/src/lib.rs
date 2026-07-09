@@ -34,6 +34,11 @@ pub struct ApiConfig {
     /// anonymous limiting lives at the CDN edge (design §6.4); this only
     /// stops a single instance from being trivially hammered.
     pub unauth_requests_per_minute: u32,
+    /// Repo checkout root (`GOVFOLIO_REPO_ROOT`) for the autonomous-loop
+    /// meta surface (`/v1/admin/loop`): goal queue, git activity, journal.
+    /// Unset (the cloud posture) = that endpoint answers 503 Unavailable by
+    /// design — never a guessed path, never faked data.
+    pub repo_root: Option<std::path::PathBuf>,
 }
 
 impl ApiConfig {
@@ -53,6 +58,10 @@ impl ApiConfig {
                 .ok()
                 .and_then(|raw| raw.parse().ok())
                 .unwrap_or(Self::DEFAULT_UNAUTH_PER_MINUTE),
+            repo_root: std::env::var("GOVFOLIO_REPO_ROOT")
+                .ok()
+                .filter(|p| !p.is_empty())
+                .map(std::path::PathBuf::from),
         }
     }
 
@@ -152,6 +161,7 @@ pub fn app(pool: PgPool, config: ApiConfig) -> Router {
         // Stripe subscription mirror (signature-verified, config-gated).
         .route("/v1/stripe/webhook", post(routes::stripe::stripe_webhook))
         .merge(review)
+        .merge(admin_router(&state))
         // Strong ETags + If-None-Match → 304 on every successful GET
         // (design §6.1: ETags everywhere).
         .layer(axum::middleware::from_fn(etag::etag))
@@ -162,6 +172,47 @@ pub fn app(pool: PgPool, config: ApiConfig) -> Router {
             auth::authenticate,
         ))
         .with_state(state)
+}
+
+/// The admin observability subtree (admin dashboard plan, sections A–H):
+/// nine read-only composite doors, one per dashboard page, behind the same
+/// fail-closed `X-Admin-Token` gate as the reviewer subtree.
+fn admin_router(state: &AppState) -> Router<AppState> {
+    Router::new()
+        .route(
+            "/v1/admin/overview",
+            get(routes::admin::overview::admin_overview),
+        )
+        .route(
+            "/v1/admin/coverage",
+            get(routes::admin::coverage::admin_coverage),
+        )
+        .route(
+            "/v1/admin/backfill",
+            get(routes::admin::backfill::admin_backfill),
+        )
+        .route(
+            "/v1/admin/pipeline",
+            get(routes::admin::pipeline::admin_pipeline),
+        )
+        .route(
+            "/v1/admin/quality",
+            get(routes::admin::quality::admin_quality),
+        )
+        .route(
+            "/v1/admin/storage",
+            get(routes::admin::storage::admin_storage),
+        )
+        .route(
+            "/v1/admin/serving",
+            get(routes::admin::serving::admin_serving),
+        )
+        .route("/v1/admin/infra", get(routes::admin::infra::admin_infra))
+        .route("/v1/admin/loop", get(routes::admin::loop_meta::admin_loop))
+        .route_layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth::admin_gate,
+        ))
 }
 
 /// The `OpenAPI` document — generated from the handlers, so the contract can
@@ -207,6 +258,15 @@ pub fn app(pool: PgPool, config: ApiConfig) -> Router {
         routes::review::get_review_task,
         routes::review::resolve_review_task,
         routes::review::review_task_audit,
+        routes::admin::overview::admin_overview,
+        routes::admin::coverage::admin_coverage,
+        routes::admin::backfill::admin_backfill,
+        routes::admin::pipeline::admin_pipeline,
+        routes::admin::quality::admin_quality,
+        routes::admin::storage::admin_storage,
+        routes::admin::serving::admin_serving,
+        routes::admin::infra::admin_infra,
+        routes::admin::loop_meta::admin_loop,
     ),
     tags(
         (name = "records", description = "Canonical disclosure records (Gold)"),
@@ -230,6 +290,13 @@ pub fn app(pool: PgPool, config: ApiConfig) -> Router {
          context and extraction evidence; resolutions go through the pipeline \
          promote path (supersede-never-update) and every attempt is \
          audit-logged."),
+        (name = "admin", description = "Admin observability dashboard \
+         (X-Admin-Token gated, READ-ONLY): nine composite snapshots — \
+         overview status strip, coverage & inventory, backfill & ingestion, \
+         pipeline health, data quality & review ops, storage & tiers, \
+         serving & product, money & infra (static v1), and autonomous-loop \
+         meta (503 without GOVFOLIO_REPO_ROOT, by design). Metrics that \
+         cannot be observed are explicit unavailable states, never guessed."),
     )
 )]
 pub struct ApiDoc;

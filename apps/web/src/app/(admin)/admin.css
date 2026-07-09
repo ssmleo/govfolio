@@ -1,0 +1,151 @@
+/* govfolio admin — design tokens (goal 091).
+ *
+ * Identity: mission control for a worldwide disclosure factory. Kin to the
+ * public site's "engraved paper register" (same --font-display serif for
+ * titles, same --font-data mono for every number, same --seal accent) but
+ * on a graphite-neutral instrument-panel ground instead of warm paper — an
+ * operator's console, not a marketing page.
+ *
+ * Color discipline: neutrals dominate. --seal is the one brand accent (nav,
+ * links, focus rings). Saturated color is reserved EXCLUSIVELY for STATE —
+ * a colored number/badge is always a status claim:
+ *   success (green) = live / succeeded / done / resolved / pass / sent
+ *   warning (amber) = halted / paused / skipped_budget / pending / open
+ *   danger  (red)   = frozen / failed / dead / blocked / discrepant
+ *   info    (blue)  = running / in_progress
+ * See ui/Badge.tsx for the typed variant union + the state→variant map.
+ *
+ * The coverage-phase ramp (--adm-phase-*) is a SEPARATE sequential scale
+ * (design §5.8: stub → scouted → surveyed → sampled → specced → built →
+ * live, plus blocked) — progression toward the brand green, not the 4-way
+ * state palette above. See CoverageHeatmap.tsx.
+ *
+ * Light theme only for v1; every color is a custom property so a future
+ * dark variant is a token swap, not a rewrite.
+ */
+
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@source "./";
+@source "../../components/admin/";
+
+.admin-root, .admin-root *, .admin-root *::before, .admin-root *::after {
+  box-sizing: border-box;
+}
+
+.admin-root :is(h1, h2, h3, p, ul, figure) {
+  margin: 0;
+}
+
+main.shell:has(> .admin-root) {
+  max-width: none;
+}
+
+.admin-root {
+  /* ---------- ground ---------- */
+  --adm-bg: #e7e9ea;
+  --adm-surface: #fbfbfc;
+  --adm-surface-sunken: #eef0f1;
+  --adm-ink: #1b2023;
+  --adm-muted: #5c6469;
+  --adm-rule: #d1d5d7;
+  --adm-rule-strong: #a7adb0;
+
+  /* ---------- brand accent (reused exactly from globals.css) ---------- */
+  --adm-accent: var(--seal, #176a4f);
+  --adm-accent-deep: var(--seal-deep, #0e4a37);
+
+  /* ---------- type (reused exactly from globals.css) ---------- */
+  --adm-font-display: var(--font-display);
+  --adm-font-body: var(--font-body);
+  --adm-font-data: var(--font-data);
+
+  /* ---------- state colors: the ONLY saturated colors on this surface ---------- */
+  --adm-success-ink: #14573f;
+  --adm-success-bg: #e3f0e9;
+  --adm-success-rule: #9dc4b2;
+
+  --adm-warning-ink: #7a4a00;
+  --adm-warning-bg: #f7eddc;
+  --adm-warning-rule: #d8be92;
+
+  --adm-danger-ink: #8f1d12;
+  --adm-danger-bg: #f9e7e4;
+  --adm-danger-rule: #dfa79f;
+
+  --adm-info-ink: #1d4e8f;
+  --adm-info-bg: #e4ecf9;
+  --adm-info-rule: #a8c0e0;
+
+  /* ---------- coverage-phase ramp (§5.8 progression toward --adm-accent) ---------- */
+  --adm-phase-stub: #eceeef;
+  --adm-phase-scouted: #dbe6e0;
+  --adm-phase-surveyed: #c3d9cc;
+  --adm-phase-sampled: #a2cdb4;
+  --adm-phase-specced: #79bb95;
+  --adm-phase-built: #479875;
+  --adm-phase-live: #176a4f;
+  --adm-phase-blocked: #9a2f22;
+
+  background: var(--adm-bg);
+  color: var(--adm-ink);
+  font-family: var(--adm-font-body);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+  min-height: 100%;
+  padding-bottom: 3rem;
+}
+
+.admin-root h1,
+.admin-root h2,
+.admin-root h3 {
+  font-family: var(--adm-font-display);
+  font-weight: 600;
+  line-height: 1.2;
+  color: var(--adm-ink);
+}
+
+.admin-root h1 {
+  font-size: 1.5rem;
+}
+
+.admin-root h2 {
+  font-size: 1.0625rem;
+}
+
+.admin-root h3 {
+  font-size: 0.9375rem;
+}
+
+.admin-root a {
+  color: var(--adm-accent);
+}
+
+.admin-root a:hover {
+  color: var(--adm-accent-deep);
+}
+
+.admin-root :focus-visible {
+  outline: 2px solid var(--adm-accent);
+  outline-offset: 2px;
+}
+
+/* Every number on this surface is tabular mono — bytes, counts, percentiles. */
+.adm-num {
+  font-family: var(--adm-font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.adm-muted {
+  color: var(--adm-muted);
+}
+
+.adm-eyebrow {
+  font-family: var(--adm-font-body);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--adm-muted);
+}

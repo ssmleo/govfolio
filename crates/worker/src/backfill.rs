@@ -882,6 +882,221 @@ pub fn log_budget_skip(
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// Admin observability (plan §Architecture 3): per-year `backfill_run`
+// bookkeeping rows (migration 0011). Closes the stdout-only gap — the real
+// backfill/seed bins previously reported per-year outcomes only to the
+// terminal; each now also INSERTs one row per processed year. This is the
+// documented worker-side exception to "admin endpoints are read-only": the
+// worker INSERTs here, the admin API only SELECTs. OPERATIONAL bookkeeping
+// like `pipeline_run` — NOT a Gold fact; rows are inserted once and never
+// updated.
+// ---------------------------------------------------------------------------
+
+/// `backfill_run.kind` — which family of bin wrote the row. Mirrors the
+/// table's CHECK constraint exactly, so a typo cannot violate it at runtime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BackfillRunKind {
+    /// A real-write archive backfill (`bin/backfill-real.rs`,
+    /// `bin/backfill-real-br.rs`).
+    Backfill,
+    /// A roster/candidate seeding pass (`bin/seed-historical-rosters.rs`,
+    /// `bin/seed-br-candidates.rs`).
+    Seed,
+}
+
+impl BackfillRunKind {
+    /// The exact string the `backfill_run.kind` CHECK admits.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Backfill => "backfill",
+            Self::Seed => "seed",
+        }
+    }
+}
+
+/// `backfill_run.status` — what happened to the year. Mirrors the table's
+/// CHECK constraint exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BackfillRunStatus {
+    /// The year's write/seed pass completed (per-filing failures, if any, are
+    /// in `failed_count` — fail closed per filing, the year continued).
+    Succeeded,
+    /// The `BACKFILL_BUDGET` gate skipped the year ([`BudgetVerdict::Skip`]).
+    SkippedBudget,
+    /// The year itself failed (the error is in `error`).
+    Failed,
+}
+
+impl BackfillRunStatus {
+    /// The exact string the `backfill_run.status` CHECK admits.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Succeeded => "succeeded",
+            Self::SkippedBudget => "skipped_budget",
+            Self::Failed => "failed",
+        }
+    }
+}
+
+/// Saturating conversion for `backfill_run`'s bigint counter columns. No
+/// counter can plausibly exceed `i64::MAX`, but the conversion must neither
+/// panic (no `unwrap` outside tests) nor wrap (clippy cast lints).
+#[must_use]
+pub fn counter_i64(n: impl TryInto<i64>) -> i64 {
+    n.try_into().unwrap_or(i64::MAX)
+}
+
+/// One per-year `backfill_run` row, as [`record_backfill_run`] inserts it
+/// (id and `finished_at` are minted at insert time). Build the common frame
+/// with [`BackfillRunRecord::new`], then fill counters via struct-update
+/// syntax and/or [`BackfillRunRecord::with_report`].
+#[derive(Debug, Clone)]
+pub struct BackfillRunRecord {
+    /// Adapter regime code (`us_house`, `br`, …) — operational vocabulary,
+    /// same as `sentinel_watch`/`drift_report`, NOT the Gold regime FK.
+    pub regime_code: String,
+    /// Archive/election year the run covered.
+    pub year: i32,
+    /// Which family of bin wrote the row.
+    pub kind: BackfillRunKind,
+    /// The worker bin that wrote the row, e.g. `backfill-real-br`.
+    pub bin: &'static str,
+    /// Optional scope note, e.g. `--uf SP`, `--limit 2`, or `nationwide`.
+    pub scope: Option<String>,
+    /// What happened to the year.
+    pub status: BackfillRunStatus,
+    /// Filings seen for the year.
+    pub filings: i64,
+    /// Filings published (adds + supersessions + changes).
+    pub published: i64,
+    /// Already-published filings left untouched (invariant 4 evidence).
+    pub replayed: i64,
+    /// Gold rows actually inserted.
+    pub gold_inserted: i64,
+    /// `outbox_event` rows written.
+    pub outbox_written: i64,
+    /// `review_task` rows opened.
+    pub review_tasks: i64,
+    /// Per-filing failures (the year continued — fail closed per filing).
+    pub failed_count: i64,
+    /// The dry-run Gold-row delta the budget gate compared.
+    pub record_delta: i64,
+    /// `BACKFILL_BUDGET` in force; `None` when no budget gate applied
+    /// (the seed bins).
+    pub budget: Option<i64>,
+    /// Year-level error, when `status` is [`BackfillRunStatus::Failed`].
+    pub error: Option<String>,
+    /// Bin-specific extras (summary counts, flags) — jsonb.
+    pub details: serde_json::Value,
+    /// When the year's processing began (`finished_at` defaults to `now()`
+    /// at insert).
+    pub started_at: chrono::DateTime<chrono::Utc>,
+}
+
+impl BackfillRunRecord {
+    /// The common frame of a row: identity + status, every counter zeroed,
+    /// no scope/budget/error, empty `details`.
+    #[must_use]
+    pub fn new(
+        regime_code: &str,
+        year: i32,
+        kind: BackfillRunKind,
+        bin: &'static str,
+        status: BackfillRunStatus,
+        started_at: chrono::DateTime<chrono::Utc>,
+    ) -> Self {
+        Self {
+            regime_code: regime_code.to_owned(),
+            year,
+            kind,
+            bin,
+            scope: None,
+            status,
+            filings: 0,
+            published: 0,
+            replayed: 0,
+            gold_inserted: 0,
+            outbox_written: 0,
+            review_tasks: 0,
+            failed_count: 0,
+            record_delta: 0,
+            budget: None,
+            error: None,
+            details: serde_json::Value::Object(serde_json::Map::new()),
+            started_at,
+        }
+    }
+
+    /// Copies one year's [`pipeline::run::RunReport`] counters into this
+    /// record (saturating, see [`counter_i64`]) — the shared succeeded-row
+    /// shape of both real-write backfill bins.
+    #[must_use]
+    pub fn with_report(mut self, report: &pipeline::run::RunReport) -> Self {
+        self.filings = counter_i64(report.filings);
+        self.published = counter_i64(report.published);
+        self.replayed = counter_i64(report.replayed);
+        self.gold_inserted = counter_i64(report.gold_inserted);
+        self.outbox_written = counter_i64(report.outbox_written);
+        self.review_tasks = counter_i64(report.review_tasks);
+        self.failed_count = counter_i64(report.failed.len());
+        self
+    }
+}
+
+/// Inserts one per-year `backfill_run` bookkeeping row. The id is a fresh
+/// ULID minted here (`ulid::Ulid::new()`, the same mechanism `pipeline_run`
+/// and `review_task` ids use); `finished_at` takes the table's `now()`
+/// default. INSERT-only — a row, once written, is never updated.
+///
+/// # Errors
+/// The INSERT fails (connection or constraint failure).
+pub async fn record_backfill_run(
+    pool: &sqlx::PgPool,
+    record: &BackfillRunRecord,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        "insert into backfill_run \
+           (id, regime_code, year, kind, bin, scope, status, filings, published, replayed, \
+            gold_inserted, outbox_written, review_tasks, failed_count, record_delta, budget, \
+            error, details, started_at) \
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, \
+            $18, $19)",
+    )
+    .bind(ulid::Ulid::new().to_string())
+    .bind(&record.regime_code)
+    .bind(record.year)
+    .bind(record.kind.as_str())
+    .bind(record.bin)
+    .bind(&record.scope)
+    .bind(record.status.as_str())
+    .bind(record.filings)
+    .bind(record.published)
+    .bind(record.replayed)
+    .bind(record.gold_inserted)
+    .bind(record.outbox_written)
+    .bind(record.review_tasks)
+    .bind(record.failed_count)
+    .bind(record.record_delta)
+    .bind(record.budget)
+    .bind(&record.error)
+    .bind(&record.details)
+    .bind(record.started_at)
+    .execute(pool)
+    .await
+    .with_context(|| {
+        format!(
+            "recording backfill_run row ({} {} {})",
+            record.regime_code,
+            record.year,
+            record.status.as_str()
+        )
+    })?;
+    Ok(())
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {

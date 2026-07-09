@@ -4,6 +4,212 @@
  */
 
 export interface paths {
+    "/v1/admin/backfill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Section B — backfill & ingestion: run history, completion vs declared
+         *     targets, per-source freshness + lag percentiles, the fetch-density
+         *     politeness proxy, and queue depths — one round trip.
+         * @description # Errors
+         *     `401` without a valid `X-Admin-Token` (the gate wraps the whole admin
+         *     subtree); `500` on backend failure — all in the consistent envelope.
+         */
+        get: operations["admin_backfill"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/coverage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Section-A coverage & inventory snapshot (admin dashboard `/admin/coverage`).
+         * @description # Errors
+         *     `401` without a valid `X-Admin-Token` (enforced by the route-layer gate);
+         *     `500` on backend failure — all in the consistent error envelope.
+         */
+        get: operations["admin_coverage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/infra": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Money & infra observability (section G), static v1: HARD CAP, terraform
+         *     scheduler/queue mirror, environment badge. Touches no GCP APIs and never
+         *     errors locally.
+         */
+        get: operations["admin_infra"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/loop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Autonomous-loop meta (section H): goal queue with HALT detection, git
+         *     activity, guardrail trips. Only available where the repo checkout is
+         *     mounted (`GOVFOLIO_REPO_ROOT`).
+         * @description # Errors
+         *     `503` when `GOVFOLIO_REPO_ROOT` is not configured (the cloud posture — by
+         *     design); `500` when the goal index cannot be read or parsed — consistent
+         *     error envelope.
+         */
+        get: operations["admin_loop"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The admin status strip: queue depths, 24h run counts, frozen regimes,
+         *     last sentinel check — one round trip, cheap indexed counts only.
+         * @description # Errors
+         *     `401` without a valid `X-Admin-Token` (the gate wraps the whole admin
+         *     subtree); `500` on backend failure — all in the consistent envelope.
+         */
+        get: operations["admin_overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/pipeline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Section C — pipeline health: freeze board, stage funnel, drift by kind,
+         *     recent failures, conformance note, supersede activity — one round trip.
+         * @description # Errors
+         *     `401` without a valid `X-Admin-Token` (the gate wraps the whole admin
+         *     subtree); `500` on backend failure — all in the consistent envelope.
+         */
+        get: operations["admin_pipeline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Section-D data-quality & review-ops snapshot (admin dashboard
+         *     `/admin/quality`).
+         * @description # Errors
+         *     `400` on an unsupported `sweep` value; `401` without a valid
+         *     `X-Admin-Token` (enforced by the route-layer gate); `500` on backend
+         *     failure — all in the consistent error envelope.
+         */
+        get: operations["admin_quality"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/serving": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Serving & product observability (section F) in one round trip: API usage,
+         *     accounts, alert latency percentiles and delivery health.
+         * @description # Errors
+         *     `500` on backend failure — consistent error envelope.
+         */
+        get: operations["admin_serving"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/admin/storage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Section-E storage & tiers snapshot (admin dashboard `/admin/storage`).
+         * @description # Errors
+         *     `401` without a valid `X-Admin-Token` (enforced by the route-layer gate);
+         *     `500` on backend failure — all in the consistent error envelope.
+         */
+        get: operations["admin_storage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/alert-rules": {
         parameters: {
             query?: never;
@@ -426,6 +632,1288 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description Accounts, keys and subscriptions at a glance (F1). */
+        AdminAccounts: {
+            /**
+             * Format: int64
+             * @description API keys not revoked.
+             */
+            active_keys: number;
+            /**
+             * Format: int64
+             * @description Stripe-mirrored subscriptions in a paying state (`active` or
+             *     `trialing` — the same statuses the webhook treats as paid).
+             */
+            active_subscriptions: number;
+            /**
+             * Format: int64
+             * @description API keys with `revoked_at` set (history is kept, never deleted).
+             */
+            revoked_keys: number;
+            /** @description Accounts per tier. */
+            users_by_tier: components["schemas"]["AdminTierCount"][];
+        };
+        /** @description Age distribution of the open review queue (D1). */
+        AdminAgeBuckets: {
+            /**
+             * Format: int64
+             * @description Open tasks aged 1–7 days.
+             */
+            d1_to_7: number;
+            /**
+             * Format: int64
+             * @description Open tasks aged 7–30 days.
+             */
+            d7_to_30: number;
+            /**
+             * Format: int64
+             * @description Open tasks older than 30 days.
+             */
+            over_30d: number;
+            /**
+             * Format: int64
+             * @description Open tasks younger than 1 day.
+             */
+            under_1d: number;
+        };
+        /**
+         * @description Alert pipeline latency (F2): outbox created→dispatched percentiles plus
+         *     delivery created→sent percentiles. All figures are seconds.
+         */
+        AdminAlertLatency: {
+            /**
+             * Format: double
+             * @description p50 of `dispatched_at - created_at` in seconds, real dispatches only;
+             *     `null` when no qualifying row exists.
+             */
+            dispatch_p50_seconds?: number | null;
+            /**
+             * Format: double
+             * @description p90 of the same distribution.
+             */
+            dispatch_p90_seconds?: number | null;
+            /**
+             * Format: double
+             * @description p99 of the same distribution.
+             */
+            dispatch_p99_seconds?: number | null;
+            /**
+             * Format: int64
+             * @description Dispatched events included in the percentiles (delta >= 1 second).
+             */
+            dispatched_count: number;
+            /** @description Why sub-1-second rows are excluded (documented approximation). */
+            note: string;
+            /**
+             * Format: int64
+             * @description Dispatched events EXCLUDED from the percentiles because their
+             *     created→dispatched delta is under 1 second — see `note`.
+             */
+            pre_dispatched_count: number;
+            /**
+             * Format: double
+             * @description p50 of `updated_at - created_at` in seconds over sent deliveries;
+             *     `null` when nothing was sent yet.
+             */
+            send_p50_seconds?: number | null;
+            /**
+             * Format: double
+             * @description p90 of the same distribution.
+             */
+            send_p90_seconds?: number | null;
+            /**
+             * Format: int64
+             * @description Deliveries with status `sent` backing the send percentiles.
+             */
+            sent_count: number;
+        };
+        /** @description One bar of the delivery attempts histogram (F3). */
+        AdminAttemptsBucket: {
+            /**
+             * Format: int32
+             * @description Attempt count.
+             */
+            attempts: number;
+            /**
+             * Format: int64
+             * @description Deliveries with exactly that many attempts.
+             */
+            count: number;
+        };
+        /** @description Section B in one round trip. */
+        AdminBackfill: {
+            /** @description B5 Cloud Tasks caption: static note in v1. */
+            cloud_tasks_note: string;
+            /** @description Historical completion per regime vs declared targets (B2). */
+            completion: components["schemas"]["AdminRegimeCompletion"][];
+            /** @description Fetch density, last 48h by hour per source (B4). */
+            fetch_density: components["schemas"]["AdminFetchDensityBucket"][];
+            /** @description B4 honesty caption: density is a proxy, not a fetch log. */
+            fetch_density_note: string;
+            /** @description Freshness + filing lag percentiles per source (B3). */
+            freshness: components["schemas"]["AdminRegimeFreshness"][];
+            /**
+             * Format: date-time
+             * @description When this snapshot was assembled (server clock, UTC).
+             */
+            generated_at: string;
+            /** @description B1 honesty caption: pre-0011 history is log-only. */
+            history_note: string;
+            /** @description Queue depths (B5) — same shape as `/v1/admin/overview`. */
+            queue_depths: components["schemas"]["AdminQueueDepths"];
+            /** @description Last 100 `backfill_run` rows, newest first (B1). */
+            runs: components["schemas"]["AdminBackfillRun"][];
+            /** @description B2 honesty caption: targets are declared, not discovered. */
+            targets_note: string;
+        };
+        /**
+         * @description One `backfill_run` row (migration 0011): what a worker bin did for one
+         *     year — status, counters, and what the budget gate decided.
+         */
+        AdminBackfillRun: {
+            /** @description Worker bin that wrote the row, e.g. `backfill-real-br`. */
+            bin: string;
+            /**
+             * Format: int64
+             * @description `BACKFILL_BUDGET` in force; `null` when no budget gate applied.
+             */
+            budget?: number | null;
+            /** @description Year-level error, when `status = 'failed'`. */
+            error?: string | null;
+            /**
+             * Format: int64
+             * @description Per-filing failures (the year continued).
+             */
+            failed_count: number;
+            /**
+             * Format: int64
+             * @description Filings seen for the year.
+             */
+            filings: number;
+            /**
+             * Format: date-time
+             * @description When the row was written.
+             */
+            finished_at: string;
+            /**
+             * Format: int64
+             * @description Gold rows actually inserted.
+             */
+            gold_inserted: number;
+            /** @description Run ULID (time-sortable). */
+            id: string;
+            /** @description `backfill` | `seed`. */
+            kind: string;
+            /**
+             * Format: int64
+             * @description `outbox_event` rows written.
+             */
+            outbox_written: number;
+            /**
+             * Format: int64
+             * @description Filings published (adds + supersessions + changes).
+             */
+            published: number;
+            /**
+             * Format: int64
+             * @description Dry-run Gold-row delta the budget gate compared.
+             */
+            record_delta: number;
+            /** @description Adapter regime code, e.g. `us_house`, `br`. */
+            regime_code: string;
+            /**
+             * Format: int64
+             * @description Already-published filings left untouched (invariant-4 evidence).
+             */
+            replayed: number;
+            /**
+             * Format: int64
+             * @description `review_task` rows opened.
+             */
+            review_tasks: number;
+            /** @description Optional scope note, e.g. `--uf SP` or `nationwide`. */
+            scope?: string | null;
+            /**
+             * Format: date-time
+             * @description When the year's processing began.
+             */
+            started_at: string;
+            /** @description `succeeded` | `skipped_budget` | `failed`. */
+            status: string;
+            /**
+             * Format: int32
+             * @description Archive / election year the run covered.
+             */
+            year: number;
+        };
+        /** @description One blocked jurisdiction with its recorded reason (A1/A5). */
+        AdminBlockedJurisdiction: {
+            /** @description Why the factory blocked it; `null` when no reason was recorded. */
+            blocked_reason?: string | null;
+            /** @description Jurisdiction id. */
+            jurisdiction_id: string;
+            /** @description Jurisdiction display name. */
+            name: string;
+        };
+        /**
+         * @description br CPF collision sweep result (D3) — report-only, exactly like the
+         *     `check-br-identity-collisions` bin: zero rows = PASS, rows = investigate.
+         */
+        AdminBrCollisionSweep: {
+            /** @description The collision rows, when any. */
+            collisions: components["schemas"]["AdminBrCpfCollision"][];
+            /** @description `true` when zero collisions were found. */
+            pass: boolean;
+        };
+        /** @description One politician whose `stg_br` rows carry more than one distinct CPF (D3). */
+        AdminBrCpfCollision: {
+            /** @description Canonical name. */
+            canonical_name: string;
+            /** @description The CPF values themselves. */
+            cpfs: string[];
+            /**
+             * Format: int64
+             * @description Distinct CPFs seen across the politician's filings.
+             */
+            distinct_cpfs: number;
+            /** @description Politician id. */
+            politician_id: string;
+        };
+        /** @description G1 — the monthly HARD CAP and the (unavailable) live spend. */
+        AdminBudget: {
+            /** @description Monthly billing ceiling in USD, decimal string (never a float). */
+            hard_cap_usd: string;
+            /**
+             * @description Live month-to-date spend in USD. Always `null` in v1 — no billing
+             *     export is wired; rendering a guess would violate fail-closed.
+             */
+            live_spend?: string | null;
+            /** @description Why `live_spend` is `null`. */
+            live_spend_unavailable_reason: string;
+            /** @description Provenance of the cap figure. */
+            source: string;
+        };
+        /** @description One `BACKFILL_BUDGET skip:` guardrail trip from `agents/JOURNAL.md` (H3). */
+        AdminBudgetSkip: {
+            /** @description Journal entry date (the first `|`-separated field, trimmed). */
+            date: string;
+            /** @description The journal line, verbatim. */
+            line: string;
+        };
+        /** @description `GET /v1/admin/coverage` — the full section-A payload, one round trip. */
+        AdminCoverage: {
+            /** @description A1/A5: blocked jurisdictions with reasons. */
+            blocked: components["schemas"]["AdminBlockedJurisdiction"][];
+            /**
+             * Format: int64
+             * @description A3 honesty bucket: Bronze documents attributable to NO regime via the
+             *     bridge (no fetch run, or an adapter that never produced a bridged
+             *     filing) — surfaced, never silently dropped.
+             */
+            bronze_unbridged: number;
+            /** @description A6: entity inventory. */
+            entities: components["schemas"]["AdminEntityInventory"];
+            /**
+             * Format: date-time
+             * @description When this snapshot was computed.
+             */
+            generated_at: string;
+            /** @description A4: regime × year × `record_type` cells (rows with an `event_date`). */
+            heatmap: components["schemas"]["AdminHeatmapCell"][];
+            /**
+             * Format: int64
+             * @description A4 honesty bucket: Gold rows with NULL `event_date`, which no heatmap
+             *     cell can carry.
+             */
+            heatmap_missing_event_date: number;
+            /** @description A1: jurisdictions per `coverage_phase`. */
+            phases: components["schemas"]["AdminPhaseCount"][];
+            /** @description A2/A3/A5: per-regime rollup (every regime row, even zero-data ones). */
+            regimes: components["schemas"]["AdminRegimeCoverage"][];
+        };
+        /** @description One dead-lettered delivery (F3 DLQ surface). */
+        AdminDeadDelivery: {
+            /** @description The alert rule that fanned out. */
+            alert_rule_id: string;
+            /**
+             * Format: int32
+             * @description Attempts made before dead-lettering.
+             */
+            attempts: number;
+            /** @description `email` | `webhook`. */
+            channel: string;
+            /** @description Delivery ULID. */
+            id: string;
+            /** @description Last error recorded by the dispatcher, verbatim. */
+            last_error?: string | null;
+            /** @description The outbox event that triggered it. */
+            outbox_event_id: string;
+            /**
+             * Format: date-time
+             * @description When the delivery last changed (the dead-lettering moment).
+             */
+            updated_at: string;
+        };
+        /** @description Delivery health (F3): status×channel grid, attempts histogram, recent DLQ. */
+        AdminDeliveries: {
+            /** @description Deliveries per attempt count. */
+            attempts_histogram: components["schemas"]["AdminAttemptsBucket"][];
+            /** @description Deliveries per (status, channel) cell. */
+            by_status_channel: components["schemas"]["AdminDeliveryStatusChannel"][];
+            /** @description The 10 most recently dead-lettered deliveries with their errors. */
+            recent_dead: components["schemas"]["AdminDeadDelivery"][];
+        };
+        /** @description Delivery count for one (status, channel) cell (F3). */
+        AdminDeliveryStatusChannel: {
+            /** @description `email` | `webhook`. */
+            channel: string;
+            /**
+             * Format: int64
+             * @description Deliveries in that cell.
+             */
+            count: number;
+            /** @description `pending` | `pending_digest` | `sent` | `dead`. */
+            status: string;
+        };
+        /** @description Drift incidents for one kind (C3), across all regimes. */
+        AdminDriftKindRow: {
+            /**
+             * Format: int64
+             * @description Total detections across all reports of this kind (re-detections bump
+             *     the counter instead of duplicating rows).
+             */
+            detections: number;
+            /**
+             * @description One of the six kinds (`layout_shift`, `count_zero`, `regime_change`,
+             *     `status_error`, `probe_error`, `count_delta`).
+             */
+            drift_kind: string;
+            /**
+             * Format: int64
+             * @description Reports currently `open`.
+             */
+            open_count: number;
+            /**
+             * Format: int64
+             * @description Reports `resolved`.
+             */
+            resolved_count: number;
+            /**
+             * Format: int64
+             * @description Reports `superseded`.
+             */
+            superseded_count: number;
+        };
+        /** @description Request count for one endpoint (F1 top-endpoints board). */
+        AdminEndpointCount: {
+            /** @description Endpoint label as metered (`usage_event.endpoint`). */
+            endpoint: string;
+            /**
+             * Format: int64
+             * @description Requests over the window.
+             */
+            requests: number;
+        };
+        /**
+         * @description Entity inventory (A6): reconciliation coverage plus the invariant-3
+         *     never-guess backlog.
+         */
+        AdminEntityInventory: {
+            /**
+             * Format: double
+             * @description Percent of instruments with an ISIN; `null` when there are none.
+             */
+            instrument_isin_pct?: number | null;
+            /**
+             * Format: double
+             * @description Percent of instruments with a ticker; `null` when there are none.
+             */
+            instrument_ticker_pct?: number | null;
+            /**
+             * Format: int64
+             * @description Instruments in the registry.
+             */
+            instruments: number;
+            /**
+             * Format: int64
+             * @description Instruments carrying an ISIN.
+             */
+            instruments_with_isin: number;
+            /**
+             * Format: int64
+             * @description Instruments carrying a ticker.
+             */
+            instruments_with_ticker: number;
+            /**
+             * Format: double
+             * @description Percent of politicians with a `wikidata_qid`; `null` when there are
+             *     no politicians (no denominator, no made-up 0%).
+             */
+            politician_wikidata_pct?: number | null;
+            /**
+             * Format: int64
+             * @description Politicians in the registry.
+             */
+            politicians: number;
+            /**
+             * Format: int64
+             * @description Politicians carrying a `wikidata_qid`.
+             */
+            politicians_with_wikidata: number;
+            /**
+             * Format: int64
+             * @description Gold rows with NULL `instrument_id` — the invariant-3 backlog
+             *     (below-threshold matches stay NULL, never guessed).
+             */
+            records_null_instrument: number;
+            /**
+             * Format: int64
+             * @description All Gold `disclosure_record` rows.
+             */
+            records_total: number;
+        };
+        /**
+         * @description One failed `pipeline_run` (C4) — raw error text, no fragile
+         *     classification.
+         */
+        AdminFailedRun: {
+            /** @description Adapter regime code. */
+            adapter: string;
+            /** @description Error text as recorded, verbatim. */
+            error?: string | null;
+            /**
+             * Format: date-time
+             * @description When the run finished, when recorded.
+             */
+            finished_at?: string | null;
+            /** @description Run ULID (time-sortable). */
+            id: string;
+            /** @description Pipeline stage that failed. */
+            stage: string;
+            /**
+             * Format: date-time
+             * @description When the run started.
+             */
+            started_at: string;
+        };
+        /** @description One (regime, hour) fetch-density bucket (plan B4 politeness proxy). */
+        AdminFetchDensityBucket: {
+            /**
+             * Format: int64
+             * @description Documents fetched in the bucket.
+             */
+            fetched: number;
+            /**
+             * Format: date-time
+             * @description Hour bucket start (UTC, `date_trunc('hour', fetched_at)`).
+             */
+            hour_start: string;
+            /** @description Adapter regime code. */
+            regime_code: string;
+        };
+        /**
+         * @description One row of the adapter/freeze board (C1): sentinel state joined to its
+         *     open drift reports.
+         */
+        AdminFreezeBoardRow: {
+            /** @description Whether the sentinel froze this regime's publication (design §5.6). */
+            frozen: boolean;
+            /**
+             * Format: date-time
+             * @description When the freeze happened, when recorded.
+             */
+            frozen_at?: string | null;
+            /** @description Drift kind that froze it, when recorded. */
+            frozen_kind?: string | null;
+            /**
+             * Format: date-time
+             * @description When the sentinel last probed this source.
+             */
+            last_checked_at: string;
+            /**
+             * Format: int64
+             * @description Open `drift_report` rows for this regime.
+             */
+            open_drift_count: number;
+            /** @description Adapter regime code (e.g. `us_house`). */
+            regime_code: string;
+            /** @description Kind of the highest-priority open drift, when any is open. */
+            worst_open_drift_kind?: string | null;
+        };
+        /** @description One regime the sentinel froze (design §5.6 fail-closed publication gate). */
+        AdminFrozenRegime: {
+            /**
+             * Format: date-time
+             * @description When the freeze happened, when recorded.
+             */
+            frozen_at?: string | null;
+            /** @description Drift kind that froze it (e.g. `layout_shift`), when recorded. */
+            frozen_kind?: string | null;
+            /** @description Adapter regime code (e.g. `us_house`). */
+            regime_code: string;
+        };
+        /**
+         * @description One (adapter, stage) funnel cell (C2): run counts by status plus the
+         *     `PublishStats` rollup for publish-stage cells.
+         */
+        AdminFunnelRow: {
+            /** @description Adapter regime code. */
+            adapter: string;
+            /**
+             * Format: int64
+             * @description Sum of `PublishStats.candidates`; `null` off the publish stage (the
+             *     jsonb keys only exist there — never guessed for other stages).
+             */
+            candidates?: number | null;
+            /**
+             * Format: int64
+             * @description Runs that `failed`.
+             */
+            failed: number;
+            /**
+             * Format: int64
+             * @description Sum of `PublishStats.gold_inserted`; `null` off the publish stage.
+             */
+            gold_inserted?: number | null;
+            /**
+             * Format: int64
+             * @description Sum of `PublishStats.outbox_written`; `null` off the publish stage.
+             */
+            outbox_written?: number | null;
+            /**
+             * Format: int64
+             * @description Sum of `PublishStats.review_tasks`; `null` off the publish stage.
+             */
+            review_tasks?: number | null;
+            /**
+             * Format: int64
+             * @description Runs still `running`.
+             */
+            running: number;
+            /**
+             * Format: int64
+             * @description Total runs recorded for the cell.
+             */
+            runs: number;
+            /** @description Pipeline stage (e.g. `fetch`, `publish`). */
+            stage: string;
+            /**
+             * Format: int64
+             * @description Runs that `succeeded`.
+             */
+            succeeded: number;
+            /**
+             * Format: int64
+             * @description Sum of `PublishStats.suppressed`; `null` off the publish stage.
+             */
+            suppressed?: number | null;
+        };
+        /** @description One day of Gold/filing growth (E2). */
+        AdminGrowthDay: {
+            /**
+             * Format: date
+             * @description UTC calendar day.
+             */
+            day: string;
+            /**
+             * Format: int64
+             * @description Filings discovered that day (`discovered_at` — `filing` has no
+             *     `created_at` column; discovery time is the honest ingestion clock).
+             */
+            filings: number;
+            /**
+             * Format: int64
+             * @description Gold `disclosure_record` rows created that day (`created_at`).
+             */
+            gold_records: number;
+        };
+        /** @description One cell of the regime × year × `record_type` heatmap (A4). */
+        AdminHeatmapCell: {
+            /** @description Gold `record_type`. */
+            record_type: string;
+            /**
+             * Format: int64
+             * @description Records in the cell.
+             */
+            records: number;
+            /** @description Gold `disclosure_regime` id. */
+            regime_id: string;
+            /**
+             * Format: int32
+             * @description Calendar year of `event_date`.
+             */
+            year: number;
+        };
+        /** @description Idempotency evidence from `backfill_run` (D4, invariant 4). */
+        AdminIdempotency: {
+            /** @description Scope caveat rendered verbatim on the page. */
+            note: string;
+            /**
+             * Format: int64
+             * @description Sum of `replayed` — already-published filings re-runs left untouched.
+             */
+            replayed_total: number;
+            /**
+             * Format: int64
+             * @description `backfill_run` rows counted.
+             */
+            runs: number;
+        };
+        /** @description Section G — money & infra, static v1. */
+        AdminInfra: {
+            /** @description HARD CAP + live spend (G1). */
+            budget: components["schemas"]["AdminBudget"];
+            /**
+             * @description `cloud_run` when `K_SERVICE` is present in the process environment,
+             *     otherwise `local`.
+             */
+            environment: string;
+            /**
+             * Format: date-time
+             * @description When this snapshot was computed.
+             */
+            generated_at: string;
+            /** @description Cloud Tasks queue names as declared in terraform (G2). */
+            queues: string[];
+            /** @description Provenance of `queues` — a file mirror, not a GCP read. */
+            queues_source: string;
+            /** @description Cloud Scheduler jobs as declared in terraform (G2). */
+            schedulers: components["schemas"]["AdminScheduler"][];
+            /** @description Provenance of `schedulers` — a file mirror, not a GCP read. */
+            schedulers_source: string;
+            /** @description G3: terraform state is not surfaced in v1. */
+            terraform_note: string;
+        };
+        /** @description Section H — autonomous-loop meta, one round trip. */
+        AdminLoop: {
+            /**
+             * @description `BACKFILL_BUDGET skip:` trips from `agents/JOURNAL.md`, in file
+             *     order; `null` when the journal could not be read (an unreadable
+             *     journal is stated, not rendered as "no trips").
+             */
+            budget_skips?: components["schemas"]["AdminBudgetSkip"][] | null;
+            /**
+             * Format: date-time
+             * @description When this snapshot was computed.
+             */
+            generated_at: string;
+            git?: null | components["schemas"]["AdminLoopGit"];
+            /** @description Goal queue, in file order. */
+            goals: components["schemas"]["AdminLoopGoal"][];
+            /** @description The repo checkout the metadata was read from (`GOVFOLIO_REPO_ROOT`). */
+            repo_root: string;
+        };
+        /** @description One commit from `git log` (H2). */
+        AdminLoopCommit: {
+            /**
+             * Format: date-time
+             * @description Commit timestamp.
+             */
+            committed_at: string;
+            /** @description Full commit sha. */
+            sha: string;
+            /** @description Subject line, verbatim. */
+            subject: string;
+        };
+        /** @description Git activity of the mounted checkout (H2). */
+        AdminLoopGit: {
+            /** @description Current branch; `null` on a detached HEAD. */
+            branch?: string | null;
+            /** @description Last 20 commits, newest first. */
+            commits: components["schemas"]["AdminLoopCommit"][];
+            /**
+             * Format: int64
+             * @description `git status --porcelain` line count (dirty paths).
+             */
+            dirty_files: number;
+        };
+        /** @description One goal-queue entry from `agents/goals/000-INDEX.md` (H1). */
+        AdminLoopGoal: {
+            /** @description The line mentions `HALT` without a `HALT RESOLVED` marker. */
+            halted: boolean;
+            /** @description Goal number token as written (e.g. `080`, `E2+`). */
+            number: string;
+            /** @description `done` (`[x]`) | `in_progress` (`[~]`) | `open` (`[ ]`). */
+            state: string;
+            /** @description The rest of the line, verbatim. */
+            title: string;
+        };
+        /** @description Bronze documents sharing one mime type (E1). */
+        AdminMimeCount: {
+            /**
+             * Format: int64
+             * @description Documents of this type.
+             */
+            documents: number;
+            /** @description The stored `mime_type`. */
+            mime_type: string;
+        };
+        /** @description The whole status strip in one round trip. */
+        AdminOverview: {
+            /** @description Regimes currently frozen by the sentinel; empty = nothing frozen. */
+            frozen_regimes: components["schemas"]["AdminFrozenRegime"][];
+            /**
+             * Format: date-time
+             * @description When this snapshot was assembled (server clock, UTC).
+             */
+            generated_at: string;
+            /**
+             * Format: date-time
+             * @description Latest `sentinel_watch.last_checked_at` across all regimes; `null`
+             *     when the sentinel has never run (honest absence, not zero).
+             */
+            last_sentinel_check?: string | null;
+            /** @description Every operational queue depth (plan B5). */
+            queue_depths: components["schemas"]["AdminQueueDepths"];
+            /** @description `pipeline_run` counts by status, trailing 24 hours. */
+            runs_24h: components["schemas"]["AdminRuns24h"];
+        };
+        /** @description Postgres physical stats (E3), straight from `pg_catalog`. */
+        AdminPgStats: {
+            /**
+             * Format: int64
+             * @description `pg_database_size(current_database())`, in bytes.
+             */
+            database_size_bytes: number;
+            /** @description Top 25 tables by total relation size, largest first. */
+            top_tables: components["schemas"]["AdminPgTable"][];
+        };
+        /** @description One of the 25 largest tables by total relation size (E3). */
+        AdminPgTable: {
+            /**
+             * Format: int64
+             * @description `pg_stat_user_tables.n_dead_tup` (statistics estimate).
+             */
+            dead_tuples: number;
+            /**
+             * Format: int64
+             * @description `pg_stat_user_tables.n_live_tup` (statistics estimate).
+             */
+            live_tuples: number;
+            /** @description Table name. */
+            table_name: string;
+            /**
+             * Format: int64
+             * @description `pg_total_relation_size` — heap + indexes + TOAST, in bytes.
+             */
+            total_bytes: number;
+        };
+        /** @description One `coverage_phase` bucket of the jurisdiction registry (A1). */
+        AdminPhaseCount: {
+            /**
+             * Format: int64
+             * @description Jurisdictions currently in this phase.
+             */
+            jurisdictions: number;
+            /** @description The §5.8 state-machine phase (`stub` … `live` | `blocked`). */
+            phase: string;
+        };
+        /** @description Section C in one round trip. */
+        AdminPipeline: {
+            /** @description C5 honesty caption: conformance is run locally, not recorded. */
+            conformance_note: string;
+            /** @description Drift incidents by kind (C3). */
+            drift_by_kind: components["schemas"]["AdminDriftKindRow"][];
+            /** @description Adapter/freeze board (C1), frozen regimes first. */
+            freeze_board: components["schemas"]["AdminFreezeBoardRow"][];
+            /** @description Stage funnel per adapter (C2). */
+            funnel: components["schemas"]["AdminFunnelRow"][];
+            /**
+             * Format: date-time
+             * @description When this snapshot was assembled (server clock, UTC).
+             */
+            generated_at: string;
+            /** @description Last 25 failed runs, newest first (C4). */
+            recent_failures: components["schemas"]["AdminFailedRun"][];
+            /** @description Supersede activity per month, newest first (C6). */
+            supersede_activity: components["schemas"]["AdminSupersedeMonth"][];
+        };
+        /** @description Current-month sampling-audit precision (D6, design §7.4). */
+        AdminPrecisionMonth: {
+            /** @description Per-regime estimates; empty when no batch was drawn this month. */
+            regimes: components["schemas"]["AdminRegimePrecision"][];
+            /** @description The batch label, `YYYY-MM` (the database's current month). */
+            sample_month: string;
+        };
+        /** @description `GET /v1/admin/quality` — the full section-D payload, one round trip. */
+        AdminQuality: {
+            collision_sweep?: null | components["schemas"]["AdminBrCollisionSweep"];
+            /**
+             * Format: date-time
+             * @description When this snapshot was computed.
+             */
+            generated_at: string;
+            /** @description D4: replay counters from `backfill_run`. */
+            idempotency: components["schemas"]["AdminIdempotency"];
+            /** @description D1: open-queue age distribution. */
+            open_age_buckets: components["schemas"]["AdminAgeBuckets"];
+            /** @description D1: open tasks by reason, most common first. */
+            open_by_reason: components["schemas"]["AdminReasonCount"][];
+            /** @description D1: open tasks by target kind, most common first. */
+            open_by_target_kind: components["schemas"]["AdminTargetKindCount"][];
+            /** @description D6: current-month precision estimates. */
+            precision_current_month: components["schemas"]["AdminPrecisionMonth"];
+            /** @description D5: raw-retention spot check. */
+            raw_retention: components["schemas"]["AdminRawRetention"];
+            /** @description D1: 30-day resolution throughput + verdict mix. */
+            resolution_30d: components["schemas"]["AdminResolution30d"];
+            /** @description D2: NULL-instrument backlog. */
+            unlinked_instruments: components["schemas"]["AdminUnlinkedInstruments"];
+        };
+        /**
+         * @description Every operational queue depth on one row (plan B5). Shared verbatim with
+         *     `/v1/admin/backfill` so the two surfaces can never disagree on shape.
+         */
+        AdminQueueDepths: {
+            /**
+             * Format: int64
+             * @description Dead-letter deliveries (`delivery.status = 'dead'`).
+             */
+            delivery_dlq: number;
+            /**
+             * Format: int64
+             * @description Open `drift_report` rows.
+             */
+            drift_open: number;
+            /**
+             * Format: int64
+             * @description `outbox_event` rows not yet dispatched.
+             */
+            outbox_undispatched: number;
+            /**
+             * Format: int64
+             * @description `pipeline_run` rows that ended `failed`.
+             */
+            pipeline_failed: number;
+            /**
+             * Format: int64
+             * @description `pipeline_run` rows still `running`.
+             */
+            pipeline_running: number;
+            /**
+             * Format: int64
+             * @description Open `review_task` rows.
+             */
+            review_open: number;
+            /**
+             * Format: int64
+             * @description `sample_audit` rows still awaiting an audit verdict.
+             */
+            sample_pending: number;
+            /**
+             * Format: int64
+             * @description `usage_event` rows not yet folded into a `usage_report`.
+             */
+            usage_unbilled: number;
+        };
+        /** @description Raw-retention spot check (D5, invariant 2). */
+        AdminRawRetention: {
+            /**
+             * Format: int64
+             * @description Distinct documents referenced by at least one filing.
+             */
+            linked_to_filing: number;
+            /**
+             * Format: int64
+             * @description Documents no filing references (fetched but not yet promoted, or
+             *     evidence-only captures) — retained either way, Bronze is immutable.
+             */
+            orphaned: number;
+            /**
+             * Format: int64
+             * @description All Bronze `raw_document` rows.
+             */
+            raw_documents: number;
+        };
+        /** @description Open review tasks sharing one `reason` (D1). */
+        AdminReasonCount: {
+            /** @description Why the tasks were opened (e.g. `ptr_amendment_unlinked`). */
+            reason: string;
+            /**
+             * Format: int64
+             * @description Open tasks with this reason.
+             */
+            tasks: number;
+        };
+        /**
+         * @description Historical completion for one regime (plan B2): what the data says vs the
+         *     declared v1 target.
+         */
+        AdminRegimeCompletion: {
+            /** @description Target years with no filing data yet — the "what's left" list. */
+            missing_years: number[];
+            /** @description Adapter regime code. */
+            regime_code: string;
+            /**
+             * @description Declared v1 target years (see `targets_note`); empty = no declared
+             *     target for this regime.
+             */
+            target_years: number[];
+            /**
+             * @description Years with at least one succeeded `backfill_run` (kind `backfill`);
+             *     pre-0011 history is log-only, so early years may show data without a
+             *     run row.
+             */
+            years_succeeded: number[];
+            /**
+             * @description Years with at least one filing on record (by `filing.filed_date` via
+             *     the provenance bridge; filings without a `filed_date` are not counted).
+             */
+            years_with_data: number[];
+        };
+        /** @description Per-regime coverage rollup (A2/A3/A5): window, tier counts, gap flags. */
+        AdminRegimeCoverage: {
+            /** @description Regime body (e.g. `US House`). */
+            body: string;
+            /**
+             * Format: int64
+             * @description Bronze documents fetched by this regime's bridged adapter(s); `null`
+             *     when the regime is unbridged (count not attributable, never guessed).
+             */
+            bronze_documents?: number | null;
+            /**
+             * @description A5 gap flag: the jurisdiction reached `built`/`live` but the regime
+             *     has zero Gold records — built, not yet backfilled.
+             */
+            built_not_backfilled: boolean;
+            /** @description The jurisdiction's `coverage_phase`. */
+            coverage_phase: string;
+            /**
+             * Format: int64
+             * @description Filings under this regime.
+             */
+            filings: number;
+            /**
+             * Format: date
+             * @description Earliest `filed_date` seen; `null` when no filing carries one.
+             */
+            first_filed_date?: string | null;
+            /**
+             * Format: int64
+             * @description Gold `disclosure_record` rows under this regime.
+             */
+            gold_records: number;
+            /** @description Owning jurisdiction id. */
+            jurisdiction_id: string;
+            /** @description Owning jurisdiction name. */
+            jurisdiction_name: string;
+            /**
+             * Format: date
+             * @description Latest `filed_date` seen; `null` when no filing carries one.
+             */
+            last_filed_date?: string | null;
+            /**
+             * Format: int64
+             * @description Distinct politicians with at least one filing under this regime.
+             */
+            politicians: number;
+            /** @description Distinct Gold `record_type`s observed under this regime. */
+            record_types: string[];
+            /**
+             * @description Adapter regime codes provenance bridged to this regime
+             *     (`filing → raw_document → pipeline_run.adapter`); empty = unbridged
+             *     (e.g. fixture-seeded documents with no fetch run).
+             */
+            regime_codes: string[];
+            /** @description Gold `disclosure_regime` id. */
+            regime_id: string;
+            /**
+             * Format: int64
+             * @description Silver staging rows. Only `stg_us_house` and `stg_br` exist today, so
+             *     this is `null` for every other regime — a missing staging table is
+             *     reported as unavailable, not zero.
+             */
+            silver_rows?: number | null;
+        };
+        /**
+         * @description Freshness of one source (plan B3): sentinel check, last fetch, last
+         *     discovery, and the filing lag percentiles.
+         */
+        AdminRegimeFreshness: {
+            /**
+             * Format: double
+             * @description p50 of `discovered_at - published_at` in seconds; `null` when no
+             *     filing carries a `published_at`.
+             */
+            lag_p50_seconds?: number | null;
+            /**
+             * Format: double
+             * @description p90 of `discovered_at - published_at` in seconds; `null` when no
+             *     filing carries a `published_at`.
+             */
+            lag_p90_seconds?: number | null;
+            /**
+             * Format: date-time
+             * @description Latest `filing.discovered_at` (our latency, honestly).
+             */
+            last_discovered_at?: string | null;
+            /**
+             * Format: date-time
+             * @description Latest `raw_document.fetched_at` for this source's fetch runs.
+             */
+            last_fetched_at?: string | null;
+            /** @description Adapter regime code. */
+            regime_code: string;
+            /**
+             * Format: date-time
+             * @description `sentinel_watch.last_checked_at`; `null` = the sentinel has never
+             *     probed this source.
+             */
+            sentinel_last_checked_at?: string | null;
+        };
+        /** @description One regime's precision estimate in the current sampling batch (D6). */
+        AdminRegimePrecision: {
+            /**
+             * Format: int64
+             * @description Draws already audited.
+             */
+            audited: number;
+            /** @description Regime body (e.g. `US House`). */
+            body: string;
+            /**
+             * Format: int64
+             * @description Audited draws found discrepant.
+             */
+            discrepancies: number;
+            /**
+             * Format: double
+             * @description `(audited - discrepancies) / audited`; `null` until something is
+             *     audited (no estimate is invented from zero evidence).
+             */
+            precision_estimate?: number | null;
+            /** @description Gold `disclosure_regime` id. */
+            regime_id: string;
+            /**
+             * Format: int64
+             * @description Records drawn this month.
+             */
+            sampled: number;
+        };
+        /**
+         * @description 30-day resolution throughput (D1), from `review_audit` applied attempts
+         *     joined to their tasks' `resolved_at`.
+         */
+        AdminResolution30d: {
+            /**
+             * Format: double
+             * @description Median hours from task creation to resolution (`percentile_cont`);
+             *     `null` when nothing resolved in the window.
+             */
+            median_hours_to_resolve?: number | null;
+            /**
+             * Format: int64
+             * @description Distinct tasks resolved via an applied attempt in the last 30 days.
+             */
+            resolved_tasks: number;
+            /** @description Applied verdicts by kind in the window. */
+            verdicts: components["schemas"]["AdminVerdictCount"][];
+        };
+        /**
+         * @description `pipeline_run` counts by status over the trailing 24 hours (by
+         *     `started_at`).
+         */
+        AdminRuns24h: {
+            /**
+             * Format: int64
+             * @description Runs that `failed`.
+             */
+            failed: number;
+            /**
+             * Format: int64
+             * @description Runs still `running`.
+             */
+            running: number;
+            /**
+             * Format: int64
+             * @description Runs that `succeeded`.
+             */
+            succeeded: number;
+        };
+        /**
+         * @description One Cloud Scheduler job as declared in terraform (static mirror, not a
+         *     live GCP read).
+         */
+        AdminScheduler: {
+            /** @description Job description as declared. */
+            description: string;
+            /** @description Job name (e.g. `govfolio-discover-tier1`). */
+            name: string;
+            /**
+             * @description Declared paused state (`true` for every job in v1 — unpausing is the
+             *     explicit go-live act).
+             */
+            paused: boolean;
+            /** @description Cron schedule as declared. */
+            schedule: string;
+            /** @description Schedule time zone. */
+            time_zone: string;
+        };
+        /**
+         * @description Bronze documents sharing one storage scheme (E1). Doubles as the
+         *     cloud-migration progress readout (`gs` vs `local`).
+         */
+        AdminSchemeCount: {
+            /**
+             * Format: int64
+             * @description Documents stored under this scheme.
+             */
+            documents: number;
+            /** @description URI scheme of `storage_uri` (e.g. `gs`); plain paths report `local`. */
+            scheme: string;
+        };
+        /** @description Section F — serving & product, one round trip. */
+        AdminServing: {
+            /** @description Accounts, keys and subscriptions. */
+            accounts: components["schemas"]["AdminAccounts"];
+            /** @description Alert pipeline latency percentiles. */
+            alert_latency: components["schemas"]["AdminAlertLatency"];
+            /** @description Delivery health and DLQ. */
+            deliveries: components["schemas"]["AdminDeliveries"];
+            /**
+             * Format: date-time
+             * @description When this snapshot was computed.
+             */
+            generated_at: string;
+            /** @description Honest gap: per-request API latency is not recorded anywhere. */
+            latency_note: string;
+            /** @description Top 10 endpoints by request count, last 7 days. */
+            top_endpoints_7d: components["schemas"]["AdminEndpointCount"][];
+            /**
+             * @description Authenticated requests per day, last 14 days (days with zero metered
+             *     requests are absent).
+             */
+            usage_by_day: components["schemas"]["AdminUsageDay"][];
+        };
+        /** @description `GET /v1/admin/storage` — the full section-E payload, one round trip. */
+        AdminStorage: {
+            /** @description E1: Bronze documents by mime type, most common first. */
+            bronze_by_mime: components["schemas"]["AdminMimeCount"][];
+            /** @description E1: Bronze documents by storage scheme, most common first. */
+            bronze_by_scheme: components["schemas"]["AdminSchemeCount"][];
+            /** @description E1 caveat rendered verbatim on the page. */
+            bronze_note: string;
+            /**
+             * Format: date-time
+             * @description When this snapshot was computed.
+             */
+            generated_at: string;
+            /**
+             * @description E2: per-day growth over the last 30 days (days with zero activity on
+             *     both clocks are absent, not fabricated).
+             */
+            growth_30d: components["schemas"]["AdminGrowthDay"][];
+            /** @description E3: Postgres physical stats. */
+            pg: components["schemas"]["AdminPgStats"];
+            /** @description Exact row counts of every schema table, largest first. */
+            table_rows: components["schemas"]["AdminTableRowCount"][];
+        };
+        /**
+         * @description Supersede activity for one month (C6, invariant-1 evidence): corrections
+         *     insert superseding rows, never update.
+         */
+        AdminSupersedeMonth: {
+            /**
+             * Format: int64
+             * @description Amended filings discovered that month (`supersedes_filing_id` set, by
+             *     `discovered_at`).
+             */
+            amended_filings: number;
+            /** @description Month label, `YYYY-MM` (UTC). */
+            month: string;
+            /**
+             * Format: int64
+             * @description `disclosure_record` rows inserted as supersessions that month (by
+             *     `created_at`).
+             */
+            superseding_records: number;
+        };
+        /** @description Exact row count of one key table. */
+        AdminTableRowCount: {
+            /**
+             * Format: int64
+             * @description Exact `count(*)` at snapshot time.
+             */
+            row_count: number;
+            /** @description Table name. */
+            table_name: string;
+        };
+        /** @description Open review tasks sharing one `target_kind` (D1). */
+        AdminTargetKindCount: {
+            /** @description What the tasks target (e.g. `disclosure_record`). */
+            target_kind: string;
+            /**
+             * Format: int64
+             * @description Open tasks with this target kind.
+             */
+            tasks: number;
+        };
+        /** @description Account count for one tier. */
+        AdminTierCount: {
+            /** @description `free` | `pro` | `data`. */
+            tier: string;
+            /**
+             * Format: int64
+             * @description Accounts on that tier.
+             */
+            users: number;
+        };
+        /** @description NULL-instrument Gold rows (D2) — the invariant-3 never-guess backlog. */
+        AdminUnlinkedInstruments: {
+            /**
+             * Format: int64
+             * @description Listed breakdown: bond.
+             */
+            bond: number;
+            /**
+             * Format: int64
+             * @description Listed breakdown: equity.
+             */
+            equity: number;
+            /**
+             * Format: int64
+             * @description Listed breakdown: fund.
+             */
+            fund: number;
+            /**
+             * Format: int64
+             * @description The listed subset (asset classes equity/bond/fund/option) — the rows
+             *     a reference-data match could plausibly link.
+             */
+            listed: number;
+            /**
+             * Format: int64
+             * @description Listed breakdown: option.
+             */
+            option: number;
+            /**
+             * Format: int64
+             * @description All Gold rows with NULL `instrument_id`.
+             */
+            total: number;
+        };
+        /** @description Authenticated API requests on one day (F1; `usage_event` rows). */
+        AdminUsageDay: {
+            /**
+             * Format: date
+             * @description The day (UTC date of `occurred_at`).
+             */
+            day: string;
+            /**
+             * Format: int64
+             * @description Authenticated requests metered that day.
+             */
+            requests: number;
+        };
+        /** @description Applied verdicts of one kind in the last 30 days (D1). */
+        AdminVerdictCount: {
+            /**
+             * Format: int64
+             * @description Applied attempts carrying this verdict.
+             */
+            attempts: number;
+            /** @description `confirm` | `edit` | `reject`. */
+            verdict: string;
+        };
         /** @description One delivery channel of an alert rule (`alert_rule.channels` element). */
         AlertChannel: {
             /** @description Destination address. */
@@ -546,7 +2034,7 @@ export interface components {
          *     schema snapshot).
          * @enum {string}
          */
-        Currency: "EUR" | "GBP" | "USD";
+        Currency: "EUR" | "GBP" | "USD" | "BRL";
         /**
          * @description One canonical disclosure record (Gold `disclosure_record`, design §4.2).
          *     `verification_state` is present on EVERY record — honesty travels with
@@ -1177,6 +2665,372 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    admin_backfill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The backfill & ingestion snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBackfill"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_coverage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Coverage & inventory: phases, blocked list, per-regime rollup, heatmap, entity inventory */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCoverage"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_infra: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Money & infra snapshot (static mirror) */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminInfra"];
+                };
+            };
+            /** @description Missing or invalid admin token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_loop: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Autonomous-loop meta snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminLoop"];
+                };
+            };
+            /** @description Missing or invalid admin token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description GOVFOLIO_REPO_ROOT is not set (cloud posture) */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_overview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The status strip snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOverview"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_pipeline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The pipeline-health snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPipeline"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_quality: {
+        parameters: {
+            query?: {
+                /**
+                 * @description Opt-in expensive sweep. The only supported value is `br` (the CPF
+                 *     collision sweep); anything else is a 400.
+                 */
+                sweep?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Data quality & review ops: queue analytics, unlinked backlog, precision, idempotency, raw retention, optional br sweep */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminQuality"];
+                };
+            };
+            /** @description Unsupported sweep value */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_serving: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Serving & product snapshot */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminServing"];
+                };
+            };
+            /** @description Missing or invalid admin token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    admin_storage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Storage & tiers: Bronze counts by mime/scheme, exact table rows, 30d growth, Postgres physical stats */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStorage"];
+                };
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     list_alert_rules: {
         parameters: {
             query?: never;

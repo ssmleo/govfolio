@@ -1,6 +1,2288 @@
 {
   "components": {
     "schemas": {
+      "AdminAccounts": {
+        "description": "Accounts, keys and subscriptions at a glance (F1).",
+        "properties": {
+          "active_keys": {
+            "description": "API keys not revoked.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "active_subscriptions": {
+            "description": "Stripe-mirrored subscriptions in a paying state (`active` or\n`trialing` — the same statuses the webhook treats as paid).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "revoked_keys": {
+            "description": "API keys with `revoked_at` set (history is kept, never deleted).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "users_by_tier": {
+            "description": "Accounts per tier.",
+            "items": {
+              "$ref": "#/components/schemas/AdminTierCount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "users_by_tier",
+          "active_keys",
+          "revoked_keys",
+          "active_subscriptions"
+        ],
+        "type": "object"
+      },
+      "AdminAgeBuckets": {
+        "description": "Age distribution of the open review queue (D1).",
+        "properties": {
+          "d1_to_7": {
+            "description": "Open tasks aged 1–7 days.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "d7_to_30": {
+            "description": "Open tasks aged 7–30 days.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "over_30d": {
+            "description": "Open tasks older than 30 days.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "under_1d": {
+            "description": "Open tasks younger than 1 day.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "under_1d",
+          "d1_to_7",
+          "d7_to_30",
+          "over_30d"
+        ],
+        "type": "object"
+      },
+      "AdminAlertLatency": {
+        "description": "Alert pipeline latency (F2): outbox created→dispatched percentiles plus\ndelivery created→sent percentiles. All figures are seconds.",
+        "properties": {
+          "dispatch_p50_seconds": {
+            "description": "p50 of `dispatched_at - created_at` in seconds, real dispatches only;\n`null` when no qualifying row exists.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "dispatch_p90_seconds": {
+            "description": "p90 of the same distribution.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "dispatch_p99_seconds": {
+            "description": "p99 of the same distribution.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "dispatched_count": {
+            "description": "Dispatched events included in the percentiles (delta >= 1 second).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "note": {
+            "description": "Why sub-1-second rows are excluded (documented approximation).",
+            "type": "string"
+          },
+          "pre_dispatched_count": {
+            "description": "Dispatched events EXCLUDED from the percentiles because their\ncreated→dispatched delta is under 1 second — see `note`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "send_p50_seconds": {
+            "description": "p50 of `updated_at - created_at` in seconds over sent deliveries;\n`null` when nothing was sent yet.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "send_p90_seconds": {
+            "description": "p90 of the same distribution.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "sent_count": {
+            "description": "Deliveries with status `sent` backing the send percentiles.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dispatched_count",
+          "pre_dispatched_count",
+          "note",
+          "sent_count"
+        ],
+        "type": "object"
+      },
+      "AdminAttemptsBucket": {
+        "description": "One bar of the delivery attempts histogram (F3).",
+        "properties": {
+          "attempts": {
+            "description": "Attempt count.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "count": {
+            "description": "Deliveries with exactly that many attempts.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "attempts",
+          "count"
+        ],
+        "type": "object"
+      },
+      "AdminBackfill": {
+        "description": "Section B in one round trip.",
+        "properties": {
+          "cloud_tasks_note": {
+            "description": "B5 Cloud Tasks caption: static note in v1.",
+            "type": "string"
+          },
+          "completion": {
+            "description": "Historical completion per regime vs declared targets (B2).",
+            "items": {
+              "$ref": "#/components/schemas/AdminRegimeCompletion"
+            },
+            "type": "array"
+          },
+          "fetch_density": {
+            "description": "Fetch density, last 48h by hour per source (B4).",
+            "items": {
+              "$ref": "#/components/schemas/AdminFetchDensityBucket"
+            },
+            "type": "array"
+          },
+          "fetch_density_note": {
+            "description": "B4 honesty caption: density is a proxy, not a fetch log.",
+            "type": "string"
+          },
+          "freshness": {
+            "description": "Freshness + filing lag percentiles per source (B3).",
+            "items": {
+              "$ref": "#/components/schemas/AdminRegimeFreshness"
+            },
+            "type": "array"
+          },
+          "generated_at": {
+            "description": "When this snapshot was assembled (server clock, UTC).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "history_note": {
+            "description": "B1 honesty caption: pre-0011 history is log-only.",
+            "type": "string"
+          },
+          "queue_depths": {
+            "$ref": "#/components/schemas/AdminQueueDepths",
+            "description": "Queue depths (B5) — same shape as `/v1/admin/overview`."
+          },
+          "runs": {
+            "description": "Last 100 `backfill_run` rows, newest first (B1).",
+            "items": {
+              "$ref": "#/components/schemas/AdminBackfillRun"
+            },
+            "type": "array"
+          },
+          "targets_note": {
+            "description": "B2 honesty caption: targets are declared, not discovered.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "generated_at",
+          "history_note",
+          "runs",
+          "targets_note",
+          "completion",
+          "freshness",
+          "fetch_density_note",
+          "fetch_density",
+          "queue_depths",
+          "cloud_tasks_note"
+        ],
+        "type": "object"
+      },
+      "AdminBackfillRun": {
+        "description": "One `backfill_run` row (migration 0011): what a worker bin did for one\nyear — status, counters, and what the budget gate decided.",
+        "properties": {
+          "bin": {
+            "description": "Worker bin that wrote the row, e.g. `backfill-real-br`.",
+            "type": "string"
+          },
+          "budget": {
+            "description": "`BACKFILL_BUDGET` in force; `null` when no budget gate applied.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "error": {
+            "description": "Year-level error, when `status = 'failed'`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "failed_count": {
+            "description": "Per-filing failures (the year continued).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "filings": {
+            "description": "Filings seen for the year.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "finished_at": {
+            "description": "When the row was written.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "gold_inserted": {
+            "description": "Gold rows actually inserted.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "id": {
+            "description": "Run ULID (time-sortable).",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "kind": {
+            "description": "`backfill` | `seed`.",
+            "type": "string"
+          },
+          "outbox_written": {
+            "description": "`outbox_event` rows written.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "published": {
+            "description": "Filings published (adds + supersessions + changes).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "record_delta": {
+            "description": "Dry-run Gold-row delta the budget gate compared.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "regime_code": {
+            "description": "Adapter regime code, e.g. `us_house`, `br`.",
+            "type": "string"
+          },
+          "replayed": {
+            "description": "Already-published filings left untouched (invariant-4 evidence).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "review_tasks": {
+            "description": "`review_task` rows opened.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "scope": {
+            "description": "Optional scope note, e.g. `--uf SP` or `nationwide`.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "started_at": {
+            "description": "When the year's processing began.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "description": "`succeeded` | `skipped_budget` | `failed`.",
+            "type": "string"
+          },
+          "year": {
+            "description": "Archive / election year the run covered.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "regime_code",
+          "year",
+          "kind",
+          "bin",
+          "status",
+          "filings",
+          "published",
+          "replayed",
+          "gold_inserted",
+          "outbox_written",
+          "review_tasks",
+          "failed_count",
+          "record_delta",
+          "started_at",
+          "finished_at"
+        ],
+        "type": "object"
+      },
+      "AdminBlockedJurisdiction": {
+        "description": "One blocked jurisdiction with its recorded reason (A1/A5).",
+        "properties": {
+          "blocked_reason": {
+            "description": "Why the factory blocked it; `null` when no reason was recorded.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "jurisdiction_id": {
+            "description": "Jurisdiction id.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Jurisdiction display name.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "jurisdiction_id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "AdminBrCollisionSweep": {
+        "description": "br CPF collision sweep result (D3) — report-only, exactly like the\n`check-br-identity-collisions` bin: zero rows = PASS, rows = investigate.",
+        "properties": {
+          "collisions": {
+            "description": "The collision rows, when any.",
+            "items": {
+              "$ref": "#/components/schemas/AdminBrCpfCollision"
+            },
+            "type": "array"
+          },
+          "pass": {
+            "description": "`true` when zero collisions were found.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "pass",
+          "collisions"
+        ],
+        "type": "object"
+      },
+      "AdminBrCpfCollision": {
+        "description": "One politician whose `stg_br` rows carry more than one distinct CPF (D3).",
+        "properties": {
+          "canonical_name": {
+            "description": "Canonical name.",
+            "type": "string"
+          },
+          "cpfs": {
+            "description": "The CPF values themselves.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "distinct_cpfs": {
+            "description": "Distinct CPFs seen across the politician's filings.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "politician_id": {
+            "description": "Politician id.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "politician_id",
+          "canonical_name",
+          "distinct_cpfs",
+          "cpfs"
+        ],
+        "type": "object"
+      },
+      "AdminBudget": {
+        "description": "G1 — the monthly HARD CAP and the (unavailable) live spend.",
+        "properties": {
+          "hard_cap_usd": {
+            "description": "Monthly billing ceiling in USD, decimal string (never a float).",
+            "type": "string"
+          },
+          "live_spend": {
+            "description": "Live month-to-date spend in USD. Always `null` in v1 — no billing\nexport is wired; rendering a guess would violate fail-closed.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "live_spend_unavailable_reason": {
+            "description": "Why `live_spend` is `null`.",
+            "type": "string"
+          },
+          "source": {
+            "description": "Provenance of the cap figure.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "hard_cap_usd",
+          "source",
+          "live_spend_unavailable_reason"
+        ],
+        "type": "object"
+      },
+      "AdminBudgetSkip": {
+        "description": "One `BACKFILL_BUDGET skip:` guardrail trip from `agents/JOURNAL.md` (H3).",
+        "properties": {
+          "date": {
+            "description": "Journal entry date (the first `|`-separated field, trimmed).",
+            "type": "string"
+          },
+          "line": {
+            "description": "The journal line, verbatim.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "date",
+          "line"
+        ],
+        "type": "object"
+      },
+      "AdminCoverage": {
+        "description": "`GET /v1/admin/coverage` — the full section-A payload, one round trip.",
+        "properties": {
+          "blocked": {
+            "description": "A1/A5: blocked jurisdictions with reasons.",
+            "items": {
+              "$ref": "#/components/schemas/AdminBlockedJurisdiction"
+            },
+            "type": "array"
+          },
+          "bronze_unbridged": {
+            "description": "A3 honesty bucket: Bronze documents attributable to NO regime via the\nbridge (no fetch run, or an adapter that never produced a bridged\nfiling) — surfaced, never silently dropped.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "entities": {
+            "$ref": "#/components/schemas/AdminEntityInventory",
+            "description": "A6: entity inventory."
+          },
+          "generated_at": {
+            "description": "When this snapshot was computed.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "heatmap": {
+            "description": "A4: regime × year × `record_type` cells (rows with an `event_date`).",
+            "items": {
+              "$ref": "#/components/schemas/AdminHeatmapCell"
+            },
+            "type": "array"
+          },
+          "heatmap_missing_event_date": {
+            "description": "A4 honesty bucket: Gold rows with NULL `event_date`, which no heatmap\ncell can carry.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "phases": {
+            "description": "A1: jurisdictions per `coverage_phase`.",
+            "items": {
+              "$ref": "#/components/schemas/AdminPhaseCount"
+            },
+            "type": "array"
+          },
+          "regimes": {
+            "description": "A2/A3/A5: per-regime rollup (every regime row, even zero-data ones).",
+            "items": {
+              "$ref": "#/components/schemas/AdminRegimeCoverage"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "phases",
+          "blocked",
+          "regimes",
+          "bronze_unbridged",
+          "heatmap",
+          "heatmap_missing_event_date",
+          "entities"
+        ],
+        "type": "object"
+      },
+      "AdminDeadDelivery": {
+        "description": "One dead-lettered delivery (F3 DLQ surface).",
+        "properties": {
+          "alert_rule_id": {
+            "description": "The alert rule that fanned out.",
+            "type": "string"
+          },
+          "attempts": {
+            "description": "Attempts made before dead-lettering.",
+            "format": "int32",
+            "type": "integer"
+          },
+          "channel": {
+            "description": "`email` | `webhook`.",
+            "type": "string"
+          },
+          "id": {
+            "description": "Delivery ULID.",
+            "type": "string"
+          },
+          "last_error": {
+            "description": "Last error recorded by the dispatcher, verbatim.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "outbox_event_id": {
+            "description": "The outbox event that triggered it.",
+            "type": "string"
+          },
+          "updated_at": {
+            "description": "When the delivery last changed (the dead-lettering moment).",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "alert_rule_id",
+          "outbox_event_id",
+          "channel",
+          "attempts",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "AdminDeliveries": {
+        "description": "Delivery health (F3): status×channel grid, attempts histogram, recent DLQ.",
+        "properties": {
+          "attempts_histogram": {
+            "description": "Deliveries per attempt count.",
+            "items": {
+              "$ref": "#/components/schemas/AdminAttemptsBucket"
+            },
+            "type": "array"
+          },
+          "by_status_channel": {
+            "description": "Deliveries per (status, channel) cell.",
+            "items": {
+              "$ref": "#/components/schemas/AdminDeliveryStatusChannel"
+            },
+            "type": "array"
+          },
+          "recent_dead": {
+            "description": "The 10 most recently dead-lettered deliveries with their errors.",
+            "items": {
+              "$ref": "#/components/schemas/AdminDeadDelivery"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "by_status_channel",
+          "attempts_histogram",
+          "recent_dead"
+        ],
+        "type": "object"
+      },
+      "AdminDeliveryStatusChannel": {
+        "description": "Delivery count for one (status, channel) cell (F3).",
+        "properties": {
+          "channel": {
+            "description": "`email` | `webhook`.",
+            "type": "string"
+          },
+          "count": {
+            "description": "Deliveries in that cell.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "description": "`pending` | `pending_digest` | `sent` | `dead`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "channel",
+          "count"
+        ],
+        "type": "object"
+      },
+      "AdminDriftKindRow": {
+        "description": "Drift incidents for one kind (C3), across all regimes.",
+        "properties": {
+          "detections": {
+            "description": "Total detections across all reports of this kind (re-detections bump\nthe counter instead of duplicating rows).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "drift_kind": {
+            "description": "One of the six kinds (`layout_shift`, `count_zero`, `regime_change`,\n`status_error`, `probe_error`, `count_delta`).",
+            "type": "string"
+          },
+          "open_count": {
+            "description": "Reports currently `open`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "resolved_count": {
+            "description": "Reports `resolved`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "superseded_count": {
+            "description": "Reports `superseded`.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "drift_kind",
+          "open_count",
+          "resolved_count",
+          "superseded_count",
+          "detections"
+        ],
+        "type": "object"
+      },
+      "AdminEndpointCount": {
+        "description": "Request count for one endpoint (F1 top-endpoints board).",
+        "properties": {
+          "endpoint": {
+            "description": "Endpoint label as metered (`usage_event.endpoint`).",
+            "type": "string"
+          },
+          "requests": {
+            "description": "Requests over the window.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "endpoint",
+          "requests"
+        ],
+        "type": "object"
+      },
+      "AdminEntityInventory": {
+        "description": "Entity inventory (A6): reconciliation coverage plus the invariant-3\nnever-guess backlog.",
+        "properties": {
+          "instrument_isin_pct": {
+            "description": "Percent of instruments with an ISIN; `null` when there are none.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "instrument_ticker_pct": {
+            "description": "Percent of instruments with a ticker; `null` when there are none.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "instruments": {
+            "description": "Instruments in the registry.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "instruments_with_isin": {
+            "description": "Instruments carrying an ISIN.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "instruments_with_ticker": {
+            "description": "Instruments carrying a ticker.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "politician_wikidata_pct": {
+            "description": "Percent of politicians with a `wikidata_qid`; `null` when there are\nno politicians (no denominator, no made-up 0%).",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "politicians": {
+            "description": "Politicians in the registry.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "politicians_with_wikidata": {
+            "description": "Politicians carrying a `wikidata_qid`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "records_null_instrument": {
+            "description": "Gold rows with NULL `instrument_id` — the invariant-3 backlog\n(below-threshold matches stay NULL, never guessed).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "records_total": {
+            "description": "All Gold `disclosure_record` rows.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "politicians",
+          "politicians_with_wikidata",
+          "instruments",
+          "instruments_with_ticker",
+          "instruments_with_isin",
+          "records_total",
+          "records_null_instrument"
+        ],
+        "type": "object"
+      },
+      "AdminFailedRun": {
+        "description": "One failed `pipeline_run` (C4) — raw error text, no fragile\nclassification.",
+        "properties": {
+          "adapter": {
+            "description": "Adapter regime code.",
+            "type": "string"
+          },
+          "error": {
+            "description": "Error text as recorded, verbatim.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "description": "When the run finished, when recorded.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "Run ULID (time-sortable).",
+            "pattern": "^[0-7][0-9A-HJKMNP-TV-Z]{25}$",
+            "type": "string"
+          },
+          "stage": {
+            "description": "Pipeline stage that failed.",
+            "type": "string"
+          },
+          "started_at": {
+            "description": "When the run started.",
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "adapter",
+          "stage",
+          "started_at"
+        ],
+        "type": "object"
+      },
+      "AdminFetchDensityBucket": {
+        "description": "One (regime, hour) fetch-density bucket (plan B4 politeness proxy).",
+        "properties": {
+          "fetched": {
+            "description": "Documents fetched in the bucket.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "hour_start": {
+            "description": "Hour bucket start (UTC, `date_trunc('hour', fetched_at)`).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "regime_code": {
+            "description": "Adapter regime code.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "regime_code",
+          "hour_start",
+          "fetched"
+        ],
+        "type": "object"
+      },
+      "AdminFreezeBoardRow": {
+        "description": "One row of the adapter/freeze board (C1): sentinel state joined to its\nopen drift reports.",
+        "properties": {
+          "frozen": {
+            "description": "Whether the sentinel froze this regime's publication (design §5.6).",
+            "type": "boolean"
+          },
+          "frozen_at": {
+            "description": "When the freeze happened, when recorded.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "frozen_kind": {
+            "description": "Drift kind that froze it, when recorded.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_checked_at": {
+            "description": "When the sentinel last probed this source.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "open_drift_count": {
+            "description": "Open `drift_report` rows for this regime.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "regime_code": {
+            "description": "Adapter regime code (e.g. `us_house`).",
+            "type": "string"
+          },
+          "worst_open_drift_kind": {
+            "description": "Kind of the highest-priority open drift, when any is open.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "regime_code",
+          "frozen",
+          "last_checked_at",
+          "open_drift_count"
+        ],
+        "type": "object"
+      },
+      "AdminFrozenRegime": {
+        "description": "One regime the sentinel froze (design §5.6 fail-closed publication gate).",
+        "properties": {
+          "frozen_at": {
+            "description": "When the freeze happened, when recorded.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "frozen_kind": {
+            "description": "Drift kind that froze it (e.g. `layout_shift`), when recorded.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "regime_code": {
+            "description": "Adapter regime code (e.g. `us_house`).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "regime_code"
+        ],
+        "type": "object"
+      },
+      "AdminFunnelRow": {
+        "description": "One (adapter, stage) funnel cell (C2): run counts by status plus the\n`PublishStats` rollup for publish-stage cells.",
+        "properties": {
+          "adapter": {
+            "description": "Adapter regime code.",
+            "type": "string"
+          },
+          "candidates": {
+            "description": "Sum of `PublishStats.candidates`; `null` off the publish stage (the\njsonb keys only exist there — never guessed for other stages).",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "failed": {
+            "description": "Runs that `failed`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "gold_inserted": {
+            "description": "Sum of `PublishStats.gold_inserted`; `null` off the publish stage.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "outbox_written": {
+            "description": "Sum of `PublishStats.outbox_written`; `null` off the publish stage.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "review_tasks": {
+            "description": "Sum of `PublishStats.review_tasks`; `null` off the publish stage.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "running": {
+            "description": "Runs still `running`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "runs": {
+            "description": "Total runs recorded for the cell.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "stage": {
+            "description": "Pipeline stage (e.g. `fetch`, `publish`).",
+            "type": "string"
+          },
+          "succeeded": {
+            "description": "Runs that `succeeded`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "suppressed": {
+            "description": "Sum of `PublishStats.suppressed`; `null` off the publish stage.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "adapter",
+          "stage",
+          "runs",
+          "succeeded",
+          "failed",
+          "running"
+        ],
+        "type": "object"
+      },
+      "AdminGrowthDay": {
+        "description": "One day of Gold/filing growth (E2).",
+        "properties": {
+          "day": {
+            "description": "UTC calendar day.",
+            "format": "date",
+            "type": "string"
+          },
+          "filings": {
+            "description": "Filings discovered that day (`discovered_at` — `filing` has no\n`created_at` column; discovery time is the honest ingestion clock).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "gold_records": {
+            "description": "Gold `disclosure_record` rows created that day (`created_at`).",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "gold_records",
+          "filings"
+        ],
+        "type": "object"
+      },
+      "AdminHeatmapCell": {
+        "description": "One cell of the regime × year × `record_type` heatmap (A4).",
+        "properties": {
+          "record_type": {
+            "description": "Gold `record_type`.",
+            "type": "string"
+          },
+          "records": {
+            "description": "Records in the cell.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "regime_id": {
+            "description": "Gold `disclosure_regime` id.",
+            "type": "string"
+          },
+          "year": {
+            "description": "Calendar year of `event_date`.",
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "regime_id",
+          "year",
+          "record_type",
+          "records"
+        ],
+        "type": "object"
+      },
+      "AdminIdempotency": {
+        "description": "Idempotency evidence from `backfill_run` (D4, invariant 4).",
+        "properties": {
+          "note": {
+            "description": "Scope caveat rendered verbatim on the page.",
+            "type": "string"
+          },
+          "replayed_total": {
+            "description": "Sum of `replayed` — already-published filings re-runs left untouched.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "runs": {
+            "description": "`backfill_run` rows counted.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "runs",
+          "replayed_total",
+          "note"
+        ],
+        "type": "object"
+      },
+      "AdminInfra": {
+        "description": "Section G — money & infra, static v1.",
+        "properties": {
+          "budget": {
+            "$ref": "#/components/schemas/AdminBudget",
+            "description": "HARD CAP + live spend (G1)."
+          },
+          "environment": {
+            "description": "`cloud_run` when `K_SERVICE` is present in the process environment,\notherwise `local`.",
+            "type": "string"
+          },
+          "generated_at": {
+            "description": "When this snapshot was computed.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "queues": {
+            "description": "Cloud Tasks queue names as declared in terraform (G2).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "queues_source": {
+            "description": "Provenance of `queues` — a file mirror, not a GCP read.",
+            "type": "string"
+          },
+          "schedulers": {
+            "description": "Cloud Scheduler jobs as declared in terraform (G2).",
+            "items": {
+              "$ref": "#/components/schemas/AdminScheduler"
+            },
+            "type": "array"
+          },
+          "schedulers_source": {
+            "description": "Provenance of `schedulers` — a file mirror, not a GCP read.",
+            "type": "string"
+          },
+          "terraform_note": {
+            "description": "G3: terraform state is not surfaced in v1.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "generated_at",
+          "environment",
+          "budget",
+          "schedulers",
+          "schedulers_source",
+          "queues",
+          "queues_source",
+          "terraform_note"
+        ],
+        "type": "object"
+      },
+      "AdminLoop": {
+        "description": "Section H — autonomous-loop meta, one round trip.",
+        "properties": {
+          "budget_skips": {
+            "description": "`BACKFILL_BUDGET skip:` trips from `agents/JOURNAL.md`, in file\norder; `null` when the journal could not be read (an unreadable\njournal is stated, not rendered as \"no trips\").",
+            "items": {
+              "$ref": "#/components/schemas/AdminBudgetSkip"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "generated_at": {
+            "description": "When this snapshot was computed.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "git": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AdminLoopGit",
+                "description": "Git activity; `null` when any git subprocess failed (goals still\nrender — git absence is honest, not fatal)."
+              }
+            ]
+          },
+          "goals": {
+            "description": "Goal queue, in file order.",
+            "items": {
+              "$ref": "#/components/schemas/AdminLoopGoal"
+            },
+            "type": "array"
+          },
+          "repo_root": {
+            "description": "The repo checkout the metadata was read from (`GOVFOLIO_REPO_ROOT`).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "generated_at",
+          "repo_root",
+          "goals"
+        ],
+        "type": "object"
+      },
+      "AdminLoopCommit": {
+        "description": "One commit from `git log` (H2).",
+        "properties": {
+          "committed_at": {
+            "description": "Commit timestamp.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "sha": {
+            "description": "Full commit sha.",
+            "type": "string"
+          },
+          "subject": {
+            "description": "Subject line, verbatim.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha",
+          "committed_at",
+          "subject"
+        ],
+        "type": "object"
+      },
+      "AdminLoopGit": {
+        "description": "Git activity of the mounted checkout (H2).",
+        "properties": {
+          "branch": {
+            "description": "Current branch; `null` on a detached HEAD.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "commits": {
+            "description": "Last 20 commits, newest first.",
+            "items": {
+              "$ref": "#/components/schemas/AdminLoopCommit"
+            },
+            "type": "array"
+          },
+          "dirty_files": {
+            "description": "`git status --porcelain` line count (dirty paths).",
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "dirty_files",
+          "commits"
+        ],
+        "type": "object"
+      },
+      "AdminLoopGoal": {
+        "description": "One goal-queue entry from `agents/goals/000-INDEX.md` (H1).",
+        "properties": {
+          "halted": {
+            "description": "The line mentions `HALT` without a `HALT RESOLVED` marker.",
+            "type": "boolean"
+          },
+          "number": {
+            "description": "Goal number token as written (e.g. `080`, `E2+`).",
+            "type": "string"
+          },
+          "state": {
+            "description": "`done` (`[x]`) | `in_progress` (`[~]`) | `open` (`[ ]`).",
+            "type": "string"
+          },
+          "title": {
+            "description": "The rest of the line, verbatim.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "title",
+          "state",
+          "halted"
+        ],
+        "type": "object"
+      },
+      "AdminMimeCount": {
+        "description": "Bronze documents sharing one mime type (E1).",
+        "properties": {
+          "documents": {
+            "description": "Documents of this type.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "mime_type": {
+            "description": "The stored `mime_type`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "mime_type",
+          "documents"
+        ],
+        "type": "object"
+      },
+      "AdminOverview": {
+        "description": "The whole status strip in one round trip.",
+        "properties": {
+          "frozen_regimes": {
+            "description": "Regimes currently frozen by the sentinel; empty = nothing frozen.",
+            "items": {
+              "$ref": "#/components/schemas/AdminFrozenRegime"
+            },
+            "type": "array"
+          },
+          "generated_at": {
+            "description": "When this snapshot was assembled (server clock, UTC).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "last_sentinel_check": {
+            "description": "Latest `sentinel_watch.last_checked_at` across all regimes; `null`\nwhen the sentinel has never run (honest absence, not zero).",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "queue_depths": {
+            "$ref": "#/components/schemas/AdminQueueDepths",
+            "description": "Every operational queue depth (plan B5)."
+          },
+          "runs_24h": {
+            "$ref": "#/components/schemas/AdminRuns24h",
+            "description": "`pipeline_run` counts by status, trailing 24 hours."
+          }
+        },
+        "required": [
+          "generated_at",
+          "queue_depths",
+          "runs_24h",
+          "frozen_regimes"
+        ],
+        "type": "object"
+      },
+      "AdminPgStats": {
+        "description": "Postgres physical stats (E3), straight from `pg_catalog`.",
+        "properties": {
+          "database_size_bytes": {
+            "description": "`pg_database_size(current_database())`, in bytes.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "top_tables": {
+            "description": "Top 25 tables by total relation size, largest first.",
+            "items": {
+              "$ref": "#/components/schemas/AdminPgTable"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "database_size_bytes",
+          "top_tables"
+        ],
+        "type": "object"
+      },
+      "AdminPgTable": {
+        "description": "One of the 25 largest tables by total relation size (E3).",
+        "properties": {
+          "dead_tuples": {
+            "description": "`pg_stat_user_tables.n_dead_tup` (statistics estimate).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "live_tuples": {
+            "description": "`pg_stat_user_tables.n_live_tup` (statistics estimate).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "table_name": {
+            "description": "Table name.",
+            "type": "string"
+          },
+          "total_bytes": {
+            "description": "`pg_total_relation_size` — heap + indexes + TOAST, in bytes.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "table_name",
+          "total_bytes",
+          "live_tuples",
+          "dead_tuples"
+        ],
+        "type": "object"
+      },
+      "AdminPhaseCount": {
+        "description": "One `coverage_phase` bucket of the jurisdiction registry (A1).",
+        "properties": {
+          "jurisdictions": {
+            "description": "Jurisdictions currently in this phase.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "phase": {
+            "description": "The §5.8 state-machine phase (`stub` … `live` | `blocked`).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "phase",
+          "jurisdictions"
+        ],
+        "type": "object"
+      },
+      "AdminPipeline": {
+        "description": "Section C in one round trip.",
+        "properties": {
+          "conformance_note": {
+            "description": "C5 honesty caption: conformance is run locally, not recorded.",
+            "type": "string"
+          },
+          "drift_by_kind": {
+            "description": "Drift incidents by kind (C3).",
+            "items": {
+              "$ref": "#/components/schemas/AdminDriftKindRow"
+            },
+            "type": "array"
+          },
+          "freeze_board": {
+            "description": "Adapter/freeze board (C1), frozen regimes first.",
+            "items": {
+              "$ref": "#/components/schemas/AdminFreezeBoardRow"
+            },
+            "type": "array"
+          },
+          "funnel": {
+            "description": "Stage funnel per adapter (C2).",
+            "items": {
+              "$ref": "#/components/schemas/AdminFunnelRow"
+            },
+            "type": "array"
+          },
+          "generated_at": {
+            "description": "When this snapshot was assembled (server clock, UTC).",
+            "format": "date-time",
+            "type": "string"
+          },
+          "recent_failures": {
+            "description": "Last 25 failed runs, newest first (C4).",
+            "items": {
+              "$ref": "#/components/schemas/AdminFailedRun"
+            },
+            "type": "array"
+          },
+          "supersede_activity": {
+            "description": "Supersede activity per month, newest first (C6).",
+            "items": {
+              "$ref": "#/components/schemas/AdminSupersedeMonth"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "freeze_board",
+          "funnel",
+          "drift_by_kind",
+          "recent_failures",
+          "conformance_note",
+          "supersede_activity"
+        ],
+        "type": "object"
+      },
+      "AdminPrecisionMonth": {
+        "description": "Current-month sampling-audit precision (D6, design §7.4).",
+        "properties": {
+          "regimes": {
+            "description": "Per-regime estimates; empty when no batch was drawn this month.",
+            "items": {
+              "$ref": "#/components/schemas/AdminRegimePrecision"
+            },
+            "type": "array"
+          },
+          "sample_month": {
+            "description": "The batch label, `YYYY-MM` (the database's current month).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sample_month",
+          "regimes"
+        ],
+        "type": "object"
+      },
+      "AdminQuality": {
+        "description": "`GET /v1/admin/quality` — the full section-D payload, one round trip.",
+        "properties": {
+          "collision_sweep": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/AdminBrCollisionSweep",
+                "description": "D3: only present when the request opted in with `?sweep=br`."
+              }
+            ]
+          },
+          "generated_at": {
+            "description": "When this snapshot was computed.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "idempotency": {
+            "$ref": "#/components/schemas/AdminIdempotency",
+            "description": "D4: replay counters from `backfill_run`."
+          },
+          "open_age_buckets": {
+            "$ref": "#/components/schemas/AdminAgeBuckets",
+            "description": "D1: open-queue age distribution."
+          },
+          "open_by_reason": {
+            "description": "D1: open tasks by reason, most common first.",
+            "items": {
+              "$ref": "#/components/schemas/AdminReasonCount"
+            },
+            "type": "array"
+          },
+          "open_by_target_kind": {
+            "description": "D1: open tasks by target kind, most common first.",
+            "items": {
+              "$ref": "#/components/schemas/AdminTargetKindCount"
+            },
+            "type": "array"
+          },
+          "precision_current_month": {
+            "$ref": "#/components/schemas/AdminPrecisionMonth",
+            "description": "D6: current-month precision estimates."
+          },
+          "raw_retention": {
+            "$ref": "#/components/schemas/AdminRawRetention",
+            "description": "D5: raw-retention spot check."
+          },
+          "resolution_30d": {
+            "$ref": "#/components/schemas/AdminResolution30d",
+            "description": "D1: 30-day resolution throughput + verdict mix."
+          },
+          "unlinked_instruments": {
+            "$ref": "#/components/schemas/AdminUnlinkedInstruments",
+            "description": "D2: NULL-instrument backlog."
+          }
+        },
+        "required": [
+          "generated_at",
+          "open_by_reason",
+          "open_by_target_kind",
+          "open_age_buckets",
+          "resolution_30d",
+          "unlinked_instruments",
+          "precision_current_month",
+          "idempotency",
+          "raw_retention"
+        ],
+        "type": "object"
+      },
+      "AdminQueueDepths": {
+        "description": "Every operational queue depth on one row (plan B5). Shared verbatim with\n`/v1/admin/backfill` so the two surfaces can never disagree on shape.",
+        "properties": {
+          "delivery_dlq": {
+            "description": "Dead-letter deliveries (`delivery.status = 'dead'`).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "drift_open": {
+            "description": "Open `drift_report` rows.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "outbox_undispatched": {
+            "description": "`outbox_event` rows not yet dispatched.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pipeline_failed": {
+            "description": "`pipeline_run` rows that ended `failed`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "pipeline_running": {
+            "description": "`pipeline_run` rows still `running`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "review_open": {
+            "description": "Open `review_task` rows.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "sample_pending": {
+            "description": "`sample_audit` rows still awaiting an audit verdict.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "usage_unbilled": {
+            "description": "`usage_event` rows not yet folded into a `usage_report`.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "outbox_undispatched",
+          "review_open",
+          "drift_open",
+          "sample_pending",
+          "delivery_dlq",
+          "usage_unbilled",
+          "pipeline_running",
+          "pipeline_failed"
+        ],
+        "type": "object"
+      },
+      "AdminRawRetention": {
+        "description": "Raw-retention spot check (D5, invariant 2).",
+        "properties": {
+          "linked_to_filing": {
+            "description": "Distinct documents referenced by at least one filing.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "orphaned": {
+            "description": "Documents no filing references (fetched but not yet promoted, or\nevidence-only captures) — retained either way, Bronze is immutable.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "raw_documents": {
+            "description": "All Bronze `raw_document` rows.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "raw_documents",
+          "linked_to_filing",
+          "orphaned"
+        ],
+        "type": "object"
+      },
+      "AdminReasonCount": {
+        "description": "Open review tasks sharing one `reason` (D1).",
+        "properties": {
+          "reason": {
+            "description": "Why the tasks were opened (e.g. `ptr_amendment_unlinked`).",
+            "type": "string"
+          },
+          "tasks": {
+            "description": "Open tasks with this reason.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "tasks"
+        ],
+        "type": "object"
+      },
+      "AdminRegimeCompletion": {
+        "description": "Historical completion for one regime (plan B2): what the data says vs the\ndeclared v1 target.",
+        "properties": {
+          "missing_years": {
+            "description": "Target years with no filing data yet — the \"what's left\" list.",
+            "items": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "regime_code": {
+            "description": "Adapter regime code.",
+            "type": "string"
+          },
+          "target_years": {
+            "description": "Declared v1 target years (see `targets_note`); empty = no declared\ntarget for this regime.",
+            "items": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "years_succeeded": {
+            "description": "Years with at least one succeeded `backfill_run` (kind `backfill`);\npre-0011 history is log-only, so early years may show data without a\nrun row.",
+            "items": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "years_with_data": {
+            "description": "Years with at least one filing on record (by `filing.filed_date` via\nthe provenance bridge; filings without a `filed_date` are not counted).",
+            "items": {
+              "format": "int32",
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "regime_code",
+          "target_years",
+          "years_with_data",
+          "years_succeeded",
+          "missing_years"
+        ],
+        "type": "object"
+      },
+      "AdminRegimeCoverage": {
+        "description": "Per-regime coverage rollup (A2/A3/A5): window, tier counts, gap flags.",
+        "properties": {
+          "body": {
+            "description": "Regime body (e.g. `US House`).",
+            "type": "string"
+          },
+          "bronze_documents": {
+            "description": "Bronze documents fetched by this regime's bridged adapter(s); `null`\nwhen the regime is unbridged (count not attributable, never guessed).",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "built_not_backfilled": {
+            "description": "A5 gap flag: the jurisdiction reached `built`/`live` but the regime\nhas zero Gold records — built, not yet backfilled.",
+            "type": "boolean"
+          },
+          "coverage_phase": {
+            "description": "The jurisdiction's `coverage_phase`.",
+            "type": "string"
+          },
+          "filings": {
+            "description": "Filings under this regime.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "first_filed_date": {
+            "description": "Earliest `filed_date` seen; `null` when no filing carries one.",
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "gold_records": {
+            "description": "Gold `disclosure_record` rows under this regime.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "jurisdiction_id": {
+            "description": "Owning jurisdiction id.",
+            "type": "string"
+          },
+          "jurisdiction_name": {
+            "description": "Owning jurisdiction name.",
+            "type": "string"
+          },
+          "last_filed_date": {
+            "description": "Latest `filed_date` seen; `null` when no filing carries one.",
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "politicians": {
+            "description": "Distinct politicians with at least one filing under this regime.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "record_types": {
+            "description": "Distinct Gold `record_type`s observed under this regime.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "regime_codes": {
+            "description": "Adapter regime codes provenance bridged to this regime\n(`filing → raw_document → pipeline_run.adapter`); empty = unbridged\n(e.g. fixture-seeded documents with no fetch run).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "regime_id": {
+            "description": "Gold `disclosure_regime` id.",
+            "type": "string"
+          },
+          "silver_rows": {
+            "description": "Silver staging rows. Only `stg_us_house` and `stg_br` exist today, so\nthis is `null` for every other regime — a missing staging table is\nreported as unavailable, not zero.",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "regime_id",
+          "body",
+          "jurisdiction_id",
+          "jurisdiction_name",
+          "coverage_phase",
+          "regime_codes",
+          "politicians",
+          "filings",
+          "gold_records",
+          "record_types",
+          "built_not_backfilled"
+        ],
+        "type": "object"
+      },
+      "AdminRegimeFreshness": {
+        "description": "Freshness of one source (plan B3): sentinel check, last fetch, last\ndiscovery, and the filing lag percentiles.",
+        "properties": {
+          "lag_p50_seconds": {
+            "description": "p50 of `discovered_at - published_at` in seconds; `null` when no\nfiling carries a `published_at`.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "lag_p90_seconds": {
+            "description": "p90 of `discovered_at - published_at` in seconds; `null` when no\nfiling carries a `published_at`.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "last_discovered_at": {
+            "description": "Latest `filing.discovered_at` (our latency, honestly).",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_fetched_at": {
+            "description": "Latest `raw_document.fetched_at` for this source's fetch runs.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "regime_code": {
+            "description": "Adapter regime code.",
+            "type": "string"
+          },
+          "sentinel_last_checked_at": {
+            "description": "`sentinel_watch.last_checked_at`; `null` = the sentinel has never\nprobed this source.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "regime_code"
+        ],
+        "type": "object"
+      },
+      "AdminRegimePrecision": {
+        "description": "One regime's precision estimate in the current sampling batch (D6).",
+        "properties": {
+          "audited": {
+            "description": "Draws already audited.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "body": {
+            "description": "Regime body (e.g. `US House`).",
+            "type": "string"
+          },
+          "discrepancies": {
+            "description": "Audited draws found discrepant.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "precision_estimate": {
+            "description": "`(audited - discrepancies) / audited`; `null` until something is\naudited (no estimate is invented from zero evidence).",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "regime_id": {
+            "description": "Gold `disclosure_regime` id.",
+            "type": "string"
+          },
+          "sampled": {
+            "description": "Records drawn this month.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "regime_id",
+          "body",
+          "sampled",
+          "audited",
+          "discrepancies"
+        ],
+        "type": "object"
+      },
+      "AdminResolution30d": {
+        "description": "30-day resolution throughput (D1), from `review_audit` applied attempts\njoined to their tasks' `resolved_at`.",
+        "properties": {
+          "median_hours_to_resolve": {
+            "description": "Median hours from task creation to resolution (`percentile_cont`);\n`null` when nothing resolved in the window.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "resolved_tasks": {
+            "description": "Distinct tasks resolved via an applied attempt in the last 30 days.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "verdicts": {
+            "description": "Applied verdicts by kind in the window.",
+            "items": {
+              "$ref": "#/components/schemas/AdminVerdictCount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "resolved_tasks",
+          "verdicts"
+        ],
+        "type": "object"
+      },
+      "AdminRuns24h": {
+        "description": "`pipeline_run` counts by status over the trailing 24 hours (by\n`started_at`).",
+        "properties": {
+          "failed": {
+            "description": "Runs that `failed`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "running": {
+            "description": "Runs still `running`.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "succeeded": {
+            "description": "Runs that `succeeded`.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "running",
+          "succeeded",
+          "failed"
+        ],
+        "type": "object"
+      },
+      "AdminScheduler": {
+        "description": "One Cloud Scheduler job as declared in terraform (static mirror, not a\nlive GCP read).",
+        "properties": {
+          "description": {
+            "description": "Job description as declared.",
+            "type": "string"
+          },
+          "name": {
+            "description": "Job name (e.g. `govfolio-discover-tier1`).",
+            "type": "string"
+          },
+          "paused": {
+            "description": "Declared paused state (`true` for every job in v1 — unpausing is the\nexplicit go-live act).",
+            "type": "boolean"
+          },
+          "schedule": {
+            "description": "Cron schedule as declared.",
+            "type": "string"
+          },
+          "time_zone": {
+            "description": "Schedule time zone.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "schedule",
+          "time_zone",
+          "paused",
+          "description"
+        ],
+        "type": "object"
+      },
+      "AdminSchemeCount": {
+        "description": "Bronze documents sharing one storage scheme (E1). Doubles as the\ncloud-migration progress readout (`gs` vs `local`).",
+        "properties": {
+          "documents": {
+            "description": "Documents stored under this scheme.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "scheme": {
+            "description": "URI scheme of `storage_uri` (e.g. `gs`); plain paths report `local`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scheme",
+          "documents"
+        ],
+        "type": "object"
+      },
+      "AdminServing": {
+        "description": "Section F — serving & product, one round trip.",
+        "properties": {
+          "accounts": {
+            "$ref": "#/components/schemas/AdminAccounts",
+            "description": "Accounts, keys and subscriptions."
+          },
+          "alert_latency": {
+            "$ref": "#/components/schemas/AdminAlertLatency",
+            "description": "Alert pipeline latency percentiles."
+          },
+          "deliveries": {
+            "$ref": "#/components/schemas/AdminDeliveries",
+            "description": "Delivery health and DLQ."
+          },
+          "generated_at": {
+            "description": "When this snapshot was computed.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "latency_note": {
+            "description": "Honest gap: per-request API latency is not recorded anywhere.",
+            "type": "string"
+          },
+          "top_endpoints_7d": {
+            "description": "Top 10 endpoints by request count, last 7 days.",
+            "items": {
+              "$ref": "#/components/schemas/AdminEndpointCount"
+            },
+            "type": "array"
+          },
+          "usage_by_day": {
+            "description": "Authenticated requests per day, last 14 days (days with zero metered\nrequests are absent).",
+            "items": {
+              "$ref": "#/components/schemas/AdminUsageDay"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "usage_by_day",
+          "top_endpoints_7d",
+          "accounts",
+          "alert_latency",
+          "deliveries",
+          "latency_note"
+        ],
+        "type": "object"
+      },
+      "AdminStorage": {
+        "description": "`GET /v1/admin/storage` — the full section-E payload, one round trip.",
+        "properties": {
+          "bronze_by_mime": {
+            "description": "E1: Bronze documents by mime type, most common first.",
+            "items": {
+              "$ref": "#/components/schemas/AdminMimeCount"
+            },
+            "type": "array"
+          },
+          "bronze_by_scheme": {
+            "description": "E1: Bronze documents by storage scheme, most common first.",
+            "items": {
+              "$ref": "#/components/schemas/AdminSchemeCount"
+            },
+            "type": "array"
+          },
+          "bronze_note": {
+            "description": "E1 caveat rendered verbatim on the page.",
+            "type": "string"
+          },
+          "generated_at": {
+            "description": "When this snapshot was computed.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "growth_30d": {
+            "description": "E2: per-day growth over the last 30 days (days with zero activity on\nboth clocks are absent, not fabricated).",
+            "items": {
+              "$ref": "#/components/schemas/AdminGrowthDay"
+            },
+            "type": "array"
+          },
+          "pg": {
+            "$ref": "#/components/schemas/AdminPgStats",
+            "description": "E3: Postgres physical stats."
+          },
+          "table_rows": {
+            "description": "Exact row counts of every schema table, largest first.",
+            "items": {
+              "$ref": "#/components/schemas/AdminTableRowCount"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "generated_at",
+          "bronze_by_mime",
+          "bronze_by_scheme",
+          "bronze_note",
+          "table_rows",
+          "growth_30d",
+          "pg"
+        ],
+        "type": "object"
+      },
+      "AdminSupersedeMonth": {
+        "description": "Supersede activity for one month (C6, invariant-1 evidence): corrections\ninsert superseding rows, never update.",
+        "properties": {
+          "amended_filings": {
+            "description": "Amended filings discovered that month (`supersedes_filing_id` set, by\n`discovered_at`).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "month": {
+            "description": "Month label, `YYYY-MM` (UTC).",
+            "type": "string"
+          },
+          "superseding_records": {
+            "description": "`disclosure_record` rows inserted as supersessions that month (by\n`created_at`).",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "superseding_records",
+          "amended_filings"
+        ],
+        "type": "object"
+      },
+      "AdminTableRowCount": {
+        "description": "Exact row count of one key table.",
+        "properties": {
+          "row_count": {
+            "description": "Exact `count(*)` at snapshot time.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "table_name": {
+            "description": "Table name.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "table_name",
+          "row_count"
+        ],
+        "type": "object"
+      },
+      "AdminTargetKindCount": {
+        "description": "Open review tasks sharing one `target_kind` (D1).",
+        "properties": {
+          "target_kind": {
+            "description": "What the tasks target (e.g. `disclosure_record`).",
+            "type": "string"
+          },
+          "tasks": {
+            "description": "Open tasks with this target kind.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "target_kind",
+          "tasks"
+        ],
+        "type": "object"
+      },
+      "AdminTierCount": {
+        "description": "Account count for one tier.",
+        "properties": {
+          "tier": {
+            "description": "`free` | `pro` | `data`.",
+            "type": "string"
+          },
+          "users": {
+            "description": "Accounts on that tier.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tier",
+          "users"
+        ],
+        "type": "object"
+      },
+      "AdminUnlinkedInstruments": {
+        "description": "NULL-instrument Gold rows (D2) — the invariant-3 never-guess backlog.",
+        "properties": {
+          "bond": {
+            "description": "Listed breakdown: bond.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "equity": {
+            "description": "Listed breakdown: equity.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "fund": {
+            "description": "Listed breakdown: fund.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "listed": {
+            "description": "The listed subset (asset classes equity/bond/fund/option) — the rows\na reference-data match could plausibly link.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "option": {
+            "description": "Listed breakdown: option.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "total": {
+            "description": "All Gold rows with NULL `instrument_id`.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "listed",
+          "equity",
+          "bond",
+          "fund",
+          "option"
+        ],
+        "type": "object"
+      },
+      "AdminUsageDay": {
+        "description": "Authenticated API requests on one day (F1; `usage_event` rows).",
+        "properties": {
+          "day": {
+            "description": "The day (UTC date of `occurred_at`).",
+            "format": "date",
+            "type": "string"
+          },
+          "requests": {
+            "description": "Authenticated requests metered that day.",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "requests"
+        ],
+        "type": "object"
+      },
+      "AdminVerdictCount": {
+        "description": "Applied verdicts of one kind in the last 30 days (D1).",
+        "properties": {
+          "attempts": {
+            "description": "Applied attempts carrying this verdict.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "verdict": {
+            "description": "`confirm` | `edit` | `reject`.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verdict",
+          "attempts"
+        ],
+        "type": "object"
+      },
       "AlertChannel": {
         "description": "One delivery channel of an alert rule (`alert_rule.channels` element).",
         "oneOf": [
@@ -261,7 +2543,8 @@
         "enum": [
           "EUR",
           "GBP",
-          "USD"
+          "USD",
+          "BRL"
         ],
         "type": "string"
       },
@@ -1584,6 +3867,414 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/admin/backfill": {
+      "get": {
+        "description": "# Errors\n`401` without a valid `X-Admin-Token` (the gate wraps the whole admin\nsubtree); `500` on backend failure — all in the consistent envelope.",
+        "operationId": "admin_backfill",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBackfill"
+                }
+              }
+            },
+            "description": "The backfill & ingestion snapshot"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Section B — backfill & ingestion: run history, completion vs declared\ntargets, per-source freshness + lag percentiles, the fetch-density\npoliteness proxy, and queue depths — one round trip.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/coverage": {
+      "get": {
+        "description": "# Errors\n`401` without a valid `X-Admin-Token` (enforced by the route-layer gate);\n`500` on backend failure — all in the consistent error envelope.",
+        "operationId": "admin_coverage",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCoverage"
+                }
+              }
+            },
+            "description": "Coverage & inventory: phases, blocked list, per-regime rollup, heatmap, entity inventory"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Section-A coverage & inventory snapshot (admin dashboard `/admin/coverage`).",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/infra": {
+      "get": {
+        "operationId": "admin_infra",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminInfra"
+                }
+              }
+            },
+            "description": "Money & infra snapshot (static mirror)"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid admin token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Money & infra observability (section G), static v1: HARD CAP, terraform\nscheduler/queue mirror, environment badge. Touches no GCP APIs and never\nerrors locally.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/loop": {
+      "get": {
+        "description": "# Errors\n`503` when `GOVFOLIO_REPO_ROOT` is not configured (the cloud posture — by\ndesign); `500` when the goal index cannot be read or parsed — consistent\nerror envelope.",
+        "operationId": "admin_loop",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminLoop"
+                }
+              }
+            },
+            "description": "Autonomous-loop meta snapshot"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid admin token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "GOVFOLIO_REPO_ROOT is not set (cloud posture)"
+          }
+        },
+        "summary": "Autonomous-loop meta (section H): goal queue with HALT detection, git\nactivity, guardrail trips. Only available where the repo checkout is\nmounted (`GOVFOLIO_REPO_ROOT`).",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/overview": {
+      "get": {
+        "description": "# Errors\n`401` without a valid `X-Admin-Token` (the gate wraps the whole admin\nsubtree); `500` on backend failure — all in the consistent envelope.",
+        "operationId": "admin_overview",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOverview"
+                }
+              }
+            },
+            "description": "The status strip snapshot"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "The admin status strip: queue depths, 24h run counts, frozen regimes,\nlast sentinel check — one round trip, cheap indexed counts only.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/pipeline": {
+      "get": {
+        "description": "# Errors\n`401` without a valid `X-Admin-Token` (the gate wraps the whole admin\nsubtree); `500` on backend failure — all in the consistent envelope.",
+        "operationId": "admin_pipeline",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPipeline"
+                }
+              }
+            },
+            "description": "The pipeline-health snapshot"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Section C — pipeline health: freeze board, stage funnel, drift by kind,\nrecent failures, conformance note, supersede activity — one round trip.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/quality": {
+      "get": {
+        "description": "# Errors\n`400` on an unsupported `sweep` value; `401` without a valid\n`X-Admin-Token` (enforced by the route-layer gate); `500` on backend\nfailure — all in the consistent error envelope.",
+        "operationId": "admin_quality",
+        "parameters": [
+          {
+            "description": "Opt-in expensive sweep. The only supported value is `br` (the CPF\ncollision sweep); anything else is a 400.",
+            "in": "query",
+            "name": "sweep",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminQuality"
+                }
+              }
+            },
+            "description": "Data quality & review ops: queue analytics, unlinked backlog, precision, idempotency, raw retention, optional br sweep"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unsupported sweep value"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Section-D data-quality & review-ops snapshot (admin dashboard\n`/admin/quality`).",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/serving": {
+      "get": {
+        "description": "# Errors\n`500` on backend failure — consistent error envelope.",
+        "operationId": "admin_serving",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminServing"
+                }
+              }
+            },
+            "description": "Serving & product snapshot"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid admin token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Serving & product observability (section F) in one round trip: API usage,\naccounts, alert latency percentiles and delivery health.",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/v1/admin/storage": {
+      "get": {
+        "description": "# Errors\n`401` without a valid `X-Admin-Token` (enforced by the route-layer gate);\n`500` on backend failure — all in the consistent error envelope.",
+        "operationId": "admin_storage",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminStorage"
+                }
+              }
+            },
+            "description": "Storage & tiers: Bronze counts by mime/scheme, exact table rows, 30d growth, Postgres physical stats"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          }
+        },
+        "summary": "Section-E storage & tiers snapshot (admin dashboard `/admin/storage`).",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/v1/alert-rules": {
       "get": {
         "description": "# Errors\n`401`/`403` without a pro/data key; `500` on backend failure.",
@@ -3012,6 +5703,10 @@
     {
       "description": "Admin review queue (design §7.1–7.2), X-Admin-Token gated: priority-ranked tasks with REAL-TIME record context and extraction evidence; resolutions go through the pipeline promote path (supersede-never-update) and every attempt is audit-logged.",
       "name": "review"
+    },
+    {
+      "description": "Admin observability dashboard (X-Admin-Token gated, READ-ONLY): nine composite snapshots — overview status strip, coverage & inventory, backfill & ingestion, pipeline health, data quality & review ops, storage & tiers, serving & product, money & infra (static v1), and autonomous-loop meta (503 without GOVFOLIO_REPO_ROOT, by design). Metrics that cannot be observed are explicit unavailable states, never guessed.",
+      "name": "admin"
     }
   ]
 }

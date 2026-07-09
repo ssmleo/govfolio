@@ -46,6 +46,9 @@ use br::BrAdapter;
 use br::seed::seed_candidates_year;
 use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx, ScratchDir};
 use pipeline::stages::seed::seed_regime;
+use worker::backfill::{
+    BackfillRunKind, BackfillRunRecord, BackfillRunStatus, counter_i64, record_backfill_run,
+};
 
 struct Args {
     from: i32,
@@ -92,6 +95,10 @@ fn parse_args() -> anyhow::Result<Args> {
 }
 
 #[tokio::main]
+// The per-year `backfill_run` observability rows (plan §Architecture 3)
+// push this otherwise-unchanged seed loop a few lines past the limit — the
+// same shape and justification as `bin/backfill-real.rs`'s own allow.
+#[allow(clippy::too_many_lines)]
 async fn main() -> anyhow::Result<()> {
     let args = parse_args()?;
     let database_url =
@@ -121,10 +128,20 @@ async fn main() -> anyhow::Result<()> {
         Clock::System,
         &adapter.politeness(),
     )?;
+    // The scope note every backfill_run row carries (migration 0011's own
+    // vocabulary): the --uf bound when set, nationwide otherwise.
+    let scope = if args.ufs.is_empty() {
+        "nationwide".to_owned()
+    } else {
+        format!("--uf {}", args.ufs.join(","))
+    };
     let mut total_inserted = 0u32;
     let mut total_errors = 0usize;
     let mut failed_years = 0usize;
     for year in args.from..=args.to {
+        // Admin observability (plan §Architecture 3): each arm below records
+        // one per-year `backfill_run` row (kind='seed').
+        let started_at = chrono::Utc::now();
         match seed_candidates_year(&adapter, &ctx, &pool, year, &args.ufs).await {
             Ok(result) => {
                 println!(
@@ -143,11 +160,50 @@ async fn main() -> anyhow::Result<()> {
                         error.filed_alias, error.district, error.error
                     );
                 }
+                record_backfill_run(
+                    &pool,
+                    &BackfillRunRecord {
+                        scope: Some(scope.clone()),
+                        failed_count: counter_i64(result.errors.len()),
+                        details: serde_json::json!({
+                            "discovered": result.discovered,
+                            "considered": result.considered,
+                            "seeded": result.inserted,
+                            "skipped_other_cargo": result.skipped_other_cargo,
+                            "errors": result.errors.len(),
+                        }),
+                        ..BackfillRunRecord::new(
+                            "br",
+                            year,
+                            BackfillRunKind::Seed,
+                            "seed-br-candidates",
+                            BackfillRunStatus::Succeeded,
+                            started_at,
+                        )
+                    },
+                )
+                .await?;
                 total_inserted += result.inserted;
                 total_errors += result.errors.len();
             }
             Err(error) => {
                 eprintln!("{year}: FAILED CLOSED — {error:#}");
+                record_backfill_run(
+                    &pool,
+                    &BackfillRunRecord {
+                        scope: Some(scope.clone()),
+                        error: Some(format!("{error:#}")),
+                        ..BackfillRunRecord::new(
+                            "br",
+                            year,
+                            BackfillRunKind::Seed,
+                            "seed-br-candidates",
+                            BackfillRunStatus::Failed,
+                            started_at,
+                        )
+                    },
+                )
+                .await?;
                 failed_years += 1;
             }
         }

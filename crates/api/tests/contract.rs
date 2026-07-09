@@ -1589,6 +1589,114 @@ async fn resolve_edit_supersedes_through_promote_and_audits_failures(pool: PgPoo
     );
 }
 
+// ------------------------------------------ admin observability surface --
+
+/// The eight admin snapshot doors that answer 200 with only a database (the
+/// ninth, `/v1/admin/loop`, is repo-root-gated and probed separately).
+const ADMIN_DB_PATHS: [&str; 8] = [
+    "/v1/admin/overview",
+    "/v1/admin/coverage",
+    "/v1/admin/backfill",
+    "/v1/admin/pipeline",
+    "/v1/admin/quality",
+    "/v1/admin/storage",
+    "/v1/admin/serving",
+    "/v1/admin/infra",
+];
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn admin_observability_endpoints_gate_and_match_the_contract(pool: PgPool) {
+    seed_via_pipeline(&pool).await;
+    let app = test_app(&pool);
+    let doc = openapi_doc();
+
+    // Without the token: 401 in the envelope, fail closed — the admin
+    // surface must not leak a byte of operational data.
+    let err = validator_for(&doc, "/v1/admin/overview", "401");
+    let response = app
+        .clone()
+        .oneshot(
+            Request::get("/v1/admin/overview")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    let body: Value = serde_json::from_slice(&bytes).unwrap();
+    assert_valid(&err, &body);
+    assert_eq!(body["error"]["code"], "admin_token_required");
+
+    // With the token: every DB-backed door answers 200 and validates against
+    // the emitted schema.
+    for path in ADMIN_DB_PATHS {
+        let ok = validator_for(&doc, path, "200");
+        assert!(
+            ok.validate(&json!({ "generated_at": "not-even-close" }))
+                .is_err(),
+            "the contract validator must have teeth: {path}"
+        );
+        let (status, body) = get(&app, path).await;
+        assert_eq!(status, StatusCode::OK, "{path}: {body:#}");
+        assert_valid(&ok, &body);
+    }
+
+    // Spot checks that the snapshots carry the seeded reality, not shapes
+    // alone: the pipeline run opened one review task and published 13 rows.
+    let (_, overview) = get(&app, "/v1/admin/overview").await;
+    assert_eq!(overview["queue_depths"]["review_open"], json!(1));
+    let (_, coverage) = get(&app, "/v1/admin/coverage").await;
+    let us_house = coverage["regimes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|r| r["body"] == json!("US House"))
+        .unwrap();
+    assert_eq!(us_house["gold_records"], json!(13));
+    assert_eq!(us_house["regime_codes"], json!(["us_house"]));
+
+    // The opt-in br sweep: contract-valid; zero collisions on fixture data.
+    let ok = validator_for(&doc, "/v1/admin/quality", "200");
+    let (status, body) = get(&app, "/v1/admin/quality?sweep=br").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_valid(&ok, &body);
+    assert_eq!(body["collision_sweep"]["pass"], json!(true));
+    // An unknown sweep fails closed: 400 in the envelope, no partial answer.
+    let err = validator_for(&doc, "/v1/admin/quality", "400");
+    let (status, body) = get(&app, "/v1/admin/quality?sweep=bogus").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_valid(&err, &body);
+    assert_eq!(body["error"]["code"], "invalid_sweep");
+
+    // /v1/admin/loop without GOVFOLIO_REPO_ROOT: 503 by design (the cloud
+    // posture), in the envelope.
+    let unavailable = validator_for(&doc, "/v1/admin/loop", "503");
+    let (status, body) = get(&app, "/v1/admin/loop").await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    assert_valid(&unavailable, &body);
+    assert_eq!(body["error"]["code"], "repo_root_unset");
+
+    // With the checkout mounted: 200, contract-valid, real goals render.
+    let mounted = api::app(
+        pool.clone(),
+        api::ApiConfig {
+            admin_token: Some(TEST_ADMIN.to_owned()),
+            repo_root: Some(workspace_root()),
+            ..api::ApiConfig::new()
+        },
+    );
+    let ok = validator_for(&doc, "/v1/admin/loop", "200");
+    let (status, body) = get(&mounted, "/v1/admin/loop").await;
+    assert_eq!(status, StatusCode::OK, "{body:#}");
+    assert_valid(&ok, &body);
+    assert!(
+        !body["goals"].as_array().unwrap().is_empty(),
+        "the goal queue parses from the real 000-INDEX.md"
+    );
+}
+
 #[sqlx::test(migrations = false)]
 #[ignore = "needs postgres"]
 async fn etag_round_trips_and_if_none_match_serves_304(pool: PgPool) {

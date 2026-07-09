@@ -38,6 +38,71 @@ export type ResolveResponse = Schemas["ResolveResponse"];
 type ResolveRequest = Schemas["ResolveRequest"];
 type ErrorBody = Schemas["ErrorBody"];
 
+// ---------- admin observability surface (goal 091) ----------
+// One re-export per `Admin*` DTO the Rust admin routes emit
+// (crates/api/src/routes/admin/*.rs) — mirrors the `ReviewTask`-style
+// re-exports above. Nothing here is hand-shaped: every field comes straight
+// from the generated contract.
+export type AdminAccounts = Schemas["AdminAccounts"];
+export type AdminAgeBuckets = Schemas["AdminAgeBuckets"];
+export type AdminAlertLatency = Schemas["AdminAlertLatency"];
+export type AdminAttemptsBucket = Schemas["AdminAttemptsBucket"];
+export type AdminBackfill = Schemas["AdminBackfill"];
+export type AdminBackfillRun = Schemas["AdminBackfillRun"];
+export type AdminBlockedJurisdiction = Schemas["AdminBlockedJurisdiction"];
+export type AdminBrCollisionSweep = Schemas["AdminBrCollisionSweep"];
+export type AdminBrCpfCollision = Schemas["AdminBrCpfCollision"];
+export type AdminBudget = Schemas["AdminBudget"];
+export type AdminBudgetSkip = Schemas["AdminBudgetSkip"];
+export type AdminCoverage = Schemas["AdminCoverage"];
+export type AdminDeadDelivery = Schemas["AdminDeadDelivery"];
+export type AdminDeliveries = Schemas["AdminDeliveries"];
+export type AdminDeliveryStatusChannel = Schemas["AdminDeliveryStatusChannel"];
+export type AdminDriftKindRow = Schemas["AdminDriftKindRow"];
+export type AdminEndpointCount = Schemas["AdminEndpointCount"];
+export type AdminEntityInventory = Schemas["AdminEntityInventory"];
+export type AdminFailedRun = Schemas["AdminFailedRun"];
+export type AdminFetchDensityBucket = Schemas["AdminFetchDensityBucket"];
+export type AdminFreezeBoardRow = Schemas["AdminFreezeBoardRow"];
+export type AdminFrozenRegime = Schemas["AdminFrozenRegime"];
+export type AdminFunnelRow = Schemas["AdminFunnelRow"];
+export type AdminGrowthDay = Schemas["AdminGrowthDay"];
+export type AdminHeatmapCell = Schemas["AdminHeatmapCell"];
+export type AdminIdempotency = Schemas["AdminIdempotency"];
+export type AdminInfra = Schemas["AdminInfra"];
+export type AdminLoop = Schemas["AdminLoop"];
+export type AdminLoopCommit = Schemas["AdminLoopCommit"];
+export type AdminLoopGit = Schemas["AdminLoopGit"];
+export type AdminLoopGoal = Schemas["AdminLoopGoal"];
+export type AdminMimeCount = Schemas["AdminMimeCount"];
+export type AdminOverview = Schemas["AdminOverview"];
+export type AdminPgStats = Schemas["AdminPgStats"];
+export type AdminPgTable = Schemas["AdminPgTable"];
+export type AdminPhaseCount = Schemas["AdminPhaseCount"];
+export type AdminPipeline = Schemas["AdminPipeline"];
+export type AdminPrecisionMonth = Schemas["AdminPrecisionMonth"];
+export type AdminQuality = Schemas["AdminQuality"];
+export type AdminQueueDepths = Schemas["AdminQueueDepths"];
+export type AdminRawRetention = Schemas["AdminRawRetention"];
+export type AdminReasonCount = Schemas["AdminReasonCount"];
+export type AdminRegimeCompletion = Schemas["AdminRegimeCompletion"];
+export type AdminRegimeCoverage = Schemas["AdminRegimeCoverage"];
+export type AdminRegimeFreshness = Schemas["AdminRegimeFreshness"];
+export type AdminRegimePrecision = Schemas["AdminRegimePrecision"];
+export type AdminResolution30d = Schemas["AdminResolution30d"];
+export type AdminRuns24h = Schemas["AdminRuns24h"];
+export type AdminScheduler = Schemas["AdminScheduler"];
+export type AdminSchemeCount = Schemas["AdminSchemeCount"];
+export type AdminServing = Schemas["AdminServing"];
+export type AdminStorage = Schemas["AdminStorage"];
+export type AdminSupersedeMonth = Schemas["AdminSupersedeMonth"];
+export type AdminTableRowCount = Schemas["AdminTableRowCount"];
+export type AdminTargetKindCount = Schemas["AdminTargetKindCount"];
+export type AdminTierCount = Schemas["AdminTierCount"];
+export type AdminUnlinkedInstruments = Schemas["AdminUnlinkedInstruments"];
+export type AdminUsageDay = Schemas["AdminUsageDay"];
+export type AdminVerdictCount = Schemas["AdminVerdictCount"];
+
 /**
  * Corrected facts for an edit, in the `GoldCandidate` wire shape — derived
  * from the GENERATED `DisclosureRecord` schema (the wire shapes mirror each
@@ -299,4 +364,54 @@ export async function resolveReviewTask(
     return JSON.parse(body) as ResolveOk;
   }
   throw apiErrorFrom(res.status, body);
+}
+
+// ---------- admin observability surface (goal 091) ----------
+// Thin wrappers over `/v1/admin/*`, each exactly like `listReviewTasks`:
+// `apiGet` with `adminHeaders()` so `X-Admin-Token` never reaches the
+// browser (these only ever run server-side — see admin/ops-proxy/route.ts).
+
+export function adminOverview(): Promise<AdminOverview> {
+  return apiGet("/v1/admin/overview", {}, {}, adminHeaders());
+}
+
+export function adminCoverage(): Promise<AdminCoverage> {
+  return apiGet("/v1/admin/coverage", {}, {}, adminHeaders());
+}
+
+export function adminBackfill(): Promise<AdminBackfill> {
+  return apiGet("/v1/admin/backfill", {}, {}, adminHeaders());
+}
+
+export function adminPipeline(): Promise<AdminPipeline> {
+  return apiGet("/v1/admin/pipeline", {}, {}, adminHeaders());
+}
+
+export function adminQuality(
+  query: GetQuery<"/v1/admin/quality"> = {},
+): Promise<AdminQuality> {
+  return apiGet("/v1/admin/quality", {}, query, adminHeaders());
+}
+
+export function adminStorage(): Promise<AdminStorage> {
+  return apiGet("/v1/admin/storage", {}, {}, adminHeaders());
+}
+
+export function adminServing(): Promise<AdminServing> {
+  return apiGet("/v1/admin/serving", {}, {}, adminHeaders());
+}
+
+export function adminInfra(): Promise<AdminInfra> {
+  return apiGet("/v1/admin/infra", {}, {}, adminHeaders());
+}
+
+/**
+ * Section H — autonomous-loop meta. Responds `503` when the API isn't
+ * mounted against a repo checkout (`GOVFOLIO_REPO_ROOT` unset — the cloud
+ * posture, by design): that surfaces here as a thrown `ApiError` with
+ * `.status === 503`, which callers (the `/admin/loop` page) catch and
+ * render via `<Unavailable />` rather than a fake empty state.
+ */
+export function adminLoop(): Promise<AdminLoop> {
+  return apiGet("/v1/admin/loop", {}, {}, adminHeaders());
 }
