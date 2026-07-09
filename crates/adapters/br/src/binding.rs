@@ -128,9 +128,13 @@ impl RunnerBinding for BrBinding {
             .with_context(|| format!("ANO_ELEICAO {:?} is not a year", row.election_year_raw))?;
         // SQ_CANDIDATO alone is only unique within one election cycle's file
         // set (AUTHORITY.md identifiers_available / plan.md field-mapping
-        // table) — compose with the election year, same as normalize.rs's
-        // conformance filing-id scheme.
-        let external_id = format!("{election_year}:{}", row.sq_candidato);
+        // table) — AND, confirmed goal 093 Phase 2, is not even guaranteed
+        // nationally unique WITHIN one cycle for every year (2006 reuses the
+        // same number across different states) — compose with the election
+        // year AND state, matching `crate::adapter::BrAdapter::discover_year`'s
+        // identical external_id scheme exactly (the publish-time drift guard
+        // in `pipeline::run` requires these to agree byte for byte).
+        let external_id = format!("{election_year}:{}:{}", row.sg_uf, row.sq_candidato);
         let filed_date = parse_br_date(&row.dt_eleicao_raw)?;
         let identifier = external_identifier(
             row.nr_cpf_candidato.as_deref(),
@@ -284,7 +288,7 @@ mod tests {
         let identity = BrBinding
             .filing_identity(&[staged(payload("10001595344"))])
             .unwrap();
-        assert_eq!(identity.external_id, "2022:10001595344");
+        assert_eq!(identity.external_id, "2022:AC:10001595344");
         assert_eq!(identity.filer_name, "ROGÉRIO DA SILVA E SILVA");
         assert_eq!(identity.district, "AC");
         assert_eq!(identity.filing_type, "declaracao_de_bens");

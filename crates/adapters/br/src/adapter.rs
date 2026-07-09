@@ -179,14 +179,7 @@ impl BrAdapter {
         };
         let candidates: Vec<ConsultaCand> = read_csv_entries_by_uf(&consulta_bytes)?;
         let assets: Vec<BemCandidato> = read_csv_entries_by_uf(&bem_bytes)?;
-
-        let mut assets_by_candidate: HashMap<String, Vec<BemCandidato>> = HashMap::new();
-        for asset in assets {
-            assets_by_candidate
-                .entry(asset.sq_candidato.clone())
-                .or_default()
-                .push(asset);
-        }
+        let mut assets_by_candidate = build_assets_by_candidate(assets);
 
         let mut cache = self
             .joined_cache
@@ -197,9 +190,13 @@ impl BrAdapter {
             if !parse::IN_SCOPE_CARGOS.contains(&candidate.ds_cargo.as_str()) {
                 continue;
             }
-            let external_id = format!("{year}:{}", candidate.sq_candidato);
+            // SG_UF included for the same reason as assets_by_candidate's
+            // key above — SQ_CANDIDATO alone is not a safe external_id/cache
+            // key for every year (2006 confirmed; 2010+ empirically clean,
+            // but this makes the assumption explicit rather than implicit).
+            let external_id = format!("{year}:{}:{}", candidate.sg_uf, candidate.sq_candidato);
             let bem_candidato = assets_by_candidate
-                .remove(&candidate.sq_candidato)
+                .remove(&(candidate.sq_candidato.clone(), candidate.sg_uf.clone()))
                 .unwrap_or_default();
             let joined = SourceDoc {
                 consulta_cand: candidate,
@@ -214,7 +211,30 @@ impl BrAdapter {
         }
         Ok(refs)
     }
+}
 
+/// Groups declared assets by `(SQ_CANDIDATO, SG_UF)`, NOT `SQ_CANDIDATO`
+/// alone: goal 093 Phase 2 found real 2006 data reusing the same
+/// `SQ_CANDIDATO` across unrelated candidates in different states (TSE
+/// evidently numbered candidates per-state before some later cycle) —
+/// grouping by `SQ_CANDIDATO` alone would silently merge one candidate's
+/// declared assets onto an unrelated same-numbered candidate in another
+/// state (confirmed empirically clean for 2010+, but this makes the
+/// assumption explicit and safe rather than implicit).
+fn build_assets_by_candidate(
+    assets: Vec<BemCandidato>,
+) -> HashMap<(String, String), Vec<BemCandidato>> {
+    let mut by_candidate: HashMap<(String, String), Vec<BemCandidato>> = HashMap::new();
+    for asset in assets {
+        by_candidate
+            .entry((asset.sq_candidato.clone(), asset.sg_uf.clone()))
+            .or_default()
+            .push(asset);
+    }
+    by_candidate
+}
+
+impl BrAdapter {
     /// Conditional GET of one nationwide ZIP; `Ok(None)` on a 304 (unchanged
     /// since the last poll for this exact url).
     async fn fetch_zip_conditional(
@@ -333,6 +353,69 @@ fn latin1_to_string(bytes: &[u8]) -> String {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    fn bem(sq_candidato: &str, sg_uf: &str, description: &str) -> BemCandidato {
+        BemCandidato {
+            sq_candidato: sq_candidato.to_owned(),
+            sg_uf: sg_uf.to_owned(),
+            dt_eleicao: "01/10/2006".to_owned(),
+            ano_eleicao: "2006".to_owned(),
+            nr_ordem_bem_candidato: "1".to_owned(),
+            cd_tipo_bem_candidato: "12".to_owned(),
+            ds_tipo_bem_candidato: "Casa".to_owned(),
+            ds_bem_candidato: description.to_owned(),
+            vr_bem_candidato: "1000,00".to_owned(),
+            dt_ult_atual_bem_candidato: "01/10/2006".to_owned(),
+            hh_ult_atual_bem_candidato: "12:00:00".to_owned(),
+        }
+    }
+
+    /// The real goal-093 Phase 2 finding, at unit scale: `SQ_CANDIDATO` is
+    /// reused across DIFFERENT states in real 2006 data (confirmed: `10549`
+    /// belonged to 16 unrelated candidates in 16 different states). Grouping
+    /// assets by `SQ_CANDIDATO` alone would merge two unrelated candidates'
+    /// declared assets into one bucket; grouping by `(SQ_CANDIDATO, SG_UF)`
+    /// keeps them correctly separated.
+    #[test]
+    fn assets_grouped_by_sq_candidato_and_uf_do_not_cross_contaminate_states() {
+        let assets = vec![
+            bem("10549", "BA", "Casa em Salvador"),
+            bem("10549", "PE", "Apartamento em Recife"),
+            bem("10549", "SP", "Fazenda em Sorocaba"),
+        ];
+        let mut by_candidate = build_assets_by_candidate(assets);
+
+        let ba = by_candidate
+            .remove(&("10549".to_owned(), "BA".to_owned()))
+            .unwrap();
+        assert_eq!(ba.len(), 1);
+        assert_eq!(ba[0].ds_bem_candidato, "Casa em Salvador");
+
+        let pe = by_candidate
+            .remove(&("10549".to_owned(), "PE".to_owned()))
+            .unwrap();
+        assert_eq!(pe.len(), 1);
+        assert_eq!(pe[0].ds_bem_candidato, "Apartamento em Recife");
+
+        let sp = by_candidate
+            .remove(&("10549".to_owned(), "SP".to_owned()))
+            .unwrap();
+        assert_eq!(sp.len(), 1);
+        assert_eq!(sp[0].ds_bem_candidato, "Fazenda em Sorocaba");
+
+        assert!(by_candidate.is_empty(), "no other keys should exist");
+    }
+
+    #[test]
+    fn assets_for_the_same_candidate_stay_grouped_together() {
+        let assets = vec![
+            bem("10549", "BA", "Casa em Salvador"),
+            bem("10549", "BA", "Carro"),
+        ];
+        let by_candidate = build_assets_by_candidate(assets);
+        let ba = &by_candidate[&("10549".to_owned(), "BA".to_owned())];
+        assert_eq!(ba.len(), 2);
+    }
 
     #[test]
     fn politeness_is_concurrency_one_with_two_second_spacing() {

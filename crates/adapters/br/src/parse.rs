@@ -89,6 +89,20 @@ pub(crate) struct ConsultaCand {
 pub(crate) struct BemCandidato {
     #[serde(rename = "SQ_CANDIDATO")]
     pub(crate) sq_candidato: String,
+    /// `SG_UF` — present in the real `bem_candidato` CSV (confirmed for
+    /// 2006/2010) though not otherwise used by this struct's mapped Gold
+    /// fields. Needed as part of a genuinely-unique join key: goal 093
+    /// Phase 2 found `SQ_CANDIDATO` is NOT nationally unique within a single
+    /// election cycle for at least 2006 (the SAME number reused by
+    /// unrelated candidates in different states — TSE evidently numbered
+    /// candidates per-state before some later cycle), so `(SQ_CANDIDATO,
+    /// SG_UF)` is this adapter's actual join/dedup key, not `SQ_CANDIDATO`
+    /// alone. `#[serde(default)]` so every existing fixture (which predates
+    /// this field and has no `SG_UF` key in its `bem_candidato` array items)
+    /// keeps deserializing — conformance fixtures are single-candidate test
+    /// docs with no cross-candidate join to get wrong either way.
+    #[serde(rename = "SG_UF", default)]
+    pub(crate) sg_uf: String,
     #[serde(rename = "DT_ELEICAO")]
     pub(crate) dt_eleicao: String,
     #[serde(rename = "ANO_ELEICAO")]
