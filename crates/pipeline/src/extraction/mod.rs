@@ -24,6 +24,7 @@
 
 pub mod anthropic;
 pub mod cache;
+pub mod consensus;
 
 pub use anthropic::{
     CrossCheckMismatch, DocumentToolSpec, HttpTransport, LlmDocumentExtractor, Models, Transport,

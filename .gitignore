@@ -1,5 +1,8 @@
 agents/loop.log
 
+# Adapter-build scratch (raw downloads/renders; derived fixtures are committed separately)
+.capture-*/
+
 # Rust
 /target
 **/*.rs.bk

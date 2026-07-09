@@ -14,8 +14,9 @@ Free transparency layer + paid real-time alerts/API. Read these before anything 
 - Rust data plane: `crates/core` (domain, serde+schemars, sqlx migrations) · `crates/pipeline`
   (adapter trait, conformance, stages) · `crates/adapters/<x>` (one crate each + fixtures)
   · `crates/api` (axum + sqlx + utoipa) · `crates/worker` (consumers, backfill bins)
+- **Local dev host (Windows)?** `docs/runbooks/dev-host-windows.md` — PATH, `pg-local.ps1`, pg on :5433.
 - TypeScript edge: `apps/web` (Next.js SSR + reviewer UI; consumes generated client only)
-- `packages/contracts` GENERATED (openapi.json + TS client) — never hand-edited
+- `packages/racts` GENERATED (openapi.json + TS client) — never hand-edited
 - `infra/` terraform · `agents/` goals + context · `docs/regimes/` methodology-as-context
 
 ## Language boundary (invariant)
@@ -68,7 +69,8 @@ not a guess; a halt files a goal and the loop continues other work. Deploy/infra
 Residual human touch (no mechanical guardrail yet; legal/brand exposure — fail closed until one
 exists): **pricing / legal / methodology PUBLIC copy.**
 
-## Be sure to use up-to-date most performatic and safe version of the toolings.
+## Tooling
+Use the current, most performant, and safe version of each tool/crate/dependency.
 
 # CLAUDE.md
 
@@ -79,6 +81,9 @@ Behavioral guidelines to reduce common LLM coding mistakes. Merge with project-s
 ## 1. Think Before Coding
 
 **Don't assume. Don't hide confusion. Surface tradeoffs.**
+
+> In the unattended loop there is no human to ask: an ambiguity is a **halt** that
+> files a goal (per Autonomy & guardrails above), not a blocking question.
 
 Before implementing:
 - State your assumptions explicitly. If uncertain, ask.
@@ -135,3 +140,6 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 ---
 
 **These guidelines are working if:** fewer unnecessary changes in diffs, fewer rewrites due to overcomplication, and clarifying questions come before implementation rather than after mistakes.
+
+##  5. Multi-agent repo
+There are multiple agents developing in this repo.
