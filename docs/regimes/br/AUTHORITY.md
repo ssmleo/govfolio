@@ -1363,6 +1363,56 @@ prose rather than a replaced CSV row, that would need re-evaluating.
   (all pre-fix `external_identifier = NULL`, well within the year-window's
   permissive fallback for this project's real historical span).
 
+- 2026-07-09 · **2006/2010 `bem_candidato` schema-fork open_question RESOLVED
+  (goal 093 Phase 2)** — the earlier open_question flagged a column-rename
+  fork but did not build a parser for it. Downloaded and directly inspected
+  the real `bem_candidato_2006.zip`/`bem_candidato_2010.zip` (both years:
+  byte-identical header) and `consulta_cand_2006.zip`/`consulta_cand_2010.zip`
+  headers: `consulta_cand`'s roster-identity columns (`SQ_CANDIDATO`,
+  `NM_CANDIDATO`, `SG_UF`, `DS_CARGO`, `NR_CPF_CANDIDATO`,
+  `NR_TITULO_ELEITORAL_CANDIDATO`) are unchanged across 2006/2010/2014+;
+  `bem_candidato` renames exactly 3 columns
+  (`NR_ORDEM_CANDIDATO`→`NR_ORDEM_BEM_CANDIDATO`,
+  `DT_ULTIMA_ATUALIZACAO`→`DT_ULT_ATUAL_BEM_CANDIDATO`,
+  `HH_ULTIMA_ATUALIZACAO`→`HH_ULT_ATUAL_BEM_CANDIDATO`) — every other column
+  this adapter reads is identical. Fixed with `#[serde(alias = ...)]` on the
+  three renamed `BemCandidato` fields (`crates/adapters/br/src/parse.rs`) —
+  no version dispatch needed; the `csv` crate's header-based deserializer
+  resolves either column name through the same field-identifier matching
+  serde uses for map keys. Proven against all 81,050 real rows in the 2010
+  nationwide file before committing to this design. 2010 real write:
+  6245 filings published, 26678 new Gold rows, 42 failed closed (same
+  same-pass collision set correctly refused at seed time).
+- 2026-07-09 · **1994/1998/2002 "no asset data" gap reconfirmed exhaustively
+  (goal 093 Phase 2, invariant 12)** — beyond the already-documented
+  `bem_candidato_2002.zip` 404, directly fetched each year's FULL CKAN
+  `package_show` resource list (not just the one URL guess):
+  `candidatos-2002`/`-1998`/`-1994` each carry exactly 3 resources
+  (`Candidatos`, `Coligações`/absent for 1994, `Vagas`) — no asset-shaped
+  resource under any name in any of the three years checked. The catalog's
+  own package description independently states "Estão incompletos os dados
+  de candidatos das eleições de 1994 a 1998" (1994-1998 data was never fully
+  centralized at TSE). This is now confirmed via full resource enumeration,
+  not a single URL's 404 — the "no itemized asset data before 2006" gap
+  class is genuinely exhaustive for TSE's open-data catalog.
+- 2026-07-09 · **Cross-time collision defense gap found and closed (goal 093
+  Phase 2)** — the identity-resolution mechanism above only strengthens
+  matching for politicians that already carry a stored `external_identifier`;
+  every politician seeded BEFORE that mechanism existed had `NULL`, so a new
+  year's real write against the pre-existing roster always fell back to the
+  weak year-window check. The 2010 real write surfaced this directly: 3 new
+  collisions (`MARCOS ROBERTO DOS SANTOS` SP, `FRANCISCO DE ASSIS NUNES` SC,
+  `JOSÉ CARLOS DOS SANTOS` RJ). Closed with a one-time retroactive backfill
+  (`crates/worker/src/bin/backfill-br-external-identifiers.rs`, additive-only
+  `UPDATE ... WHERE external_identifier IS NULL`): populated the id for
+  16,399 pre-existing politicians with exactly one distinct CPF/voter-title
+  across their filings, leaving already-ambiguous ones untouched. The 3 new
+  collisions were fixed with a newly-generalized version of the JULIO
+  CESAR/CARLOS ALBERTO one-off pattern
+  (`crates/worker/src/bin/fix-br-cpf-collision.rs`, `--politician-id`
+  parameterized, handles N filings per identifier group). All independently
+  re-verified via `check-br-identity-collisions` (PASS, zero).
+
 ## Operational notes (politeness incidents, outages)
 
 - 2026-07-06 · `divulgacandcontas.tse.jus.br`: root and `/divulga/` both 302 to

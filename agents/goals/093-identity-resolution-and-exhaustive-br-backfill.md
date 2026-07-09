@@ -74,8 +74,21 @@ cargo run -p worker --bin check-br-identity-collisions   # PASS: zero
       New politician `01KX3P9PVZK386AQPPMDD622QT` (CPF `09867774809`, 2022 filing, 3
       records); old politician `01KWXA32E7PMQ6D7CBEZJWCA9F` keeps CPF `29168317972`
       (2014 filing, 8 records) untouched.
-- [ ] Phase 2 — remaining br general-election years, backward from 2010, exhaustive
-      resource-list probing + schema-variant building per CLAUDE.md invariant 12
+- [x] Phase 2 — 2010: built the 2006/2010 `bem_candidato` legacy-schema variant
+      (`#[serde(alias=...)]` in `crates/adapters/br/src/parse.rs`, no version dispatch
+      needed, proven against all 81,050 real 2010 rows); real write 6245 filings
+      published / 26678 new Gold rows / 42 failed closed; idempotency re-run confirmed.
+      check-br-identity-collisions surfaced 3 NEW collisions — traced to a real Phase 1
+      gap (pre-existing politicians all had `external_identifier = NULL`, so a new year
+      against the existing roster always hit the weak fallback) — HALTed back into
+      Phase 1 per goal instruction: built `backfill-br-external-identifiers.rs`
+      (retroactively populated 16,399 safe politicians) + generalized the JULIO
+      CESAR/CARLOS ALBERTO pattern into `fix-br-cpf-collision.rs`; all 3 fixed,
+      independently re-verified PASS. Also confirmed 1994/1998/2002's FULL CKAN resource
+      lists exhaustively (3 resources each, no asset-shaped resource under any name).
+- [ ] Phase 2 — 2006: run the now-working legacy schema + id-aware defenses
+- [ ] Phase 2 — years before 2006: exhaustive resource-list probing per invariant 12
+      (bem_candidato-equivalent data confirmed absent 1994-2002; further back TBD)
 
 ## BLOCKED (human)
 (empty)
