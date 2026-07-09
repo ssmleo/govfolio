@@ -241,6 +241,16 @@ fn admin_router(state: &AppState) -> Router<AppState> {
         )
         .route("/v1/admin/infra", get(routes::admin::infra::admin_infra))
         .route("/v1/admin/loop", get(routes::admin::loop_meta::admin_loop))
+        // Real-time filing document for the reviewer surface (design §7.2):
+        // the public /v1/filings/{id}/document route is tier-gated (24h
+        // free-tier embargo), which would 404 fresh filings reviewers need
+        // to adjudicate. Same query + bytes as the public route, just
+        // RecordFilter::default() instead of auth.filter() — mirrors
+        // review::get_review_task's own real-time record fetch.
+        .route(
+            "/v1/admin/filings/{id}/document",
+            get(routes::filings::get_admin_filing_document),
+        )
         .route_layer(axum::middleware::from_fn_with_state(
             state.clone(),
             auth::admin_gate,
@@ -272,6 +282,7 @@ fn admin_router(state: &AppState) -> Router<AppState> {
         routes::records::list_records,
         routes::records::get_record,
         routes::filings::get_filing_document,
+        routes::filings::get_admin_filing_document,
         routes::politicians::list_politicians,
         routes::politicians::politician_profile,
         routes::politicians::politician_records,
