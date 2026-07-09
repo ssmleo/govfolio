@@ -39,10 +39,12 @@ test("queue → task → confirm flow, with side-by-side and audit log", async (
   await expect(page.getByTestId("bronze-sha256")).toHaveText(
     `sha256:${record.provenance.raw_document.sha256}`,
   );
-  const sourceUrl = record.provenance.raw_document.source_url;
-  if (sourceUrl) {
-    await expect(page.locator("iframe.doc-frame")).toHaveAttribute("src", sourceUrl);
-  }
+  // The side-by-side embeds OUR archived copy, not the government's URL
+  // (feat(web): link/embed our own archived filing document — the gov URL
+  // can rot, change, or point at a nationwide bulk file instead of anything
+  // politician-specific).
+  const archivedCopyUrl = `${API_URL}/v1/filings/${encodeURIComponent(record.provenance.filing.id)}/document`;
+  await expect(page.locator("iframe.doc-frame")).toHaveAttribute("src", archivedCopyUrl);
   // Pre-review note: extraction context for the record.
   await expect(page.getByTestId("note-extractor")).toHaveText(
     record.record.extracted_by,
