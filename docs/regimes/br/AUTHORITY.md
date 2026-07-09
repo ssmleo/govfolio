@@ -1412,6 +1412,34 @@ prose rather than a replaced CSV row, that would need re-evaluating.
   (`crates/worker/src/bin/fix-br-cpf-collision.rs`, `--politician-id`
   parameterized, handles N filings per identifier group). All independently
   re-verified via `check-br-identity-collisions` (PASS, zero).
+- 2026-07-09 · **`SQ_CANDIDATO` is NOT nationally unique for 2006 — found via
+  the real 2006 write, fixed (goal 093 Phase 2)** — attempting 2006's real
+  seed produced a same-pass collision rate an order of magnitude higher than
+  2010's (4468/5487 vs 88/6530). Direct inspection of the raw file found the
+  cause: `SQ_CANDIDATO 10549` alone identifies 16 different real candidates
+  across 16 different states in 2006 (TSE evidently numbered candidates
+  per-state before some later cycle). This affected two things:
+  `BrAdapter::discover_year`'s `external_id`/cache key (causing massive,
+  fail-closed-but-unnecessary refusals whenever 2+ in-scope candidates
+  shared a number) and, more seriously, `assets_by_candidate`'s asset-join
+  map (which could silently attach one candidate's declared assets to an
+  unrelated same-numbered candidate in another state, with no fail-closed
+  catch at all — this path never reaches the collision-detection code).
+  Fixed by keying both on `(SQ_CANDIDATO, SG_UF)`, confirmed unique for 2006
+  (40 residual duplicates, all out-of-scope GOVERNADOR/VICE-GOVERNADOR
+  ticket pairs). **2010's already-published data (26678 Gold rows) is
+  confirmed unaffected** — a direct check of the real 2010 file found zero
+  `SQ_CANDIDATO` values shared across different states that year; TSE's
+  numbering was already nationally unique by 2010. After the fix, 2006's
+  seed errors dropped to 6 (3 genuine same-state same-name coincidences).
+  Real write: 5485 filings published, 27498 new Gold rows, 2 failed closed;
+  idempotency confirmed; `check-br-identity-collisions` PASS (zero) — no
+  new collision this pass. `identifiers_available`'s claim that
+  `SQ_CANDIDATO` is "only usable as a same-file join key... within one
+  election cycle's file set" should be read as "within one cycle's file set
+  AND one state" for years at or before 2006; 2010+ empirically needs no
+  such caveat but the code now treats `(SQ_CANDIDATO, SG_UF)` as the real
+  key uniformly, not just for years confirmed to need it.
 
 ## Operational notes (politeness incidents, outages)
 

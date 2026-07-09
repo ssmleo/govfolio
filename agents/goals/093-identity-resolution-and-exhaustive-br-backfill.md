@@ -86,9 +86,32 @@ cargo run -p worker --bin check-br-identity-collisions   # PASS: zero
       CESAR/CARLOS ALBERTO pattern into `fix-br-cpf-collision.rs`; all 3 fixed,
       independently re-verified PASS. Also confirmed 1994/1998/2002's FULL CKAN resource
       lists exhaustively (3 resources each, no asset-shaped resource under any name).
-- [ ] Phase 2 — 2006: run the now-working legacy schema + id-aware defenses
-- [ ] Phase 2 — years before 2006: exhaustive resource-list probing per invariant 12
-      (bem_candidato-equivalent data confirmed absent 1994-2002; further back TBD)
+- [x] Phase 2 — 2006: seeding for real surfaced a MUCH higher same-pass collision rate
+      than 2010 (4468/5487 vs 88/6530) — investigated rather than assumed: `SQ_CANDIDATO`
+      is NOT nationally unique in 2006 (the same number reused by 16 different real
+      candidates across 16 states; TSE evidently numbered per-state before some later
+      cycle). Fixed `crates/adapters/br/src/{adapter.rs,binding.rs}` to key the
+      discover-time cache/`external_id` and the `bem_candidato` asset join on
+      `(SQ_CANDIDATO, SG_UF)` instead of `SQ_CANDIDATO` alone — the latter bug could have
+      silently cross-attributed one candidate's declared assets to an unrelated
+      same-numbered candidate in another state, with no fail-closed catch. Verified 2010's
+      already-published data (26678 Gold rows) is unaffected (zero cross-state
+      `SQ_CANDIDATO` collisions found in the real 2010 file). After the fix: 2006 errors
+      dropped to 6 (3 genuine same-name coincidences); real write 5485 filings published /
+      27498 new Gold rows / 2 failed closed; idempotency confirmed; check-br-identity-
+      collisions PASS (zero, no new collision this pass); 146 newly-seeded politicians
+      retroactively given a stored `external_identifier`.
+- [x] Phase 2 — years before 2006: exhaustive resource-list probing per invariant 12
+      confirmed 1994/1998/2002 have no `bem_candidato`-equivalent resource under any name
+      (each CKAN package carries exactly 3 resources: Candidatos/Coligações/Vagas). This
+      is the same documented gap class already reconfirmed twice in goal 092; stopping
+      here per that goal's own guidance (spot-check a couple more, don't chase every year
+      back to 1933 once the gap class is reconfirmed).
+
+Phase 2 real-data recovery is now complete for every year TSE's open-data catalog can
+support: 2014/2018/2022 (pre-existing) + 2010/2006 (recovered this session) real-written;
+2002/1998/1994 confirmed exhaustively unrecoverable; 2026 confirmed not yet published
+(single availability check, goal 092).
 
 ## BLOCKED (human)
 (empty)
