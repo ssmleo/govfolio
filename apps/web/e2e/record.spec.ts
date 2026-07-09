@@ -57,3 +57,25 @@ test("record page shows the full trust surface (design §7.3)", async ({ page })
     }
   }
 });
+
+test("record page's archived-copy link actually serves the document", async ({
+  page,
+  request,
+}) => {
+  const records = await seededRecords();
+  const withValue = records.find((record) => record.value != null) ?? records[0];
+  expect(withValue).toBeTruthy();
+  if (!withValue) return;
+  const detail = await apiGet<RecordDetail>(`/v1/records/${withValue.id}`);
+
+  await page.goto(`/r/${detail.record.id}`);
+
+  const archivedLink = page.getByRole("link", { name: "Open archived copy" });
+  const href = await archivedLink.getAttribute("href");
+  expect(href).toBeTruthy();
+  if (!href) return;
+
+  const response = await request.get(href);
+  expect(response.ok()).toBeTruthy();
+  expect(response.headers()["content-type"]).toBeTruthy();
+});
