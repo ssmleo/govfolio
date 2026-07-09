@@ -2,6 +2,7 @@
 
 pub mod admin;
 pub mod alert_rules;
+pub mod filings;
 pub mod jurisdictions;
 pub mod keys;
 pub mod ops;

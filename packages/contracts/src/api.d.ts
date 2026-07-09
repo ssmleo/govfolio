@@ -464,6 +464,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/filings/{id}/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Serves the archived original document for one filing.
+         * @description # Errors
+         *     `404` for an unknown filing, or one not yet visible under the caller's
+         *     tier (the same freshness bound as every other record-serving route);
+         *     `503` if the document's storage backend is not implemented in this build;
+         *     `500` on backend failure.
+         */
+        get: operations["get_filing_document"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/jurisdictions": {
         parameters: {
             query?: never;
@@ -4565,6 +4589,54 @@ export interface operations {
             };
             /** @description Internal error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_filing_document: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Filing ULID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The archived document bytes; Content-Type reflects the sniffed mime type */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown filing, or not yet visible under the caller's tier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Storage backend not available for this document */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

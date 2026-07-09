@@ -144,6 +144,10 @@ pub fn app(pool: PgPool, config: ApiConfig) -> Router {
         .route("/v1/records", get(routes::records::list_records))
         .route("/v1/records/{id}", get(routes::records::get_record))
         .route(
+            "/v1/filings/{id}/document",
+            get(routes::filings::get_filing_document),
+        )
+        .route(
             "/v1/politicians",
             get(routes::politicians::list_politicians),
         )
@@ -267,6 +271,7 @@ fn admin_router(state: &AppState) -> Router<AppState> {
     paths(
         routes::records::list_records,
         routes::records::get_record,
+        routes::filings::get_filing_document,
         routes::politicians::list_politicians,
         routes::politicians::politician_profile,
         routes::politicians::politician_records,
@@ -307,6 +312,9 @@ fn admin_router(state: &AppState) -> Router<AppState> {
     ),
     tags(
         (name = "records", description = "Canonical disclosure records (Gold)"),
+        (name = "filings", description = "Archived original filing documents \
+         (design §7.3: our own durable copy, not just a link to the \
+         government's site). Same freshness gate as records."),
         (name = "politicians", description = "Politician-scoped views"),
         (name = "jurisdictions", description = "Jurisdictions and disclosure \
          regimes — the transparency scorecard (design §6.1/§7.3)"),

@@ -6245,6 +6245,62 @@
         ]
       }
     },
+    "/v1/filings/{id}/document": {
+      "get": {
+        "description": "# Errors\n`404` for an unknown filing, or one not yet visible under the caller's\ntier (the same freshness bound as every other record-serving route);\n`503` if the document's storage backend is not implemented in this build;\n`500` on backend failure.",
+        "operationId": "get_filing_document",
+        "parameters": [
+          {
+            "description": "Filing ULID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archived document bytes; Content-Type reflects the sniffed mime type"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown filing, or not yet visible under the caller's tier"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Storage backend not available for this document"
+          }
+        },
+        "summary": "Serves the archived original document for one filing.",
+        "tags": [
+          "filings"
+        ]
+      }
+    },
     "/v1/jurisdictions": {
       "get": {
         "description": "# Errors\n`500` on backend failure, in the consistent error envelope.",
@@ -7363,6 +7419,10 @@
     {
       "description": "Canonical disclosure records (Gold)",
       "name": "records"
+    },
+    {
+      "description": "Archived original filing documents (design §7.3: our own durable copy, not just a link to the government's site). Same freshness gate as records.",
+      "name": "filings"
     },
     {
       "description": "Politician-scoped views",
