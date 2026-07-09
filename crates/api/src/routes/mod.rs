@@ -4,6 +4,7 @@ pub mod admin;
 pub mod alert_rules;
 pub mod jurisdictions;
 pub mod keys;
+pub mod ops;
 pub mod politicians;
 pub mod records;
 pub mod regimes;
