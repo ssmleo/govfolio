@@ -74,7 +74,7 @@ with output confirming the SAME already-documented fail-closed reason (not silen
 different) — no idempotency re-check needed since nothing new was written.
 
 ## Checklist
-- [ ] 2014: seed + dry-run gate + real write + idempotency re-check + collision check + journal + commit
+- [x] 2014: seed + dry-run gate + real write + idempotency re-check + collision check + journal + commit — 6530 seeded, 29338 new Gold rows, 7 failed closed (invariant 3), idempotency confirmed 0 new writes second run. Collision check found ONE NEW finding (CARLOS ALBERTO DE SOUZA, cross-time, distinct from JULIO CESAR DOS SANTOS) — flagged in JOURNAL.md, not fixed (out of scope). Commit: (pending)
 - [ ] 2010: verify (expect fail-closed, schema mismatch) + journal (no code change)
 - [ ] 2006: verify (expect fail-closed, schema mismatch) + journal (no code change)
 - [ ] 2002: verify (expect fail-closed, no asset data) + journal (no code change)
