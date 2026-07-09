@@ -110,6 +110,7 @@ fn br_roster() -> Vec<RosterMember> {
             district: "AC".to_owned(),
             role: "Deputado Federal".to_owned(),
             active_year: 2022,
+            external_identifier: None,
         },
         RosterMember {
             canonical_name: "ANA MARIA PEREIRA HORA".to_owned(),
@@ -117,6 +118,7 @@ fn br_roster() -> Vec<RosterMember> {
             district: "AL".to_owned(),
             role: "Deputado Federal".to_owned(),
             active_year: 2022,
+            external_identifier: None,
         },
         RosterMember {
             canonical_name: "WILLINGTON DE MORAIS FERREIRA".to_owned(),
@@ -124,6 +126,7 @@ fn br_roster() -> Vec<RosterMember> {
             district: "AC".to_owned(),
             role: "Deputado Federal".to_owned(),
             active_year: 2022,
+            external_identifier: None,
         },
     ]
 }

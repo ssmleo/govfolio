@@ -1322,6 +1322,47 @@ prose rather than a replaced CSV row, that would need re-evaluating.
   re-runnable check standing guard against nationwide-scale reintroduction
   before the harder CPF-aware resolver mechanism exists.
 
+- 2026-07-09 · **SECOND live collision found (goal 092's 2014 real write) and
+  now RESOLVED (goal 093)**: `check-br-identity-collisions` surfaced a NEW
+  cross-time collision distinct from `JULIO CESAR DOS SANTOS` —
+  `CARLOS ALBERTO DE SOUZA`, `politician_id 01KWXA32E7PMQ6D7CBEZJWCA9F`, two
+  real candidacies 8 years apart (2014 CPF `29168317972`, Câmara SP; 2022 CPF
+  `09867774809`, same alias/district/body), collapsed onto one row for the
+  same root-cause reason as JULIO CESAR (`resolve_hits` has no
+  person-identity dimension) — flagged in `agents/JOURNAL.md` 2026-07-09,
+  left unfixed pending the general mechanism. **Fixed this pass**, mirroring
+  JULIO CESAR's exact template
+  (`crates/worker/src/bin/fix-br-carlos-alberto-souza-sp.rs`, dry-run
+  reviewed then `--execute`d once): the larger side (CPF `29168317972`, 8
+  `disclosure_record`s, 2014 filing `01KX2FQHWR2DKNQY00MJHGBRFQ`) keeps
+  `01KWXA32E7PMQ6D7CBEZJWCA9F` untouched; the smaller side (CPF `09867774809`,
+  3 `disclosure_record`s, 2014→2022 filing `01KWXBGA27C4D6MSQHXBXAGHNB`) moved
+  to a freshly minted politician `01KX3P9PVZK386AQPPMDD622QT` (mandate
+  `01KX3P9PVZB6AF4CRVE57J42KM`) — fingerprints re-derived from raw Bronze
+  bytes (sha256 `de8033db3cb36b743b77455bdbedf3693f36771dd430588a0d35bf2531767fa5`)
+  and asserted set-equal to the pre-write stored values before any write, per
+  the same rigor as the JULIO CESAR fix. `check-br-identity-collisions`
+  independently re-run PASS (zero) after the write; a second `--execute`
+  invocation correctly detected "already applied" and no-op'd.
+  **The general mechanism the JULIO CESAR entry above called "unbuilt" is now
+  BUILT** (goal 093,
+  `docs/decisions/politician-identity-resolution-design.md`): `politician`
+  gained a nullable `external_identifier` column (migration
+  `0013_politician_external_identifier.sql`), populated for `br` from CPF
+  (falling back to the voter-registration number when CPF is masked from the
+  2024 cycle on) at both seed time (`seed-br-candidates`) and publish time
+  (`backfill-real-br`); `resolve_hits` now excludes a hit whose stored id
+  disagrees with the incoming one (catching this exact defect class going
+  forward, same-pass or cross-time) and falls back to a year-window
+  tenure-plausibility check for hits with no id on either side (a legacy
+  pre-fix row, or a regime with no durable id at all). Explicitly NOT a
+  complete solve for id-less regimes: the year-window fallback cannot catch
+  a gap as ordinary as CARLOS ALBERTO's real 8 years — only the CPF signal
+  did, here. Zero behavior change proven for `us_house`/`us_senate`
+  (`roster_historical.rs` unchanged) and every already-published `br` row
+  (all pre-fix `external_identifier = NULL`, well within the year-window's
+  permissive fallback for this project's real historical span).
+
 ## Operational notes (politeness incidents, outages)
 
 - 2026-07-06 · `divulgacandcontas.tse.jus.br`: root and `/divulga/` both 302 to

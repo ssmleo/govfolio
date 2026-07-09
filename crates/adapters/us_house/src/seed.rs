@@ -98,6 +98,9 @@ pub fn roster_from_index_xml(xml: &str) -> anyhow::Result<Vec<RosterMember>> {
             district: member.state_dst,
             role: "Representative".to_owned(),
             active_year,
+            // No durable per-filer id in this regime's raw source (survey:
+            // docs/decisions/politician-identity-resolution-design.md §2).
+            external_identifier: None,
         });
     }
     anyhow::ensure!(

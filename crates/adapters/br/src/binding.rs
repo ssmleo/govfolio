@@ -24,6 +24,25 @@ use crate::parse::SilverRow;
 /// the `declaração de bens`).
 const FILING_TYPE: &str = "declaracao_de_bens";
 
+/// TSE's documented numeric-null sentinel for a suppressed `NR_CPF_CANDIDATO`
+/// (AUTHORITY.md `regime_versions`, 2024 amendment — Resolução TSE nº
+/// 23.729/2024 masks CPF in the bulk open-data files from the 2024 cycle
+/// on).
+const CPF_SENTINEL: &str = "-4";
+
+/// Selects this candidate's durable per-filer identifier (design
+/// §3.2): CPF (`NR_CPF_CANDIDATO`) when present and not the masked sentinel,
+/// falling back to the voter-registration number
+/// (`NR_TITULO_ELEITORAL_CANDIDATO`), which AUTHORITY.md confirms stays
+/// unmasked in every cycle checked so far, including 2024. `None` only when
+/// neither field is present (conformance-mode fixtures, which never
+/// populate these PII-gated fields at all).
+pub(crate) fn external_identifier(cpf: Option<&str>, titulo: Option<&str>) -> Option<String> {
+    cpf.filter(|value| *value != CPF_SENTINEL)
+        .or(titulo)
+        .map(str::to_owned)
+}
+
 /// The `br` [`RunnerBinding`].
 #[derive(Debug, Default, Clone, Copy)]
 pub struct BrBinding;
@@ -113,12 +132,17 @@ impl RunnerBinding for BrBinding {
         // conformance filing-id scheme.
         let external_id = format!("{election_year}:{}", row.sq_candidato);
         let filed_date = parse_br_date(&row.dt_eleicao_raw)?;
+        let identifier = external_identifier(
+            row.nr_cpf_candidato.as_deref(),
+            row.nr_titulo_eleitoral_candidato.as_deref(),
+        );
         Ok(FilingIdentity {
             external_id,
             filer_name: row.nm_candidato,
             district: row.sg_uf,
             filing_type: FILING_TYPE.to_owned(),
             filed_date: Some(filed_date),
+            external_identifier: identifier,
         })
     }
 
@@ -265,6 +289,33 @@ mod tests {
         assert_eq!(identity.district, "AC");
         assert_eq!(identity.filing_type, "declaracao_de_bens");
         assert_eq!(identity.filed_date.unwrap().to_string(), "2022-10-02");
+        // Conformance-mode payload carries neither PII field (skipped, not
+        // null) — no identifier to resolve by.
+        assert_eq!(identity.external_identifier, None);
+    }
+
+    #[test]
+    fn external_identifier_prefers_cpf() {
+        assert_eq!(
+            external_identifier(Some("80673872653"), Some("066773530590")),
+            Some("80673872653".to_owned())
+        );
+    }
+
+    #[test]
+    fn external_identifier_falls_back_to_titulo_when_cpf_masked() {
+        // TSE's documented sentinel for a CPF suppressed from the 2024 cycle
+        // on (AUTHORITY.md regime_versions) — must not be treated as a real,
+        // distinguishing value.
+        assert_eq!(
+            external_identifier(Some("-4"), Some("066773530590")),
+            Some("066773530590".to_owned())
+        );
+    }
+
+    #[test]
+    fn external_identifier_none_when_neither_field_present() {
+        assert_eq!(external_identifier(None, None), None);
     }
 
     #[test]

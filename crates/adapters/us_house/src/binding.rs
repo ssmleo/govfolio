@@ -116,6 +116,9 @@ impl RunnerBinding for UsHouseBinding {
             district: row.state_district_raw,
             filing_type: "P".to_owned(), // this adapter only discovers PTRs
             filed_date: Some(filed_date),
+            // No durable per-filer id in this regime's raw source (survey:
+            // docs/decisions/politician-identity-resolution-design.md §2).
+            external_identifier: None,
         })
     }
 

@@ -13,7 +13,7 @@ use std::path::PathBuf;
 
 use anyhow::Context as _;
 use async_trait::async_trait;
-use chrono::NaiveDate;
+use chrono::{Datelike as _, NaiveDate};
 use serde_json::json;
 use sqlx::PgPool;
 
@@ -50,6 +50,12 @@ pub struct FilingIdentity {
     pub filing_type: String,
     /// Filer-claimed filing date, when the document carries one.
     pub filed_date: Option<NaiveDate>,
+    /// Durable per-filer national/official id, when this regime's raw
+    /// source data has one (design:
+    /// `docs/decisions/politician-identity-resolution-design.md` §3.2) —
+    /// e.g. `br`'s CPF. `None` for every regime without one: zero behavior
+    /// change to `roster::resolve_politician`'s matching.
+    pub external_identifier: Option<String>,
 }
 
 /// One staged Silver row (the surviving `stg_<regime>` row id).
@@ -528,6 +534,8 @@ impl<'a> Runner<'a> {
             &self.regime,
             &identity.filer_name,
             &identity.district,
+            identity.external_identifier.as_deref(),
+            identity.filed_date.map(|d| d.year()),
         )
         .await?;
         let Some(politician_id) = resolved else {

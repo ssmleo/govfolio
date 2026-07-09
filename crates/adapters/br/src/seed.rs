@@ -74,6 +74,7 @@ use pipeline::stages::roster::{RosterMember, seed_roster};
 use pipeline::stages::seed::{JurisdictionSeed, RegimeSeed};
 
 use crate::BrAdapter;
+use crate::binding::external_identifier;
 
 /// Stable `disclosure_regime.id` — the SAME value `crate::normalize`'s
 /// private `CONFORMANCE_REGIME_ID` and `worker::bin::local_br`'s own proof
@@ -286,6 +287,23 @@ pub struct DiscoveredCandidate {
     /// `consulta_cand.DS_CARGO` — dispatched to a [`RosterBody`] via
     /// [`roster_body_for_cargo`] by [`seed_candidates_year`].
     pub ds_cargo: String,
+    /// This candidate's durable per-filer identifier (design
+    /// `docs/decisions/politician-identity-resolution-design.md` §3.2) —
+    /// CPF when present and unmasked, else the voter-registration number,
+    /// else `None`. Read from the SAME cached joined declaration as the
+    /// other identity fields, independent of the `ctx.pool.is_some()` PII
+    /// gate that governs `SilverRow` (this reads raw Bronze bytes directly,
+    /// never Silver).
+    pub external_identifier: Option<String>,
+}
+
+/// One joined declaration's `consulta_cand` identity fields, extracted from
+/// its raw JSON bytes.
+struct CandidateIdentity {
+    nm_candidato: String,
+    sg_uf: String,
+    ds_cargo: String,
+    external_identifier: Option<String>,
 }
 
 /// Parses one joined declaration's `consulta_cand` identity fields out of
@@ -298,7 +316,7 @@ pub struct DiscoveredCandidate {
 /// The bytes are not the `{"consulta_cand": {...}}` join shape, or a
 /// required identity field is missing — fail closed (invariant 6), never
 /// guessed.
-fn extract_identity(bytes: &[u8], external_id: &str) -> anyhow::Result<(String, String, String)> {
+fn extract_identity(bytes: &[u8], external_id: &str) -> anyhow::Result<CandidateIdentity> {
     let value: serde_json::Value = serde_json::from_slice(bytes)
         .with_context(|| format!("parsing joined declaration for {external_id}"))?;
     let field = |name: &str| -> anyhow::Result<String> {
@@ -307,7 +325,17 @@ fn extract_identity(bytes: &[u8], external_id: &str) -> anyhow::Result<(String, 
             .map(str::to_owned)
             .with_context(|| format!("consulta_cand.{name} missing for {external_id}"))
     };
-    Ok((field("NM_CANDIDATO")?, field("SG_UF")?, field("DS_CARGO")?))
+    let nm_candidato = field("NM_CANDIDATO")?;
+    let sg_uf = field("SG_UF")?;
+    let ds_cargo = field("DS_CARGO")?;
+    let cpf = field("NR_CPF_CANDIDATO")?;
+    let titulo = field("NR_TITULO_ELEITORAL_CANDIDATO")?;
+    Ok(CandidateIdentity {
+        nm_candidato,
+        sg_uf,
+        ds_cargo,
+        external_identifier: external_identifier(Some(&cpf), Some(&titulo)),
+    })
 }
 
 /// Peeks one discovered filing's cached identity via the adapter's own
@@ -317,7 +345,7 @@ async fn peek_identity(
     adapter: &BrAdapter,
     ctx: &RunCtx,
     filing_ref: &FilingRef,
-) -> anyhow::Result<(String, String, String)> {
+) -> anyhow::Result<CandidateIdentity> {
     let doc = adapter
         .fetch(filing_ref, ctx)
         .await
@@ -348,12 +376,13 @@ pub async fn discover_candidates_year(
         .with_context(|| format!("discovering {year}"))?;
     let mut out = Vec::with_capacity(refs.len());
     for filing_ref in refs {
-        let (nm_candidato, sg_uf, ds_cargo) = peek_identity(adapter, ctx, &filing_ref).await?;
+        let identity = peek_identity(adapter, ctx, &filing_ref).await?;
         out.push(DiscoveredCandidate {
             filing_ref,
-            nm_candidato,
-            sg_uf,
-            ds_cargo,
+            nm_candidato: identity.nm_candidato,
+            sg_uf: identity.sg_uf,
+            ds_cargo: identity.ds_cargo,
+            external_identifier: identity.external_identifier,
         });
     }
     Ok(out)
@@ -528,6 +557,7 @@ pub async fn seed_candidates_year(
             // resolution (role is never part of resolve_hits's match key).
             role: candidate.ds_cargo.clone(),
             active_year: year,
+            external_identifier: candidate.external_identifier.clone(),
         };
         let regime = match body {
             RosterBody::Camara => &camara_regime,
@@ -620,10 +650,35 @@ mod tests {
             "bem_candidato": []
         });
         let bytes = serde_json::to_vec(&json).unwrap();
-        let (name, uf, cargo) = extract_identity(&bytes, "2022:10001595344").unwrap();
-        assert_eq!(name, "MARIA TESTE CANDIDATA");
-        assert_eq!(uf, "AC");
-        assert_eq!(cargo, "DEPUTADO FEDERAL");
+        let identity = extract_identity(&bytes, "2022:10001595344").unwrap();
+        assert_eq!(identity.nm_candidato, "MARIA TESTE CANDIDATA");
+        assert_eq!(identity.sg_uf, "AC");
+        assert_eq!(identity.ds_cargo, "DEPUTADO FEDERAL");
+        assert_eq!(
+            identity.external_identifier,
+            Some("[SYNTHETIC-CPF]".to_owned())
+        );
+    }
+
+    #[test]
+    fn extract_identity_falls_back_to_titulo_when_cpf_masked() {
+        let json = serde_json::json!({
+            "consulta_cand": {
+                "SQ_CANDIDATO": "10001595344",
+                "NM_CANDIDATO": "MARIA TESTE CANDIDATA",
+                "SG_UF": "AC",
+                "DS_CARGO": "DEPUTADO FEDERAL",
+                "NR_TITULO_ELEITORAL_CANDIDATO": "[SYNTHETIC-TITULO]",
+                "NR_CPF_CANDIDATO": "-4"
+            },
+            "bem_candidato": []
+        });
+        let bytes = serde_json::to_vec(&json).unwrap();
+        let identity = extract_identity(&bytes, "2022:10001595344").unwrap();
+        assert_eq!(
+            identity.external_identifier,
+            Some("[SYNTHETIC-TITULO]".to_owned())
+        );
     }
 
     #[test]
@@ -652,6 +707,7 @@ mod tests {
             nm_candidato: name.to_owned(),
             sg_uf: uf.to_owned(),
             ds_cargo: cargo.to_owned(),
+            external_identifier: None,
         }
     }
 

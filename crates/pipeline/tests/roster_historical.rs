@@ -163,7 +163,7 @@ async fn pre_2015_filer_resolves_against_the_seeded_historical_roster(pool: PgPo
         assert_eq!(r.inserted, 0);
     }
 
-    let politician_id = resolve_politician(&pool, &regime, "Hon. John Boehner", "OH08")
+    let politician_id = resolve_politician(&pool, &regime, "Hon. John Boehner", "OH08", None, None)
         .await
         .unwrap();
     assert!(
@@ -174,7 +174,7 @@ async fn pre_2015_filer_resolves_against_the_seeded_historical_roster(pool: PgPo
     // Not a real filer, no district match today — never resolves (invariant
     // 3: no guessing).
     assert_eq!(
-        resolve_politician(&pool, &regime, "Hon. Nobody Real", "ZZ99")
+        resolve_politician(&pool, &regime, "Hon. Nobody Real", "ZZ99", None, None)
             .await
             .unwrap(),
         None
@@ -231,13 +231,13 @@ async fn one_years_ambiguous_roster_bail_does_not_sink_the_others(pool: PgPool) 
     assert_eq!(by_year[&2014].inserted, 1, "Eric Cantor seeded");
 
     assert!(
-        resolve_politician(&pool, &regime, "Hon. Ron Paul", "TX14")
+        resolve_politician(&pool, &regime, "Hon. Ron Paul", "TX14", None, None)
             .await
             .unwrap()
             .is_some()
     );
     assert!(
-        resolve_politician(&pool, &regime, "Hon. Eric Cantor", "VA07")
+        resolve_politician(&pool, &regime, "Hon. Eric Cantor", "VA07", None, None)
             .await
             .unwrap()
             .is_some()
@@ -297,7 +297,7 @@ async fn one_members_ambiguous_match_does_not_sink_the_rest_of_the_same_years_ba
         ("Hon. Michele Bachmann", "MN06"),
     ] {
         assert!(
-            resolve_politician(&pool, &regime, alias, district)
+            resolve_politician(&pool, &regime, alias, district, None, None)
                 .await
                 .unwrap()
                 .is_some(),
@@ -308,7 +308,7 @@ async fn one_members_ambiguous_match_does_not_sink_the_rest_of_the_same_years_ba
     // Boehner himself still does not resolve — the pre-existing ambiguity is
     // real and unchanged (never guess, invariant 3).
     assert_eq!(
-        resolve_politician(&pool, &regime, "Hon. John Boehner", "OH08")
+        resolve_politician(&pool, &regime, "Hon. John Boehner", "OH08", None, None)
             .await
             .unwrap(),
         None

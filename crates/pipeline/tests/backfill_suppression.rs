@@ -100,10 +100,17 @@ async fn backfill_mode_publishes_gold_but_suppresses_the_outbox_dispatch(pool: P
     let regime = us_house::seed::regime_binding();
     let roster = us_house::seed::roster_from_index_xml(&evidence_index_xml()).unwrap();
     seed_roster(&pool, &regime, &roster).await.unwrap();
-    let politician_id = resolve_politician(&pool, &regime, "Hon. Nicholas Begich III", "AK00")
-        .await
-        .unwrap()
-        .unwrap(); // seeded filer must resolve
+    let politician_id = resolve_politician(
+        &pool,
+        &regime,
+        "Hon. Nicholas Begich III",
+        "AK00",
+        None,
+        None,
+    )
+    .await
+    .unwrap()
+    .unwrap(); // seeded filer must resolve
 
     sqlx::query(
         "insert into raw_document (id, storage_uri, sha256, mime_type, fetched_at) \
@@ -121,6 +128,7 @@ async fn backfill_mode_publishes_gold_but_suppresses_the_outbox_dispatch(pool: P
         district: "AK00".to_owned(),
         filing_type: "P".to_owned(),
         filed_date: Some(NaiveDate::from_ymd_opt(2013, 6, 12).unwrap()),
+        external_identifier: None,
     };
     let spec = FilingSpec {
         regime_id: &regime.regime_id,

@@ -57,6 +57,7 @@ fn identity() -> FilingIdentity {
         district: "FR-75".to_owned(),
         filing_type: "dia".to_owned(),
         filed_date: None,
+        external_identifier: None,
     }
 }
 

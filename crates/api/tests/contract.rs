@@ -386,6 +386,8 @@ async fn politician_timeline_pages_and_matches_the_contract(pool: PgPool) {
         &us_house::seed::regime_binding(),
         "Hon. Lloyd K. Smucker",
         "PA11",
+        None,
+        None,
     )
     .await
     .unwrap()
@@ -658,6 +660,8 @@ async fn smucker_id(pool: &PgPool) -> String {
         &us_house::seed::regime_binding(),
         "Hon. Lloyd K. Smucker",
         "PA11",
+        None,
+        None,
     )
     .await
     .unwrap()
