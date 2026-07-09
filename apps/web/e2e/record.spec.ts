@@ -77,5 +77,11 @@ test("record page's archived-copy link actually serves the document", async ({
 
   const response = await request.get(href);
   expect(response.ok()).toBeTruthy();
-  expect(response.headers()["content-type"]).toBeTruthy();
+  // The local e2e seed (`cargo run -p worker --bin local`) only ever runs
+  // the us_house adapter over its fixture PDFs (real %PDF- magic bytes) — so
+  // the sniffed, served Content-Type must be exactly application/pdf. A
+  // weaker "just truthy" assertion here would not have caught the bug where
+  // every live-fetched document was mislabeled application/pdf regardless
+  // of actual content (see the filing-document-viewer fix-wave notes).
+  expect(response.headers()["content-type"]).toBe("application/pdf");
 });
