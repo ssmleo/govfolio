@@ -383,4 +383,66 @@ mod tests {
             "nationwide aggregate excluded"
         );
     }
+
+    /// Builds an in-memory single-entry ZIP, mirroring [`read_csv_entries_by_uf`]'s
+    /// real per-UF-CSV-inside-one-nationwide-ZIP shape closely enough to
+    /// exercise it end to end.
+    fn zip_with_one_csv(entry_name: &str, csv_body: &str) -> Vec<u8> {
+        let mut buf = Vec::new();
+        {
+            let mut writer = zip::ZipWriter::new(std::io::Cursor::new(&mut buf));
+            writer
+                .start_file(entry_name, zip::write::SimpleFileOptions::default())
+                .unwrap();
+            std::io::Write::write_all(&mut writer, csv_body.as_bytes()).unwrap();
+            writer.finish().unwrap();
+        }
+        buf
+    }
+
+    /// The 2006/2010 column-rename fork (`BemCandidato`'s own doc comment,
+    /// `docs/regimes/br/AUTHORITY.md` `open_questions`, goal 093 Phase 2):
+    /// `NR_ORDEM_CANDIDATO`/`DT_ULTIMA_ATUALIZACAO`/`HH_ULTIMA_ATUALIZACAO`
+    /// instead of the 2014+ column names, everything else identical. Header/
+    /// values here mirror the REAL 2010 `bem_candidato_2010_AC.csv` shape
+    /// (column order, extra `DT_GERACAO`/`CD_TIPO_ELEICAO`/`SG_UE`/`NM_UE`
+    /// metadata columns this struct doesn't model), confirmed by directly
+    /// downloading and inspecting that file this session — synthetic
+    /// candidate/value content, not a real person's data.
+    #[test]
+    fn legacy_2006_2010_bem_candidato_header_deserializes_via_alias() {
+        let csv = "\"DT_GERACAO\";\"HH_GERACAO\";\"ANO_ELEICAO\";\"CD_TIPO_ELEICAO\";\"NM_TIPO_ELEICAO\";\"CD_ELEICAO\";\"DS_ELEICAO\";\"DT_ELEICAO\";\"SG_UF\";\"SG_UE\";\"NM_UE\";\"SQ_CANDIDATO\";\"NR_ORDEM_CANDIDATO\";\"CD_TIPO_BEM_CANDIDATO\";\"DS_TIPO_BEM_CANDIDATO\";\"DS_BEM_CANDIDATO\";\"VR_BEM_CANDIDATO\";\"DT_ULTIMA_ATUALIZACAO\";\"HH_ULTIMA_ATUALIZACAO\"\n\
+             \"19/04/2021\";\"13:16:05\";2010;2;\"Eleição Ordinária\";37;\"Eleições 2010\";\"03/10/2010\";\"AC\";\"AC\";\"ACRE\";10000000122;1;12;\"Casa\";\"Casa de teste\";\"297185,71\";\"05/07/2010\";\"17:56:37\"\n";
+        let zip_bytes = zip_with_one_csv("bem_candidato_2010_AC.csv", csv);
+        let rows: Vec<BemCandidato> = read_csv_entries_by_uf(&zip_bytes).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].sq_candidato, "10000000122");
+        assert_eq!(
+            rows[0].nr_ordem_bem_candidato, "1",
+            "via NR_ORDEM_CANDIDATO alias"
+        );
+        assert_eq!(
+            rows[0].dt_ult_atual_bem_candidato, "05/07/2010",
+            "via DT_ULTIMA_ATUALIZACAO alias"
+        );
+        assert_eq!(
+            rows[0].hh_ult_atual_bem_candidato, "17:56:37",
+            "via HH_ULTIMA_ATUALIZACAO alias"
+        );
+        assert_eq!(rows[0].vr_bem_candidato, "297185,71");
+    }
+
+    /// The 2014+ modern header must still deserialize unchanged (the alias
+    /// is additive — proves this fix cannot regress the already-real
+    /// 2014/2018/2022 data).
+    #[test]
+    fn modern_2014_plus_bem_candidato_header_still_deserializes() {
+        let csv = "\"SQ_CANDIDATO\";\"DT_ELEICAO\";\"ANO_ELEICAO\";\"NR_ORDEM_BEM_CANDIDATO\";\"CD_TIPO_BEM_CANDIDATO\";\"DS_TIPO_BEM_CANDIDATO\";\"DS_BEM_CANDIDATO\";\"VR_BEM_CANDIDATO\";\"DT_ULT_ATUAL_BEM_CANDIDATO\";\"HH_ULT_ATUAL_BEM_CANDIDATO\"\n\
+             \"10001595344\";\"02/10/2022\";\"2022\";\"1\";\"12\";\"Casa\";\"Casa de teste\";\"10000,00\";\"02/10/2022\";\"23:21:28\"\n";
+        let zip_bytes = zip_with_one_csv("bem_candidato_2022_AC.csv", csv);
+        let rows: Vec<BemCandidato> = read_csv_entries_by_uf(&zip_bytes).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].nr_ordem_bem_candidato, "1");
+        assert_eq!(rows[0].dt_ult_atual_bem_candidato, "02/10/2022");
+    }
 }

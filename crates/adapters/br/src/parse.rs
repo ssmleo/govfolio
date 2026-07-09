@@ -67,6 +67,23 @@ pub(crate) struct ConsultaCand {
 /// the source's own vocabulary) — several end in `_bem_candidato`, the same
 /// suffix as the struct's own name (`uk_commons_register` `Category`/`Member`
 /// precedent for this exact lint).
+///
+/// **2006/2010 column-rename fork** (`docs/regimes/br/AUTHORITY.md`
+/// `open_questions`, confirmed by direct download+inspection of the real
+/// `bem_candidato_2006.zip`/`bem_candidato_2010.zip` headers, goal 093 Phase
+/// 2): those two years use `NR_ORDEM_CANDIDATO`/`DT_ULTIMA_ATUALIZACAO`/
+/// `HH_ULTIMA_ATUALIZACAO` instead of this struct's 2014+ column names for
+/// the same three fields — every other column this struct reads
+/// (`SQ_CANDIDATO`, `DT_ELEICAO`, `ANO_ELEICAO`, `CD_TIPO_BEM_CANDIDATO`,
+/// `DS_TIPO_BEM_CANDIDATO`, `DS_BEM_CANDIDATO`, `VR_BEM_CANDIDATO`) is
+/// present under the IDENTICAL name in both schemas. `#[serde(alias = ...)]`
+/// on just the three renamed fields lets the `csv` crate's header-based
+/// deserializer (which resolves each CSV header string through the same
+/// generated field-identifier matching serde uses for map keys — proven
+/// against the real downloaded 2006/2010 files, not assumed) accept EITHER
+/// column name with no version dispatch needed: the extra 2006/2010-only
+/// metadata columns (`DT_GERACAO`, `CD_TIPO_ELEICAO`, `SG_UE`, …) are simply
+/// unmodeled and ignored, same as any other wide CSV row this adapter reads.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[allow(clippy::struct_field_names)]
 pub(crate) struct BemCandidato {
@@ -76,7 +93,7 @@ pub(crate) struct BemCandidato {
     pub(crate) dt_eleicao: String,
     #[serde(rename = "ANO_ELEICAO")]
     pub(crate) ano_eleicao: String,
-    #[serde(rename = "NR_ORDEM_BEM_CANDIDATO")]
+    #[serde(rename = "NR_ORDEM_BEM_CANDIDATO", alias = "NR_ORDEM_CANDIDATO")]
     pub(crate) nr_ordem_bem_candidato: String,
     #[serde(rename = "CD_TIPO_BEM_CANDIDATO")]
     pub(crate) cd_tipo_bem_candidato: String,
@@ -86,9 +103,9 @@ pub(crate) struct BemCandidato {
     pub(crate) ds_bem_candidato: String,
     #[serde(rename = "VR_BEM_CANDIDATO")]
     pub(crate) vr_bem_candidato: String,
-    #[serde(rename = "DT_ULT_ATUAL_BEM_CANDIDATO")]
+    #[serde(rename = "DT_ULT_ATUAL_BEM_CANDIDATO", alias = "DT_ULTIMA_ATUALIZACAO")]
     pub(crate) dt_ult_atual_bem_candidato: String,
-    #[serde(rename = "HH_ULT_ATUAL_BEM_CANDIDATO")]
+    #[serde(rename = "HH_ULT_ATUAL_BEM_CANDIDATO", alias = "HH_ULTIMA_ATUALIZACAO")]
     pub(crate) hh_ult_atual_bem_candidato: String,
 }
 
