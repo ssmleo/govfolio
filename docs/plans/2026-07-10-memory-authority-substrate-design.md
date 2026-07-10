@@ -66,7 +66,8 @@ The design generalizes patterns this repo has already proven; nothing in this se
 - **E1.lock.json precedent** — `docs/regimes/us-house/reference/E1.lock.json`: sha256 pins
   over fixtures/expected/schemas/SAF/evidence, policy: "Pinned artifacts are IMMUTABLE:
   amending any pinned file requires SUPERSEDING this lock (version bump + note of what changed
-  and why)". Verified mechanically by `cargo test -p pipeline role_evals` and
+  and why), founder-gated like role edits — see docs/decisions/role-eval-thresholds.md".
+  Verified mechanically by `cargo test -p pipeline role_evals` and
   `crates/pipeline/src/bin/epoch_gate.rs`. §4.2 is this pattern generalized from one epoch
   corpus to the whole agent-governance file set.
 - **validate-\* factory** — `crates/pipeline/src/factory.rs` is the fail-closed validator
@@ -233,6 +234,9 @@ permitted only through the amendment path below.
     files → exit 1.
 (c) **Amendment discipline:** any commit whose diff touches authority files MUST update the
     lock in the same commit AND its message MUST reference an INDEX-listed goal; else exit 1.
+    The commit range validate-authority examines for this check (HEAD only vs. the full
+    branch-since-main range) is goal 100's implementation choice; the minimum acceptable
+    scope is HEAD.
 
 **Run points** (all three; defense in depth):
 
@@ -261,7 +265,8 @@ are permitted ONLY on an `authority/*` branch whose HEAD commit message referenc
 INDEX-listed goal. The hook checks the branch name (cheap, synchronous); check (c) checks
 the rest (lock updated in-commit, goal referenced) at every run point. Routine queue edits
 (ticking or appending a 000-INDEX row) ride the same path — branch naming plus
-`--write-lock`, both mechanical.
+`--write-lock`, both mechanical. "INDEX-listed" is evaluated against the commit's own tree,
+so a commit that adds the goal row and references that same goal is valid.
 **Bootstrap note:** the hook is inactive until goal 100 wires it, so goal 100 can land the
 lock, the bin, and the hook config on an ordinary goal branch without being blocked by the
 mechanism it installs. Goals 101–103 amend pinned files and MUST use the amendment path.
@@ -316,7 +321,9 @@ conflated) is the in-repo lesson that stores must not be conflated.
 
 Dependency order: **100 first** (security precedes content), then **101 before 102 and 103**
 (both need the contract, validators, and index); 102 and 103 are mutually independent.
-Goals 101–103 amend lock-pinned files and MUST use the §4.2 amendment path.
+Goals 101–103 amend lock-pinned files and MUST use the §4.2 amendment path. Goal files copy
+these acceptance blocks verbatim; the bin names, test filters, and flags below are normative
+surfaces.
 
 ### Goal 100 — `100-authority-lock-and-validator.md`
 
@@ -361,6 +368,9 @@ Deliverables: 5 flat regimes moved to `docs/regimes/<x>/AUTHORITY.md`; hyphenate
 `us-house`/`us-senate` paths reconciled with their underscore regime codes; duplicate legacy
 `docs/regimes/us-house.md` folded into `docs/regimes/us_house/AUTHORITY.md`; `E1.lock.json`
 SUPERSEDED (version bump + note, per its own policy quoted in §2) since it pins moved paths.
+That policy's founder gate is superseded by `docs/decisions/automation-policy.md` (the
+canonical autonomy policy per root `CLAUDE.md`), so the goal-102 agent supersedes the lock
+without halting on that clause.
 
 ```bash
 for r in australia_register br canada_ciec eu_fr_de_annual uk_commons_register us_house us_senate; \
