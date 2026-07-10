@@ -59,7 +59,7 @@ export function RegimeDossier({ data, onClose }: RegimeDossierProps) {
       />
       <aside
         aria-label={`Regime dossier — ${data.title}`}
-        className="relative flex h-full w-[520px] max-w-full flex-col gap-5 overflow-y-auto border-l border-[var(--adm-rule-strong)] bg-[var(--adm-surface)] px-5 py-5 shadow-[var(--adm-card-shadow)]"
+        className="relative flex h-full w-[var(--adm-dossier-w)] max-w-full flex-col gap-5 overflow-y-auto border-l border-[var(--adm-rule-strong)] bg-[var(--adm-surface)] px-5 py-5 shadow-[var(--adm-card-shadow)]"
       >
         <div className="flex items-start justify-between gap-3">
           <div>

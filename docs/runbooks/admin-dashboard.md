@@ -44,8 +44,10 @@ three-part shell (`(admin)/layout.tsx`, now a true second Next.js root with its 
 - **`AdminSidebar`** (`--adm-sidebar-w: 230px`), replacing the old flat single-row
   nav: 9 links regrouped into 5 pipeline-phase groups — **Command** (Overview),
   **Acquisition** (Coverage, Backfill), **Refinery** (Pipeline, Quality),
-  **Platform** (Storage, Serving), **Autonomy** (Infra, Loop) — each link carrying
-  its section-letter chip (A–H, the same codes every page's card eyebrows use).
+  **Platform** (Storage, Serving), **Autonomy** (Infra, Loop) — most links carrying
+  a section-letter chip (A–H, the same codes every page's card eyebrows use; the
+  Overview/Command link deliberately carries none — it's a single aggregate
+  screen, not one lettered section).
   Digits 1–9 jump straight to the matching screen (ignored while a form field has
   focus or a modifier key is held); the current path is written to
   `localStorage` (`govfolio-admin-last-screen`) on every navigation, read by

@@ -37,10 +37,6 @@
   margin: 0;
 }
 
-main.shell:has(> .admin-root) {
-  max-width: none;
-}
-
 .admin-root {
   /* ---------- ground ---------- */
   --adm-bg: #0B0D12;

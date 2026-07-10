@@ -1,7 +1,7 @@
 /**
  * Deterministic SVG noise overlay — fixed seed, non-toggleable, always-on.
  * Renders as a fixed-position pseudo-element at ~5% opacity.
- * No Math.random(), reproducible across all renders for screenshot QA (goal 100).
+ * No Math.random(), reproducible across all renders for screenshot QA (goal 094).
  */
 export function AtmosphereOverlay() {
   // 64x64 SVG with deterministic noise pattern using feTurbulence with fixed seed
