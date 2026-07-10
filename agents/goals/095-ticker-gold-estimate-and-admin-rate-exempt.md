@@ -43,14 +43,24 @@ pnpm e2e   # 2-3 back-to-back runs, zero rate_limited failures
 ```
 
 ## Checklist
-- [ ] Task 1: contract.rs red — `gold_records_estimate` presence + null→number across `analyze`
-- [ ] Task 2: overview.rs green — `GOLD_ESTIMATE_SQL` + field + read-only-test entry
-- [ ] Task 3: contract regen (openapi.json + api.d.ts), committed with the code
-- [ ] Task 4: SentinelTicker red→green — fixture, number + null→dash tests, component render
-- [ ] Task 5: tiers.rs red — admin-exempt / invalid-token-limited / anonymous-limited triple
-- [ ] Task 6: auth.rs green — valid-token exemption; playwright.config.ts header note
-- [ ] Task 7: full acceptance block green incl. repeated `pnpm e2e`; regen zero-diff
-- [ ] Close-out: checklist + 000-INDEX row ticked; merged back to main
+- [x] Task 1: contract.rs red — `gold_records_estimate` presence + null→number across `analyze`
+- [x] Task 2: overview.rs green — `GOLD_ESTIMATE_SQL` + field + read-only-test entry
+- [x] Task 3: contract regen (openapi.json + api.d.ts), committed with the code
+- [x] Task 4: SentinelTicker red→green — fixture, number + null→dash tests, component render
+- [x] Task 5: tiers.rs red — admin-exempt / invalid-token-limited / anonymous-limited triple
+- [x] Task 6: auth.rs green — valid-token exemption; playwright.config.ts header note
+- [x] Task 7: full acceptance block green incl. repeated `pnpm e2e`; regen zero-diff
+- [x] Extra (found during acceptance): /admin/loop e2e spec raced its streamed main
+      region on the 503/Unavailable posture — deterministic fail with the API launched
+      per its own header docs (no GOVFOLIO_REPO_ROOT); fixed with a web-first
+      retrying assertion (0c95e10). Pre-existing spec bug, distinct from the 429 flake.
+- [x] Extra (adversarial review sweep, dfa1a5a): reltuples oracle assertion in
+      contract.rs (a -1→0 regression could previously pass), relkind in ('r','p')
+      for the planned Gold partitioning, not-counted (not merely not-rejected)
+      proof in tiers.rs, auth.rs module-doc drift, en-US locale pin in the ticker.
+      Known accepted residual: the tiers 429 asserts share the sibling test's
+      sub-0.05% UTC-minute-rollover flake window (established file pattern).
+- [x] Close-out: checklist + 000-INDEX row ticked; merged back to main
 
 ## BLOCKED (human)
 (empty)
