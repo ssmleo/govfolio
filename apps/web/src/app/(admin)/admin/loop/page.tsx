@@ -1,10 +1,11 @@
-import type { AdminLoop, AdminLoopGoal } from "@/lib/api";
+import type { AdminLoop } from "@/lib/api";
 import { ApiError, adminLoop } from "@/lib/api";
-import { Card } from "@/components/admin/ui/Card";
-import { Stat } from "@/components/admin/ui/Stat";
 import { Badge, stateVariant } from "@/components/admin/ui/Badge";
-import { Table, type TableColumn } from "@/components/admin/ui/Table";
+import { Card } from "@/components/admin/ui/Card";
+import { Screen } from "@/components/admin/ui/Screen";
+import { Stat } from "@/components/admin/ui/Stat";
 import { Unavailable } from "@/components/admin/Unavailable";
+import { formatCount, formatMonthDayTime, formatUtcMinute } from "@/lib/format";
 
 // Section H (autonomous-loop meta) only answers where the API is mounted
 // against a repo checkout — the loop reading its own progress. `GET
@@ -12,40 +13,11 @@ import { Unavailable } from "@/components/admin/Unavailable";
 // that's an expected state here, not an error.
 export const dynamic = "force-dynamic";
 
-function formatGeneratedAt(iso: string): string {
-  return new Date(iso).toUTCString();
-}
-
-function formatCommitTime(iso: string): string {
-  return new Date(iso).toISOString().slice(0, 16).replace("T", " ");
-}
-
-const GOAL_COLUMNS: ReadonlyArray<TableColumn<AdminLoopGoal>> = [
-  {
-    key: "number",
-    header: "#",
-    render: (goal) => (
-      <span className={goal.halted ? "adm-num font-semibold text-[var(--adm-danger-ink)]" : "adm-num"}>
-        {goal.number}
-      </span>
-    ),
-  },
-  {
-    key: "title",
-    header: "goal",
-    render: (goal) => goal.title,
-  },
-  {
-    key: "state",
-    header: "state",
-    render: (goal) => <Badge variant={stateVariant(goal.state)}>{goal.state}</Badge>,
-  },
-  {
-    key: "halted",
-    header: "halt",
-    render: (goal) => (goal.halted ? <Badge variant="danger">HALT</Badge> : null),
-  },
-];
+const GOAL_TH_STYLE: React.CSSProperties = {
+  textAlign: "left",
+  padding: "8px 14px 8px 0",
+  borderBottom: "1px solid var(--adm-rule-strong)",
+};
 
 export default async function LoopPage() {
   let data: AdminLoop;
@@ -66,100 +38,233 @@ export default async function LoopPage() {
   const haltedCount = data.goals.filter((goal) => goal.halted).length;
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6">
-      <section className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="adm-eyebrow mb-1">Section H · autonomous loop</p>
-          <h1>Loop</h1>
-          <p className="mt-1 max-w-2xl text-sm adm-muted">
-            Goal queue, git activity, and budget-guardrail trips, read straight from the checkout
-            the API is mounted against.
+    <Screen
+      label="Loop"
+      kicker="Section H · autonomous loop"
+      title="Loop"
+      subtitle="Goal queue, git activity, and budget-guardrail trips — read straight from the checkout the API is mounted against."
+      meta={
+        <>
+          {data.repo_root}
+          <br />
+          as of {formatUtcMinute(data.generated_at)}
+        </>
+      }
+    >
+      <Card
+        section="H1"
+        label="Goals"
+        title="Goal queue"
+        meta="agents/goals/000-INDEX.md"
+        rise={0.05}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(4,1fr)",
+            gap: 14,
+            margin: "16px 0",
+          }}
+        >
+          <Stat label="Done" value={formatCount(doneCount)} size={24} tone="success" />
+          <Stat label="In progress" value={formatCount(inProgressCount)} size={24} tone="info" />
+          <Stat label="Open" value={formatCount(openCount)} size={24} />
+          <Stat label="Halted" value={formatCount(haltedCount)} size={24} tone="danger" />
+        </div>
+        {data.goals.length === 0 ? (
+          <p className="adm-muted" style={{ fontSize: "12.5px" }}>
+            No goals found.
           </p>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-          <p className="adm-num text-xs adm-muted">{data.repo_root}</p>
-          <p className="adm-num text-xs adm-muted">as of {formatGeneratedAt(data.generated_at)}</p>
-        </div>
-      </section>
-
-      <Card eyebrow="H1" title="Goal queue">
-        <p className="mb-3 text-xs adm-muted">agents/goals/000-INDEX.md</p>
-        <div className="mb-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Stat label="done" value={doneCount} tone={doneCount > 0 ? "success" : "neutral"} />
-          <Stat
-            label="in progress"
-            value={inProgressCount}
-            tone={inProgressCount > 0 ? "info" : "neutral"}
-          />
-          <Stat label="open" value={openCount} />
-          <Stat label="halted" value={haltedCount} tone={haltedCount > 0 ? "danger" : "neutral"} />
-        </div>
-        <Table
-          columns={GOAL_COLUMNS}
-          rows={data.goals}
-          getRowKey={(goal) => goal.number}
-          emptyMessage="No goals found."
-        />
+        ) : (
+          // Hand-rolled instead of ui/Table: the design's goal table
+          // (dc.html:1189) uses 9px row padding where Table hardcodes 10px.
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th className="adm-microlabel" style={GOAL_TH_STYLE}>
+                  #
+                </th>
+                <th className="adm-microlabel" style={GOAL_TH_STYLE}>
+                  Goal
+                </th>
+                <th className="adm-microlabel" style={GOAL_TH_STYLE}>
+                  State
+                </th>
+                <th className="adm-microlabel" style={{ ...GOAL_TH_STYLE, padding: "8px 0" }}>
+                  Halt
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.goals.map((goal) => (
+                <tr
+                  key={goal.number}
+                  className="hover:bg-[var(--adm-row-hover)]"
+                  style={{ transition: "background .12s ease" }}
+                >
+                  <td
+                    className="adm-num"
+                    style={{
+                      padding: "9px 14px 9px 0",
+                      borderBottom: "1px solid var(--adm-rule)",
+                      fontSize: 12,
+                      color: goal.halted ? "var(--adm-danger-ink)" : "var(--adm-text-secondary)",
+                    }}
+                  >
+                    {goal.number}
+                  </td>
+                  <td
+                    style={{
+                      padding: "9px 14px 9px 0",
+                      borderBottom: "1px solid var(--adm-rule)",
+                      fontSize: "12.5px",
+                      color: "var(--adm-ink)",
+                    }}
+                  >
+                    {goal.title}
+                  </td>
+                  <td
+                    style={{ padding: "9px 14px 9px 0", borderBottom: "1px solid var(--adm-rule)" }}
+                  >
+                    <Badge variant={stateVariant(goal.state)}>{goal.state}</Badge>
+                  </td>
+                  <td style={{ padding: "9px 0", borderBottom: "1px solid var(--adm-rule)" }}>
+                    {goal.halted ? <Badge variant="danger">halt</Badge> : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <p style={{ margin: "12px 0 0", fontSize: 11, color: "var(--adm-meta)" }}>
+          A halt is ambiguity filed as a goal — the loop continues other work. Public pricing,
+          legal, and methodology copy stay human-gated by policy.
+        </p>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card eyebrow="H2" title="Git activity">
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.25fr .75fr",
+          gap: 16,
+          marginTop: 16,
+          alignItems: "start",
+        }}
+      >
+        <Card
+          section="H2"
+          label="Git"
+          title="Last commits"
+          meta={
+            git === null ? undefined : (
+              <>
+                branch{" "}
+                <span style={{ color: "var(--adm-accent-deep)" }}>
+                  {git.branch ?? "detached HEAD"}
+                </span>{" "}
+                · dirty{" "}
+                <span style={{ color: "var(--adm-text-secondary)" }}>
+                  {formatCount(git.dirty_files)}
+                </span>
+              </>
+            )
+          }
+          rise={0.12}
+        >
           {git === null ? (
-            <p className="text-sm adm-muted">
+            <p className="adm-muted" style={{ marginTop: 12, fontSize: "12.5px" }}>
               Git activity unavailable — a git subprocess failed in this checkout.
             </p>
           ) : (
-            <>
-              <div className="mb-4 flex flex-wrap gap-6">
-                <Stat label="branch" value={git.branch ?? "detached HEAD"} />
-                <Stat
-                  label="dirty files"
-                  value={git.dirty_files}
-                  tone={git.dirty_files > 0 ? "warning" : "neutral"}
-                />
-              </div>
-              <p className="adm-eyebrow mb-2">last {git.commits.length} commits</p>
-              <ul className="flex max-h-72 flex-col gap-1.5 overflow-y-auto pr-1">
-                {git.commits.map((commit) => (
-                  <li
-                    key={commit.sha}
-                    className="flex items-baseline gap-3 border-b border-[var(--adm-rule)] pb-1.5 text-sm last:border-0 last:pb-0"
+            <div style={{ marginTop: 12 }}>
+              {git.commits.map((commit) => (
+                <div
+                  key={commit.sha}
+                  style={{
+                    display: "flex",
+                    alignItems: "baseline",
+                    gap: 14,
+                    borderTop: "1px solid var(--adm-rule)",
+                    padding: "8px 0",
+                  }}
+                >
+                  <span
+                    className="adm-num"
+                    style={{ flexShrink: 0, fontSize: "11.5px", color: "var(--adm-accent-deep)" }}
                   >
-                    <span className="adm-num shrink-0 text-xs adm-muted">
-                      {commit.sha.slice(0, 7)}
-                    </span>
-                    <span className="adm-num shrink-0 text-xs adm-muted">
-                      {formatCommitTime(commit.committed_at)}
-                    </span>
-                    <span className="min-w-0 flex-1 truncate">{commit.subject}</span>
-                  </li>
-                ))}
-              </ul>
-            </>
+                    {commit.sha.slice(0, 7)}
+                  </span>
+                  <span
+                    className="adm-num"
+                    style={{
+                      flexShrink: 0,
+                      fontSize: 11,
+                      color: "var(--adm-faint)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {formatMonthDayTime(commit.committed_at)}
+                  </span>
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      fontSize: "12.5px",
+                      color: "var(--adm-text-secondary)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {commit.subject}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
         </Card>
 
-        <Card eyebrow="H3" title="Budget skips">
-          <p className="mb-3 text-xs adm-muted">agents/JOURNAL.md · BACKFILL_BUDGET skip: lines</p>
+        <Card section="H3" label="Guardrails" title="Budget skips" rise={0.19}>
+          <p style={{ margin: "12px 0 8px", fontSize: 11, color: "var(--adm-meta)" }}>
+            agents/JOURNAL.md · BACKFILL_BUDGET skip lines
+          </p>
           {skips === null ? (
-            <p className="text-sm adm-muted">agents/JOURNAL.md unavailable in this checkout.</p>
+            <p className="adm-muted" style={{ fontSize: "12.5px" }}>
+              agents/JOURNAL.md unavailable in this checkout.
+            </p>
           ) : skips.length === 0 ? (
-            <p className="text-sm adm-muted">No BACKFILL_BUDGET skips recorded.</p>
+            <p className="adm-muted" style={{ fontSize: "12.5px" }}>
+              No BACKFILL_BUDGET skips recorded.
+            </p>
           ) : (
-            <ul className="flex max-h-72 flex-col gap-2 overflow-y-auto pr-1 text-sm">
-              {skips.map((skip, index) => (
-                <li
-                  key={`${skip.date}-${index}`}
-                  className="border-b border-[var(--adm-rule)] pb-2 last:border-0 last:pb-0"
-                >
-                  <p className="adm-num text-xs adm-muted">{skip.date}</p>
-                  <p className="mt-0.5">{skip.line}</p>
-                </li>
-              ))}
-            </ul>
+            skips.map((skip, index) => (
+              <div
+                key={`${skip.date}-${index}`}
+                style={{ borderTop: "1px solid var(--adm-rule)", padding: "10px 0" }}
+              >
+                <p className="adm-num" style={{ fontSize: "10.5px", color: "var(--adm-faint)" }}>
+                  {skip.date}
+                </p>
+                <p style={{ marginTop: 4, fontSize: 12, color: "var(--adm-text-secondary)" }}>
+                  {skip.line}
+                </p>
+              </div>
+            ))
           )}
+          <p
+            style={{
+              margin: "12px 0 0",
+              fontSize: 11,
+              color: "var(--adm-meta)",
+              borderTop: "1px solid var(--adm-rule)",
+              paddingTop: 12,
+            }}
+          >
+            Over-cap actions halt and file a goal — money never moves past the ceiling
+            autonomously.
+          </p>
         </Card>
       </div>
-    </div>
+    </Screen>
   );
 }
