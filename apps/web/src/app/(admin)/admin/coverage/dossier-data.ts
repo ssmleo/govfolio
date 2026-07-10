@@ -63,7 +63,7 @@ export interface TierComposition {
 }
 
 export interface GoldYearPoint extends Record<string, unknown> {
-  /** Calendar year as a label (`Histogram`/`CountsBar` both key on a string category). */
+  /** Calendar year as a label, fed to `YearBars`. */
   year: string;
   count: number;
 }
