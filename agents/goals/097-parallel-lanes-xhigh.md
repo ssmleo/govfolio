@@ -28,8 +28,8 @@ In:
 
 Out:
 - Consolidating historical scattered Bronze bytes (env fixes it going forward)
-- Epoch/priority scoring for E3+ registry rows; greening the E2 calibration gate
-  (run-factory.md Workflow 1 — separate work; lanes idle fail-closed until it lands)
+- Epoch/priority scoring for E3+ registry rows (E2 gate verified GREEN during this
+  goal's acceptance — see checklist Task 5; the stale "blocked" state was goal-016-era)
 - Building the DB-backed cumulative LLM spend gate (021 note only; console HARD CAP is
   the shared backstop today)
 - Per-lane journal files (goal 103 owns journal rotation)
@@ -58,13 +58,23 @@ cargo run -p worker --bin jurisdiction-lease -- status         # against localho
 ```
 
 ## Checklist
-- [ ] Task 0: goal file + 000-INDEX registration
-- [ ] Task 1: all roles xhigh (5 shims + EFFORT.md + PROMPT.md approvals log)
-- [ ] Task 2: jurisdiction-lease bin + race-proof --ignored suite
-- [ ] Task 3: GOVFOLIO_BRONZE_ROOT shared Bronze parent
-- [ ] Task 4: PROMPT-FACTORY-LANE.md + workflows/factory-lane.md + pointers
-- [ ] Task 5: run-loop.sh lanes + monitor.sh + gitattributes/gitignore + smoke
-- [ ] Task 6: /goal dropped from LOOP.md + 4 runbooks + 021 budget note
+- [x] Task 0: goal file + 000-INDEX registration (4cc90ac)
+- [x] Task 1: all roles xhigh (5 shims + EFFORT.md + PROMPT.md approvals log) (9dcd6cf)
+- [x] Task 2: jurisdiction-lease bin + race-proof --ignored suite, 9/9 green (ef4dc93)
+- [x] Task 3: GOVFOLIO_BRONZE_ROOT shared Bronze parent (45d3d2b)
+- [x] Task 4: PROMPT-FACTORY-LANE.md + workflows/factory-lane.md + pointers (73bee33)
+- [x] Task 5: run-loop.sh lanes + monitor.sh + gitattributes/gitignore + smoke (d13ca8b);
+      LEARNING folded in: epoch-gate is minutes-per-run BY DESIGN (goal 016 scores
+      rust-builder via the real fmt/clippy/test/conformance gates), so the lane
+      pre-flight runs until-green at startup (hourly re-check, zero claude spend),
+      NOT per cycle; in-session workflow step 2 owns the per-iteration check.
+      Smoke evidence: stubbed-claude run proved banner/worktree/spawn; stubbed-cargo
+      run proved red-gate log+sleep loop and TERM-trap reap; real epoch-gate E2 run
+      captured separately — SURPRISE: E2 GATE OPEN (exit 0, all 7 roles 1.00; the
+      "blocked on scout/surveyor/sampler refs" state from goal 016 era is stale —
+      calibration artifacts exist now), so real lanes will claim br immediately
+      rather than idling.
+- [x] Task 6: /goal dropped from LOOP.md + 4 runbooks (grep = 0 hits) + 021 budget note (a4823b6)
 - [ ] Task 7: full acceptance green; JOURNAL line; merge to main
 
 ## BLOCKED (human)

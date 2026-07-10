@@ -51,10 +51,17 @@ EPOCH="${GOVFOLIO_EPOCH:-E2}"
 export CLAUDE_CODE_EFFORT_LEVEL="$EFFORT"
 # One shared durable-Bronze parent across every lane/worktree (invariant 2;
 # see pipeline::conformance::durable_bronze_parent and the JOURNAL 2026-07-09
-# front_b Bronze-gap incident).
+# front_b Bronze-gap incident). CAUTION: the default keeps the pre-097
+# convention ($ROOT/target — where all existing Bronze stores live), but
+# target/ dies to `cargo clean`; for real multi-lane campaigns point
+# GOVFOLIO_BRONZE_ROOT at a dedicated durable dir OUTSIDE any target/
+# (relocating the existing stores with it — content-addressed, safe to move).
 export GOVFOLIO_BRONZE_ROOT="${GOVFOLIO_BRONZE_ROOT:-$ROOT/target}"
 # Lanes need the shared local registry for the lease (leases live in Postgres).
 export DATABASE_URL="${DATABASE_URL:-postgres://postgres:postgres@localhost:5433/govfolio}"
+# Lane 0 (the orchestration loop below) also does lease ops (orchestration.md
+# steps 2d/6) — it needs a stable identity across fresh -p sessions too.
+export GOVFOLIO_LANE_ID="${GOVFOLIO_LANE_ID:-lane-0}"
 
 command -v claude >/dev/null 2>&1 || { echo "ERROR: claude CLI not found (npm i -g @anthropic-ai/claude-code)"; exit 1; }
 [ -f agents/PROMPT.md ] || { echo "ERROR: agents/PROMPT.md missing — run from the govfolio repo"; exit 1; }
@@ -78,27 +85,35 @@ run_factory_lane() { # $1 = lane number
   log="$ROOT/agents/loop.lane-$n.log"
   if [ ! -d "$wt" ]; then
     mkdir -p "$LANES_DIR"
-    git worktree add -B "lane/$n" "$wt" HEAD \
-      || { echo "lane-$n: worktree add failed (branch lane/$n checked out elsewhere?)"; return 1; }
+    if git show-ref --verify --quiet "refs/heads/lane/$n"; then
+      # NEVER -B here: the branch may hold committed-but-unmerged lane work
+      # (worktree dir lost to cleanup/prune) — check it out as-is, no reset.
+      git worktree add "$wt" "lane/$n" \
+        || { echo "lane-$n: worktree add failed (branch lane/$n checked out elsewhere?)"; return 1; }
+    else
+      git worktree add -b "lane/$n" "$wt" HEAD \
+        || { echo "lane-$n: worktree add failed"; return 1; }
+    fi
   fi
   [ -f "$wt/agents/PROMPT-FACTORY-LANE.md" ] \
     || { echo "lane-$n: stale worktree $wt — merge main into lane/$n first"; return 1; }
   # Startup pre-flight: hold here (hourly re-check, zero claude spend) until
   # the epoch gate is green. Not per-iteration — see the GOVFOLIO_EPOCH note
   # in the header; in-session workflow step 2 owns the per-iteration check.
-  until (cd "$wt" && cargo run -q -p pipeline --bin epoch-gate -- "$EPOCH" >/dev/null 2>&1); do
-    echo "$(date -u +%FT%TZ) lane-$n: epoch gate $EPOCH red — sleeping $((${GOVFOLIO_LANE_SLEEP_RED:-3600}))s (zero claude spend)" >>"$log"
+  # Output tail is logged: a compile/toolchain failure in the worktree must
+  # read differently from a legitimately red gate.
+  while :; do
+    gate_out=$(cd "$wt" && cargo run -q -p pipeline --bin epoch-gate -- "$EPOCH" 2>&1) && break
+    {
+      echo "$(date -u +%FT%TZ) lane-$n: epoch gate $EPOCH NOT GREEN — sleeping ${GOVFOLIO_LANE_SLEEP_RED:-3600}s (zero claude spend). Output tail:"
+      printf '%s\n' "$gate_out" | tail -n 5 | sed 's/^/    /'
+    } >>"$log"
     sleep "${GOVFOLIO_LANE_SLEEP_RED:-3600}"
   done
   echo "$(date -u +%FT%TZ) lane-$n: epoch gate $EPOCH green — starting sessions" >>"$log"
   while :; do
-    if [ -n "$MODEL" ]; then
-      (cd "$wt" && GOVFOLIO_LANE_ID="lane-$n" \
-        cat agents/PROMPT-FACTORY-LANE.md | claude -p $PERM_FLAG $VERB_FLAG --model "$MODEL") >>"$log" 2>&1 || true
-    else
-      (cd "$wt" && GOVFOLIO_LANE_ID="lane-$n" \
-        cat agents/PROMPT-FACTORY-LANE.md | claude -p $PERM_FLAG $VERB_FLAG) >>"$log" 2>&1 || true
-    fi
+    (cd "$wt" && export GOVFOLIO_LANE_ID="lane-$n" && \
+      cat agents/PROMPT-FACTORY-LANE.md | claude -p $PERM_FLAG $VERB_FLAG ${MODEL:+--model "$MODEL"}) >>"$log" 2>&1 || true
     sleep "${GOVFOLIO_LANE_SLEEP:-30}"
   done
 }
@@ -138,10 +153,6 @@ while :; do
   i=$((i+1))
   echo ""
   echo "---- iteration $i | $(date -u +%FT%TZ) | effort=$EFFORT ----"
-  if [ -n "$MODEL" ]; then
-    cat agents/PROMPT.md | claude -p $PERM_FLAG $VERB_FLAG --model "$MODEL" 2>&1 | tee -a agents/loop.log
-  else
-    cat agents/PROMPT.md | claude -p $PERM_FLAG $VERB_FLAG 2>&1 | tee -a agents/loop.log
-  fi
+  cat agents/PROMPT.md | claude -p $PERM_FLAG $VERB_FLAG ${MODEL:+--model "$MODEL"} 2>&1 | tee -a agents/loop.log
   sleep 5
 done

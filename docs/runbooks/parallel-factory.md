@@ -59,8 +59,9 @@ billing/destroy caps (see parallel-factory.md). If any is missing, run as a sing
 LOOP:
 1. SELECT (orchestration step 2d): highest priority_score jurisdiction in the current epoch
    with coverage_phase < live and NO live lease.
-2. CLAIM atomically (UPDATE ... WHERE claimed_by IS NULL RETURNING). If the claim returns no
-   row, another worker took it — select the next. Never work an unclaimed-by-me row.
+2. CLAIM atomically: `cargo run -p worker --bin jurisdiction-lease -- claim --next --epoch <n>`
+   (never hand-rolled SQL). Exit 1 (`none`) means nothing claimable — stop. Never work a
+   row whose claimed_by is not your identity.
 3. EXECUTE the jurisdiction's CURRENT phase with the mapped specialist (source-exploration.md:
    scout->surveyor->sampler->spec-writer/test-designer->builder). Phases within one jurisdiction
    are a dependency chain — strictly sequential. Intra-source fetches stay concurrency-1 (politeness).

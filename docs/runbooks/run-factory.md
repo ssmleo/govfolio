@@ -102,7 +102,8 @@ effectively does (kept for single-session/manual runs):
 ```
 Run the coverage factory. Repeatedly: select the highest priority_score jurisdiction
       in the current epoch with coverage_phase < live and no live lease (orchestration
-      step 2d); lease it (claimed_by/claimed_at); execute its current phase with the mapped
+      step 2d); lease it via `cargo run -p worker --bin jurisdiction-lease -- claim`
+      (atomic, goal 097 — never raw claimed_by/claimed_at writes); execute its current phase with the mapped
       specialist agent + its allocator-assigned skills + the source SAF; stage the artifact,
       run the auditor pass where mandated, validate, and on green advance coverage_phase and
       release the lease; commit.

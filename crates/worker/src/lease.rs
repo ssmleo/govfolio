@@ -22,10 +22,16 @@
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Utc};
 
-/// Phases a holder may advance/release a row to. `stub` is the seed state
-/// (never a target) and `blocked` only enters through [`Disposition::Block`],
-/// which also records `blocked_reason`.
-const ADVANCE_PHASES: &[&str] = &["scouted", "surveyed", "sampled", "specced", "built", "live"];
+/// Intermediate phases a holder may [`advance`] to while KEEPING the lease.
+/// `live` is deliberately absent: a live row is invisible to every claim path
+/// (`coverage_phase not in ('live','blocked')`), so advancing to live without
+/// releasing would strand an unreclaimable ghost lease — live goes through
+/// [`Disposition::Advance`] on [`release`] only. `stub` is the seed state
+/// (never a target); `blocked` only enters through [`Disposition::Block`].
+const ADVANCE_KEEP_PHASES: &[&str] = &["scouted", "surveyed", "sampled", "specced", "built"];
+
+/// Phases a [`release`] may land on (the terminal `live` included).
+const RELEASE_PHASES: &[&str] = &["scouted", "surveyed", "sampled", "specced", "built", "live"];
 
 /// A successfully claimed registry row.
 #[derive(Debug, sqlx::FromRow)]
@@ -57,30 +63,49 @@ pub enum Disposition {
     Block(String),
 }
 
-fn validate_phase(phase: &str) -> anyhow::Result<()> {
-    if !ADVANCE_PHASES.contains(&phase) {
+fn validate_phase(phase: &str, allowed: &[&str]) -> anyhow::Result<()> {
+    if !allowed.contains(&phase) {
         bail!(
-            "phase {phase:?} is outside the advance contract {ADVANCE_PHASES:?} \
-             (blocked goes through release --block <reason>)"
+            "phase {phase:?} is outside the contract {allowed:?} \
+             (blocked goes through release --block <reason>; \
+             live goes through release --advance live)"
         );
     }
     Ok(())
 }
 
 /// Atomically claim the best claimable jurisdiction in `epoch` for `me`:
-/// own in-flight lease first (resume + heartbeat renew), then unclaimed or
-/// stale (>24h) rows by `priority_score`. Returns `None` when nothing in the
-/// epoch is claimable — the caller stops, fail closed.
+/// the lane's own in-flight lease first (resume + heartbeat renew — in ANY
+/// epoch, so an epoch flip can never hand a lane a second lease while it
+/// still holds an unfinished row), then unclaimed or stale (>24h) rows in
+/// `epoch` by `priority_score`. Returns `None` when nothing is claimable —
+/// the caller stops, fail closed.
 ///
 /// # Errors
-/// Propagates the Postgres error when the claim statement fails.
-pub async fn claim_next<'e, E>(exec: E, me: &str, epoch: i16) -> anyhow::Result<Option<Lease>>
+/// Propagates the Postgres error when either claim statement fails.
+pub async fn claim_next<'a, A>(acq: A, me: &str, epoch: i16) -> anyhow::Result<Option<Lease>>
 where
-    E: sqlx::PgExecutor<'e>,
+    A: sqlx::Acquire<'a, Database = sqlx::Postgres>,
 {
-    // `IS NOT DISTINCT FROM` (not `=`) in the ORDER BY: `claimed_by = $1` is
-    // NULL for unclaimed rows, and DESC sorts NULLs first — which would rank
-    // every unclaimed row above the lane's own lease and hand it a second one.
+    let mut conn = acq.acquire().await.context("acquiring connection")?;
+    // Resume-own runs FIRST and WITHOUT the epoch filter: a lease held from a
+    // previous epoch still binds this lane until released (never two leases).
+    // No race window between the two statements — only `me` writes
+    // `claimed_by = $1` rows, and a lane is a single process.
+    let own: Option<Lease> = sqlx::query_as(
+        "update jurisdiction
+         set claimed_at = now()
+         where claimed_by = $1
+           and coverage_phase not in ('live', 'blocked')
+         returning id, coverage_phase, epoch, priority_score",
+    )
+    .bind(me)
+    .fetch_optional(&mut *conn)
+    .await
+    .context("resuming own jurisdiction lease")?;
+    if own.is_some() {
+        return Ok(own);
+    }
     sqlx::query_as(
         "update jurisdiction j
          set claimed_by = $1, claimed_at = now()
@@ -89,10 +114,8 @@ where
            where epoch = $2
              and coverage_phase not in ('live', 'blocked')
              and (claimed_by is null
-                  or claimed_by = $1
                   or claimed_at < now() - interval '24 hours')
-           order by (claimed_by is not distinct from $1) desc,
-                    priority_score desc nulls last, id
+           order by priority_score desc nulls last, id
            limit 1
            for update skip locked
          ) pick
@@ -101,7 +124,7 @@ where
     )
     .bind(me)
     .bind(epoch)
-    .fetch_optional(exec)
+    .fetch_optional(&mut *conn)
     .await
     .context("claiming next jurisdiction lease")
 }
@@ -148,7 +171,7 @@ pub async fn advance<'e, E>(exec: E, me: &str, id: &str, to: &str) -> anyhow::Re
 where
     E: sqlx::PgExecutor<'e>,
 {
-    validate_phase(to)?;
+    validate_phase(to, ADVANCE_KEEP_PHASES)?;
     let row: Option<(String,)> = sqlx::query_as(
         "update jurisdiction
          set coverage_phase = $3, claimed_at = now()
@@ -189,7 +212,7 @@ where
         .bind(me)
         .bind(id),
         Disposition::Advance(phase) => {
-            validate_phase(phase)?;
+            validate_phase(phase, RELEASE_PHASES)?;
             sqlx::query_as(
                 "update jurisdiction
                  set claimed_by = null, claimed_at = null, coverage_phase = $3

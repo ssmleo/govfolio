@@ -9,7 +9,11 @@ step X)" apply that step's text verbatim; no duplication, no drift.
 0b. LOAD: /CLAUDE.md, agents/EPOCHS.md, agents/workflows/source-exploration.md,
    tail of agents/JOURNAL.md. NOT agents/goals/000-INDEX.md (not your queue).
 1. GUARDRAILS (orchestration step 1, verbatim): fail-closed checks before any
-   irreversible infra action; a breach halts that action, files it, you continue.
+   irreversible infra action. A breach while working a claimed jurisdiction ->
+   `jurisdiction-lease release --id <x> --block guardrail:<detail>` (blocked +
+   released, per the standing factory contract), file it, STOP the iteration —
+   never keep the lease across a guardrail halt (the resume-own claim would
+   livelock the lane on the same breach forever).
 2. GATE: current epoch from agents/EPOCHS.md; run
    `cargo run -p pipeline --bin epoch-gate -- E<n>`. Nonzero -> STOP the iteration
    (fail closed, no claim). Never enter an epoch whose gate is red.
@@ -22,10 +26,16 @@ step X)" apply that step's text verbatim; no duplication, no drift.
    iteration ("walking the phases" happens across iterations under the same held
    lease). Map phase -> specialist via source-exploration.md; politeness stays
    concurrency-1 per source (invariant 10); subagent fan-out only WITHIN a phase's
-   independent work, never to skip phase order.
+   independent work, never to skip phase order. Long-running phase work: renew the
+   heartbeat at natural checkpoints (`jurisdiction-lease claim --id <x>` renews
+   claimed_at) — a lease untouched >24h is stale and another lane may take it.
 5. REVIEW + VALIDATE (orchestration step 5 semantics): the phase's validator /
    conformance / auditor pass per source-exploration.md, real command exit codes.
    Never self-certify.
+5b. LABEL (goal 023): set extraction_tier per record; non-deterministic tiers ->
+   `unverified` + sampling audit, and record the SAF refinement_trigger. Applies
+   to every phase that lands records (build/live); skipping it ships LLM-read
+   data as if verified.
 6. RECORD: on green intermediate phase ->
    `jurisdiction-lease advance --id <x> --to <phase>` (keeps the lease).
    On reaching live -> `jurisdiction-lease release --id <x> --advance live`.

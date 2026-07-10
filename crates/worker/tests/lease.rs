@@ -298,4 +298,37 @@ async fn advance_rejects_phase_outside_contract(pool: PgPool) {
     // Client-side validation fails closed before the DB CHECK would.
     assert!(advance(&pool, "lane-a", "zz-bad", "shipped").await.is_err());
     assert!(advance(&pool, "lane-a", "zz-bad", "blocked").await.is_err());
+    // `live` is release-only: an advanced-to-live row would keep its lease
+    // while being invisible to every claim path — an unreclaimable ghost.
+    assert!(advance(&pool, "lane-a", "zz-bad", "live").await.is_err());
+}
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
+async fn epoch_flip_resumes_held_lease_instead_of_claiming_second(pool: PgPool) {
+    setup(&pool).await;
+    insert_jur(&pool, "zz-old-epoch", Some(8), "surveyed", Some(90.0)).await;
+    insert_jur(&pool, "zz-new-epoch", Some(9), "stub", Some(95.0)).await;
+
+    let held = claim_next(&pool, "lane-a", 8).await.unwrap().unwrap();
+    assert_eq!(held.id, "zz-old-epoch");
+
+    // Epoch flips to 9 while lane-a still holds its epoch-8 row: the claim
+    // must resume the held lease (any epoch), never hand out a second one.
+    let resumed = claim_next(&pool, "lane-a", 9).await.unwrap().unwrap();
+    assert_eq!(resumed.id, "zz-old-epoch", "own lease binds across epochs");
+    assert_eq!(
+        claimed_by(&pool, "zz-new-epoch").await,
+        None,
+        "never two leases"
+    );
+
+    // Once released, the same lane claims fresh work in the new epoch.
+    assert!(
+        release(&pool, "lane-a", "zz-old-epoch", Disposition::Keep)
+            .await
+            .unwrap()
+    );
+    let fresh = claim_next(&pool, "lane-a", 9).await.unwrap().unwrap();
+    assert_eq!(fresh.id, "zz-new-epoch");
 }

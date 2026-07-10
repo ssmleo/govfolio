@@ -61,10 +61,14 @@ pub fn durable_bronze_parent() -> PathBuf {
 
 /// Pure core of [`durable_bronze_parent`] — env lookup injected so tests
 /// never mutate process env (racy under the parallel test runner).
+///
+/// Non-absolute values are IGNORED (fallback applies): a relative root would
+/// resolve against each process's cwd, silently splitting the "shared" store
+/// across lanes/worktrees — the exact failure the env exists to prevent.
 #[must_use]
 pub fn durable_bronze_parent_from(lookup: impl Fn(&str) -> Option<String>) -> PathBuf {
     match lookup("GOVFOLIO_BRONZE_ROOT") {
-        Some(root) if !root.trim().is_empty() => PathBuf::from(root),
+        Some(root) if Path::new(root.trim()).is_absolute() => PathBuf::from(root),
         _ => workspace_root().join("target"),
     }
 }
@@ -372,13 +376,19 @@ mod tests {
         });
         assert_eq!(overridden, PathBuf::from("C:/shared/bronze-root"));
 
-        // Unset and blank both fall back to this checkout's target/.
+        // Unset, blank, and RELATIVE values all fall back to this checkout's
+        // target/ — a relative root would resolve per-process-cwd and split
+        // the shared store across lanes.
         assert_eq!(
             durable_bronze_parent_from(|_| None),
             workspace_root().join("target")
         );
         assert_eq!(
             durable_bronze_parent_from(|_| Some("  ".to_owned())),
+            workspace_root().join("target")
+        );
+        assert_eq!(
+            durable_bronze_parent_from(|_| Some("target".to_owned())),
             workspace_root().join("target")
         );
     }
