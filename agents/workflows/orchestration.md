@@ -15,7 +15,10 @@
    b. Sentinel drift goals, ranked -> highest first.
    c. First unchecked goal in 000-INDEX.
    d. Coverage factory: highest priority_score jurisdiction in the current epoch with
-      coverage_phase < live, unclaimed, epoch gate green (goal 016 evals).
+      coverage_phase < live, unclaimed, epoch gate green (goal 016 evals). Lease ops go
+      through `cargo run -p worker --bin jurisdiction-lease` (atomic claim, goal 097).
+      Factory lanes 1..N-1 (GOVFOLIO_LANES) run agents/workflows/factory-lane.md and
+      select ONLY via this lease — a..c stay lane 0's (this workflow's) alone.
 3. GATE CHECK: preconditions for the selected item (dependencies done; role evals green
    when entering a new epoch; lease free; not human-blocked).
 4. DISPATCH: map item -> role (phase table in source-exploration.md, or goal's stated
@@ -29,8 +32,9 @@
    journal the dispatch with a cost note.
 5. VERIFY: run the phase/goal validators and acceptance commands; require the auditor
    pass where the workflow mandates it. The orchestrator never self-certifies.
-6. RECORD: advance checklist/coverage_phase, release lease, ensure SAF write-back
-   happened, commit (conventional message, reference goal/phase).
+6. RECORD: advance checklist/coverage_phase, release lease (`jurisdiction-lease
+   advance|release`, goal 097), ensure SAF write-back happened, commit (conventional
+   message, reference goal/phase).
 7. REPORT: append one line to agents/JOURNAL.md: date | item | outcome | blockers.
 
 STOP CONDITIONS: iteration budget exhausted; human gate reached; two consecutive failed
