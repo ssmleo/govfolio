@@ -42,8 +42,11 @@ test("queue → task → confirm flow, with side-by-side and audit log", async (
   // The side-by-side embeds OUR archived copy, not the government's URL
   // (feat(web): link/embed our own archived filing document — the gov URL
   // can rot, change, or point at a nationwide bulk file instead of anything
-  // politician-specific).
-  const archivedCopyUrl = `${API_URL}/v1/filings/${encodeURIComponent(record.provenance.filing.id)}/document`;
+  // politician-specific) — through the same-origin reviewer document proxy
+  // (BronzeDocument.tsx), not the admin-gated API URL directly: a plain
+  // browser request can't authenticate as admin, and the public endpoint's
+  // 24h free-tier embargo would 404 a filing this fresh.
+  const archivedCopyUrl = `/review/document/${encodeURIComponent(record.provenance.filing.id)}`;
   await expect(page.locator("iframe.doc-frame")).toHaveAttribute("src", archivedCopyUrl);
   // Pre-review note: extraction context for the record.
   await expect(page.getByTestId("note-extractor")).toHaveText(
