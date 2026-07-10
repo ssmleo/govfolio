@@ -570,6 +570,18 @@ async fn tiers_admin_token_requests_bypass_the_anonymous_backstop(pool: PgPool) 
         .await;
         assert_eq!(status, StatusCode::OK, "{body:#}");
     }
+    // Exempt means NOT COUNTED, not merely not-rejected: after four admin
+    // requests from this IP, a plain anonymous request still has the whole
+    // limit-of-1 budget (any increment above would have 429'd it).
+    let (status, _) = request(
+        &app,
+        "GET",
+        "/v1/records",
+        &[("x-forwarded-for", "203.0.113.21")],
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
     // Header PRESENCE alone must not exempt — that would make the backstop
     // trivially bypassable. A wrong token passes the limiter once (401 from
     // the admin gate), then the bucket catches the second attempt.

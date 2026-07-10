@@ -115,7 +115,9 @@ export function SentinelTicker() {
         <span className="adm-eyebrow">gold records</span>
         {data.gold_records_estimate != null ? (
           <span className="adm-num text-sm font-semibold text-[var(--adm-ink)]">
-            {data.gold_records_estimate.toLocaleString()}
+            {/* Locale pinned: the console is English-only and tests must not
+                depend on the host's ICU default. */}
+            {data.gold_records_estimate.toLocaleString("en-US")}
           </span>
         ) : (
           <span className="adm-num text-sm font-semibold text-[var(--adm-faint)]">—</span>

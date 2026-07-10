@@ -118,10 +118,12 @@ const LAST_SENTINEL_SQL: &str = "select max(last_checked_at) from sentinel_watch
 /// (auto)vacuum/analyze and reads in O(1); `-1` is postgres's "never
 /// analyzed" sentinel, mapped to `null` here. The `relkind`/`relnamespace`
 /// filters keep an index or other-schema object named `disclosure_record`
-/// from ever shadowing the table.
+/// from ever shadowing the table; `'p'` is included because the design plans
+/// declarative partitioning of Gold at ~10M rows, and a partitioned parent
+/// must not silently degrade this figure to a permanent null.
 const GOLD_ESTIMATE_SQL: &str = "select case when reltuples < 0 then null \
      else reltuples::bigint end from pg_class \
-     where relname = 'disclosure_record' and relkind = 'r' \
+     where relname = 'disclosure_record' and relkind in ('r', 'p') \
      and relnamespace = 'public'::regnamespace";
 
 /// Fetches the queue depths — shared with `/v1/admin/backfill` (plan B5).

@@ -22,7 +22,9 @@
 //!   limiter only. Reality check: authoritative anonymous limiting happens
 //!   at the CDN edge (design §6.4 "coarse limits at Cloudflare"); this
 //!   backstop is per-instance, resets on deploy, and the ceiling is generous
-//!   because the SSR origin funnels many visitors through one IP.
+//!   because the SSR origin funnels many visitors through one IP. Requests
+//!   carrying a VALID `X-Admin-Token` skip the backstop entirely (goal 095):
+//!   the operator dashboard polls every 15s through that same SSR funnel.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
