@@ -62,10 +62,12 @@ test("GET /admin/loop renders some content without crashing", async ({ page }) =
   const response = await page.goto("/admin/loop");
   expect(response?.status()).toBe(200);
 
-  const bodyText = await page.locator("body").innerText();
-  const isUnavailable = bodyText.includes("Unavailable in this environment");
-  const isGoalsList = bodyText.includes("Goal queue");
-  expect(isUnavailable || isGoalsList).toBe(true);
+  // Web-first assertion: the main region streams in after `load`, so a
+  // one-shot innerText snapshot loses the race (deterministically so on the
+  // 503/Unavailable posture, where the panel waits on the API round trip).
+  await expect(page.locator("body")).toContainText(
+    /Unavailable in this environment|Goal queue/,
+  );
 
   expect(pageErrors).toEqual([]);
 });
