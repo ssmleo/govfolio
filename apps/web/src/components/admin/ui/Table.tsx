@@ -11,6 +11,8 @@ export interface TableProps<T> {
   rows: readonly T[];
   getRowKey: (row: T) => string;
   emptyMessage?: string;
+  /** Optional row-click handler. When passed, every `<tr>` becomes a keyboard-operable button (click/Enter/Space) that calls it with the row; omitted, rows render exactly as before. */
+  onRowClick?: (row: T) => void;
 }
 
 // Dense data table: hairline rules, no zebra, numeric columns right-aligned
@@ -21,6 +23,7 @@ export function Table<T>({
   rows,
   getRowKey,
   emptyMessage = "No rows.",
+  onRowClick,
 }: TableProps<T>) {
   if (rows.length === 0) {
     return <p className="text-sm text-[var(--adm-muted)]">{emptyMessage}</p>;
@@ -45,7 +48,23 @@ export function Table<T>({
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={getRowKey(row)}>
+            <tr
+              key={getRowKey(row)}
+              onClick={onRowClick ? () => onRowClick(row) : undefined}
+              onKeyDown={
+                onRowClick
+                  ? (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        onRowClick(row);
+                      }
+                    }
+                  : undefined
+              }
+              role={onRowClick ? "button" : undefined}
+              tabIndex={onRowClick ? 0 : undefined}
+              className={onRowClick ? "cursor-pointer hover:bg-[var(--adm-surface-sunken)]" : undefined}
+            >
               {columns.map((col) => (
                 <td
                   key={col.key}

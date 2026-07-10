@@ -1,14 +1,22 @@
 import type { AdminBlockedJurisdiction, AdminCoverage, AdminRegimeCoverage } from "@/lib/api";
-import { ApiError, adminCoverage, listJurisdictions } from "@/lib/api";
+import {
+  ApiError,
+  adminBackfill,
+  adminCoverage,
+  adminPipeline,
+  listJurisdictions,
+  listRegimes,
+} from "@/lib/api";
 import { CoverageHeatmap, type CoverageCell } from "@/components/admin/CoverageHeatmap";
 import { Unavailable } from "@/components/admin/Unavailable";
-import { Badge, stateVariant } from "@/components/admin/ui/Badge";
 import { Card } from "@/components/admin/ui/Card";
 import { Progress } from "@/components/admin/ui/Progress";
 import { Stat } from "@/components/admin/ui/Stat";
 import { Table, type TableColumn } from "@/components/admin/ui/Table";
 import { CountsBar } from "@/components/admin/charts/CountsBar";
 import { RegimeYearHeatmap } from "./RegimeYearHeatmap";
+import { buildDossiersById } from "./dossier-data";
+import { CoverageRegimeExplorer } from "./CoverageRegimeExplorer";
 
 export const dynamic = "force-dynamic";
 
@@ -74,93 +82,6 @@ function tierChartRows(regimes: readonly AdminRegimeCoverage[]): TierChartRow[] 
     .slice(0, TIER_CHART_LIMIT);
 }
 
-const REGIME_COLUMNS: ReadonlyArray<TableColumn<AdminRegimeCoverage>> = [
-  {
-    key: "regime",
-    header: "regime",
-    render: (r) => (
-      <div className="flex flex-col">
-        <span className="font-medium">{r.body}</span>
-        <span className="text-xs text-[var(--adm-muted)]">{r.jurisdiction_name}</span>
-      </div>
-    ),
-  },
-  {
-    key: "phase",
-    header: "phase",
-    render: (r) => (
-      <div className="flex flex-wrap items-center gap-1">
-        <Badge variant={stateVariant(r.coverage_phase)}>{r.coverage_phase}</Badge>
-        {r.built_not_backfilled && <Badge variant="warning">gap</Badge>}
-      </div>
-    ),
-  },
-  {
-    key: "bridge",
-    header: "bridge",
-    render: (r) =>
-      r.regime_codes.length === 0 ? (
-        <Badge variant="neutral">unbridged</Badge>
-      ) : (
-        <span className="text-xs text-[var(--adm-muted)]">{r.regime_codes.join(", ")}</span>
-      ),
-  },
-  {
-    key: "politicians",
-    header: "politicians",
-    numeric: true,
-    render: (r) => r.politicians.toLocaleString(),
-  },
-  {
-    key: "filings",
-    header: "filings",
-    numeric: true,
-    render: (r) => r.filings.toLocaleString(),
-  },
-  {
-    key: "gold",
-    header: "gold",
-    numeric: true,
-    render: (r) => r.gold_records.toLocaleString(),
-  },
-  {
-    key: "bronze",
-    header: "bronze",
-    numeric: true,
-    render: (r) =>
-      r.bronze_documents == null ? (
-        <span title="Regime not bridged to any adapter" className="text-[var(--adm-muted)]">
-          —
-        </span>
-      ) : (
-        r.bronze_documents.toLocaleString()
-      ),
-  },
-  {
-    key: "silver",
-    header: "silver",
-    numeric: true,
-    render: (r) =>
-      r.silver_rows == null ? (
-        <span title="No staging table for this adapter yet" className="text-[var(--adm-muted)]">
-          —
-        </span>
-      ) : (
-        r.silver_rows.toLocaleString()
-      ),
-  },
-  {
-    key: "first_filed",
-    header: "first filed",
-    render: (r) => r.first_filed_date ?? "—",
-  },
-  {
-    key: "last_filed",
-    header: "last filed",
-    render: (r) => r.last_filed_date ?? "—",
-  },
-];
-
 const BLOCKED_COLUMNS: ReadonlyArray<TableColumn<AdminBlockedJurisdiction>> = [
   {
     key: "jurisdiction",
@@ -183,8 +104,15 @@ const BLOCKED_COLUMNS: ReadonlyArray<TableColumn<AdminBlockedJurisdiction>> = [
 export default async function CoveragePage() {
   let coverage: AdminCoverage;
   let heatmapCells: CoverageCell[];
+  let dossiersById: ReturnType<typeof buildDossiersById>;
   try {
-    const [coverageData, jurisdictions] = await Promise.all([adminCoverage(), listJurisdictions()]);
+    const [coverageData, jurisdictions, backfill, pipeline, regimes] = await Promise.all([
+      adminCoverage(),
+      listJurisdictions(),
+      adminBackfill(),
+      adminPipeline(),
+      listRegimes(),
+    ]);
     coverage = coverageData;
     const blockedReasonById = new Map(
       coverageData.blocked.map((b) => [b.jurisdiction_id, b.blocked_reason ?? null] as const),
@@ -195,6 +123,7 @@ export default async function CoveragePage() {
       phase: j.coverage_phase,
       blockedReason: blockedReasonById.get(j.id) ?? null,
     }));
+    dossiersById = buildDossiersById(coverageData, backfill, pipeline, regimes);
   } catch (error) {
     if (error instanceof ApiError && (error.status === 401 || error.status === 403 || error.status === 503)) {
       return <Unavailable reason={error.message} />;
@@ -297,18 +226,11 @@ export default async function CoveragePage() {
           </>
         )}
 
-        <Table
-          columns={REGIME_COLUMNS}
-          rows={activeRegimes}
-          getRowKey={(r) => r.regime_id}
-          emptyMessage="No regimes registered."
+        <CoverageRegimeExplorer
+          regimes={activeRegimes}
+          collapsedStubCount={collapsedStubCount}
+          dossiers={dossiersById}
         />
-        {collapsedStubCount > 0 && (
-          <p className="mt-3 text-xs text-[var(--adm-muted)]">
-            +{collapsedStubCount.toLocaleString()} stub regime{collapsedStubCount === 1 ? "" : "s"} with no
-            activity yet — see the world coverage strip above for the full 196-jurisdiction picture.
-          </p>
-        )}
       </Card>
 
       <Card eyebrow="A4" title="Records by regime × year">
