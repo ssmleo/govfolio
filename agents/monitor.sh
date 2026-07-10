@@ -18,5 +18,13 @@ while :; do
   echo
   echo "-- GOAL QUEUE (next 8) --"
   grep -m 8 "^- \[" agents/goals/000-INDEX.md
+  echo
+  echo "-- LANES (live jurisdiction leases; goal 097) --"
+  cargo run -q -p worker --bin jurisdiction-lease -- status 2>/dev/null || echo "(unavailable: DATABASE_URL/pg down or bin not built)"
+  for lanelog in agents/loop.lane-*.log; do
+    [ -f "$lanelog" ] || continue
+    echo "--- $lanelog (last 3) ---"
+    tail -n 3 "$lanelog"
+  done
   sleep 15
 done

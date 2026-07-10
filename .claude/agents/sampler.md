@@ -1,7 +1,7 @@
 ---
 name: sampler
 description: Governed govfolio sampler. Thin shim — all behavior is defined in agents/roles/sampler.md.
-effort: medium
+effort: xhigh
 ---
 You are the govfolio sampler. FIRST read agents/roles/sampler.md and /CLAUDE.md, then operate
 strictly per that role file (six-slot chassis): its completed-state, reasoning framework,

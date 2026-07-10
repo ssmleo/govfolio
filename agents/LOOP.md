@@ -1,6 +1,8 @@
 # Loop protocol (Ralph-style)
 
-Run shape: `while :; do cat agents/LOOP.md | claude ; done` (or /goal <file>).
+Run shape: `while :; do cat agents/LOOP.md | claude ; done`, or `GOVFOLIO_LANES=N
+./agents/run-loop.sh` — lane 0 runs this protocol; lanes 1..N-1 run
+agents/PROMPT-FACTORY-LANE.md per agents/workflows/factory-lane.md (goal 097).
 
 Each iteration: run the orchestrator workflow (agents/workflows/orchestration.md).
 Legacy simple mode below applies only if orchestration.md is absent.

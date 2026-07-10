@@ -2,10 +2,10 @@
 
 Place at: `C:\projects\govfolio.io\docs\runbooks\run-factory.md`
 
-Drives E1 calibration and every epoch from Brazil onward. Two `/goal` workflows: first a
+Drives E1 calibration and every epoch from Brazil onward. Two prompt workflows: first a
 **calibration run** that produces the three missing E1 reference artifacts through the
 specialist agents (which unblocks the E2 gate), then the **standing factory** that runs
-Brazil onward fully autonomously. Authority: `docs/decisions/automation-policy.md`
+Brazil onward fully autonomously (goal 097 lanes: `GOVFOLIO_LANES=N ./agents/run-loop.sh`). Authority: `docs/decisions/automation-policy.md`
 (no human gates), `agents/workflows/source-exploration.md` (phase→role mapping),
 `role-eval-thresholds.md` (gate semantics).
 
@@ -32,7 +32,7 @@ file, that is a FINDING + founder-superseded lock bump, never an in-place edit.
 
 ---
 
-## Task zero — verify the invocation surface (do this before either /goal)
+## Task zero — verify the invocation surface (do this before either workflow)
 
 Reasoning: this runbook asserts command names and paths from the repo's own docs, but
 those must be confirmed against the built code, not trusted. Three checks:
@@ -43,7 +43,7 @@ those must be confirmed against the built code, not trusted. Three checks:
 2. **The scorer harness.** `cargo test -p pipeline role_evals`
    Confirms `validate_sources` / `validate_survey` / `validate_manifest` run here (they are
    eval functions in `crates/pipeline/src/evals/`, invoked via this test — NOT standalone
-   `validate-*` bins). The calibration `/goal`'s acceptance is these two commands, nothing else.
+   `validate-*` bins). The calibration prompt's acceptance is these two commands, nothing else.
 3. **Path spelling (silent-failure trap).** The repo uses BOTH `docs/regimes/us-house/`
    (hyphen: the old flat survey `us-house.md` and `reference/`) AND `docs/regimes/us_house/`
    (underscore: the wanted `sources.yaml`, `AUTHORITY.md` per `role-eval-thresholds.md` and
@@ -52,11 +52,13 @@ those must be confirmed against the built code, not trusted. Three checks:
    no error. Fix the spelling to match the scorer before running, or the calibration silently
    never converges.
 
-If any command name differs, adjust the `/goal` blocks below to the real names.
+If any command name differs, adjust the prompt blocks below to the real names.
 
-Also confirm `/goal` itself: run `/help`, verify `/goal` exists and takes a free-form
-condition (its exact syntax postdates this runbook's authoring). If your build exposes a
-different loop primitive, the *conditions* below still apply — only the driver changes.
+Drivers (goal 097 dropped the never-implemented slash-command this runbook once assumed):
+the calibration run is a
+one-off prompt pasted into an interactive `claude` session in its own worktree; the
+standing factory runs as `GOVFOLIO_LANES=N ./agents/run-loop.sh` lanes
+(`agents/PROMPT-FACTORY-LANE.md` per `agents/workflows/factory-lane.md`).
 
 ---
 
@@ -65,8 +67,10 @@ different loop primitive, the *conditions* below still apply — only the driver
 Produces the three missing E1 reference artifacts through the specialist agents, each gated
 by the auditor pass per `source-exploration.md`, WITHOUT editing any frozen file.
 
+Prompt (one-off; paste into an interactive `claude` session in its own worktree):
+
 ```
-/goal Bring the three NOT_APPLICABLE E1 roles (scout, surveyor, sampler) to threshold by
+Bring the three NOT_APPLICABLE E1 roles (scout, surveyor, sampler) to threshold by
       having each specialist agent produce its us_house artifact through the normal
       source-exploration phases. Do NOT edit any file under
       docs/regimes/us-house/reference/ (frozen; findings only).
@@ -92,10 +96,15 @@ blind on the epoch that most needs the instruments calibrated.
 
 Runs only after Workflow 1 turns the E2 gate green.
 
+Standing driver: `GOVFOLIO_LANES=N ./agents/run-loop.sh` — factory lanes execute
+`agents/workflows/factory-lane.md`; the prompt below is what each lane iteration
+effectively does (kept for single-session/manual runs):
+
 ```
-/goal Run the coverage factory. Repeatedly: select the highest priority_score jurisdiction
+Run the coverage factory. Repeatedly: select the highest priority_score jurisdiction
       in the current epoch with coverage_phase < live and no live lease (orchestration
-      step 2d); lease it (claimed_by/claimed_at); execute its current phase with the mapped
+      step 2d); lease it via `cargo run -p worker --bin jurisdiction-lease -- claim`
+      (atomic, goal 097 — never raw claimed_by/claimed_at writes); execute its current phase with the mapped
       specialist agent + its allocator-assigned skills + the source SAF; stage the artifact,
       run the auditor pass where mandated, validate, and on green advance coverage_phase and
       release the lease; commit.

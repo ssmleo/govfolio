@@ -41,7 +41,7 @@ use chrono::NaiveDate;
 use br::BrAdapter;
 use br::binding::BrBinding;
 use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx};
-use pipeline::conformance::{fixtures_dir, workspace_root};
+use pipeline::conformance::{durable_bronze_parent, fixtures_dir};
 use pipeline::run::{LocalFiling, RegimeBinding, Runner};
 use pipeline::stages::roster::{RosterMember, seed_roster};
 use pipeline::stages::seed::{JurisdictionSeed, RegimeSeed, seed_regime};
@@ -178,7 +178,7 @@ async fn main() -> anyhow::Result<()> {
 
     let fixtures = fixtures_dir("br");
     let inputs = collect_inputs(&fixtures)?;
-    let bronze = workspace_root().join("target").join("bronze-local-br");
+    let bronze = durable_bronze_parent().join("bronze-local-br");
     println!(
         "running {} local br filings from {} (bronze: {})",
         inputs.len(),

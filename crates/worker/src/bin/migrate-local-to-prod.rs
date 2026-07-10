@@ -28,9 +28,9 @@
 //! `postgres://postgres:postgres@localhost:5433/govfolio`), `PROD_DATABASE_URL`
 //! (required — via the Cloud SQL Auth Proxy; the caller is responsible for
 //! having the proxy running, this bin only connects to whatever it points
-//! at), `LOCAL_BRONZE_ROOT` (default `target/bronze-backfill-real`, matching
-//! `bin/backfill-real.rs`'s own default), `PROD_BRONZE_BUCKET` (default
-//! `govfolio-bronze`).
+//! at), `LOCAL_BRONZE_ROOT` (default `<durable_bronze_parent()>/bronze-backfill-real`
+//! — i.e. `target/` or `GOVFOLIO_BRONZE_ROOT`, matching `bin/backfill-real.rs`'s
+//! own default), `PROD_BRONZE_BUCKET` (default `govfolio-bronze`).
 //!
 //! Exit code: 0 even when individual rows failed to migrate (per-row
 //! isolation is the design, not an error — see the printed report's `failed`
@@ -78,11 +78,7 @@ async fn main() -> anyhow::Result<()> {
         .context("connecting to PROD Postgres")?;
 
     let bronze_root = std::env::var("LOCAL_BRONZE_ROOT").map_or_else(
-        |_| {
-            pipeline::conformance::workspace_root()
-                .join("target")
-                .join("bronze-backfill-real")
-        },
+        |_| pipeline::conformance::durable_bronze_parent().join("bronze-backfill-real"),
         PathBuf::from,
     );
     let bucket =

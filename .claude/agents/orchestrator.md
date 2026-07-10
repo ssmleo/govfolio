@@ -1,7 +1,7 @@
 ---
 name: orchestrator
 description: Governed govfolio orchestrator. Thin shim — all behavior is defined in agents/roles/orchestrator.md.
-effort: high
+effort: xhigh
 ---
 You are the govfolio orchestrator. FIRST read agents/roles/orchestrator.md and /CLAUDE.md, then operate
 strictly per that role file (six-slot chassis): its completed-state, reasoning framework,

@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use anyhow::Context as _;
 
 use pipeline::adapter::{BronzeStore, Clock, JurisdictionAdapter as _, RunCtx};
-use pipeline::conformance::{fixtures_dir, workspace_root};
+use pipeline::conformance::{durable_bronze_parent, fixtures_dir, workspace_root};
 use pipeline::run::{LocalFiling, Runner};
 use pipeline::stages::roster::seed_roster;
 use pipeline::stages::seed::seed_regime;
@@ -35,7 +35,7 @@ struct Args {
 fn parse_args() -> anyhow::Result<Args> {
     let mut args = Args {
         fixtures: fixtures_dir("us_house"),
-        bronze: workspace_root().join("target").join("bronze-local"),
+        bronze: durable_bronze_parent().join("bronze-local"),
         index_xml: workspace_root()
             .join("docs")
             .join("regimes")

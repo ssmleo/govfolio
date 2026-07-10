@@ -77,7 +77,7 @@ use govfolio_core::domain::gold::GoldCandidate;
 use pipeline::adapter::{
     BronzeStore, Clock, FilingRef, JurisdictionAdapter as _, RunCtx, ScratchDir,
 };
-use pipeline::conformance::workspace_root;
+use pipeline::conformance::durable_bronze_parent;
 use pipeline::run::{RunReport, Runner};
 use pipeline::stages::seed::seed_regime;
 use worker::backfill::{
@@ -446,10 +446,11 @@ async fn main() -> anyhow::Result<()> {
     // (non-PID) path is correct here since BronzeStore is content-addressed —
     // re-invocations accumulate/reuse the same store rather than leaking a new
     // directory per run. Unlike the gate's own scratch Bronze (UfScopedArchive,
-    // wrapped in ScratchDir) a few lines down.
-    let bronze = workspace_root()
-        .join("target")
-        .join("bronze-backfill-real-br");
+    // wrapped in ScratchDir) a few lines down. Parent via
+    // durable_bronze_parent(): parallel loop lanes (goal 097) share one
+    // GOVFOLIO_BRONZE_ROOT so Bronze never strands in a single worktree's
+    // target/ again (the 2026-07-09 front_b gap).
+    let bronze = durable_bronze_parent().join("bronze-backfill-real-br");
     // Two RunCtx instances sharing the SAME (content-addressed, safe to open
     // twice) Bronze path and pool clone — one per RosterBody Runner (module
     // doc comment point 3). `BrAdapter::discover_year`'s joined-declaration
