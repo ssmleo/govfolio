@@ -35,23 +35,28 @@ three-part shell (`(admin)/layout.tsx`, now a true second Next.js root with its 
 `<html><body>`):
 
 - **`Masthead`** (`components/admin/Masthead.tsx`, `--adm-masthead-h: 58px`):
-  wordmark + "Administrative Console" tag, an environment badge, an operator-role
-  tag, and a live UTC clock.
+  wordmark + "Administrative Console" tag, an environment badge, a "Founder" role
+  badge (a static label for the one person this console serves — no per-user role
+  model exists; the whole surface is gated by one shared `X-Admin-Token`), and a
+  live UTC clock.
 - **`SentinelTicker`** (`--adm-ticker-h: 38px`), directly below the masthead: polls
-  the overview snapshot every 15s and renders a derived one-word state
-  (NOMINAL/WATCH/INCIDENT) plus frozen/running/failed/review-open/drift-open/DLQ
-  counts.
+  the overview snapshot every 15s and renders a derived state word ("all clear" /
+  "watch" / "{n} frozen" / "failing", derived from real frozen/failed/drift counts)
+  plus frozen/running/failed/review-open/drift-open/DLQ counts and a right-pinned
+  Gold-records estimate.
 - **`AdminSidebar`** (`--adm-sidebar-w: 230px`), replacing the old flat single-row
   nav: 9 links regrouped into 5 pipeline-phase groups — **Command** (Overview),
   **Acquisition** (Coverage, Backfill), **Refinery** (Pipeline, Quality),
-  **Platform** (Storage, Serving), **Autonomy** (Infra, Loop) — most links carrying
-  a section-letter chip (A–H, the same codes every page's card eyebrows use; the
-  Overview/Command link deliberately carries none — it's a single aggregate
-  screen, not one lettered section).
-  Digits 1–9 jump straight to the matching screen (ignored while a form field has
-  focus or a modifier key is held); the current path is written to
-  `localStorage` (`govfolio-admin-last-screen`) on every navigation, read by
-  nothing yet — a hook for a future "resume where you left off", not a redirect.
+  **Platform** (Storage, Serving, Infra), **Autonomy** (Loop) — each link carries a
+  section-letter chip on the left (◆ for Overview, A–H for the rest, the same
+  codes every page's card eyebrows use). No digit numbers are shown in the DOM
+  (design-exact, goal 096) — the 1–9 keyboard shortcuts still work, they're just
+  not advertised visually. The current path is written to `localStorage`
+  (`govfolio-admin-last-screen`) on every navigation, read by nothing yet — a hook
+  for a future "resume where you left off", not a redirect.
+- **`AdminFooter`** (goal 096): a closing bar — "Govfolio · Administrative Console
+  — founder eyes only" plus "api v1" (a build sha is appended only when
+  `NEXT_PUBLIC_BUILD_SHA` is set; never fabricated).
 
 ### Fonts
 
@@ -84,6 +89,56 @@ first/last-filed dates, tier composition (bronze/silver/gold), a gold-records-by
 bar chart, integrity/freshness notes, a synthesized regime note, an honest
 "politeness not observable from here" caveat, and a link to the adapter crate
 (`crates/adapters/<x>`). Closes via its × button, a backdrop click, or Escape.
+
+Since goal 096, the panel stays **mounted after its first open** (a `cached` copy of
+the last non-null payload persists locally) so closing plays the real `.38s`
+slide-out transition instead of vanishing instantly; `visibility` is delayed by the
+same `.38s` on close (not on open) so Playwright/screen readers see it through the
+whole slide, and `inert` keeps it out of the tab order and a11y tree while closed.
+Before ever being opened once, it still renders nothing.
+
+## Design-parity pass (goal 096)
+
+A second Claude Design handoff ("Govfolio Admin Console.dc.html") was implemented
+for pixel/behavioral parity beyond goal 094's port — goal 094 had already matched the
+mockup's *tokens* (palette, fonts, dimensions) but diverged in execution (padding,
+type scale, chart library, atmosphere z-order, animation application). This pass:
+
+- Rebuilt `components/admin/ui/{Card,Badge,Stat,Progress,Table}` design-exact, and
+  added `Screen`/`CodeChip`/`GhostButton`.
+- **Removed `recharts` entirely.** All charts are now hand-rolled server components
+  in `components/admin/charts/`: `TrendChart` (line/area, mkTrend geometry),
+  `BarRows`, `FunnelRows`, `ColumnChart` (linear/sqrt scale), `DensityColumns`,
+  `YearBars`. Hover detail rides native `title=` attributes, matching the design.
+  `WorldWall` (the jurisdiction cell wall + hover readout) is the one client chart.
+- Swept all 9 screens + the Regime Dossier against the design file section by
+  section (exact copy, grid ratios, `gfRise` stagger, badge/table/stat recipes).
+- Atmosphere (vignette + film grain) now renders fixed ON TOP of the content
+  (z 29/30), replacing an earlier invisible `z-index: -1` layer.
+
+**Justified deviations from the design** (real data drives every state; nothing is
+fabricated):
+- No scenario/incident simulator — the design's mock toggle has no equivalent here.
+- Fabricated design figures (e.g. "newest 8 of 214 runs", a hardcoded conformance
+  sweep date, `$5.00` per-action limit) render from the real API field or an honest
+  "unavailable" note instead.
+- Infra scheduler badges show the real `paused: true` state (the design's sample
+  data happened to show all schedulers running).
+- Extra real-data cards kept beyond the design's own screens, restyled to match its
+  card language: Coverage's regime×year density heatmap; Quality's idempotency +
+  raw-retention checks; Pipeline's per-stage funnel detail table.
+- The regime-coverage table shows a small regime-code caption under the
+  jurisdiction name (the design has no such column) — several e2e specs target
+  rows by that code text, and it also lets an adapter regime-code bridge multiple
+  Gold regimes, which the design's simpler model doesn't need to express.
+- `prefers-reduced-motion` still guards the rise/pulse/sweep keyframes (the design
+  has no such guard) — an accessibility improvement, not a regression.
+
+Verification used a scratch Playwright harness (vendored React 18 UMD injected via
+`page.route` so the prototype's own `support.js` renders unmodified) to screenshot
+the design prototype and the live app side by side across all 9 screens plus the
+dossier, alongside the existing `pnpm --filter web {lint,typecheck,test}` and
+`pnpm e2e` gates. The harness itself is scratch-only tooling, not part of the repo.
 
 ## Local boot sequence
 
