@@ -87,8 +87,35 @@ bar chart, integrity/freshness notes, a synthesized regime note, an honest
 
 ## Local boot sequence
 
+The API does **not** run migrations at boot — run the (idempotent) migrator first if the
+checkout gained files under `crates/core/migrations/` since the DB was last migrated.
+
+**PowerShell** (default shell on the Windows dev host). PS 5.1 has no bash-style
+`VAR=x cmd` inline prefix and no `&&` — set `$env:` vars instead, and note they persist
+for the whole terminal session (full gotcha list: `dev-host-windows.md` §4). The API and
+web processes both block, so they need separate terminals either way:
+
+```powershell
+.\scripts\dev\pg-local.ps1 start                       # Postgres on :5433
+
+# terminal 1 — API on :8080
+$env:DATABASE_URL = 'postgres://postgres:postgres@localhost:5433/govfolio'
+$env:ADMIN_TOKEN = 'dev-admin-token'                   # any dev value
+$env:GOVFOLIO_REPO_ROOT = 'C:\projects\govfolio.io'    # optional: only /admin/loop reads it
+cargo run -p core --bin migrate                        # idempotent
+cargo run -p api
+
+# terminal 2 — web on :3000
+$env:GOVFOLIO_ADMIN_TOKEN = 'dev-admin-token'          # must equal ADMIN_TOKEN
+pnpm --filter web dev
 ```
-scripts/dev/pg-local.ps1 start                                  # Postgres on :5433
+
+**Git Bash** equivalent:
+
+```bash
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/pg-local.ps1 start
+DATABASE_URL=postgres://postgres:postgres@localhost:5433/govfolio \
+  cargo run -p core --bin migrate                                # idempotent
 DATABASE_URL=postgres://postgres:postgres@localhost:5433/govfolio \
 ADMIN_TOKEN=<any-dev-value> \
 GOVFOLIO_REPO_ROOT=<absolute path to this checkout> \

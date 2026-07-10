@@ -19,3 +19,7 @@ admin-stop:
 # Report whether postgres / the admin API / the admin web dashboard are up.
 admin-status:
     powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/admin-panel.ps1 status
+
+# Stop local postgres (admin-stop leaves it running; this is the explicit off switch).
+pg-stop:
+    powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev/pg-local.ps1 stop

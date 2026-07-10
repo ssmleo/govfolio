@@ -1,7 +1,10 @@
 # Memory + Authority Substrate v2 — design
 
 - **Date:** 2026-07-10
-- **Status:** Founder-approved 2026-07-10.
+- **Status:** Founder-approved 2026-07-10. Amendment 1 (2026-07-10, founder-directed):
+  root-CLAUDE.md coverage + pin — universal memory pointer for sessions outside
+  PROMPT.md/role loading (interactive, ad-hoc, other worktrees), nested folder CLAUDE.md
+  stubs, root CLAUDE.md added to the §4.2 pinned set. See §4.2 pinned set + §6 table rows.
 - **Provenance:** brainstorming session + 3-agent repo exploration (facts verified by direct
   file reads) + SOTA web-research pass (citations re-verified by direct fetch). All
   load-bearing facts and citations are inlined: self-sufficient with zero session context.
@@ -220,7 +223,10 @@ E1.lock.json's tamper evidence (§2) is generalized to the whole agent-governanc
 `superseded_note` records what changed and why on every version bump (E1's supersede policy,
 §2). Pinned set: `agents/GOVERNANCE.md`, `agents/PROMPT.md`, `agents/LOOP.md`,
 `agents/workflows/orchestration.md`, `agents/roles/*.md`, `agents/archetypes/*.md`,
-`agents/EFFORT.md`, `agents/EPOCHS.md`, `agents/goals/000-INDEX.md`. Goal files are NOT
+`agents/EFFORT.md`, `agents/EPOCHS.md`, `agents/goals/000-INDEX.md`, and root `/CLAUDE.md`
+(Amendment 1: it carries the 12 invariants + the universal memory pointer and loads into
+EVERY session; nested folder CLAUDE.md stubs are NOT pinned — low-stakes pointers, edited
+casually as folders evolve). Goal files are NOT
 content-pinned — legitimately mutable (progress blocks, checklists) — and are covered by the
 bijection check instead. The lock is regenerated only via `validate-authority --write-lock`,
 permitted only through the amendment path below.
@@ -421,6 +427,9 @@ lock-pinned authority file: its amendment rides an `authority/*` branch and upda
 | `agents/LOOP.md` ▲ | Legacy-mode note: even when `orchestration.md` is absent, journal per the §4.1 entry schema. | 103 |
 | `agents/workflows/orchestration.md` step 7 ▲ | Journal line schema becomes `date \| role \| goal \| outcome \| evidence pointers \| blockers`, ≤120 words. | 103 |
 | `agents/PROMPT.md` ▲ | step-5 journal-line wording → §4.1 entry schema | 103 |
+| `CLAUDE.md` (root) ▲ | Amendment 1: interim Memory section (load-first pointer, write-back-is-done, append-only/supersede, ` ```untrusted ` fencing) + DoD memory-write-back clause landed ahead of the loop; goal 101 finalizes wording once `docs/memory/INDEX.md` exists. Pinned by goal 100. | 100/101 |
+| `crates/adapters/CLAUDE.md` (new) | Amendment 1: SAF pointer stub — subtree auto-load gives every adapter session its regime's memory pointer. Unpinned. Landed with the amendment. | — |
+| `crates/{api,pipeline,worker}/CLAUDE.md`, `apps/web/CLAUDE.md`, `infra/CLAUDE.md` (new) | Nested subsystem stubs → `docs/memory/subsystems/<x>.md` (infra also → `ops/{deploys,cost}.md`; api also → `subsystems/contracts.md`). 3–5 lines each, unpinned; pattern = `crates/adapters/CLAUDE.md`. | 101 |
 
 ## 7. Out of scope
 
