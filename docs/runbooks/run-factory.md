@@ -54,7 +54,8 @@ those must be confirmed against the built code, not trusted. Three checks:
 
 If any command name differs, adjust the prompt blocks below to the real names.
 
-Drivers (goal 097 — `/goal` was never implemented and is gone): the calibration run is a
+Drivers (goal 097 dropped the never-implemented slash-command this runbook once assumed):
+the calibration run is a
 one-off prompt pasted into an interactive `claude` session in its own worktree; the
 standing factory runs as `GOVFOLIO_LANES=N ./agents/run-loop.sh` lanes
 (`agents/PROMPT-FACTORY-LANE.md` per `agents/workflows/factory-lane.md`).

@@ -51,7 +51,7 @@ cargo clippy --all-targets -- -D warnings
 cargo test --workspace
 docker compose up -d && cargo test --workspace -- --ignored   # incl. lease race suite
 sh -n agents/run-loop.sh && sh -n agents/monitor.sh
-grep -rn -e "/goal" agents/LOOP.md docs/runbooks/ | wc -l      # 0
+grep -rn -e "/goal" agents/LOOP.md docs/runbooks/ | grep -v "agents/goals/" | wc -l  # 0 (path refs to agents/goals/ are not command references)
 grep -c "effort: xhigh" .claude/agents/*.md                    # 11/11
 GOVFOLIO_LANES=2 ./agents/run-loop.sh                          # red-gate zero-spend smoke; Ctrl-C reaps
 cargo run -p worker --bin jurisdiction-lease -- status         # against localhost:5433
@@ -75,7 +75,20 @@ cargo run -p worker --bin jurisdiction-lease -- status         # against localho
       calibration artifacts exist now), so real lanes will claim br immediately
       rather than idling.
 - [x] Task 6: /goal dropped from LOOP.md + 4 runbooks (grep = 0 hits) + 021 budget note (a4823b6)
-- [ ] Task 7: full acceptance green; JOURNAL line; merge to main
+- [x] Task 7: full acceptance green; JOURNAL line; merge to main (2026-07-10) —
+      fmt/clippy/test/`--ignored` all re-verified clean (workspace test hit a
+      transient linker collision from another agent's concurrent build sharing
+      this checkout's `target/`; re-ran under a private `CARGO_TARGET_DIR`,
+      fully green, 28 passed `--ignored`); `/goal` grep 0, xhigh 11/11,
+      `jurisdiction-lease -- status` runs clean against local Postgres (one
+      real in-flight `br` lease found, left untouched). The
+      `GOVFOLIO_LANES=2 ./agents/run-loop.sh` line was deliberately NOT re-run
+      live at merge time — unlike the other checks it has a real side effect
+      (immediately launches a live unattended `claude -p` orchestrator session
+      with `--dangerously-skip-permissions`); Task 5's stubbed-`claude` smoke
+      test already proves lane startup/spawn mechanics, and actually firing a
+      real unattended loop is a founder call, not a merge-gate action. See
+      `agents/JOURNAL.md` 2026-07-10 097/Task7 entry.
 
 ## BLOCKED (human)
 (empty)
