@@ -12,42 +12,51 @@ import { Unavailable } from "@/components/admin/Unavailable";
 import { Card } from "@/components/admin/ui/Card";
 import { Badge, stateVariant } from "@/components/admin/ui/Badge";
 import { Progress } from "@/components/admin/ui/Progress";
+import { Screen } from "@/components/admin/ui/Screen";
 import { Stat } from "@/components/admin/ui/Stat";
 import { Table, type TableColumn } from "@/components/admin/ui/Table";
-import { CountsBar } from "@/components/admin/charts/CountsBar";
+import { DensityColumns, type DensityHour } from "@/components/admin/charts/DensityColumns";
+import { formatCount, formatDays, formatMonthDayTime, formatUtcMinute } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = { title: "Backfill" };
 
-function formatTimestamp(iso: string | null | undefined): string {
-  if (iso == null) {
-    return "—";
-  }
-  return `${new Date(iso).toISOString().replace("T", " ").slice(0, 16)} UTC`;
-}
-
-function formatDays(seconds: number | null | undefined): string {
-  if (seconds == null) {
-    return "—";
-  }
-  return `${(seconds / 86400).toFixed(1)}d`;
-}
-
 function pad2(n: number): string {
   return n.toString().padStart(2, "0");
 }
 
-interface DensityRow {
-  hour: string;
-  [regimeCode: string]: string | number;
+// B4 series ramp (dc.html:1657-1661): top-3 regimes by 48h volume, then
+// "others". #8FB2E8 has no --adm-series-* token (only the state token
+// --adm-info-ink carries that hex), so the raw design value stays raw here.
+const DENSITY_SERIES_COLORS = [
+  "var(--adm-series-gold)",
+  "#8FB2E8",
+  "var(--adm-series-funnel-gold)",
+] as const;
+const DENSITY_OTHERS_COLOR = "var(--adm-series-neutral)";
+
+interface DensityLegendItem {
+  label: string;
+  color: string;
 }
 
-function buildDensityRows(
+function buildDensity(
   buckets: readonly AdminFetchDensityBucket[],
   generatedAt: string,
-): { regimes: string[]; rows: DensityRow[] } {
-  const regimes = Array.from(new Set(buckets.map((b) => b.regime_code))).sort();
+): { legend: DensityLegendItem[]; hours: DensityHour[] } {
+  const volume = new Map<string, number>();
+  for (const b of buckets) {
+    volume.set(b.regime_code, (volume.get(b.regime_code) ?? 0) + b.fetched);
+  }
+  const ranked = Array.from(volume.entries())
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([regime]) => regime);
+  const top = ranked
+    .slice(0, DENSITY_SERIES_COLORS.length)
+    .map((regime, i) => ({ regime, color: DENSITY_SERIES_COLORS[i] ?? DENSITY_OTHERS_COLOR }));
+  const others = ranked.slice(DENSITY_SERIES_COLORS.length);
+
   const byKey = new Map(
     buckets.map((b) => [`${new Date(b.hour_start).toISOString()}|${b.regime_code}`, b.fetched]),
   );
@@ -55,19 +64,28 @@ function buildDensityRows(
   const end = new Date(generatedAt);
   end.setUTCMinutes(0, 0, 0);
 
-  const rows: DensityRow[] = [];
+  const hours: DensityHour[] = [];
   for (let i = 47; i >= 0; i -= 1) {
     const d = new Date(end.getTime() - i * 3_600_000);
     const iso = d.toISOString();
-    const row: DensityRow = {
-      hour: `${pad2(d.getUTCMonth() + 1)}/${pad2(d.getUTCDate())} ${pad2(d.getUTCHours())}h`,
-    };
-    for (const regime of regimes) {
-      row[regime] = byKey.get(`${iso}|${regime}`) ?? 0;
+    const at = (regime: string): number => byKey.get(`${iso}|${regime}`) ?? 0;
+    // Bottom-up order (dc.html:621-626): primary series on the baseline.
+    const segments = top.map(({ regime, color }) => ({ value: at(regime), color }));
+    if (others.length > 0) {
+      segments.push({
+        value: others.reduce((sum, regime) => sum + at(regime), 0),
+        color: DENSITY_OTHERS_COLOR,
+      });
     }
-    rows.push(row);
+    const total = segments.reduce((sum, s) => sum + s.value, 0);
+    hours.push({ title: `${pad2(d.getUTCHours())}:00 UTC · ${total} docs`, segments });
   }
-  return { regimes, rows };
+
+  const legend: DensityLegendItem[] = top.map(({ regime, color }) => ({ label: regime, color }));
+  if (others.length > 0) {
+    legend.push({ label: "others", color: DENSITY_OTHERS_COLOR });
+  }
+  return { legend, hours };
 }
 
 function CompletionRow({ completion }: { completion: AdminRegimeCompletion }) {
@@ -81,32 +99,74 @@ function CompletionRow({ completion }: { completion: AdminRegimeCompletion }) {
     (y) => completion.target_years.includes(y) && !completion.years_succeeded.includes(y),
   );
 
+  // "All declared years covered" requires every target year to actually be
+  // succeeded, not merely "not missing" — a target year can have raw data
+  // but no successful logged run (the `unlogged` bucket below), and that's
+  // not coverage.
+  const complete = hasTarget && succeededInTarget === total;
+  const note = [
+    completion.missing_years.length > 0
+      ? `missing: ${completion.missing_years.join(", ")}`
+      : complete
+        ? "all declared years covered."
+        : !hasTarget
+          ? `${completion.years_with_data.length} year(s) on record.`
+          : null,
+    ...(unlogged.length > 0 ? [`${unlogged.length} year(s) with data but no logged run.`] : []),
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
+
   return (
-    <div className="flex flex-col gap-1.5 border-b border-[var(--adm-rule)] py-3 first:pt-0 last:border-b-0">
-      <div className="flex items-baseline justify-between gap-3">
-        <span className="font-[family-name:var(--adm-font-data)] text-sm font-semibold">
+    <div style={{ borderTop: "1px solid var(--adm-rule)", padding: "11px 0" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 7,
+        }}
+      >
+        <span
+          style={{
+            fontFamily: "var(--adm-font-data)",
+            fontSize: "12.5px",
+            color: "var(--adm-ink)",
+          }}
+        >
           {completion.regime_code}
         </span>
-        {hasTarget ? (
-          <span className="adm-num text-xs text-[var(--adm-muted)]">
-            {succeededInTarget} / {total} years
-          </span>
-        ) : (
-          <span className="adm-eyebrow">no declared target</span>
-        )}
+        <span className="adm-num" style={{ fontSize: 11, color: "var(--adm-meta)" }}>
+          {hasTarget ? `${succeededInTarget} / ${total} years` : "no declared target"}
+        </span>
       </div>
-      {hasTarget && <Progress value={fraction} tone={fraction >= 1 ? "success" : "warning"} />}
-      <p className="text-xs text-[var(--adm-muted)]">
-        {completion.missing_years.length > 0
-          ? `missing: ${completion.missing_years.join(", ")}`
-          : hasTarget
-            ? "all declared years covered."
-            : `${completion.years_with_data.length} year(s) on record.`}
-        {unlogged.length > 0 &&
-          ` · ${unlogged.length} year(s) with data but no logged run.`}
-      </p>
+      {hasTarget && (
+        <Progress
+          value={fraction}
+          color={
+            fraction >= 1 ? "var(--adm-series-funnel-gold)" : "var(--adm-series-funnel-review)"
+          }
+        />
+      )}
+      <p style={{ margin: "6px 0 0", fontSize: 11, color: "var(--adm-meta)" }}>{note}</p>
     </div>
   );
+}
+
+const RUN_NUM_STYLE: React.CSSProperties = {
+  fontSize: "12.5px",
+  color: "var(--adm-text-secondary)",
+};
+
+const FRESHNESS_TS_STYLE: React.CSSProperties = {
+  fontFamily: "var(--adm-font-data)",
+  fontSize: "11.5px",
+  color: "var(--adm-muted)",
+};
+
+function formatFreshnessTs(iso: string | null | undefined): string {
+  return iso == null ? "—" : formatMonthDayTime(iso);
 }
 
 export default async function BackfillPage() {
@@ -121,30 +181,74 @@ export default async function BackfillPage() {
   }
 
   const runColumns: TableColumn<AdminBackfillRun>[] = [
-    { key: "year", header: "year", numeric: true, render: (r) => r.year },
     {
-      key: "regime",
-      header: "regime",
-      render: (r) => (
-        <span className="font-[family-name:var(--adm-font-data)]">{r.regime_code}</span>
-      ),
-    },
-    { key: "kind", header: "kind", render: (r) => r.kind },
-    {
-      key: "status",
-      header: "status",
-      render: (r) => <Badge variant={stateVariant(r.status)}>{r.status}</Badge>,
-    },
-    { key: "filings", header: "filings", numeric: true, render: (r) => r.filings },
-    { key: "published", header: "published", numeric: true, render: (r) => r.published },
-    { key: "gold_inserted", header: "gold inserted", numeric: true, render: (r) => r.gold_inserted },
-    {
-      key: "failed_count",
-      header: "failed",
+      key: "year",
+      header: "Year",
       numeric: true,
       render: (r) => (
-        <span className={r.failed_count > 0 ? "text-[var(--adm-danger-ink)]" : undefined}>
-          {r.failed_count}
+        <span style={{ fontSize: "12.5px", color: "var(--adm-ink)" }}>{r.year}</span>
+      ),
+    },
+    {
+      key: "regime",
+      header: "Regime",
+      render: (r) => (
+        <span
+          style={{
+            fontFamily: "var(--adm-font-data)",
+            fontSize: 12,
+            color: "var(--adm-text-secondary)",
+          }}
+        >
+          {r.regime_code}
+        </span>
+      ),
+    },
+    {
+      key: "kind",
+      header: "Kind",
+      render: (r) => <span style={{ fontSize: 12, color: "var(--adm-muted)" }}>{r.kind}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (r) => <Badge variant={stateVariant(r.status)}>{r.status}</Badge>,
+    },
+    {
+      key: "filings",
+      header: "Filings",
+      numeric: true,
+      render: (r) => <span style={RUN_NUM_STYLE}>{formatCount(r.filings)}</span>,
+    },
+    {
+      key: "published",
+      header: "Published",
+      numeric: true,
+      render: (r) => <span style={RUN_NUM_STYLE}>{formatCount(r.published)}</span>,
+    },
+    {
+      key: "gold_inserted",
+      header: "Gold inserted",
+      numeric: true,
+      nowrap: true,
+      render: (r) => (
+        <span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--adm-accent-deep)" }}>
+          {formatCount(r.gold_inserted)}
+        </span>
+      ),
+    },
+    {
+      key: "failed_count",
+      header: "Failed",
+      numeric: true,
+      render: (r) => (
+        <span
+          style={{
+            fontSize: "12.5px",
+            color: r.failed_count > 0 ? "var(--adm-danger-ink)" : "var(--adm-text-secondary)",
+          }}
+        >
+          {formatCount(r.failed_count)}
         </span>
       ),
     },
@@ -153,123 +257,219 @@ export default async function BackfillPage() {
   const freshnessColumns: TableColumn<AdminRegimeFreshness>[] = [
     {
       key: "regime",
-      header: "regime",
+      header: "Regime",
       render: (f) => (
-        <span className="font-[family-name:var(--adm-font-data)]">{f.regime_code}</span>
+        <span
+          style={{ fontFamily: "var(--adm-font-data)", fontSize: 12, color: "var(--adm-ink)" }}
+        >
+          {f.regime_code}
+        </span>
       ),
     },
     {
       key: "sentinel",
-      header: "sentinel checked",
-      render: (f) => formatTimestamp(f.sentinel_last_checked_at),
+      header: "Sentinel checked",
+      nowrap: true,
+      render: (f) => <span style={FRESHNESS_TS_STYLE}>{formatFreshnessTs(f.sentinel_last_checked_at)}</span>,
     },
-    { key: "fetched", header: "last fetched", render: (f) => formatTimestamp(f.last_fetched_at) },
+    {
+      key: "fetched",
+      header: "Last fetched",
+      nowrap: true,
+      render: (f) => <span style={FRESHNESS_TS_STYLE}>{formatFreshnessTs(f.last_fetched_at)}</span>,
+    },
     {
       key: "discovered",
-      header: "last discovered",
-      render: (f) => formatTimestamp(f.last_discovered_at),
+      header: "Last discovered",
+      nowrap: true,
+      render: (f) => <span style={FRESHNESS_TS_STYLE}>{formatFreshnessTs(f.last_discovered_at)}</span>,
     },
-    { key: "lag_p50", header: "lag p50", numeric: true, render: (f) => formatDays(f.lag_p50_seconds) },
-    { key: "lag_p90", header: "lag p90", numeric: true, render: (f) => formatDays(f.lag_p90_seconds) },
+    {
+      key: "lag_p50",
+      header: "Lag p50",
+      numeric: true,
+      nowrap: true,
+      render: (f) => <span style={RUN_NUM_STYLE}>{formatDays(f.lag_p50_seconds)}</span>,
+    },
+    {
+      key: "lag_p90",
+      header: "Lag p90",
+      numeric: true,
+      nowrap: true,
+      render: (f) => <span style={RUN_NUM_STYLE}>{formatDays(f.lag_p90_seconds)}</span>,
+    },
   ];
 
-  const { regimes: densityRegimes, rows: densityRows } = buildDensityRows(
-    data.fetch_density,
-    data.generated_at,
-  );
+  const density = buildDensity(data.fetch_density, data.generated_at);
   const q = data.queue_depths;
 
   return (
-    <div className="flex flex-col gap-6 px-4 py-6">
+    <>
       <AutoRefresh seconds={30} />
+      <Screen
+        label="Backfill"
+        kicker="Section B"
+        title="Backfill & ingestion"
+        subtitle="Run history, coverage vs declared targets, source freshness, and fetch politeness."
+        meta={<>as of {formatUtcMinute(data.generated_at)}</>}
+      >
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1.15fr .85fr",
+            gap: 16,
+            alignItems: "start",
+          }}
+        >
+          <Card section="B2" label="Completion" title="Coverage vs declared targets" rise={0.05}>
+            {/* -2px top collapses with the card h2's 8px bottom to the design's 6px gap. */}
+            <p style={{ margin: "-2px 0 8px", fontSize: 11, color: "var(--adm-meta)" }}>
+              {data.targets_note}
+            </p>
+            {data.completion.length === 0 ? (
+              <p className="adm-muted" style={{ fontSize: "12.5px" }}>
+                No regimes tracked yet.
+              </p>
+            ) : (
+              data.completion.map((c) => <CompletionRow key={c.regime_code} completion={c} />)
+            )}
+          </Card>
 
-      <section className="flex flex-wrap items-baseline justify-between gap-3">
-        <div>
-          <h1>Backfill & ingestion</h1>
-          <p className="mt-1 text-sm text-[var(--adm-muted)]">
-            Run history, coverage vs declared targets, source freshness, and fetch politeness.
-          </p>
+          <Card section="B5" label="Queues" title="Queue depths" rise={0.12}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, 1fr)",
+                gap: "16px 14px",
+                marginTop: 16,
+              }}
+            >
+              <Stat
+                label="Pipeline running"
+                value={formatCount(q.pipeline_running)}
+                size={22}
+                tone={q.pipeline_running > 0 ? "info" : undefined}
+              />
+              <Stat
+                label="Pipeline failed"
+                value={formatCount(q.pipeline_failed)}
+                size={22}
+                tone={q.pipeline_failed > 0 ? "danger" : undefined}
+              />
+              <Stat label="Outbox undispatched" value={formatCount(q.outbox_undispatched)} size={22} />
+              <Stat label="Review open" value={formatCount(q.review_open)} size={22} />
+              <Stat
+                label="Drift open"
+                value={formatCount(q.drift_open)}
+                size={22}
+                tone={q.drift_open > 0 ? "warning" : undefined}
+              />
+              <Stat label="Sample pending" value={formatCount(q.sample_pending)} size={22} />
+              <Stat
+                label="Delivery DLQ"
+                value={formatCount(q.delivery_dlq)}
+                size={22}
+                tone={q.delivery_dlq > 0 ? "danger" : undefined}
+              />
+            </div>
+            <p
+              style={{
+                margin: "16px 0 0",
+                fontSize: 11,
+                color: "var(--adm-meta)",
+                borderTop: "1px solid var(--adm-rule)",
+                paddingTop: 12,
+              }}
+            >
+              {data.cloud_tasks_note}
+            </p>
+          </Card>
         </div>
-        <p className="adm-num text-xs text-[var(--adm-muted)]">
-          as of {formatTimestamp(data.generated_at)}
-        </p>
-      </section>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[2fr_1fr]">
-        <Card eyebrow="B2 · completion" title="Coverage vs declared targets">
-          <p className="mb-3 text-xs text-[var(--adm-muted)]">{data.targets_note}</p>
-          {data.completion.length === 0 ? (
-            <p className="text-sm text-[var(--adm-muted)]">No regimes tracked yet.</p>
-          ) : (
-            data.completion.map((c) => <CompletionRow key={c.regime_code} completion={c} />)
-          )}
-        </Card>
-
-        <Card eyebrow="B5 · queues" title="Queue depths">
-          <div className="grid grid-cols-2 gap-4">
-            <Stat
-              label="pipeline running"
-              value={q.pipeline_running}
-              tone={q.pipeline_running > 0 ? "info" : "neutral"}
-            />
-            <Stat
-              label="pipeline failed"
-              value={q.pipeline_failed}
-              tone={q.pipeline_failed > 0 ? "danger" : "neutral"}
-            />
-            <Stat label="outbox undispatched" value={q.outbox_undispatched} />
-            <Stat label="review open" value={q.review_open} />
-            <Stat
-              label="drift open"
-              value={q.drift_open}
-              tone={q.drift_open > 0 ? "warning" : "neutral"}
-            />
-            <Stat label="sample pending" value={q.sample_pending} />
-            <Stat
-              label="delivery dlq"
-              value={q.delivery_dlq}
-              tone={q.delivery_dlq > 0 ? "danger" : "neutral"}
+        <Card
+          section="B1"
+          label="Runs"
+          title="Recent backfill runs"
+          meta={`newest ${data.runs.length} logged runs`}
+          rise={0.19}
+          className="mt-[16px]"
+        >
+          <div style={{ marginTop: 12 }}>
+            <Table
+              columns={runColumns}
+              rows={data.runs}
+              getRowKey={(r) => r.id}
+              emptyMessage="No backfill_run rows recorded yet."
             />
           </div>
-          <p className="mt-4 text-xs text-[var(--adm-muted)]">{data.cloud_tasks_note}</p>
         </Card>
-      </div>
 
-      <Card eyebrow="B1 · runs" title="Recent backfill runs">
-        <p className="mb-3 text-xs text-[var(--adm-muted)]">{data.history_note}</p>
-        <Table
-          columns={runColumns}
-          rows={data.runs}
-          getRowKey={(r) => r.id}
-          emptyMessage="No backfill_run rows recorded yet."
-        />
-      </Card>
+        <Card
+          section="B3"
+          label="Freshness"
+          title="Source freshness & filing lag"
+          rise={0.26}
+          className="mt-[16px]"
+        >
+          <div style={{ marginTop: 12 }}>
+            <Table
+              columns={freshnessColumns}
+              rows={data.freshness}
+              getRowKey={(f) => f.regime_code}
+              emptyMessage="No freshness data yet."
+            />
+          </div>
+        </Card>
 
-      <Card eyebrow="B3 · freshness" title="Source freshness & filing lag">
-        <Table
-          columns={freshnessColumns}
-          rows={data.freshness}
-          getRowKey={(f) => f.regime_code}
-          emptyMessage="No freshness data yet."
-        />
-      </Card>
-
-      <Card eyebrow="B4 · politeness proxy" title="Fetch density, last 48h">
-        <p className="mb-3 text-xs text-[var(--adm-muted)]">{data.fetch_density_note}</p>
-        {data.fetch_density.length === 0 ? (
-          <p className="text-sm text-[var(--adm-muted)]">
-            No fetch activity recorded in the last 48 hours.
+        <Card
+          section="B4"
+          label="Politeness proxy"
+          title="Fetch density, last 48h"
+          rise={0.33}
+          className="mt-[16px]"
+        >
+          {data.fetch_density.length === 0 ? (
+            <p className="adm-muted" style={{ margin: "12px 0 0", fontSize: "12.5px" }}>
+              No fetch activity recorded in the last 48 hours.
+            </p>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 14, marginTop: 12, marginBottom: 14 }}>
+                {density.legend.map((l) => (
+                  <span
+                    key={l.label}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                  >
+                    <span
+                      style={{
+                        width: 9,
+                        height: 9,
+                        borderRadius: 1,
+                        background: l.color,
+                        display: "inline-block",
+                      }}
+                    />
+                    <span style={{ fontSize: "10.5px", color: "var(--adm-meta)" }}>{l.label}</span>
+                  </span>
+                ))}
+              </div>
+              <DensityColumns hours={density.hours} />
+            </>
+          )}
+          <p
+            style={{
+              margin: "12px 0 0",
+              fontSize: 11,
+              color: "var(--adm-meta)",
+              borderTop: "1px solid var(--adm-rule)",
+              paddingTop: 12,
+            }}
+          >
+            Documents fetched per hour per regime — spikes sit inside the nightly cron windows.
+            Concurrency 1, per-source min-interval, conditional GETs, identified UA.
           </p>
-        ) : (
-          <CountsBar
-            data={densityRows}
-            categoryKey="hour"
-            series={densityRegimes.map((r) => ({ key: r, label: r }))}
-            stacked
-            height={220}
-          />
-        )}
-      </Card>
-    </div>
+        </Card>
+      </Screen>
+    </>
   );
 }

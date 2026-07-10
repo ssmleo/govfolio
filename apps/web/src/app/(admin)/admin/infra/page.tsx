@@ -1,10 +1,13 @@
+import { Fragment, type CSSProperties, type ReactNode } from "react";
 import type { AdminInfra, AdminScheduler } from "@/lib/api";
 import { ApiError, adminInfra } from "@/lib/api";
+import { Badge } from "@/components/admin/ui/Badge";
 import { Card } from "@/components/admin/ui/Card";
-import { Stat } from "@/components/admin/ui/Stat";
-import { Badge, stateVariant } from "@/components/admin/ui/Badge";
+import { CodeChip } from "@/components/admin/ui/CodeChip";
+import { Screen } from "@/components/admin/ui/Screen";
 import { Table, type TableColumn } from "@/components/admin/ui/Table";
 import { Unavailable } from "@/components/admin/Unavailable";
+import { formatUtcMinute } from "@/lib/format";
 
 // Section G (money & infra) is intentionally the lowest-fidelity page in
 // this dashboard: everything below is either a static terraform mirror or
@@ -12,42 +15,98 @@ import { Unavailable } from "@/components/admin/Unavailable";
 // fabricated number.
 export const dynamic = "force-dynamic";
 
-function formatGeneratedAt(iso: string): string {
-  return new Date(iso).toUTCString();
-}
+// dc.html:1098/1135/1146 — card source footers: mono 10.5px faint ink.
+const SOURCE_FOOTER: CSSProperties = {
+  fontFamily: "var(--adm-font-data)",
+  fontSize: "10.5px",
+  color: "var(--adm-faint)",
+};
 
-function formatHardCap(usd: string): string {
-  return `$${usd} / month`;
+// dc.html:1104 — inline code inside the terraform note: mono 11.5px.
+const NOTE_CODE: CSSProperties = {
+  fontFamily: "var(--adm-font-data)",
+  fontSize: "11.5px",
+};
+
+/** Renders an API note verbatim, with any `backtick`-fenced segments in mono. */
+function noteWithCodeSegments(note: string): ReactNode {
+  const parts = note.split("`");
+  if (parts.length < 3) {
+    return note;
+  }
+  return parts.map((part, index) =>
+    index % 2 === 1 ? (
+      <span key={index} style={NOTE_CODE}>
+        {part}
+      </span>
+    ) : (
+      <Fragment key={index}>{part}</Fragment>
+    ),
+  );
 }
 
 const SCHEDULER_COLUMNS: ReadonlyArray<TableColumn<AdminScheduler>> = [
   {
     key: "name",
-    header: "job",
-    render: (row) => row.name,
+    header: "Job",
+    nowrap: true,
+    render: (row) => (
+      <span
+        style={{ fontFamily: "var(--adm-font-data)", fontSize: 12, color: "var(--adm-ink)" }}
+      >
+        {row.name}
+      </span>
+    ),
   },
   {
     key: "schedule",
-    header: "schedule",
-    render: (row) => <code className="adm-num text-xs">{row.schedule}</code>,
+    header: "Schedule",
+    nowrap: true,
+    render: (row) => (
+      <span
+        style={{
+          fontFamily: "var(--adm-font-data)",
+          fontSize: "11.5px",
+          color: "var(--adm-accent-deep)",
+        }}
+      >
+        {row.schedule}
+      </span>
+    ),
   },
   {
     key: "time_zone",
-    header: "tz",
-    render: (row) => <span className="adm-muted">{row.time_zone}</span>,
+    header: "TZ",
+    render: (row) => (
+      <span
+        style={{
+          fontFamily: "var(--adm-font-data)",
+          fontSize: "11.5px",
+          color: "var(--adm-muted)",
+        }}
+      >
+        {row.time_zone}
+      </span>
+    ),
   },
   {
     key: "paused",
-    header: "state",
-    render: (row) => {
-      const label = row.paused ? "paused" : "running";
-      return <Badge variant={stateVariant(label)}>{label}</Badge>;
-    },
+    header: "State",
+    // Approved deviation #3: the REAL declared paused flag drives the badge —
+    // paused:true → warning "paused", otherwise info "running".
+    render: (row) =>
+      row.paused ? (
+        <Badge variant="warning">paused</Badge>
+      ) : (
+        <Badge variant="info">running</Badge>
+      ),
   },
   {
     key: "description",
-    header: "description",
-    render: (row) => <span className="adm-muted">{row.description}</span>,
+    header: "Description",
+    render: (row) => (
+      <span style={{ fontSize: 12, color: "var(--adm-muted)" }}>{row.description}</span>
+    ),
   },
 ];
 
@@ -56,62 +115,117 @@ export default async function InfraPage() {
   try {
     infra = await adminInfra();
   } catch (error) {
-    if (error instanceof ApiError && (error.status === 401 || error.status === 403 || error.status === 503)) {
+    if (
+      error instanceof ApiError &&
+      (error.status === 401 || error.status === 403 || error.status === 503)
+    ) {
       return <Unavailable reason={error.message} />;
     }
     throw error;
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6">
-      <section className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="adm-eyebrow mb-1">Section G · static v1</p>
-          <h1>Infra</h1>
-          <p className="mt-1 max-w-2xl text-sm adm-muted">
-            Money ceiling and terraform mirror. Nothing on this page is a live GCP read —
-            figures are either declared in terraform or explicitly unavailable.
+    <Screen
+      label="Infra"
+      kicker="Section G · static v1"
+      title="Infra"
+      subtitle="Money ceiling and terraform mirror — figures are declared in terraform or explicitly unavailable, never a live GCP read."
+      meta={<>as of {formatUtcMinute(infra.generated_at)}</>}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
+          alignItems: "stretch",
+        }}
+      >
+        <Card section="G1" label="Money" title="Budget" rise={0.05}>
+          <p className="adm-microlabel" style={{ margin: "16px 0 6px" }}>
+            Hard cap
           </p>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-          <Badge variant="neutral">{infra.environment}</Badge>
-          <p className="text-xs adm-muted">
-            as of <span className="adm-num">{formatGeneratedAt(infra.generated_at)}</span>
+          <p
+            style={{
+              margin: 0,
+              fontFamily: "var(--adm-font-data)",
+              fontSize: 30,
+              fontWeight: 600,
+              lineHeight: 1,
+              color: "var(--adm-accent-deep)",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            ${infra.budget.hard_cap_usd}{" "}
+            <span style={{ fontSize: 14, color: "var(--adm-muted)", fontWeight: 400 }}>
+              / month
+            </span>
           </p>
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card eyebrow="G1" title="Budget">
-          <Stat
-            label="hard cap"
-            value={formatHardCap(infra.budget.hard_cap_usd)}
-            caption={infra.budget.live_spend_unavailable_reason}
-          />
-          <p className="mt-4 text-xs adm-muted">source: {infra.budget.source}</p>
+          <p style={{ margin: "10px 0 0", fontSize: "11.5px", color: "var(--adm-muted)" }}>
+            {infra.budget.live_spend_unavailable_reason}
+          </p>
+          <p
+            style={{
+              ...SOURCE_FOOTER,
+              margin: "14px 0 0",
+              borderTop: "1px solid var(--adm-rule)",
+              paddingTop: 12,
+            }}
+          >
+            source: {infra.budget.source}
+          </p>
         </Card>
 
-        <div>
-          <p className="adm-eyebrow mb-2">G3 · Terraform</p>
-          <Unavailable reason={infra.terraform_note} />
-        </div>
+        <Card
+          section="G3"
+          label="Terraform"
+          dashed
+          rise={0.1}
+          className="flex flex-col justify-center"
+        >
+          <h2 style={{ margin: "8px 0 10px", color: "var(--adm-muted)" }}>
+            Not observable from here
+          </h2>
+          <p style={{ margin: 0, fontSize: "12.5px", color: "var(--adm-meta)" }}>
+            {noteWithCodeSegments(infra.terraform_note)}
+          </p>
+        </Card>
       </div>
 
-      <Card eyebrow="G2" title="Scheduler jobs (terraform mirror)">
-        <Table columns={SCHEDULER_COLUMNS} rows={infra.schedulers} getRowKey={(row) => row.name} />
-        <p className="mt-3 text-xs adm-muted">source: {infra.schedulers_source}</p>
+      <Card
+        section="G2"
+        label="Terraform mirror"
+        title="Scheduler jobs"
+        rise={0.15}
+        className="mt-[16px]"
+      >
+        <div style={{ marginTop: 12 }}>
+          <Table
+            columns={SCHEDULER_COLUMNS}
+            rows={infra.schedulers}
+            getRowKey={(row) => row.name}
+          />
+        </div>
+        <p style={{ ...SOURCE_FOOTER, margin: "12px 0 0" }}>source: {infra.schedulers_source}</p>
       </Card>
 
-      <Card eyebrow="G2" title="Task queues (terraform mirror)">
-        <div className="flex flex-wrap gap-1.5">
+      <Card
+        section="G2"
+        label="Terraform mirror"
+        title="Task queues"
+        rise={0.2}
+        className="mt-[16px]"
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
           {infra.queues.map((queue) => (
-            <Badge key={queue} variant="neutral">
+            <CodeChip key={queue} color="neutral" size="lg">
               {queue}
-            </Badge>
+            </CodeChip>
           ))}
         </div>
-        <p className="mt-3 text-xs adm-muted">source: {infra.queues_source}</p>
+        <p style={{ ...SOURCE_FOOTER, margin: "14px 0 0" }}>
+          source: {infra.queues_source} · live depth unavailable in this environment
+        </p>
       </Card>
-    </div>
+    </Screen>
   );
 }

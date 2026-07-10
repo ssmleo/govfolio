@@ -5,8 +5,8 @@ import { makeRegimeDossierData } from "@/test/fixtures";
 
 import { RegimeDossier } from "./RegimeDossier";
 
-describe("RegimeDossier closed state", () => {
-  it("renders nothing when data is null", () => {
+describe("RegimeDossier closed state (never opened)", () => {
+  it("renders nothing when data is null and it has never been opened", () => {
     const { container } = render(<RegimeDossier data={null} onClose={vi.fn()} />);
     expect(container).toBeEmptyDOMElement();
   });
@@ -14,6 +14,33 @@ describe("RegimeDossier closed state", () => {
   it("does not attach an Escape listener while closed", () => {
     const onClose = vi.fn();
     render(<RegimeDossier data={null} onClose={onClose} />);
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe("RegimeDossier stays mounted after being opened once (slide-out transition)", () => {
+  it("keeps the panel in the DOM, hidden and inert, after data goes back to null", () => {
+    const data = makeRegimeDossierData();
+    const { container, rerender } = render(<RegimeDossier data={data} onClose={vi.fn()} />);
+    expect(container.querySelector("aside")).not.toBeNull();
+
+    rerender(<RegimeDossier data={null} onClose={vi.fn()} />);
+    const aside = container.querySelector("aside");
+    expect(aside).not.toBeNull();
+    expect(aside).toHaveStyle({ visibility: "hidden" });
+    expect(aside).toHaveAttribute("inert");
+    // The last-known content stays rendered (it's what the slide-out
+    // animates away, not an empty shell) — see `cached` in RegimeDossier.tsx.
+    expect(screen.getByText("US House — United States")).toBeInTheDocument();
+  });
+
+  it("ignores Escape once closed, even though the listener stays attached", () => {
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <RegimeDossier data={makeRegimeDossierData()} onClose={onClose} />,
+    );
+    rerender(<RegimeDossier data={null} onClose={onClose} />);
     fireEvent.keyDown(window, { key: "Escape" });
     expect(onClose).not.toHaveBeenCalled();
   });

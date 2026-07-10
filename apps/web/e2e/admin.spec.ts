@@ -18,7 +18,7 @@ test("GET /admin renders without a client-side exception and shows a live stat t
   // At least one stat tile (queue depths) renders a real, non-placeholder
   // number — not blank, not the null-safe "—" fallback used elsewhere.
   const queueCard = page.locator("section", {
-    has: page.locator("h3", { hasText: "Queue depths" }),
+    has: page.locator("h2", { hasText: "Queue depths" }),
   });
   const firstStatValue = queueCard.locator(".adm-num").first();
   await expect(firstStatValue).toBeVisible();
@@ -29,7 +29,7 @@ test("GET /admin renders without a client-side exception and shows a live stat t
   expect(pageErrors).toEqual([]);
 });
 
-test("GET /admin/coverage renders the coverage heatmap and a us_house regime row", async ({
+test("GET /admin/coverage renders the regime coverage table with a us_house row", async ({
   page,
 }) => {
   const pageErrors: Error[] = [];
@@ -39,13 +39,11 @@ test("GET /admin/coverage renders the coverage heatmap and a us_house regime row
   expect(response?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "World coverage", level: 1 })).toBeVisible();
 
-  // The signature element: the dense per-jurisdiction phase grid.
-  await expect(
-    page.getByRole("img", { name: /Coverage phase for \d+ jurisdictions/ }),
-  ).toBeVisible();
-
   // us_house is a real, fixture-seeded, bridged adapter (crates/adapters/us_house)
-  // — its regime code surfaces in the regime coverage table's "bridge" column.
+  // — its regime code surfaces as a caption under the regime's jurisdiction
+  // name (the redesign's regime table has no dedicated "bridge" column; the
+  // code stays visible so this row remains identifiable by text, matching
+  // the row-click test below).
   await expect(page.locator("body")).toContainText("us_house");
 
   expect(pageErrors).toEqual([]);
@@ -91,8 +89,10 @@ test("GET /admin renders the instrument-panel shell: masthead, grouped sidebar, 
   await page.goto("/admin");
 
   // Masthead: wordmark, console tag, and (once hydrated) a live clock.
+  // `exact: true` disambiguates from the footer's "Govfolio · Administrative
+  // Console — founder eyes only" line, which also contains this substring.
   await expect(page.getByRole("link", { name: "govfolio" })).toBeVisible();
-  await expect(page.getByText("Administrative Console")).toBeVisible();
+  await expect(page.getByText("Administrative Console", { exact: true })).toBeVisible();
   await waitForAdminHydration(page);
 
   // Sidebar: all 5 pipeline-phase group labels from the grouped nav (goal 094).
@@ -107,6 +107,12 @@ test("GET /admin renders the instrument-panel shell: masthead, grouped sidebar, 
   // 24h" and "dlq" are ticker-only labels on this page.
   await expect(page.getByText("failed 24h", { exact: true })).toBeVisible();
   await expect(page.getByText("dlq", { exact: true })).toBeVisible();
+
+  // The signature element: the world coverage wall now lives on Overview
+  // only (the redesign moved it off /admin/coverage).
+  await expect(
+    page.getByRole("img", { name: /Coverage phase for \d+ jurisdictions/ }),
+  ).toBeVisible();
 
   expect(pageErrors).toEqual([]);
 });
@@ -127,7 +133,8 @@ test("clicking a seeded us_house row opens the regime dossier with adapter/bridg
 
   // The regime-coverage table row-click contract (Table.tsx): a row with a
   // click handler is exposed as an accessible "button" whose name is its
-  // full cell text — including the "bridge" column's regime code(s).
+  // full cell text — including the regime-code caption under the
+  // jurisdiction name.
   const usHouseRow = page.getByRole("button", { name: /us_house/ });
   await expect(usHouseRow).toBeVisible();
   await usHouseRow.click();

@@ -13,8 +13,9 @@ vi.mock("next/navigation", () => ({
 // click flushes both the pending-true and pending-false renders before the
 // assertion runs, so it can't be observed by clicking and then reading the
 // DOM. Instead, partial-mock `useTransition` itself so a test can force
-// `isPending` open and assert the real conditional JSX (label text +
-// `disabled`) that the component renders for that state.
+// `isPending` open and assert the real conditional JSX (the pulsing scan
+// line replacing the explainer + button) that the component renders for
+// that state.
 const { isPendingRef, startTransitionMock } = vi.hoisted(() => ({
   isPendingRef: { current: false },
   startTransitionMock: vi.fn((callback: () => void) => callback()),
@@ -41,16 +42,21 @@ describe("SweepButton", () => {
     expect(push).toHaveBeenCalledWith("/admin/quality?sweep=br");
   });
 
-  it("shows the idle label and an enabled button when not pending", () => {
+  it("shows the idle explainer copy and an enabled run button when not pending", () => {
     render(<SweepButton />);
-    const button = screen.getByRole("button", { name: "Run br CPF collision sweep" });
+    const button = screen.getByRole("button", { name: "Run collision sweep" });
     expect(button).toBeEnabled();
+    expect(
+      screen.getByText(/Zero rows is a pass; any row needs investigation\./),
+    ).toBeInTheDocument();
   });
 
-  it("swaps to the pending label and disables the button while the transition is in flight", () => {
+  it("swaps the whole block to the scanning line while the transition is in flight", () => {
     isPendingRef.current = true;
     render(<SweepButton />);
-    const button = screen.getByRole("button", { name: "Running..." });
-    expect(button).toBeDisabled();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("scanning br staged rows — comparing CPFs per politician…"),
+    ).toBeInTheDocument();
   });
 });

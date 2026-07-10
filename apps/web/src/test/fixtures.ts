@@ -194,12 +194,10 @@ export function makeRegimeDossierData(
       { label: "record types", value: "transaction" },
     ],
     tiers: { bronze: 100, silver: 50, gold: 30, maxTier: 100 },
-    // Empty by default: RegimeDossier renders a CountsBar (recharts) only
-    // when this is non-empty, and recharts' ResponsiveContainer needs a
-    // ResizeObserver jsdom doesn't provide. Component tests that want the
-    // "has dated Gold records" branch can override this explicitly; the
-    // data-assembly side of goldByYear is already covered in
-    // dossier-data.test.ts.
+    // Empty by default (the honest "no dated Gold records yet" branch).
+    // Component tests that want the populated YearBars branch can override
+    // this explicitly; the data-assembly side of goldByYear is already
+    // covered in dossier-data.test.ts.
     goldByYear: [],
     adapterCrates: [{ regimeCode: "us_house", crate: "us_house" }],
     integrityNote: "Not frozen; no open drift reports.",

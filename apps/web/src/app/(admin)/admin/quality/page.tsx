@@ -1,19 +1,17 @@
+import type { CSSProperties } from "react";
 import Link from "next/link";
 
-import type {
-  AdminBrCpfCollision,
-  AdminQuality,
-  AdminRegimePrecision,
-  AdminVerdictCount,
-} from "@/lib/api";
+import type { AdminQuality, AdminRegimePrecision } from "@/lib/api";
 import { ApiError, adminQuality } from "@/lib/api";
-import { Card } from "@/components/admin/ui/Card";
+import { formatCount, formatUtcMinute } from "@/lib/format";
 import { Badge, stateVariant } from "@/components/admin/ui/Badge";
-import { Table, type TableColumn } from "@/components/admin/ui/Table";
-import { Stat } from "@/components/admin/ui/Stat";
+import { Card } from "@/components/admin/ui/Card";
 import { Progress } from "@/components/admin/ui/Progress";
-import { CountsBar } from "@/components/admin/charts/CountsBar";
-import { Histogram } from "@/components/admin/charts/Histogram";
+import { Screen } from "@/components/admin/ui/Screen";
+import { Stat } from "@/components/admin/ui/Stat";
+import { Table, type TableColumn } from "@/components/admin/ui/Table";
+import { BarRows } from "@/components/admin/charts/BarRows";
+import { ColumnChart } from "@/components/admin/charts/ColumnChart";
 import { Unavailable } from "@/components/admin/Unavailable";
 import { SweepButton } from "./SweepButton";
 
@@ -25,10 +23,6 @@ export const dynamic = "force-dynamic";
 
 interface Search {
   searchParams: Promise<{ sweep?: string }>;
-}
-
-function formatGeneratedAt(iso: string): string {
-  return new Date(iso).toUTCString();
 }
 
 function formatPercent(value: number | null | undefined): string {
@@ -45,42 +39,89 @@ function formatHours(value: number | null | undefined): string {
   return `${value.toFixed(1)}h`;
 }
 
-const VERDICT_COLUMNS: ReadonlyArray<TableColumn<AdminVerdictCount>> = [
-  {
-    key: "verdict",
-    header: "verdict",
-    render: (row) => <Badge variant={stateVariant(row.verdict)}>{row.verdict}</Badge>,
-  },
-  {
-    key: "attempts",
-    header: "attempts",
-    numeric: true,
-    render: (row) => row.attempts,
-  },
-];
+/**
+ * Masks a CPF for display (dc.html:799 shows "***.481.219-**") — the raw
+ * value never renders. Anything that isn't the standard 11 digits masks
+ * entirely rather than leaking an unexpected shape.
+ */
+function maskCpf(cpf: string): string {
+  const digits = cpf.replace(/\D/g, "");
+  if (digits.length !== 11) {
+    return "***";
+  }
+  return `***.${digits.slice(3, 6)}.${digits.slice(6, 9)}-**`;
+}
+
+// dc.html:676 — invariant caption under the target-kind bars (reused for the
+// kept D4 idempotency note, restyled to the same design language).
+const CAPTION_STYLE: CSSProperties = {
+  margin: "16px 0 0",
+  fontSize: 11,
+  color: "var(--adm-meta)",
+  borderTop: "1px solid var(--adm-rule)",
+  paddingTop: 12,
+};
+
+// dc.html:762-763 — numeric precision cells (mono/tabular come from the
+// Table's `numeric` td class; size + ink here).
+const NUM_CELL_STYLE: CSSProperties = {
+  fontSize: "12.5px",
+  color: "var(--adm-text-secondary)",
+};
 
 const PRECISION_COLUMNS: ReadonlyArray<TableColumn<AdminRegimePrecision>> = [
-  { key: "regime_id", header: "regime", render: (row) => row.regime_id },
-  { key: "body", header: "body", render: (row) => <span className="adm-muted">{row.body}</span> },
-  { key: "sampled", header: "sampled", numeric: true, render: (row) => row.sampled },
-  { key: "audited", header: "audited", numeric: true, render: (row) => row.audited },
-  { key: "discrepancies", header: "discrepancies", numeric: true, render: (row) => row.discrepancies },
+  {
+    key: "regime_id",
+    header: "Regime",
+    render: (row) => (
+      <span style={{ fontFamily: "var(--adm-font-data)", fontSize: 12, color: "var(--adm-ink)" }}>
+        {row.regime_id}
+      </span>
+    ),
+  },
+  {
+    key: "body",
+    header: "Body",
+    render: (row) => <span style={{ fontSize: 12, color: "var(--adm-muted)" }}>{row.body}</span>,
+  },
+  {
+    key: "sampled",
+    header: "Sampled",
+    numeric: true,
+    render: (row) => <span style={NUM_CELL_STYLE}>{formatCount(row.sampled)}</span>,
+  },
+  {
+    key: "audited",
+    header: "Audited",
+    numeric: true,
+    render: (row) => <span style={NUM_CELL_STYLE}>{formatCount(row.audited)}</span>,
+  },
+  {
+    key: "discrepancies",
+    header: "Discrepancies",
+    numeric: true,
+    // Amber when any discrepancy exists (approved deviation #12 — the design
+    // mock ambered only >2).
+    render: (row) => (
+      <span
+        style={{
+          fontSize: "12.5px",
+          color: row.discrepancies > 0 ? "var(--adm-warning-ink)" : "var(--adm-text-secondary)",
+        }}
+      >
+        {formatCount(row.discrepancies)}
+      </span>
+    ),
+  },
   {
     key: "precision_estimate",
-    header: "precision",
+    header: "Precision",
     numeric: true,
-    render: (row) => formatPercent(row.precision_estimate),
-  },
-];
-
-const COLLISION_COLUMNS: ReadonlyArray<TableColumn<AdminBrCpfCollision>> = [
-  { key: "politician_id", header: "politician", render: (row) => row.politician_id },
-  { key: "canonical_name", header: "canonical name", render: (row) => row.canonical_name },
-  { key: "distinct_cpfs", header: "distinct cpfs", numeric: true, render: (row) => row.distinct_cpfs },
-  {
-    key: "cpfs",
-    header: "cpfs",
-    render: (row) => <span className="adm-num text-xs">{row.cpfs.join(", ")}</span>,
+    render: (row) => (
+      <span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--adm-accent-deep)" }}>
+        {formatPercent(row.precision_estimate)}
+      </span>
+    ),
   },
 ];
 
@@ -92,34 +133,71 @@ function BrCollisionSweep({
   requested: boolean;
 }) {
   if (!requested || sweep === null || sweep === undefined) {
+    // Idle copy + pending swap live inside SweepButton — the pending state is
+    // the real router-transition state, so it has to be client-side.
+    return <SweepButton />;
+  }
+
+  if (sweep.pass) {
     return (
-      <div className="flex flex-col gap-3">
-        <p className="max-w-2xl text-sm adm-muted">
-          Scans every br filing&apos;s staged rows to compare CPFs per politician — a
-          whole-dataset scan, not a cheap query. Zero rows is a pass; any row needs
-          investigation.
-        </p>
-        <SweepButton />
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 12 }}>
+        <Badge variant="success">pass</Badge>
+        <span style={{ fontSize: "12.5px", color: "var(--adm-muted)" }}>
+          No CPF collisions found across the br dataset.
+        </span>
+        <Link href="/admin/quality" style={{ fontSize: "11.5px" }}>
+          hide results
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-center gap-2">
-        <Badge variant={sweep.pass ? "success" : "danger"}>
-          {sweep.pass ? "pass" : `${sweep.collisions.length} collision(s)`}
-        </Badge>
-        <Link href="/admin/quality" className="text-xs">
+    <>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "12px 0 12px" }}>
+        <Badge variant="danger">{sweep.collisions.length} collision(s)</Badge>
+        <Link href="/admin/quality" style={{ fontSize: "11.5px" }}>
           hide results
         </Link>
       </div>
-      {sweep.pass ? (
-        <p className="text-sm adm-muted">No CPF collisions found across the br dataset.</p>
-      ) : (
-        <Table columns={COLLISION_COLUMNS} rows={sweep.collisions} getRowKey={(row) => row.politician_id} />
-      )}
-    </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        {sweep.collisions.map((row) => (
+          <div
+            key={row.politician_id}
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "8px 26px",
+              borderTop: "1px solid var(--adm-rule)",
+              paddingTop: 12,
+            }}
+          >
+            <span
+              style={{ fontFamily: "var(--adm-font-data)", fontSize: 12, color: "var(--adm-ink)" }}
+            >
+              {row.politician_id}
+            </span>
+            <span style={{ fontSize: 12, color: "var(--adm-text-secondary)" }}>
+              {row.canonical_name}
+            </span>
+            <span
+              style={{
+                fontFamily: "var(--adm-font-data)",
+                fontSize: 12,
+                color: "var(--adm-warning-ink)",
+              }}
+            >
+              {row.distinct_cpfs} distinct CPFs
+            </span>
+            <span
+              style={{ fontFamily: "var(--adm-font-data)", fontSize: 12, color: "var(--adm-meta)" }}
+            >
+              {row.cpfs.map(maskCpf).join(" · ")}
+            </span>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 
@@ -146,116 +224,225 @@ export default async function QualityPage({ searchParams }: Search) {
 
   const { unlinked_instruments: unlinked, raw_retention: retention } = data;
   const listedShare = unlinked.total > 0 ? unlinked.listed / unlinked.total : 0;
-  const linkedShare = retention.raw_documents > 0 ? retention.linked_to_filing / retention.raw_documents : 0;
+  const linkedShare =
+    retention.raw_documents > 0 ? retention.linked_to_filing / retention.raw_documents : 0;
+
+  // dc.html:1680-1687 — Total reads amber (the backlog headline), the
+  // breakdown counts in heading ink (#F0EBDF).
+  const unlinkedStats = [
+    { label: "Total", value: unlinked.total, tone: "var(--adm-accent-amber)" },
+    { label: "Listed", value: unlinked.listed, tone: "var(--adm-heading)" },
+    { label: "Equity", value: unlinked.equity, tone: "var(--adm-heading)" },
+    { label: "Bond", value: unlinked.bond, tone: "var(--adm-heading)" },
+    { label: "Fund", value: unlinked.fund, tone: "var(--adm-heading)" },
+    { label: "Option", value: unlinked.option, tone: "var(--adm-heading)" },
+  ];
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-6">
-      <section className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="adm-eyebrow mb-1">Section D · data quality &amp; review ops</p>
-          <h1>Quality</h1>
-          <p className="mt-1 max-w-2xl text-sm adm-muted">
-            Review-queue health, the never-guess backlog, this month&apos;s sampling precision,
-            and two integrity spot checks.
-          </p>
-        </div>
-        <p className="adm-num text-xs adm-muted">as of {formatGeneratedAt(data.generated_at)}</p>
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <h2>Review queue</h2>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card eyebrow="D1" title="Open by reason">
-            <CountsBar data={data.open_by_reason} categoryKey="reason" series={[{ key: "tasks", label: "open tasks" }]} />
-          </Card>
-          <Card eyebrow="D1" title="Open by target kind">
-            <CountsBar
-              data={data.open_by_target_kind}
-              categoryKey="target_kind"
-              series={[{ key: "tasks", label: "open tasks" }]}
+    <Screen
+      label="Quality"
+      kicker="Section D"
+      title="Quality"
+      subtitle="Review-queue health, the never-guess backlog, this month’s sampling precision, and two integrity spot checks."
+      meta={`as of ${formatUtcMinute(data.generated_at)}`}
+    >
+      <div
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}
+      >
+        <Card section="D1" label="Review queue" title="Open by reason" rise={0.05}>
+          <div style={{ marginTop: 14 }}>
+            <BarRows
+              rows={data.open_by_reason.map((r) => ({ label: r.reason, value: r.tasks }))}
+              labelWidth={186}
+              labelAlign="right"
+              barHeight={12}
+              fill="var(--adm-series-funnel-review)"
+              valueWidth={28}
             />
-          </Card>
-          <Card eyebrow="D1" title="Open-queue age">
-            <Histogram data={ageBuckets} />
-          </Card>
-          <Card eyebrow="D1" title="30-day resolution">
-            <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-2 gap-4">
-                <Stat label="resolved tasks" value={data.resolution_30d.resolved_tasks} />
-                <Stat
-                  label="median time to resolve"
-                  value={formatHours(data.resolution_30d.median_hours_to_resolve)}
-                />
-              </div>
-              <Table
-                columns={VERDICT_COLUMNS}
-                rows={data.resolution_30d.verdicts}
-                getRowKey={(row) => row.verdict}
-                emptyMessage="No applied verdicts in the last 30 days."
-              />
-            </div>
-          </Card>
-        </div>
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <h2>Unlinked instruments</h2>
-        <Card eyebrow="D2" title="NULL-instrument backlog">
-          <div className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-              <Stat label="total" value={unlinked.total} />
-              <Stat label="listed" value={unlinked.listed} />
-              <Stat label="equity" value={unlinked.equity} />
-              <Stat label="bond" value={unlinked.bond} />
-              <Stat label="fund" value={unlinked.fund} />
-              <Stat label="option" value={unlinked.option} />
-            </div>
-            <Progress value={listedShare} label="listed share of NULL-instrument rows" />
           </div>
         </Card>
-      </section>
 
-      <section className="flex flex-col gap-4">
-        <h2>Precision — {data.precision_current_month.sample_month}</h2>
-        <Card eyebrow="D6" title="Sampling audit, current month">
+        <Card section="D1" label="Review queue" title="Open by target kind" rise={0.1}>
+          <div style={{ marginTop: 14 }}>
+            <BarRows
+              rows={data.open_by_target_kind.map((r) => ({ label: r.target_kind, value: r.tasks }))}
+              labelWidth={186}
+              labelAlign="right"
+              barHeight={12}
+              fill="var(--adm-series-funnel-review)"
+              valueWidth={28}
+            />
+          </div>
+          <p style={CAPTION_STYLE}>
+            Invariant 3: below-threshold instrument matches stay NULL and open a task — the queue
+            is the system refusing to guess.
+          </p>
+        </Card>
+
+        <Card section="D1" label="Review queue" title="Open-queue age" rise={0.15}>
+          <div style={{ marginTop: 14 }}>
+            <ColumnChart columns={ageBuckets} scale="linear" />
+          </div>
+        </Card>
+
+        <Card section="D1" label="Review queue" title="30-day resolution" rise={0.2}>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "1fr 1fr",
+              gap: 14,
+              marginTop: 14,
+              marginBottom: 14,
+            }}
+          >
+            <Stat
+              label="Resolved tasks"
+              value={formatCount(data.resolution_30d.resolved_tasks)}
+              size={22}
+            />
+            <Stat
+              label="Median to resolve"
+              value={formatHours(data.resolution_30d.median_hours_to_resolve)}
+              size={22}
+            />
+          </div>
+          {data.resolution_30d.verdicts.length === 0 ? (
+            <p className="adm-muted" style={{ fontSize: "12.5px" }}>
+              No applied verdicts in the last 30 days.
+            </p>
+          ) : (
+            data.resolution_30d.verdicts.map((verdict) => (
+              <div
+                key={verdict.verdict}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  borderTop: "1px solid var(--adm-rule)",
+                  padding: "8px 0",
+                }}
+              >
+                <Badge variant={stateVariant(verdict.verdict)}>{verdict.verdict}</Badge>
+                <span
+                  style={{
+                    fontFamily: "var(--adm-font-data)",
+                    fontSize: "12.5px",
+                    color: "var(--adm-text-secondary)",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {formatCount(verdict.attempts)}
+                </span>
+              </div>
+            ))
+          )}
+        </Card>
+      </div>
+
+      <Card
+        className="mt-[16px]"
+        section="D2"
+        label="Never guess"
+        title="NULL-instrument backlog"
+        rise={0.25}
+      >
+        <div
+          style={{ display: "grid", gridTemplateColumns: "repeat(6,1fr)", gap: 14, marginTop: 16 }}
+        >
+          {unlinkedStats.map((stat) => (
+            <Stat
+              key={stat.label}
+              label={stat.label}
+              value={formatCount(stat.value)}
+              size={22}
+              tone={stat.tone}
+            />
+          ))}
+        </div>
+        <div style={{ marginTop: 18, maxWidth: 420 }}>
+          <Progress
+            value={listedShare}
+            color="var(--adm-series-funnel-gold)"
+            label="listed share of NULL-instrument rows"
+          />
+        </div>
+      </Card>
+
+      <Card
+        className="mt-[16px]"
+        section="D6"
+        label="Sampling audit"
+        title="Precision, current month"
+        meta={`sample month ${data.precision_current_month.sample_month}`}
+        rise={0.3}
+      >
+        <div style={{ marginTop: 12 }}>
           <Table
             columns={PRECISION_COLUMNS}
             rows={data.precision_current_month.regimes}
             getRowKey={(row) => row.regime_id}
             emptyMessage="No sample batch drawn this month."
           />
-        </Card>
-      </section>
-
-      <section className="flex flex-col gap-4">
-        <h2>Pipeline integrity</h2>
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Card eyebrow="D4" title="Idempotency">
-            <div className="grid grid-cols-2 gap-4">
-              <Stat label="backfill runs" value={data.idempotency.runs} />
-              <Stat label="replayed" value={data.idempotency.replayed_total} />
-            </div>
-            <p className="mt-4 text-xs adm-muted">{data.idempotency.note}</p>
-          </Card>
-          <Card eyebrow="D5" title="Raw retention">
-            <div className="flex flex-col gap-4">
-              <div className="grid grid-cols-3 gap-4">
-                <Stat label="raw documents" value={retention.raw_documents} />
-                <Stat label="linked to filing" value={retention.linked_to_filing} />
-                <Stat label="orphaned" value={retention.orphaned} />
-              </div>
-              <Progress value={linkedShare} label="linked share of raw documents" />
-            </div>
-          </Card>
         </div>
-      </section>
+      </Card>
 
-      <section className="flex flex-col gap-4">
-        <h2>br CPF collision sweep</h2>
-        <Card eyebrow="D3" title="Identity collisions (opt-in)">
-          <BrCollisionSweep sweep={data.collision_sweep} requested={requestedSweep} />
+      <Card
+        className="mt-[16px]"
+        section="D3"
+        label="Identity integrity"
+        title="br CPF collision sweep"
+        rise={0.35}
+      >
+        <BrCollisionSweep sweep={data.collision_sweep} requested={requestedSweep} />
+      </Card>
+
+      {/* D4/D5 have no dc.html card — kept from the v1 page, restyled to the
+          design language (approved deviation #6). */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
+          alignItems: "start",
+          marginTop: 16,
+        }}
+      >
+        <Card section="D4" label="Pipeline integrity" title="Idempotency" rise={0.4}>
+          <div
+            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 16 }}
+          >
+            <Stat label="Backfill runs" value={formatCount(data.idempotency.runs)} size={22} />
+            <Stat
+              label="Replayed"
+              value={formatCount(data.idempotency.replayed_total)}
+              size={22}
+            />
+          </div>
+          <p style={CAPTION_STYLE}>{data.idempotency.note}</p>
         </Card>
-      </section>
-    </div>
+
+        <Card section="D5" label="Pipeline integrity" title="Raw retention" rise={0.45}>
+          <div
+            style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginTop: 16 }}
+          >
+            <Stat label="Raw documents" value={formatCount(retention.raw_documents)} size={22} />
+            <Stat
+              label="Linked to filing"
+              value={formatCount(retention.linked_to_filing)}
+              size={22}
+            />
+            <Stat label="Orphaned" value={formatCount(retention.orphaned)} size={22} />
+          </div>
+          <div style={{ marginTop: 18, maxWidth: 420 }}>
+            <Progress
+              value={linkedShare}
+              color="var(--adm-series-funnel-gold)"
+              label="linked share of raw documents"
+            />
+          </div>
+        </Card>
+      </div>
+    </Screen>
   );
 }

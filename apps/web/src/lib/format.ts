@@ -69,6 +69,29 @@ export function formatConfidence(confidence: number): string {
   return `${Math.round(confidence * 100)}%`;
 }
 
+/** Formats an integer count with grouping, e.g. `29,412` (locale-pinned). */
+export function formatCount(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
+/** Formats an ISO timestamp as `YYYY-MM-DD HH:MM UTC` (minute precision). */
+export function formatUtcMinute(iso: string): string {
+  return `${new Date(iso).toISOString().replace("T", " ").slice(0, 16)} UTC`;
+}
+
+/** Formats an ISO timestamp as `MM-DD HH:MM` (UTC, dense-table variant). */
+export function formatMonthDayTime(iso: string): string {
+  return new Date(iso).toISOString().replace("T", " ").slice(5, 16);
+}
+
+/** Formats a duration in seconds as fractional days (`1.5d`); `—` when unknown. */
+export function formatDays(seconds: number | null | undefined): string {
+  if (seconds == null) {
+    return "—";
+  }
+  return `${(seconds / 86400).toFixed(1)}d`;
+}
+
 /**
  * Formats how long ago `isoDateTime` was, coarsely (`12m`, `5h`, `3d`).
  * `now` is a parameter so renders are deterministic under test.

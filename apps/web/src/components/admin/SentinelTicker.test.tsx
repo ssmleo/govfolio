@@ -42,13 +42,13 @@ describe("SentinelTicker loading/error states", () => {
 });
 
 describe("SentinelTicker state-word derivation", () => {
-  it("is NOMINAL when nothing is frozen, nothing failed, and no drift is open", () => {
+  it("is 'all clear' when nothing is frozen, nothing failed, and no drift is open", () => {
     mockOverview({ frozen_regimes: [], runs_24h: { failed: 0, running: 2, succeeded: 10 } });
     render(<SentinelTicker />);
-    expect(screen.getByText("NOMINAL")).toBeInTheDocument();
+    expect(screen.getByText("all clear")).toBeInTheDocument();
   });
 
-  it("is WATCH when drift is open but nothing is frozen or failing", () => {
+  it("is 'watch' when drift is open but nothing is frozen or failing", () => {
     mockOverview({
       frozen_regimes: [],
       runs_24h: { failed: 0, running: 0, succeeded: 5 },
@@ -64,27 +64,27 @@ describe("SentinelTicker state-word derivation", () => {
       },
     });
     render(<SentinelTicker />);
-    expect(screen.getByText("WATCH")).toBeInTheDocument();
+    expect(screen.getByText("watch")).toBeInTheDocument();
   });
 
-  it("is INCIDENT when any regime is frozen, even with no open drift or failures", () => {
+  it("names the frozen count ('1 frozen') when a regime is frozen, even with no open drift or failures", () => {
     mockOverview({
       frozen_regimes: [{ regime_code: "br", frozen_at: "2026-07-01T00:00:00Z", frozen_kind: "layout_shift" }],
     });
     render(<SentinelTicker />);
-    expect(screen.getByText("INCIDENT")).toBeInTheDocument();
+    expect(screen.getByText("1 frozen")).toBeInTheDocument();
   });
 
-  it("is INCIDENT when a run failed in the last 24h, even with nothing frozen", () => {
+  it("is 'failing' when a run failed in the last 24h, even with nothing frozen", () => {
     mockOverview({
       frozen_regimes: [],
       runs_24h: { failed: 1, running: 0, succeeded: 4 },
     });
     render(<SentinelTicker />);
-    expect(screen.getByText("INCIDENT")).toBeInTheDocument();
+    expect(screen.getByText("failing")).toBeInTheDocument();
   });
 
-  it("prefers INCIDENT over WATCH when both a failure and open drift are present", () => {
+  it("prefers 'failing' over 'watch' when both a failure and open drift are present", () => {
     mockOverview({
       frozen_regimes: [],
       runs_24h: { failed: 2, running: 0, succeeded: 0 },
@@ -100,8 +100,18 @@ describe("SentinelTicker state-word derivation", () => {
       },
     });
     render(<SentinelTicker />);
-    expect(screen.getByText("INCIDENT")).toBeInTheDocument();
-    expect(screen.queryByText("WATCH")).not.toBeInTheDocument();
+    expect(screen.getByText("failing")).toBeInTheDocument();
+    expect(screen.queryByText("watch")).not.toBeInTheDocument();
+  });
+
+  it("prefers the frozen count over 'failing' when regimes are frozen AND runs failed", () => {
+    mockOverview({
+      frozen_regimes: [{ regime_code: "br" }, { regime_code: "us_house" }],
+      runs_24h: { failed: 2, running: 0, succeeded: 0 },
+    });
+    render(<SentinelTicker />);
+    expect(screen.getByText("2 frozen")).toBeInTheDocument();
+    expect(screen.queryByText("failing")).not.toBeInTheDocument();
   });
 });
 

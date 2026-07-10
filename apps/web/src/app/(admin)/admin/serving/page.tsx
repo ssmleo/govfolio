@@ -1,31 +1,31 @@
-import type {
-  AdminDeadDelivery,
-  AdminDeliveryStatusChannel,
-  AdminServing,
-} from "@/lib/api";
+import type { CSSProperties } from "react";
+
+import type { AdminAttemptsBucket, AdminServing, AdminUsageDay } from "@/lib/api";
 import { ApiError, adminServing } from "@/lib/api";
-import { Card } from "@/components/admin/ui/Card";
-import { Stat } from "@/components/admin/ui/Stat";
 import { Badge, stateVariant } from "@/components/admin/ui/Badge";
-import { Table } from "@/components/admin/ui/Table";
-import type { TableColumn } from "@/components/admin/ui/Table";
-import { TrendArea } from "@/components/admin/charts/TrendArea";
-import { Histogram } from "@/components/admin/charts/Histogram";
+import { Card } from "@/components/admin/ui/Card";
+import { Screen } from "@/components/admin/ui/Screen";
+import { Stat } from "@/components/admin/ui/Stat";
+import { BarRows } from "@/components/admin/charts/BarRows";
+import { ColumnChart } from "@/components/admin/charts/ColumnChart";
+import { TrendChart } from "@/components/admin/charts/TrendChart";
 import { Unavailable } from "@/components/admin/Unavailable";
+import { formatCount, formatMonthDayTime, formatUtcMinute } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-function formatCount(value: number): string {
-  return value.toLocaleString("en-US");
-}
+const DAY_MS = 86_400_000;
 
-function formatSeconds(value: number | null | undefined): string {
+// Latency percentiles render as "3.1s" / "41.0s" (dc.html sv.dispatch/sv.send);
+// "—" when the distribution is empty.
+function formatSecondsTenth(value: number | null | undefined): string {
   if (value === null || value === undefined) {
     return "—";
   }
-  return value < 60 ? `${value.toFixed(1)}s` : `${Math.round(value / 60)}m`;
+  return `${value.toFixed(1)}s`;
 }
 
+// Trend x-axis day labels, "Jun 26" (dc.html:956).
 function formatDay(day: string): string {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", {
     month: "short",
@@ -34,55 +34,82 @@ function formatDay(day: string): string {
   });
 }
 
-function formatDateTime(iso: string): string {
-  const formatted = new Date(iso).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-    timeZone: "UTC",
+// usage_by_day omits days with zero metered requests; rebuild the full 14-day
+// window ending on the snapshot's UTC date so the trend renders one point per
+// day — real zeros, never interpolation.
+function densifyUsage(usage: readonly AdminUsageDay[], generatedAt: string): AdminUsageDay[] {
+  const byDay = new Map(usage.map((row) => [row.day, row.requests]));
+  const end = new Date(generatedAt);
+  const endUtc = Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate());
+  return Array.from({ length: 14 }, (_, i) => {
+    const day = new Date(endUtc - (13 - i) * DAY_MS).toISOString().slice(0, 10);
+    return { day, requests: byDay.get(day) ?? 0 };
   });
-  return `${formatted} UTC`;
 }
 
-function tierLabel(tier: string): string {
-  return tier.charAt(0).toUpperCase() + tier.slice(1);
+// Real tier names (`free` | `pro` | `data`) → the design's account stat labels
+// (dc.html:1748); unknown tiers fall back to "<tier> users" rather than guessing.
+const TIER_LABEL: Record<string, string> = {
+  free: "Free users",
+  pro: "Pro users",
+  data: "API users",
+};
+const TIER_ORDER = ["free", "pro", "data"];
+
+function tierRank(tier: string): number {
+  const rank = TIER_ORDER.indexOf(tier);
+  return rank === -1 ? TIER_ORDER.length : rank;
 }
 
-const statusChannelColumns: TableColumn<AdminDeliveryStatusChannel>[] = [
-  {
-    key: "status",
-    header: "Status",
-    render: (row) => <Badge variant={stateVariant(row.status)}>{row.status}</Badge>,
-  },
-  { key: "channel", header: "Channel", render: (row) => row.channel },
-  { key: "count", header: "Deliveries", numeric: true, render: (row) => formatCount(row.count) },
-];
+// Design buckets 1 / 2 / 3 / ≥4 (dc.html:1766) from the exact-count histogram.
+function attemptsBuckets(
+  histogram: readonly AdminAttemptsBucket[],
+): { bucket: string; count: number }[] {
+  const counts = [0, 0, 0, 0];
+  for (const row of histogram) {
+    if (row.attempts >= 4) {
+      counts[3] = (counts[3] ?? 0) + row.count;
+    } else if (row.attempts >= 1) {
+      counts[row.attempts - 1] = (counts[row.attempts - 1] ?? 0) + row.count;
+    }
+  }
+  return [
+    { bucket: "1", count: counts[0] ?? 0 },
+    { bucket: "2", count: counts[1] ?? 0 },
+    { bucket: "3", count: counts[2] ?? 0 },
+    { bucket: "≥4", count: counts[3] ?? 0 },
+  ];
+}
 
-const dlqColumns: TableColumn<AdminDeadDelivery>[] = [
-  {
-    key: "id",
-    header: "ID",
-    render: (row) => <span className="adm-num text-xs">{row.id}</span>,
-  },
-  { key: "channel", header: "Channel", render: (row) => row.channel },
-  { key: "attempts", header: "Attempts", numeric: true, render: (row) => row.attempts },
-  {
-    key: "last_error",
-    header: "Last error",
-    render: (row) => (
-      <span className="block max-w-[28rem] truncate" title={row.last_error ?? undefined}>
-        {row.last_error ?? "—"}
-      </span>
-    ),
-  },
-  {
-    key: "updated_at",
-    header: "Updated",
-    render: (row) => formatDateTime(row.updated_at),
-  },
-];
+const MONO = "var(--adm-font-data)";
+
+// "Dispatch — outbox → delivery" / "Send — created → sent" sub-labels
+// (dc.html:987/996): 10px/700/.14em sits between adm-card-eyebrow (.16em) and
+// adm-microlabel (9.5px), so it stays inline.
+const SUB_LABEL: CSSProperties = {
+  fontSize: "10px",
+  fontWeight: 700,
+  letterSpacing: ".14em",
+  textTransform: "uppercase",
+  color: "var(--adm-meta)",
+};
+
+// Status × channel table cells (dc.html:1017-1027).
+const STATUS_TH: CSSProperties = {
+  textAlign: "left",
+  padding: "8px 12px 8px 0",
+  borderBottom: "1px solid var(--adm-rule-strong)",
+};
+const STATUS_TD: CSSProperties = {
+  padding: "9px 12px 9px 0",
+  borderBottom: "1px solid var(--adm-rule)",
+};
+
+// Dead-letter table cells (dc.html:1062-1066) — headerless by design.
+const DLQ_TD: CSSProperties = {
+  padding: "10px 14px 10px 0",
+  borderBottom: "1px solid var(--adm-rule)",
+};
 
 export default async function ServingPage() {
   let data: AdminServing;
@@ -95,125 +122,325 @@ export default async function ServingPage() {
     throw error;
   }
 
-  const usageData = data.usage_by_day.map((row) => ({ x: formatDay(row.day), y: row.requests }));
-  const endpointData = data.top_endpoints_7d.map((row) => ({
-    bucket: row.endpoint,
-    count: row.requests,
+  const usageDays = densifyUsage(data.usage_by_day, data.generated_at);
+  const firstDay = usageDays[0];
+  const lastDay = usageDays[usageDays.length - 1];
+  const usagePoints = usageDays.map((row) => ({ label: formatDay(row.day), value: row.requests }));
+
+  const endpointRows = data.top_endpoints_7d.map((row) => ({
+    label: row.endpoint,
+    value: row.requests,
   }));
-  const attemptsData = data.deliveries.attempts_histogram.map((row) => ({
-    bucket: String(row.attempts),
-    count: row.count,
-  }));
+
+  const tiers = [...data.accounts.users_by_tier].sort(
+    (a, b) => tierRank(a.tier) - tierRank(b.tier),
+  );
+  const attempts = attemptsBuckets(data.deliveries.attempts_histogram);
+  const dead = data.deliveries.recent_dead;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-6 px-6 py-6">
-      <section className="flex flex-col gap-1">
-        <h1>Serving &amp; product</h1>
-        <p className="text-xs adm-muted">Generated {formatDateTime(data.generated_at)}</p>
-      </section>
-
-      <Card eyebrow="F1 · usage" title="Usage">
-        <div className="flex flex-col gap-6">
-          <div>
-            <div className="mb-2 flex items-baseline justify-between">
-              <h3>Requests per day</h3>
-              <span className="text-xs adm-muted">last 14 days</span>
-            </div>
-            {usageData.length > 0 ? (
-              <TrendArea data={usageData} valueLabel="requests" height={200} />
-            ) : (
-              <p className="text-sm adm-muted">No requests in the last 14 days.</p>
-            )}
+    <Screen
+      label="Serving"
+      kicker="Section F"
+      title="Serving & product"
+      subtitle="API usage, accounts, alert-pipeline latency, and delivery health."
+      meta={`generated ${formatUtcMinute(data.generated_at)}`}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1.15fr .85fr",
+          gap: 16,
+          alignItems: "start",
+        }}
+      >
+        <Card section="F1" label="Usage" title="Requests per day" meta="last 14 days" rise={0.05}>
+          <div style={{ marginTop: 14 }}>
+            <TrendChart
+              points={usagePoints}
+              size="wide"
+              endpointDot
+              xLeftLabel={firstDay === undefined ? undefined : formatDay(firstDay.day)}
+              xRightLabel={
+                lastDay === undefined
+                  ? undefined
+                  : `${formatDay(lastDay.day)} · ${formatCount(lastDay.requests)} requests`
+              }
+              ariaLabel="Requests per day, last 14 days"
+            />
           </div>
-          <div>
-            <div className="mb-2 flex items-baseline justify-between">
-              <h3>Top endpoints</h3>
-              <span className="text-xs adm-muted">last 7 days</span>
+          <p
+            className="adm-card-eyebrow"
+            style={{ margin: "16px 0 10px", borderTop: "1px solid var(--adm-rule)", paddingTop: 14 }}
+          >
+            Top endpoints · last 7 days
+          </p>
+          {endpointRows.length > 0 ? (
+            <BarRows
+              rows={endpointRows}
+              labelWidth={236}
+              barHeight={12}
+              fill="var(--adm-series-gold)"
+              valueWidth={56}
+              gap={9}
+            />
+          ) : (
+            <p className="adm-muted" style={{ margin: 0, fontSize: "12.5px" }}>
+              No metered requests in the last 7 days.
+            </p>
+          )}
+        </Card>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Card section="F1" label="Accounts" title="Accounts" rise={0.1}>
+            <div
+              style={{
+                marginTop: 16,
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "16px 14px",
+              }}
+            >
+              {tiers.map((row) => (
+                <Stat
+                  key={row.tier}
+                  label={TIER_LABEL[row.tier] ?? `${row.tier} users`}
+                  value={formatCount(row.users)}
+                  size={20}
+                />
+              ))}
+              <Stat label="Active keys" value={formatCount(data.accounts.active_keys)} size={20} />
+              <Stat
+                label="Revoked keys"
+                value={formatCount(data.accounts.revoked_keys)}
+                size={20}
+              />
+              <Stat
+                label="Subscriptions"
+                value={formatCount(data.accounts.active_subscriptions)}
+                size={20}
+              />
             </div>
-            {endpointData.length > 0 ? (
-              <Histogram data={endpointData} height={200} />
-            ) : (
-              <p className="text-sm adm-muted">No metered requests in the last 7 days.</p>
-            )}
-          </div>
-        </div>
-      </Card>
+          </Card>
 
-      <Card eyebrow="F1 · accounts" title="Accounts">
-        <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-6">
-          {data.accounts.users_by_tier.map((row) => (
-            <Stat key={row.tier} label={tierLabel(row.tier)} value={formatCount(row.users)} caption="users" />
-          ))}
-          <Stat label="Active keys" value={formatCount(data.accounts.active_keys)} />
-          <Stat label="Revoked keys" value={formatCount(data.accounts.revoked_keys)} />
-          <Stat label="Active subscriptions" value={formatCount(data.accounts.active_subscriptions)} />
-        </div>
-      </Card>
-
-      <Card eyebrow="F2 · alert latency" title="Alert pipeline latency">
-        <div className="flex flex-col gap-6">
-          <div>
-            <h3 className="mb-2">Dispatch (outbox → delivery)</h3>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3 lg:grid-cols-5">
-              <Stat label="p50" value={formatSeconds(data.alert_latency.dispatch_p50_seconds)} />
-              <Stat label="p90" value={formatSeconds(data.alert_latency.dispatch_p90_seconds)} />
-              <Stat label="p99" value={formatSeconds(data.alert_latency.dispatch_p99_seconds)} />
+          <Card section="F2" label="Alert latency" title="Alert pipeline" rise={0.15}>
+            <p style={{ ...SUB_LABEL, margin: "16px 0 10px" }}>Dispatch — outbox → delivery</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+              <Stat
+                label="p50"
+                value={formatSecondsTenth(data.alert_latency.dispatch_p50_seconds)}
+                size={18}
+              />
+              <Stat
+                label="p90"
+                value={formatSecondsTenth(data.alert_latency.dispatch_p90_seconds)}
+                size={18}
+              />
+              <Stat
+                label="p99"
+                value={formatSecondsTenth(data.alert_latency.dispatch_p99_seconds)}
+                size={18}
+              />
               <Stat
                 label="Dispatched"
                 value={formatCount(data.alert_latency.dispatched_count)}
-                caption="≥1s delta"
+                size={18}
               />
               <Stat
                 label="Pre-dispatched"
                 value={formatCount(data.alert_latency.pre_dispatched_count)}
-                caption="suppressed, <1s delta"
+                size={18}
               />
             </div>
-            <p className="mt-3 text-xs adm-muted">{data.alert_latency.note}</p>
-          </div>
-          <div>
-            <h3 className="mb-2">Send (delivery created → sent)</h3>
-            <div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-3">
-              <Stat label="p50" value={formatSeconds(data.alert_latency.send_p50_seconds)} />
-              <Stat label="p90" value={formatSeconds(data.alert_latency.send_p90_seconds)} />
-              <Stat label="Sent" value={formatCount(data.alert_latency.sent_count)} />
+            <p
+              style={{
+                ...SUB_LABEL,
+                margin: "16px 0 10px",
+                borderTop: "1px solid var(--adm-rule)",
+                paddingTop: 14,
+              }}
+            >
+              Send — created → sent
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
+              <Stat
+                label="p50"
+                value={formatSecondsTenth(data.alert_latency.send_p50_seconds)}
+                size={18}
+              />
+              <Stat
+                label="p90"
+                value={formatSecondsTenth(data.alert_latency.send_p90_seconds)}
+                size={18}
+              />
+              <Stat label="Sent" value={formatCount(data.alert_latency.sent_count)} size={18} />
             </div>
-          </div>
+            <p style={{ margin: "14px 0 0", fontSize: "11px", color: "var(--adm-meta)" }}>
+              Postgres-side timestamps; egress after{" "}
+              <span style={{ fontFamily: MONO }}>sent</span> is not observable from here.
+            </p>
+          </Card>
         </div>
-      </Card>
+      </div>
 
-      <Card eyebrow="F3 · deliveries" title="Delivery health">
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div>
-            <h3 className="mb-2">Status × channel</h3>
-            <Table
-              columns={statusChannelColumns}
-              rows={data.deliveries.by_status_channel}
-              getRowKey={(row) => `${row.status}-${row.channel}`}
-              emptyMessage="No deliveries recorded."
-            />
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "1fr 1fr",
+          gap: 16,
+          marginTop: 16,
+          alignItems: "start",
+        }}
+      >
+        <Card section="F3" label="Deliveries" title="Status × channel" rise={0.2}>
+          {data.deliveries.by_status_channel.length > 0 ? (
+            <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 4 }}>
+              <thead>
+                <tr>
+                  <th className="adm-microlabel" style={STATUS_TH}>
+                    Status
+                  </th>
+                  <th className="adm-microlabel" style={STATUS_TH}>
+                    Channel
+                  </th>
+                  <th
+                    className="adm-microlabel"
+                    style={{ ...STATUS_TH, textAlign: "right", padding: "8px 0" }}
+                  >
+                    Deliveries
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.deliveries.by_status_channel.map((row) => (
+                  <tr key={`${row.status}-${row.channel}`}>
+                    <td style={STATUS_TD}>
+                      <Badge variant={stateVariant(row.status)}>{row.status}</Badge>
+                    </td>
+                    <td
+                      style={{
+                        ...STATUS_TD,
+                        fontFamily: MONO,
+                        fontSize: "12px",
+                        color: "var(--adm-text-secondary)",
+                      }}
+                    >
+                      {row.channel}
+                    </td>
+                    <td
+                      style={{
+                        ...STATUS_TD,
+                        padding: "9px 0",
+                        textAlign: "right",
+                        fontFamily: MONO,
+                        fontSize: "12.5px",
+                        color: "var(--adm-ink)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {formatCount(row.count)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="adm-muted" style={{ margin: "12px 0 0", fontSize: "12.5px" }}>
+              No deliveries recorded.
+            </p>
+          )}
+        </Card>
+
+        <Card section="F3" label="Deliveries" title="Attempts before success" rise={0.25}>
+          <div style={{ marginTop: 14 }}>
+            <ColumnChart columns={attempts} scale="sqrt" />
           </div>
-          <div>
-            <h3 className="mb-2">Attempts</h3>
-            {attemptsData.length > 0 ? (
-              <Histogram data={attemptsData} height={200} />
-            ) : (
-              <p className="text-sm adm-muted">No delivery attempts recorded.</p>
-            )}
-          </div>
-        </div>
-      </Card>
+          <p style={{ margin: "14px 0 0", fontSize: "11px", color: "var(--adm-meta)" }}>
+            Retries back off exponentially; five failed attempts dead-letters the delivery.
+          </p>
+        </Card>
+      </div>
 
-      <Card eyebrow="F3 · deliveries" title="Recent dead-letters">
-        <Table
-          columns={dlqColumns}
-          rows={data.deliveries.recent_dead}
-          getRowKey={(row) => row.id}
-          emptyMessage="No dead-lettered deliveries."
-        />
+      <Card
+        section="F3"
+        label="Dead letters"
+        title="Recent dead-letters"
+        tone={dead.length > 0 ? "danger" : undefined}
+        rise={0.3}
+        className="mt-[16px]"
+      >
+        {dead.length > 0 ? (
+          <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 4 }}>
+            <tbody>
+              {dead.map((row) => (
+                <tr key={row.id}>
+                  <td
+                    style={{
+                      ...DLQ_TD,
+                      fontFamily: MONO,
+                      fontSize: "11.5px",
+                      color: "var(--adm-ink)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {row.id}
+                  </td>
+                  <td
+                    style={{
+                      ...DLQ_TD,
+                      fontFamily: MONO,
+                      fontSize: "11.5px",
+                      color: "var(--adm-muted)",
+                    }}
+                  >
+                    {row.channel}
+                  </td>
+                  <td
+                    style={{
+                      ...DLQ_TD,
+                      textAlign: "right",
+                      fontFamily: MONO,
+                      fontSize: "12px",
+                      color: "var(--adm-danger-ink)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {row.attempts}
+                  </td>
+                  <td style={{ ...DLQ_TD, fontSize: "12px", color: "var(--adm-text-secondary)" }}>
+                    {row.last_error ?? "—"}
+                  </td>
+                  <td
+                    style={{
+                      ...DLQ_TD,
+                      padding: "10px 0",
+                      textAlign: "right",
+                      fontFamily: MONO,
+                      fontSize: "11.5px",
+                      color: "var(--adm-muted)",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {formatMonthDayTime(row.updated_at)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p
+            style={{
+              margin: "12px 0 0",
+              fontSize: "12.5px",
+              color: "var(--adm-muted)",
+              borderTop: "1px solid var(--adm-rule)",
+              paddingTop: 12,
+            }}
+          >
+            No dead-lettered deliveries.
+          </p>
+        )}
       </Card>
-
-      <p className="border-t border-[var(--adm-rule)] pt-4 text-xs adm-muted">{data.latency_note}</p>
-    </div>
+    </Screen>
   );
 }
