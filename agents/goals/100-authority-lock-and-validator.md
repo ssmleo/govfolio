@@ -14,7 +14,10 @@ In:
   deterministically on this tree.
 - `agents/AUTHORITY.lock.json` — sha256 pins over the authority set
   (`agents/GOVERNANCE.md`, `PROMPT.md`, `LOOP.md`, `workflows/orchestration.md`,
-  `roles/*.md`, `archetypes/*.md`, `EFFORT.md`, `EPOCHS.md`, `goals/000-INDEX.md`);
+  `roles/*.md`, `archetypes/*.md`, `EFFORT.md`, `EPOCHS.md`, `goals/000-INDEX.md`,
+  root `/CLAUDE.md` — per design Amendment 1, it carries the invariants + the universal
+  memory pointer; nested folder CLAUDE.md stubs are NOT pinned — low-stakes pointers,
+  edited casually as folders evolve);
   schema `{version, superseded_note?, pinned}`. Goal files are NOT content-pinned
   (legitimately mutable — progress blocks, checklists) — covered by the bijection check.
   Regenerated only via `--write-lock`, through the amendment path.

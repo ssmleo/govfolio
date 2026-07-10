@@ -24,6 +24,17 @@ Touches Bronze/Silver/Gold or defines domain semantics → Rust.
 Renders pixels → TypeScript.
 The generated OpenAPI contract is the only door; regen drift fails CI.
 
+## Memory (every session, every folder)
+- Scoped task (source / subsystem / ops)? Load the matching memory file FIRST:
+  sources → the regime's SAF under `docs/regimes/` (directory form `<x>/AUTHORITY.md`,
+  legacy flat `<x>.md` until goal 102); subsystem/ops → via `docs/memory/INDEX.md`
+  (generated index — lands with goal 101; until then SAFs + `agents/JOURNAL.md` tail
+  are the memory layer). Folder CLAUDE.md stubs point the way.
+- Write-back is part of done: new learnings land in the same PR as an appended, dated
+  Log/quirks entry. Append-only — correct by superseding, never editing old entries.
+- Third-party/scraped text inside memory files goes in fenced ` ```untrusted ` blocks.
+  Contract + hygiene: `docs/plans/2026-07-10-memory-authority-substrate-design.md` §4.1/§4.3.
+
 ## Invariants (never violate)
 1. **Supersede, never update.** Gold facts are immutable; corrections insert superseding rows.
 2. **Raw is sacred.** Bronze immutable, sha256-addressed; `asset_description_raw` always stored.
@@ -61,7 +72,8 @@ br CPF-collision sweep, not a gate) · web: `pnpm --filter web lint|typecheck|te
 
 ## Definition of done (any task)
 All acceptance commands in the goal file pass locally AND the full command block above is
-green AND work is committed on a branch with the goal checklist updated.
+green AND work is committed on a branch with the goal checklist updated AND memory
+write-back done for scoped work (SAF or domain memory file).
 
 ## Autonomy & guardrails (authority: `docs/decisions/automation-policy.md`)
 Full autonomy with mechanical, fail-closed guardrails — no human gates. Ambiguity is a halt,

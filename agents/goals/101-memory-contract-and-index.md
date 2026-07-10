@@ -49,6 +49,17 @@ In:
   regime instance of the general contract; same checklist shape: load first → task →
   append dated entry → validate → same-PR write-back). `saf-authoring` either stays
   slimmed to point at it or is folded in — implementer decides and journals why.
+- Root `CLAUDE.md` Memory section (landed ahead of this goal, design Amendment 1):
+  finalize wording once `docs/memory/INDEX.md` exists — drop the "lands with goal 101 /
+  until then" interim clause. Root CLAUDE.md is lock-pinned by goal 100, so this edit
+  rides the same §4.2 amendment path as this goal's other pinned-file amendments.
+- Nested folder CLAUDE.md stubs (NEW files, 3–5 lines each, NOT lock-pinned; pattern:
+  `crates/adapters/CLAUDE.md` landed with Amendment 1): `crates/api/CLAUDE.md` →
+  `docs/memory/subsystems/api.md` (+ mention `subsystems/contracts.md` for contract/regen
+  work); `crates/pipeline/CLAUDE.md` → `subsystems/pipeline.md`; `crates/worker/CLAUDE.md`
+  → `subsystems/worker.md`; `apps/web/CLAUDE.md` → `subsystems/web.md`; `infra/CLAUDE.md`
+  → `subsystems/infra.md` (+ mention `ops/{deploys,cost}.md` and the deploy runbook).
+  Each stub: load memory file first + same-PR write-back line.
 
 Out: SAF file moves / hyphen-underscore normalization (goal 102); consolidation, journal
 rotation, staleness report, untrusted-content lint (goal 103); authority lock + validator
@@ -88,6 +99,8 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
 - [ ] `agents/PROMPT.md` load order inserts `docs/memory/INDEX.md` (§6)
 - [ ] `_CHASSIS.md` + `roles/*.md`: "SAF write-back" → "memory write-back (SAF or domain memory file)" + required-context footer entry
 - [ ] `agents/skills/memory-authoring/SKILL.md` (generalizes saf-authoring; journal the fold-in vs. point-at decision)
+- [ ] Root `CLAUDE.md` Memory section finalized (interim "lands with goal 101" clause dropped; rides amendment path — pinned)
+- [ ] Nested folder CLAUDE.md stubs created (`crates/{api,pipeline,worker}`, `apps/web`, `infra`; unpinned; pattern = `crates/adapters/CLAUDE.md`)
 - [ ] Full acceptance block green; amendments ride the §4.2 amendment path; memory/SAF write-back + JOURNAL line; committed; checklist + 000-INDEX row ticked
 
 ## BLOCKED (human)
