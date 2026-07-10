@@ -5,7 +5,8 @@
 //!
 //! Cheap indexed counts only — the web strip polls this endpoint every 15s,
 //! so every statement is a `count(*)` answered by a partial index or a small
-//! operational table; nothing scans Gold.
+//! operational table; nothing scans Gold (its size ships as the planner's
+//! `reltuples` estimate, never a count).
 
 use axum::Json;
 use axum::extract::State;
@@ -78,6 +79,13 @@ pub struct AdminOverview {
     /// Latest `sentinel_watch.last_checked_at` across all regimes; `null`
     /// when the sentinel has never run (honest absence, not zero).
     pub last_sentinel_check: Option<DateTime<Utc>>,
+    /// Planner ESTIMATE of Gold `disclosure_record` rows, straight from
+    /// `pg_class.reltuples` — free at any table size, never a `count(*)`
+    /// (this strip polls every 15s and nothing here may scan Gold). Kept
+    /// fresh by (auto)vacuum/analyze, so it drifts from the exact count;
+    /// `null` when postgres has never analyzed the table (honest absence,
+    /// not zero).
+    pub gold_records_estimate: Option<i64>,
 }
 
 // -------------------------------------------------------------------- SQL --
@@ -105,6 +113,18 @@ const FROZEN_SQL: &str = "select regime_code, frozen_kind, frozen_at \
      from sentinel_watch where frozen order by regime_code";
 
 const LAST_SENTINEL_SQL: &str = "select max(last_checked_at) from sentinel_watch";
+
+/// The planner's row estimate for Gold — `reltuples` is maintained by
+/// (auto)vacuum/analyze and reads in O(1); `-1` is postgres's "never
+/// analyzed" sentinel, mapped to `null` here. The `relkind`/`relnamespace`
+/// filters keep an index or other-schema object named `disclosure_record`
+/// from ever shadowing the table; `'p'` is included because the design plans
+/// declarative partitioning of Gold at ~10M rows, and a partitioned parent
+/// must not silently degrade this figure to a permanent null.
+const GOLD_ESTIMATE_SQL: &str = "select case when reltuples < 0 then null \
+     else reltuples::bigint end from pg_class \
+     where relname = 'disclosure_record' and relkind in ('r', 'p') \
+     and relnamespace = 'public'::regnamespace";
 
 /// Fetches the queue depths — shared with `/v1/admin/backfill` (plan B5).
 pub(crate) async fn fetch_queue_depths(pool: &PgPool) -> Result<AdminQueueDepths, ApiError> {
@@ -139,18 +159,25 @@ pub async fn admin_overview(
     let last_sentinel_check: Option<DateTime<Utc>> = sqlx::query_scalar(LAST_SENTINEL_SQL)
         .fetch_one(&state.pool)
         .await?;
+    // fetch_optional + flatten: a missing pg_class row (wrong database)
+    // degrades this one figure to null instead of 500-ing the whole strip.
+    let gold_records_estimate: Option<i64> = sqlx::query_scalar(GOLD_ESTIMATE_SQL)
+        .fetch_optional(&state.pool)
+        .await?
+        .flatten();
     Ok(Json(AdminOverview {
         generated_at: Utc::now(),
         queue_depths,
         runs_24h,
         frozen_regimes,
         last_sentinel_check,
+        gold_records_estimate,
     }))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{FROZEN_SQL, LAST_SENTINEL_SQL, QUEUE_DEPTHS_SQL, RUNS_24H_SQL};
+    use super::{FROZEN_SQL, GOLD_ESTIMATE_SQL, LAST_SENTINEL_SQL, QUEUE_DEPTHS_SQL, RUNS_24H_SQL};
 
     /// READ-ONLY BY CONTRACT: every admin statement is a `select`.
     #[test]
@@ -160,6 +187,7 @@ mod tests {
             RUNS_24H_SQL,
             FROZEN_SQL,
             LAST_SENTINEL_SQL,
+            GOLD_ESTIMATE_SQL,
         ] {
             assert!(sql.starts_with("select "), "not a select: {sql}");
             for verb in ["insert ", "update ", "delete ", "truncate ", "drop "] {

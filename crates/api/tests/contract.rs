@@ -1651,6 +1651,41 @@ async fn admin_observability_endpoints_gate_and_match_the_contract(pool: PgPool)
     // alone: the pipeline run opened one review task and published 13 rows.
     let (_, overview) = get(&app, "/v1/admin/overview").await;
     assert_eq!(overview["queue_depths"]["review_open"], json!(1));
+    // Gold planner estimate, pinned against pg_class itself so a regression
+    // that fabricates 0 for the -1 "never analyzed" sentinel cannot pass:
+    // whatever reltuples says right now, the API field must be exactly its
+    // null-when-negative mapping. (A fresh test database is un-analyzed →
+    // null; if autovacuum got there first, the mapping still holds.)
+    assert!(
+        overview.get("gold_records_estimate").is_some(),
+        "gold_records_estimate present on the overview"
+    );
+    let expected: Option<i64> = sqlx::query_scalar(
+        "select case when reltuples < 0 then null else reltuples::bigint end \
+         from pg_class where relname = 'disclosure_record' \
+         and relkind in ('r', 'p') and relnamespace = 'public'::regnamespace",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        overview["gold_records_estimate"].as_i64(),
+        expected,
+        "estimate is exactly pg_class's mapped reltuples, got {}",
+        overview["gold_records_estimate"]
+    );
+    sqlx::query("analyze disclosure_record")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (_, overview) = get(&app, "/v1/admin/overview").await;
+    assert!(
+        overview["gold_records_estimate"]
+            .as_i64()
+            .is_some_and(|n| n >= 1),
+        "after analyze the estimate reflects the seeded Gold rows, got {}",
+        overview["gold_records_estimate"]
+    );
     let (_, coverage) = get(&app, "/v1/admin/coverage").await;
     let us_house = coverage["regimes"]
         .as_array()

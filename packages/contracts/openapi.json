@@ -1305,6 +1305,14 @@
             "format": "date-time",
             "type": "string"
           },
+          "gold_records_estimate": {
+            "description": "Planner ESTIMATE of Gold `disclosure_record` rows, straight from\n`pg_class.reltuples` — free at any table size, never a `count(*)`\n(this strip polls every 15s and nothing here may scan Gold). Kept\nfresh by (auto)vacuum/analyze, so it drifts from the exact count;\n`null` when postgres has never analyzed the table (honest absence,\nnot zero).",
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "last_sentinel_check": {
             "description": "Latest `sentinel_watch.last_checked_at` across all regimes; `null`\nwhen the sentinel has never run (honest absence, not zero).",
             "format": "date-time",

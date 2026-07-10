@@ -14,6 +14,9 @@ import { ADMIN_TOKEN } from "./e2e/api";
 // gets the SAME value as GOVFOLIO_ADMIN_TOKEN below so its server-side client
 // forwards X-Admin-Token on review-surface calls. Public flows stay
 // unauthenticated by design.
+//
+// Valid X-Admin-Token requests are exempt from the API's anonymous per-minute
+// backstop (goal 095), so admin polling/specs can't 429 parallel e2e runs.
 const PORT = 3105;
 const API_URL = process.env.GOVFOLIO_API_URL ?? "http://localhost:8080";
 
