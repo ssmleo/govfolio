@@ -33,4 +33,5 @@
 - [ ] 100 authority lock + validator (invariant 9 → mechanical: AUTHORITY.lock.json, validate-authority bin, run-loop pre-flight, CI guardrails step, PreToolUse hook, GOVERNANCE amendments) — design docs/plans/2026-07-10-memory-authority-substrate-design.md §4.2
 - [ ] 101 memory contract + index (MemoryFile schemars contract, validate-memory + memory-index bins w/ CI drift gate, docs/memory tree, PROMPT load-order + chassis/roles write-back amendments, memory-authoring skill) — design §4.1/§6; after 100
 - [ ] 102 SAF normalization (7 regimes → docs/regimes/<x>/AUTHORITY.md dir form, hyphen/underscore drift resolved, legacy us-house.md reconciled, E1.lock.json superseded per its own policy) — design §4.1; after 101
+- [ ] 103 memory hygiene loop (journal entry schema + rotation, standing consolidation work item, memory-staleness report bin, untrusted-block lint, delta-only rule) — design §4.3; after 101
 - [ ] E2+ Brazil onward: NO hand-written goals — the coverage factory (015) generates work from the registry per agents/EPOCHS.md
