@@ -64,10 +64,16 @@ main.shell:has(> .admin-root) {
   --adm-accent-deep: #E0C084;
   --adm-accent-amber: #E4B45E;
 
-  /* ---------- type (reused exactly from globals.css) ---------- */
-  --adm-font-display: var(--font-display);
-  --adm-font-body: var(--font-body);
-  --adm-font-data: var(--font-data);
+  /* ---------- type (admin's own Google Fonts trio, goal 094 — falls
+   * back to the public site's system-font stacks from globals.css if the
+   * next/font `.variable` classes aren't applied to an ancestor, or the
+   * fonts fail to load) ---------- */
+  --adm-font-display: var(--adm-font-display-family, "Iowan Old Style",
+    "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif);
+  --adm-font-body: var(--adm-font-body-family, -apple-system, "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif);
+  --adm-font-data: var(--adm-font-data-family, ui-monospace, "Cascadia Mono",
+    "Segoe UI Mono", Consolas, Menlo, monospace);
 
   /* ---------- state colors: the ONLY saturated colors on this surface ---------- */
   --adm-success-ink: #6CCB9B;  --adm-success-bg: rgba(76,175,130,.10);  --adm-success-rule: rgba(76,175,130,.35);
