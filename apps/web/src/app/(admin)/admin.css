@@ -44,6 +44,7 @@
   --adm-surface-sunken: #171B24;
   --adm-ink: #E9E5DA;
   --adm-muted: #8E9099;
+  --adm-meta: #6E737D;
   --adm-rule: #1D222B;
   --adm-rule-strong: #383E4A;
 
@@ -59,6 +60,36 @@
   --adm-accent: #C2A15E;
   --adm-accent-deep: #E0C084;
   --adm-accent-amber: #E4B45E;
+
+  /* ---------- gold alphas (borders, active states, hovers, rules) ---------- */
+  --adm-gold-55: rgba(194, 161, 94, .55);
+  --adm-gold-45: rgba(194, 161, 94, .45);
+  --adm-gold-35: rgba(194, 161, 94, .35);
+  --adm-gold-28: rgba(194, 161, 94, .28);
+  --adm-gold-16: rgba(194, 161, 94, .16);
+  --adm-gold-12: rgba(194, 161, 94, .12);
+  --adm-gold-08: rgba(194, 161, 94, .08);
+  --adm-gold-06: rgba(194, 161, 94, .06);
+
+  /* ---------- shell surfaces ---------- */
+  --adm-masthead-bg: linear-gradient(180deg, #101319, #0D1015);
+  --adm-masthead-rule: rgba(194, 161, 94, .28);
+  --adm-ticker-bg: rgba(15, 18, 24, .85);
+  --adm-sidebar-bg: rgba(13, 16, 21, .6);
+  --adm-footer-bg: rgba(13, 16, 21, .8);
+  --adm-access-bg: rgba(18, 21, 28, .6);
+
+  /* ---------- hovers ---------- */
+  --adm-row-hover: rgba(255, 255, 255, .02);
+  --adm-nav-hover-bg: rgba(255, 255, 255, .03);
+
+  /* ---------- dossier ---------- */
+  --adm-dossier-bg: linear-gradient(180deg, #14181F, #101319);
+  --adm-dossier-shadow: -40px 0 90px rgba(0, 0, 0, .55);
+  --adm-backdrop: rgba(4, 6, 9, .55);
+
+  /* ---------- danger card border (failures / DLQ / frozen sentinel) ---------- */
+  --adm-danger-card-rule: rgba(198, 82, 74, .5);
 
   /* ---------- type (admin's own Google Fonts trio, goal 094 — falls
    * back to the public site's system-font stacks from globals.css if the
@@ -120,34 +151,44 @@
   --adm-sidebar-w: 230px;
   --adm-dossier-w: 520px;
 
-  background: var(--adm-bg);
+  /* dc.html:33 — deep charcoal with a cool cast top-center and a faint gold
+   * glow bottom-right. */
+  background:
+    radial-gradient(1100px 420px at 50% -140px, rgba(96, 118, 153, .16), transparent 70%),
+    radial-gradient(900px 520px at 100% 105%, rgba(194, 161, 94, .05), transparent 60%),
+    var(--adm-bg);
   color: var(--adm-ink);
   font-family: var(--adm-font-body);
-  font-size: 0.9375rem;
-  line-height: 1.45;
-  min-height: 100%;
-  padding-bottom: 3rem;
+  font-size: 13.5px;
+  line-height: 1.5;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
 }
 
 .admin-root h1,
 .admin-root h2,
 .admin-root h3 {
   font-family: var(--adm-font-display);
-  font-weight: 600;
-  line-height: 1.2;
-  color: var(--adm-ink);
+  font-weight: 700;
+  color: var(--adm-heading);
 }
 
+/* dc.html:111 — screen title */
 .admin-root h1 {
-  font-size: 1.5rem;
+  font-size: 30px;
+  line-height: 1.15;
 }
 
+/* dc.html:151 — card title */
 .admin-root h2 {
-  font-size: 1.0625rem;
+  font-size: 17px;
+  line-height: 1.2;
 }
 
 .admin-root h3 {
-  font-size: 0.9375rem;
+  font-size: 15px;
+  line-height: 1.2;
 }
 
 .admin-root a {
@@ -161,6 +202,26 @@
 .admin-root :focus-visible {
   outline: 2px solid var(--adm-accent);
   outline-offset: 2px;
+}
+
+/* dc.html:21 */
+.admin-root ::selection {
+  background: rgba(194, 161, 94, .30);
+  color: #F4EFE4;
+}
+
+/* dc.html:23-25 */
+.admin-root ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+.admin-root ::-webkit-scrollbar-thumb {
+  background: #262B34;
+  border-radius: 5px;
+  border: 2px solid var(--adm-bg);
+}
+.admin-root ::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* Every number on this surface is tabular mono — bytes, counts, percentiles. */
@@ -182,6 +243,36 @@
   color: var(--adm-muted);
 }
 
+/* dc.html:110 — screen-header kicker ("Mission control", "Section A") */
+.adm-kicker {
+  font-family: var(--adm-font-body);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--adm-accent);
+}
+
+/* dc.html:123 — card eyebrow ("§ A1 · World coverage") */
+.adm-card-eyebrow {
+  font-family: var(--adm-font-body);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--adm-meta);
+}
+
+/* dc.html:174 — stat labels, table headers, micro captions */
+.adm-microlabel {
+  font-family: var(--adm-font-body);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--adm-meta);
+}
+
 @media (prefers-reduced-motion: no-preference) {
   @keyframes gfPulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
   @keyframes gfSweep { from { transform: scaleX(0); } to { transform: scaleX(1); } }
@@ -189,14 +280,21 @@
 }
 @keyframes gfFade { from { opacity: 0; } to { opacity: 1; } }
 
-/* Atmosphere overlay — subtle deterministic noise, always-on, non-interactive */
-.atmosphere-overlay {
+/* Atmosphere — two fixed layers ON TOP of the content (dc.html:1307-1310):
+ * a vignette darkening the frame edges, then 5% film grain above it.
+ * Both non-interactive. */
+.atmosphere-vignette {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  inset: 0;
   pointer-events: none;
-  opacity: 0.05;
-  z-index: -1;
+  z-index: 29;
+  background: radial-gradient(140% 100% at 50% 0%, rgba(0, 0, 0, 0) 55%, rgba(0, 0, 0, .42) 100%);
+}
+
+.atmosphere-grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 30;
+  opacity: .05;
 }

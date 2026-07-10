@@ -1,28 +1,21 @@
 /**
- * Deterministic SVG noise overlay — fixed seed, non-toggleable, always-on.
- * Renders as a fixed-position pseudo-element at ~5% opacity.
- * No Math.random(), reproducible across all renders for screenshot QA (goal 094).
+ * Atmosphere overlay (dc.html:1307-1310): a vignette darkening the frame
+ * edges plus 5% film grain, both fixed ON TOP of the content (z 29/30) and
+ * non-interactive. feTurbulence with no seed attribute is deterministic
+ * (seed=0), reproducible across renders for screenshot QA.
  */
 export function AtmosphereOverlay() {
-  // 64x64 SVG with deterministic noise pattern using feTurbulence with fixed seed
-  const noiseDataUri =
-    "data:image/svg+xml;base64," +
-    btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">
-    <defs>
-      <filter id="noise">
-        <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="4" seed="42" result="turbulence" />
-        <feDisplacementMap in="SourceGraphic" in2="turbulence" scale="1" />
-      </filter>
-    </defs>
-    <rect width="64" height="64" fill="#ffffff" opacity="0.15" filter="url(#noise)" />
-  </svg>`);
+  const grainDataUri =
+    "data:image/svg+xml;utf8," +
+    "<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'>" +
+    "<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/></filter>" +
+    "<rect width='140' height='140' filter='url(%23n)' opacity='0.6'/>" +
+    "</svg>";
 
   return (
-    <div
-      className="atmosphere-overlay"
-      style={{
-        backgroundImage: `url('${noiseDataUri}')`,
-      }}
-    />
+    <>
+      <div className="atmosphere-vignette" />
+      <div className="atmosphere-grain" style={{ backgroundImage: `url("${grainDataUri}")` }} />
+    </>
   );
 }
