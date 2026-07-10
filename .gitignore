@@ -32,3 +32,4 @@ apps/web/test-results/
 # OS
 .DS_Store
 Thumbs.db
+agents/loop.lane-*.log

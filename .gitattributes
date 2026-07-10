@@ -4,3 +4,9 @@
 # on Windows checkouts; both break pin re-verification.
 docs/regimes/*/evidence/** -text
 crates/adapters/*/fixtures/** -text
+
+# JOURNAL is append-only single-line dated entries (memory contract), so git's
+# built-in union driver merges concurrent lane appends without conflicts
+# (goal 097 parallel lanes). Caveat: server-side PR merges may ignore this —
+# lanes merge main into their branch LOCALLY first (factory-lane.md step 6).
+agents/JOURNAL.md merge=union
