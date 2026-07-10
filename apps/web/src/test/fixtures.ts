@@ -1,5 +1,6 @@
 // Typed test fixtures built from the GENERATED contract types.
 import type {
+  AdminOverview,
   DisclosureRecord,
   ExtractionContext,
   Provenance,
@@ -9,6 +10,7 @@ import type {
   ReviewTargetSummary,
   RecordDetail,
 } from "@/lib/api";
+import { POLITENESS_NOTE, type RegimeDossierData } from "@/app/(admin)/admin/coverage/dossier-data";
 
 export function makeRecord(overrides: Partial<DisclosureRecord> = {}): DisclosureRecord {
   return {
@@ -149,6 +151,60 @@ export function makeAuditEntry(overrides: Partial<ReviewAuditEntry> = {}): Revie
     note: "matches the source document",
     affected_record_ids: ["01KWQVPG6B08S4VX92NZED3C16"],
     created_at: "2026-07-04T23:00:00Z",
+    ...overrides,
+  };
+}
+
+export function makeAdminOverview(overrides: Partial<AdminOverview> = {}): AdminOverview {
+  return {
+    frozen_regimes: [],
+    generated_at: "2026-07-09T00:00:00Z",
+    last_sentinel_check: "2026-07-09T00:00:00Z",
+    queue_depths: {
+      delivery_dlq: 0,
+      drift_open: 0,
+      outbox_undispatched: 0,
+      pipeline_failed: 0,
+      pipeline_running: 0,
+      review_open: 0,
+      sample_pending: 0,
+      usage_unbilled: 0,
+    },
+    runs_24h: { failed: 0, running: 0, succeeded: 0 },
+    ...overrides,
+  };
+}
+
+export function makeRegimeDossierData(
+  overrides: Partial<RegimeDossierData> = {},
+): RegimeDossierData {
+  return {
+    regimeId: "reg-us-house",
+    title: "US House — United States",
+    regimeCodes: ["us_house"],
+    facts: [
+      { label: "jurisdiction", value: "United States (us)" },
+      { label: "phase", value: "live" },
+      { label: "bridge code(s)", value: "us_house" },
+      { label: "politicians", value: "10" },
+      { label: "filings", value: "40" },
+      { label: "first filed", value: "2020-01-01" },
+      { label: "last filed", value: "2026-06-01" },
+      { label: "record types", value: "transaction" },
+    ],
+    tiers: { bronze: 100, silver: 50, gold: 30, maxTier: 100 },
+    // Empty by default: RegimeDossier renders a CountsBar (recharts) only
+    // when this is non-empty, and recharts' ResponsiveContainer needs a
+    // ResizeObserver jsdom doesn't provide. Component tests that want the
+    // "has dated Gold records" branch can override this explicitly; the
+    // data-assembly side of goldByYear is already covered in
+    // dossier-data.test.ts.
+    goldByYear: [],
+    adapterCrates: [{ regimeCode: "us_house", crate: "us_house" }],
+    integrityNote: "Not frozen; no open drift reports.",
+    freshnessNote: "Discovery lag p50 1.0h, p90 2.0h.",
+    regimeNote: "transaction_report regime, banded values.",
+    politenessNote: POLITENESS_NOTE,
     ...overrides,
   };
 }
