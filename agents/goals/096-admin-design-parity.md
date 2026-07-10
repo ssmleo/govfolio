@@ -58,13 +58,18 @@ the Regime Dossier open state.
 - [x] e2e updated for the intentional changes: `h3` → `h2` Card-title locator, the
       world-coverage wall moved off Coverage onto Overview only, the footer text
       disambiguation fix for "Administrative Console"
-- [x] Full acceptance block green (`pnpm e2e` 24/26 — the 2 pre-existing failures
-      are unrelated to this goal, see below); docs/runbook updated; 000-INDEX row
-      added
+- [x] Full acceptance block green: `pnpm e2e` 26/26 (see follow-up fix below);
+      docs/runbook updated; 000-INDEX row added
 
-## Pre-existing failures observed, NOT caused by this goal (left as-is, out of scope)
-- `reviewer.spec.ts` "queue → task → confirm flow": expects the Bronze-document
-  iframe to point at an absolute `.../v1/filings/.../document` URL, but
-  `components/reviewer/BronzeDocument.tsx` already serves it through a same-origin
-  `/review/document/<id>` proxy route — a stale test/code mismatch that predates
-  this branch (zero files under `(reviewer)`/`reviewer.spec.ts` touched here).
+## Follow-up fix (same day, requested after the goal's initial merge)
+`reviewer.spec.ts` "queue → task → confirm flow" was failing at merge time —
+unrelated to any file this goal touched, but found during its `pnpm e2e` run.
+It expected the Bronze-document iframe to point at an absolute
+`.../v1/filings/.../document` URL; `components/reviewer/BronzeDocument.tsx` has
+served it through a same-origin `/review/document/<id>` proxy route for a
+documented reason (a plain browser request can't carry the admin token, and the
+public endpoint's 24h free-tier embargo would 404 a fresh filing) since before
+this branch existed — a stale test assertion, not a code regression. Fixed the
+assertion to match the real, intended behavior; confirmed via two full `pnpm e2e`
+runs (26/26 both times) to rule out the known anonymous-rate-limit flake under
+parallel load (goal 095). Commit `b03379b`.
