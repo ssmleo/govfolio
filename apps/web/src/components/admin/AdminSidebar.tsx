@@ -8,12 +8,13 @@ interface NavLink {
   href: string;
   label: string;
   /**
-   * Section letter chip — the same A–H codes every page's `Card eyebrow`
-   * already renders (e.g. `admin/coverage/page.tsx` uses "A1", "A2 / A3 /
-   * A5", ...). Overview carries none: it's Command's single aggregate
-   * screen, not one lettered section — no new taxonomy is invented here.
+   * Letter chip glyph (dc.html:1852-1858) — the same A–H codes every page's
+   * card eyebrow already renders (e.g. `admin/coverage/page.tsx` uses "A1",
+   * "A2 / A3 / A5", ...). Overview carries "◆" (U+25C6): it's Command's
+   * single aggregate screen, not one lettered section — no new taxonomy is
+   * invented here.
    */
-  chip?: string;
+  letter: string;
 }
 
 interface NavGroup {
@@ -21,42 +22,40 @@ interface NavGroup {
   links: readonly NavLink[];
 }
 
-// 5 groups / 9 links / letter chips A–H (goal 094): the old flat AdminNav's
-// LINKS, regrouped by pipeline phase — Command (the one aggregate screen),
-// Acquisition (getting data in), Refinery (turning it into Gold + checking
-// it), Platform (storage + serving it out), Autonomy (infra + the agent
-// loop running underneath). Order matches the old LINKS array exactly, so
-// the digit shortcuts below (assigned by flattened position) don't shift
-// meaning for anyone used to the old nav.
+// 5 groups / 9 links / letter chips ◆ + A–H, grouped exactly as the design
+// (dc.html:1852-1858): Command (the one aggregate screen), Acquisition
+// (getting data in), Refinery (turning it into Gold + checking it),
+// Platform (storage + serving + the infra it runs on), Autonomy (the agent
+// loop running underneath). Flattened order is unchanged from the old
+// LINKS array, so the digit shortcuts below (assigned by flattened
+// position) don't shift meaning for anyone used to the old nav.
 const GROUPS: readonly NavGroup[] = [
-  { label: "Command", links: [{ href: "/admin", label: "Overview" }] },
+  { label: "Command", links: [{ href: "/admin", label: "Overview", letter: "◆" }] },
   {
     label: "Acquisition",
     links: [
-      { href: "/admin/coverage", label: "Coverage", chip: "A" },
-      { href: "/admin/backfill", label: "Backfill", chip: "B" },
+      { href: "/admin/coverage", label: "Coverage", letter: "A" },
+      { href: "/admin/backfill", label: "Backfill", letter: "B" },
     ],
   },
   {
     label: "Refinery",
     links: [
-      { href: "/admin/pipeline", label: "Pipeline", chip: "C" },
-      { href: "/admin/quality", label: "Quality", chip: "D" },
+      { href: "/admin/pipeline", label: "Pipeline", letter: "C" },
+      { href: "/admin/quality", label: "Quality", letter: "D" },
     ],
   },
   {
     label: "Platform",
     links: [
-      { href: "/admin/storage", label: "Storage", chip: "E" },
-      { href: "/admin/serving", label: "Serving", chip: "F" },
+      { href: "/admin/storage", label: "Storage", letter: "E" },
+      { href: "/admin/serving", label: "Serving", letter: "F" },
+      { href: "/admin/infra", label: "Infra", letter: "G" },
     ],
   },
   {
     label: "Autonomy",
-    links: [
-      { href: "/admin/infra", label: "Infra", chip: "G" },
-      { href: "/admin/loop", label: "Loop", chip: "H" },
-    ],
+    links: [{ href: "/admin/loop", label: "Loop", letter: "H" }],
   },
 ];
 
@@ -72,8 +71,11 @@ function isFormField(el: Element | null): boolean {
   return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT";
 }
 
-// The grouped instrument-panel sidebar (goal 094): replaces the flat
-// AdminNav top bar. Two bits of client-only interactivity, kept inline (one
+// The grouped instrument-panel sidebar, design-exact (dc.html:79-99 +
+// item style objects at 1868-1875): letter chip on the left, no visible
+// digits (the design has none — the 1-9 shortcuts still work, they're just
+// not advertised in the DOM), a flex spacer, then the Access panel pinned
+// at the bottom. Two bits of client-only interactivity, kept inline (one
 // call site, no extracted hook):
 //   - digits 1-9 jump straight to the matching screen. Ignored whenever a
 //     form field has focus (no text inputs exist in /admin today, but this
@@ -110,45 +112,54 @@ export function AdminSidebar() {
   return (
     <nav
       aria-label="Admin sections"
-      className="flex w-[var(--adm-sidebar-w)] shrink-0 flex-col gap-5 border-r border-[var(--adm-rule)] bg-[var(--adm-surface)] px-3 py-4"
+      className="flex w-[var(--adm-sidebar-w)] shrink-0 flex-col gap-5 border-r border-[var(--adm-rule)] bg-[var(--adm-sidebar-bg)]"
+      style={{ padding: "20px 14px 24px" }}
     >
       {GROUPS.map((group) => (
-        <div key={group.label} className="flex flex-col gap-1">
-          <p className="adm-eyebrow mb-1 px-2">{group.label}</p>
-          <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
+        <div key={group.label}>
+          <p
+            style={{
+              margin: "0 0 8px 10px",
+              fontSize: "9.5px",
+              fontWeight: 700,
+              letterSpacing: ".22em",
+              textTransform: "uppercase",
+              color: "var(--adm-faint)",
+            }}
+          >
+            {group.label}
+          </p>
+          <ul className="m-0 flex list-none flex-col gap-[2px] p-0">
             {group.links.map((link) => {
               const current = pathname === link.href;
-              const shortcut = FLAT_LINKS.indexOf(link) + 1;
               return (
                 <li key={link.href}>
                   <Link
                     href={link.href}
+                    title={link.href}
                     aria-current={current ? "page" : undefined}
                     className={
                       current
-                        ? "flex items-center gap-2 rounded-sm bg-[var(--adm-surface-sunken)] px-2 py-1.5 text-sm font-semibold text-[var(--adm-accent-deep)] no-underline"
-                        : "flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-[var(--adm-nav-inactive)] no-underline hover:bg-[var(--adm-surface-sunken)] hover:text-[var(--adm-nav-hover)]"
+                        ? "flex items-center gap-2.5 rounded-[3px] bg-[var(--adm-gold-08)] text-[13px] font-semibold text-[var(--adm-heading)] no-underline shadow-[inset_2px_0_0_#C2A15E]"
+                        : "flex items-center gap-2.5 rounded-[3px] text-[13px] text-[var(--adm-nav-inactive)] no-underline hover:bg-[var(--adm-nav-hover-bg)] hover:text-[var(--adm-nav-hover)]"
                     }
+                    style={{
+                      padding: "7px 10px",
+                      transition: "background .15s ease, color .15s ease",
+                    }}
                   >
-                    <span className="adm-num w-3 shrink-0 text-[0.6875rem] text-[var(--adm-faint)]">
-                      {shortcut}
+                    <span
+                      className="adm-num grid h-5 w-5 shrink-0 place-items-center rounded-[2px] border border-[var(--adm-chip-border)]"
+                      style={{
+                        fontSize: "10.5px",
+                        color: current
+                          ? "var(--adm-accent-deep)"
+                          : "var(--adm-nav-chip-inactive)",
+                      }}
+                    >
+                      {link.letter}
                     </span>
                     <span className="flex-1">{link.label}</span>
-                    {link.chip !== undefined && (
-                      <span
-                        className="adm-num rounded-[2px] border px-1 py-0.5 text-[0.625rem] font-semibold"
-                        style={
-                          current
-                            ? { color: "var(--adm-accent-deep)", borderColor: "var(--adm-accent)" }
-                            : {
-                                color: "var(--adm-nav-chip-inactive)",
-                                borderColor: "var(--adm-chip-border)",
-                              }
-                        }
-                      >
-                        {link.chip}
-                      </span>
-                    )}
                   </Link>
                 </li>
               );
@@ -156,6 +167,30 @@ export function AdminSidebar() {
           </ul>
         </div>
       ))}
+      <div className="flex-1" />
+      <div
+        className="rounded-[3px] border border-[var(--adm-card-border)] bg-[var(--adm-access-bg)]"
+        style={{ padding: "12px 14px" }}
+      >
+        <p
+          style={{
+            margin: "0 0 5px",
+            fontSize: "9.5px",
+            fontWeight: 700,
+            letterSpacing: ".2em",
+            textTransform: "uppercase",
+            color: "var(--adm-accent)",
+          }}
+        >
+          Access
+        </p>
+        <p style={{ margin: 0, fontSize: "11.5px", color: "var(--adm-nav-inactive)" }}>
+          Founder token · full scope
+        </p>
+        <p className="adm-num" style={{ margin: "4px 0 0", fontSize: "10px", color: "var(--adm-faint)" }}>
+          all reads are logged
+        </p>
+      </div>
     </nav>
   );
 }

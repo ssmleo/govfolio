@@ -21,6 +21,53 @@ beforeEach(() => {
   window.localStorage.clear();
 });
 
+describe("AdminSidebar markup (design-exact shell)", () => {
+  it("renders the letter chip to the LEFT of each label (◆ for Overview, A-H for sections)", () => {
+    render(<AdminSidebar />);
+    // textContent order proves chip-first: the glyph precedes the label.
+    expect(screen.getByRole("link", { name: /Overview/ })).toHaveTextContent(/^◆Overview$/);
+    expect(screen.getByRole("link", { name: /Coverage/ })).toHaveTextContent(/^ACoverage$/);
+    expect(screen.getByRole("link", { name: /Loop/ })).toHaveTextContent(/^HLoop$/);
+  });
+
+  it("renders NO digit shortcut numbers in the DOM (the design has none)", () => {
+    render(<AdminSidebar />);
+    for (let digit = 1; digit <= 9; digit++) {
+      expect(screen.queryByText(String(digit))).not.toBeInTheDocument();
+    }
+  });
+
+  it("titles every link with its route", () => {
+    render(<AdminSidebar />);
+    expect(screen.getByRole("link", { name: /Overview/ })).toHaveAttribute("title", "/admin");
+    expect(screen.getByRole("link", { name: /Coverage/ })).toHaveAttribute(
+      "title",
+      "/admin/coverage",
+    );
+    expect(screen.getByRole("link", { name: /Loop/ })).toHaveAttribute("title", "/admin/loop");
+  });
+
+  it("marks only the current path's link as active (aria-current + gold chip ink)", () => {
+    pathnameMock.mockReturnValue("/admin/coverage");
+    render(<AdminSidebar />);
+
+    const coverage = screen.getByRole("link", { name: /Coverage/ });
+    expect(coverage).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /Overview/ })).not.toHaveAttribute("aria-current");
+
+    // Active chip lights up gold-deep; an inactive chip stays dim.
+    expect(screen.getByText("A").style.color).toBe("var(--adm-accent-deep)");
+    expect(screen.getByText("◆").style.color).toBe("var(--adm-nav-chip-inactive)");
+  });
+
+  it("renders the Access panel pinned after the groups", () => {
+    render(<AdminSidebar />);
+    expect(screen.getByText("Access")).toBeInTheDocument();
+    expect(screen.getByText("Founder token · full scope")).toBeInTheDocument();
+    expect(screen.getByText("all reads are logged")).toBeInTheDocument();
+  });
+});
+
 describe("AdminSidebar keyboard shortcuts", () => {
   it("digit 1 navigates to the first flattened link (Overview)", () => {
     render(<AdminSidebar />);
