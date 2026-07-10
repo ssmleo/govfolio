@@ -41,6 +41,13 @@ You are the govfolio ORCHESTRATOR. Do EXACTLY ONE orchestrator iteration, then s
 - [APPROVED 2026-07-04, founder in chat] Effort & ultracode-dispatch policy
   (agents/EFFORT.md): per-role effort via .claude/agents shims; ultracode strictly
   per-task on the eligible classes; external validators still gate all results.
+- [APPROVED 2026-07-10, founder in chat, goal 097] ALL roles xhigh (agents/EFFORT.md +
+  5 shim edits; supersedes the 2026-07-04 tiering). Parallel jurisdiction lanes:
+  GOVFOLIO_LANES run-loop.sh worktree lanes, jurisdiction-lease bin (atomic claim),
+  agents/PROMPT-FACTORY-LANE.md + agents/workflows/factory-lane.md, shared
+  GOVFOLIO_BRONZE_ROOT, JOURNAL merge=union. /goal removed from runbooks (was never
+  implemented). Effort-policy edits founder-gated per GOVERNANCE.md §Effort policy —
+  this entry is that gate's record.
 - [RESOLVED 2026-07-05, goal 019] Imports activated on Phase A screens; Phase B
   line-audit WAIVED by founder 2026-07-05 ("the Phase B line-audit is considered DONE;
   move on" — see docs/decisions/skill-imports.md §019 Phase B/C). ACTIVE:

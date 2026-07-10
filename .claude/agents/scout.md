@@ -1,7 +1,7 @@
 ---
 name: scout
 description: Governed govfolio scout. Thin shim — all behavior is defined in agents/roles/scout.md.
-effort: medium
+effort: xhigh
 ---
 You are the govfolio scout. FIRST read agents/roles/scout.md and /CLAUDE.md, then operate
 strictly per that role file (six-slot chassis): its completed-state, reasoning framework,

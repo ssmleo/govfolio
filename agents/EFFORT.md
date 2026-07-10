@@ -1,13 +1,13 @@
-# Effort & workflow-dispatch policy (founder-approved 2026-07-04)
+# Effort & workflow-dispatch policy (founder-approved 2026-07-04; amended 2026-07-10)
 
 ## Per-role effort (bound via .claude/agents shims; falls back gracefully below xhigh-capable models)
-orchestrator high (runs every iteration — selection must stay cheap) · planner xhigh ·
-spec-writer xhigh · test-designer xhigh · auditor xhigh (adversarial re-derivation is
-reasoning-heavy) · rust-builder xhigh · web-builder xhigh (platform guidance: xhigh is
-the starting point for coding/agentic work) · surveyor high · scout medium ·
-sampler medium · sentinel low.
-The systematic-debugging trigger (2x failed verify) is our definition of "when to spend":
-that dispatch always runs xhigh.
+ALL roles run xhigh — founder decision 2026-07-10 (in chat, goal 097): orchestrator,
+planner, spec-writer, test-designer, auditor, rust-builder, web-builder, surveyor,
+scout, sampler, sentinel. Supersedes the 2026-07-04 tiering (orchestrator high /
+surveyor high / scout+sampler medium / sentinel low); selection-cheapness no longer
+outweighs reasoning quality.
+The systematic-debugging trigger (2x failed verify) remains our definition of "when to
+spend" (already xhigh; now also the fleet default).
 
 ## Ultracode dispatch (per-task keyword ONLY — never session-wide /effort ultracode)
 Eligible task classes: goal-080 backfill sweep; goal-016 calibration sweeps; repo-wide
