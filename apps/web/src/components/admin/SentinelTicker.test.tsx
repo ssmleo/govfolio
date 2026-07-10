@@ -112,6 +112,7 @@ describe("SentinelTicker rendered stats", () => {
         { regime_code: "br" },
         { regime_code: "us_house" },
       ],
+      gold_records_estimate: 874,
       runs_24h: { failed: 1, running: 3, succeeded: 20 },
       queue_depths: {
         delivery_dlq: 4,
@@ -132,8 +133,13 @@ describe("SentinelTicker rendered stats", () => {
     expect(screen.getByText("review open").nextElementSibling).toHaveTextContent("7");
     expect(screen.getByText("drift open").nextElementSibling).toHaveTextContent("2");
     expect(screen.getByText("dlq").nextElementSibling).toHaveTextContent("4");
-    // AdminOverview has no gold-records field yet (deferred) — an honest dash,
-    // never a fabricated number.
+    // Sub-1000 value: toLocaleString() output is locale-independent.
+    expect(screen.getByText("gold records").nextElementSibling).toHaveTextContent("874");
+  });
+
+  it("renders an honest dash when the planner estimate is null (never-analyzed table)", () => {
+    mockOverview({ gold_records_estimate: null });
+    render(<SentinelTicker />);
     expect(screen.getByText("gold records").nextElementSibling).toHaveTextContent("—");
   });
 });

@@ -159,6 +159,7 @@ export function makeAdminOverview(overrides: Partial<AdminOverview> = {}): Admin
   return {
     frozen_regimes: [],
     generated_at: "2026-07-09T00:00:00Z",
+    gold_records_estimate: null,
     last_sentinel_check: "2026-07-09T00:00:00Z",
     queue_depths: {
       delivery_dlq: 0,

@@ -1555,6 +1555,16 @@ export interface components {
              */
             generated_at: string;
             /**
+             * Format: int64
+             * @description Planner ESTIMATE of Gold `disclosure_record` rows, straight from
+             *     `pg_class.reltuples` — free at any table size, never a `count(*)`
+             *     (this strip polls every 15s and nothing here may scan Gold). Kept
+             *     fresh by (auto)vacuum/analyze, so it drifts from the exact count;
+             *     `null` when postgres has never analyzed the table (honest absence,
+             *     not zero).
+             */
+            gold_records_estimate?: number | null;
+            /**
              * Format: date-time
              * @description Latest `sentinel_watch.last_checked_at` across all regimes; `null`
              *     when the sentinel has never run (honest absence, not zero).

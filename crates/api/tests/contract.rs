@@ -1651,6 +1651,32 @@ async fn admin_observability_endpoints_gate_and_match_the_contract(pool: PgPool)
     // alone: the pipeline run opened one review task and published 13 rows.
     let (_, overview) = get(&app, "/v1/admin/overview").await;
     assert_eq!(overview["queue_depths"]["review_open"], json!(1));
+    // Gold planner estimate: a fresh test database has never been analyzed,
+    // so `pg_class.reltuples` is the -1 sentinel and the field is honestly
+    // null (never a fabricated zero). After `analyze`, the planner sees the
+    // 13 seeded Gold rows — assert the transition, never an exact count (it
+    // is an estimate by contract).
+    assert!(
+        overview.get("gold_records_estimate").is_some(),
+        "gold_records_estimate present on the overview"
+    );
+    let estimate = &overview["gold_records_estimate"];
+    assert!(
+        estimate.is_null() || estimate.as_i64().is_some_and(|n| n >= 0),
+        "estimate is null or non-negative, got {estimate}"
+    );
+    sqlx::query("analyze disclosure_record")
+        .execute(&pool)
+        .await
+        .unwrap();
+    let (_, overview) = get(&app, "/v1/admin/overview").await;
+    assert!(
+        overview["gold_records_estimate"]
+            .as_i64()
+            .is_some_and(|n| n >= 1),
+        "after analyze the estimate reflects the seeded Gold rows, got {}",
+        overview["gold_records_estimate"]
+    );
     let (_, coverage) = get(&app, "/v1/admin/coverage").await;
     let us_house = coverage["regimes"]
         .as_array()

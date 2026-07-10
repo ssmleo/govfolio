@@ -59,9 +59,9 @@ function deriveState(data: AdminOverview): SentinelState {
 
 // Polls the overview snapshot every 15s and renders the handful of numbers
 // an operator scans first: is anything frozen, is anything failing, how
-// deep are the queues — plus a one-word derived state and (once the
-// backend gains the field) a live Gold-records count. Loading/error states
-// stay small and quiet — this ticker is ambient, not an alarm panel.
+// deep are the queues — plus a one-word derived state and the live Gold
+// planner estimate. Loading/error states stay small and quiet — this
+// ticker is ambient, not an alarm panel.
 export function SentinelTicker() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["admin", "overview"],
@@ -108,13 +108,18 @@ export function SentinelTicker() {
         tone={q.drift_open > 0 ? "warning" : undefined}
       />
       <Item label="dlq" value={q.delivery_dlq} tone={q.delivery_dlq > 0 ? "danger" : undefined} />
-      {/* Gold records: AdminOverview has no such field yet — deferred, needs
-          the optional `gold_records_estimate` backend field described in
-          goal 094's plan (Data gaps #1). Placeholder dash, not a fabricated
-          number. */}
+      {/* Gold records: the planner's reltuples estimate, not a count —
+          null means postgres has never analyzed the table, rendered as an
+          honest dash, never a fabricated number. */}
       <span className="flex items-baseline gap-1.5 whitespace-nowrap">
         <span className="adm-eyebrow">gold records</span>
-        <span className="adm-num text-sm font-semibold text-[var(--adm-faint)]">—</span>
+        {data.gold_records_estimate != null ? (
+          <span className="adm-num text-sm font-semibold text-[var(--adm-ink)]">
+            {data.gold_records_estimate.toLocaleString()}
+          </span>
+        ) : (
+          <span className="adm-num text-sm font-semibold text-[var(--adm-faint)]">—</span>
+        )}
       </span>
     </div>
   );
