@@ -5,6 +5,7 @@ import { AdminProviders } from "@/components/admin/AdminProviders";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { Masthead } from "@/components/admin/Masthead";
 import { SentinelTicker } from "@/components/admin/SentinelTicker";
+import { AtmosphereOverlay } from "@/components/admin/AtmosphereOverlay";
 
 import "./admin.css";
 
@@ -32,6 +33,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       className={`${adminDisplayFont.variable} ${adminBodyFont.variable} ${adminDataFont.variable}`}
     >
       <body className="admin-root">
+        <AtmosphereOverlay />
         <AdminProviders>
           <Masthead />
           <SentinelTicker />

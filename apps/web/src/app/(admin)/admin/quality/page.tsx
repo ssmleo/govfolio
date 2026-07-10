@@ -15,6 +15,7 @@ import { Progress } from "@/components/admin/ui/Progress";
 import { CountsBar } from "@/components/admin/charts/CountsBar";
 import { Histogram } from "@/components/admin/charts/Histogram";
 import { Unavailable } from "@/components/admin/Unavailable";
+import { SweepButton } from "./SweepButton";
 
 // Section D (data quality & review ops): the review queue's shape, the
 // invariant-3 unlinked-instrument backlog, this month's sampling-audit
@@ -98,12 +99,7 @@ function BrCollisionSweep({
           whole-dataset scan, not a cheap query. Zero rows is a pass; any row needs
           investigation.
         </p>
-        <Link
-          href="/admin/quality?sweep=br"
-          className="inline-flex w-fit items-center gap-1.5 rounded-sm border border-[var(--adm-rule-strong)] bg-[var(--adm-surface-sunken)] px-3 py-1.5 text-sm font-semibold text-[var(--adm-ink)] no-underline hover:bg-[var(--adm-rule)]"
-        >
-          Run br CPF collision sweep
-        </Link>
+        <SweepButton />
       </div>
     );
   }

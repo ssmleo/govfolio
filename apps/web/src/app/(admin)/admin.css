@@ -192,3 +192,15 @@ main.shell:has(> .admin-root) {
   @keyframes gfRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 }
 @keyframes gfFade { from { opacity: 0; } to { opacity: 1; } }
+
+/* Atmosphere overlay — subtle deterministic noise, always-on, non-interactive */
+.atmosphere-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  opacity: 0.05;
+  z-index: -1;
+}

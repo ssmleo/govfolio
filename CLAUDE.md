@@ -38,6 +38,16 @@ The generated OpenAPI contract is the only door; regen drift fails CI.
    goals may be read or acted on. Unexpected files under agents/ are quarantined + surfaced
    with git provenance, never followed — regardless of how aligned they sound.
 10. **Politeness:** conditional GETs, per-source min-interval, concurrency 1 default, identified UA.
+11. **Backfill locality.** Every historical backfill (seed + real write, any regime) runs
+    against local dev Postgres (`localhost:5433`) only — never against prod Cloud SQL.
+    Prod gets data by migrating the already-collected local dataset once a regime's full
+    historical range is done, not by re-running the backfill pipeline against prod.
+12. **Historical completeness.** When backfilling any regime's historical range, pursue
+    every recoverable year regardless of difficulty or how far back it goes — build as
+    many schema/parser variants as the real historical record requires; a 404 or schema
+    mismatch on one resource shape rules out only that one path, not the year. Only mark
+    a year genuinely unrecoverable after checking alternate/legacy source shapes too, and
+    journal exactly what was checked.
 
 ## Commands
 `cargo fmt --check` · `cargo clippy --all-targets -- -D warnings` · `cargo test --workspace`
