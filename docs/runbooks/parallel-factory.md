@@ -2,8 +2,9 @@
 
 Place at: `C:\projects\govfolio.io\docs\runbooks\parallel-factory.md`
 
-Two `/goal`s: the calibration run must have already turned the E2 gate green (see
-run-factory.md). This runbook is the STANDING parallel factory. Authority:
+Two workflows: the calibration run must have already turned the E2 gate green (see
+run-factory.md). This runbook is the STANDING parallel factory — driven by
+`GOVFOLIO_LANES=N ./agents/run-loop.sh` lanes since goal 097. Authority:
 `docs/decisions/automation-policy.md` (no human gates), `agents/workflows/orchestration.md`
 (selection + step 2d), `agents/workflows/source-exploration.md` (phase->role chain).
 
@@ -12,10 +13,10 @@ run-factory.md). This runbook is the STANDING parallel factory. Authority:
 ## Pre-checks the goal MUST pass before scaling past ONE worker
 (Under full autonomy these fail SILENTLY if missing — double-work or multiplied spend, no error.)
 
-1. ATOMIC LEASE. Claiming a jurisdiction must be a single atomic statement
-   (UPDATE jurisdiction SET claimed_by=$me, claimed_at=now() WHERE id=$x AND claimed_by IS NULL
-    RETURNING id) — a SELECT-then-UPDATE races and two workers grab the same source. Verify the
-   factory's claim path is atomic before running N>1.
+1. ATOMIC LEASE — IMPLEMENTED (goal 097): `cargo run -p worker --bin jurisdiction-lease`
+   (claim --next is one UPDATE with FOR UPDATE SKIP LOCKED; a SELECT-then-UPDATE races and
+   two workers grab the same source). Race-proven by `crates/worker/tests/lease.rs`
+   (--ignored suite). Never claim by hand-rolled SQL — use the bin.
 2. WORKTREE PER WORKER. Each worker runs in its own git worktree/branch and PRs into protected
    main. N workers sharing one working tree collide on git. (skill: using-git-worktrees.)
 3. GLOBAL GUARDRAILS. The billing HARD CAP and terraform DESTROY_BUDGET must read SHARED state,
@@ -43,10 +44,14 @@ Then any agent/human answers all three questions mechanically:
 
 ---
 
-## The /goal (run one per worker/worktree; they self-coordinate via the lease)
+## The lane (run-loop.sh spawns one per worktree; they self-coordinate via the lease)
+
+Standing driver: `GOVFOLIO_LANES=N ./agents/run-loop.sh` (lanes execute
+`agents/workflows/factory-lane.md`). The prompt below is what each lane iteration
+effectively does (kept for single-session/manual runs):
 
 ```
-/goal Run the coverage factory as a subagent-driven, source-parallel loop.
+Run the coverage factory as a subagent-driven, source-parallel loop.
 
 PRE-CHECK (once, before N>1): confirm atomic lease claim, worktree-per-worker, and GLOBAL
 billing/destroy caps (see parallel-factory.md). If any is missing, run as a single worker only.
@@ -76,8 +81,8 @@ MAX-bounce halts THAT jurisdiction (blocked + lease released) and you continue o
 ```
 
 Parallelism axes (so expectations match reality):
-- ACROSS SOURCES (breadth): run this /goal in N worktrees; leases keep them on different
-  jurisdictions. This is the throughput win — more sources/hour.
+- ACROSS SOURCES (breadth): run N lanes (`GOVFOLIO_LANES=N`, one worktree each); leases
+  keep them on different jurisdictions. This is the throughput win — more sources/hour.
 - WITHIN A TASK (depth): subagent fan-out inside one phase (step 3). Composes with the above.
 - NOT PARALLELIZABLE: a single source's phase chain (dependency-ordered) and intra-source
   fetches (politeness). Parallelism scales breadth, never a single source's finish time.

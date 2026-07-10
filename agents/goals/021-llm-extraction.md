@@ -459,3 +459,14 @@ Execution (merged order — committed-plan tasks interleaved with hardening adde
 - **Non-Google vendor ToS** (conditional) — if the H45 bake-off winner is not the Vertex
   path, H46 is blocked until a founder legal-lane goal (to be filed at the H45→H46
   boundary) closes. Never file it preemptively; never invent HARD CAP values.
+
+### Amendment (2026-07-10, goal 097 — parallel-lanes budget requirement)
+
+Goal 097 introduced N parallel loop lanes (GOVFOLIO_LANES). When Task 9 lands the
+`[budget]` enforcement, the CUMULATIVE monthly spend gate MUST be DB-backed and keyed on
+calendar month (shared Postgres, one counter for all lanes) — a config/file counter is
+per-checkout and silently wrong under N worktrees (each lane would enforce its own $200).
+Per-RUN token ceilings (`max_batch_tokens`, `per_run_token_ceiling`) may stay
+process-local; only the monthly aggregate needs the shared store. Until Task 9 lands,
+the Anthropic console monthly spend limit (account-level, inherently shared across
+lanes) remains the cross-run backstop.

@@ -1,4 +1,4 @@
-# THE factory /goal — calibrate first, then mass factory with backfill (definitive)
+# THE factory prompt — calibrate first, then mass factory with backfill (definitive)
 
 Place at: `C:\projects\govfolio.io\agents\FACTORY-GOAL.md` (supersedes prior versions).
 Requires goal 024's BACKFILL machinery (per-source backfill phase + alert suppression + budget).
@@ -12,7 +12,8 @@ HOW TO RUN
 - Orchestrates and POINTS; referenced files hold the detail (no duplication = no drift).
 
 ------------------------------------------------------------------------------------------
-/goal
+Prompt (paste into an interactive `claude` session; Stage 1 at N>1 runs as goal 097 lanes —
+`GOVFOLIO_LANES=N ./agents/run-loop.sh`):
 You are the govfolio FACTORY. FULL AUTONOMY per docs/decisions/automation-policy.md: NO human
 gates; irreversible actions guardrailed and FAIL CLOSED. Load and treat as AUTHORITATIVE (do not
 re-derive from this prompt): /CLAUDE.md · agents/workflows/orchestration.md ·

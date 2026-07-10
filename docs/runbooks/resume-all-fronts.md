@@ -49,8 +49,10 @@ If any fails: run ONE worker total until fixed.
 Strictly sequential — do not parallelize within this front; it may run concurrently with Fronts
 B/C in its own worktree.
 
+Prompt (paste into an interactive `claude` session in this front's worktree):
+
 ```
-/goal Resume agents/goals/081-us-backfill-execution.md at Task 5 (the only unchecked task; goal
+Resume agents/goals/081-us-backfill-execution.md at Task 5 (the only unchecked task; goal
       080/Tasks 1-4.x are already done). Read the goal file's full Context + Research findings
       sections first — do not re-derive them.
 
@@ -93,8 +95,10 @@ already-committed `backfill-real-br` bin, zero code changes needed to extend to 
 `check-br-identity-collisions` sweep must read PASS before starting (task zero, above) — the
 JULIO CESAR DOS SANTOS collision is fixed, but re-verify nothing new appeared.
 
+Prompt (paste into an interactive `claude` session in this front's worktree):
+
 ```
-/goal Extend br's real historical backfill (Câmara + Senado, both bodies, same proven
+Extend br's real historical backfill (Câmara + Senado, both bodies, same proven
       backfill-real-br path — no new adapter/parsing code expected) to the remaining
       pre-2018 and any post-2022 general-election years, one year-pair per invocation,
       mirroring the exact sequence already used for 2018/2022 (seed roster for the year →
@@ -116,40 +120,12 @@ JULIO CESAR DOS SANTOS collision is fixed, but re-verify nothing new appeared.
 
 ---
 
-## Front C — more countries: the standing coverage factory (N worktrees, breadth axis)
+## Front C — more countries: the standing coverage factory (N lanes, breadth axis)
 
-This is `parallel-factory.md`'s `/goal` verbatim — reproduced here only so all three fronts can be
-launched from one runbook; treat that file as authoritative if the two ever diverge.
-
-```
-/goal Run the coverage factory as a subagent-driven, source-parallel loop.
-
-PRE-CHECK (once, before N>1): confirm atomic lease claim, worktree-per-worker, and GLOBAL
-billing/destroy caps (see parallel-factory.md). If any is missing, run as a single worker only.
-
-LOOP:
-1. SELECT (orchestration step 2d): highest priority_score jurisdiction in the current epoch
-   with coverage_phase < live and NO live lease.
-2. CLAIM atomically (UPDATE ... WHERE claimed_by IS NULL RETURNING). If the claim returns no
-   row, another worker took it — select the next. Never work an unclaimed-by-me row.
-3. EXECUTE the jurisdiction's CURRENT phase with the mapped specialist (source-exploration.md:
-   scout->surveyor->sampler->spec-writer/test-designer->builder). Phases within one jurisdiction
-   are a dependency chain — strictly sequential. Intra-source fetches stay concurrency-1 (politeness).
-   Fan out with SUBAGENTS only WITHIN a single phase's work where independent — never to skip
-   the phase order.
-4. REVIEW: independent auditor pass (goal 022 bounded loop) — a BOUNCE routes back to the
-   producer with notes and re-reviews; MAX bounces -> blocked:review_failed:<phase>.
-5. TEST/VALIDATE: the phase's validator / conformance must be GREEN (real command exit codes;
-   never a model judging a model). Stage artifacts; promote into docs/regimes/ only on PASS.
-6. LABEL: set extraction_tier per record; non-deterministic tiers -> unverified + sampling audit
-   and SAF refinement_trigger recorded (goal 023).
-7. ADVANCE coverage_phase; JOURNAL the phase line; COMMIT; RELEASE the lease.
-8. Repeat. Drive ALL work through registry state transitions — NEVER write goal files
-   (invariant 9). Honor the epoch gate before entering each new epoch.
-
-STOP when every jurisdiction in the epoch is live or blocked:<reason>. A guardrail breach or
-MAX-bounce halts THAT jurisdiction (blocked + lease released) and you continue other sources.
-```
+Driver (goal 097): `GOVFOLIO_LANES=N ./agents/run-loop.sh` — factory lanes run
+`agents/PROMPT-FACTORY-LANE.md` per `agents/workflows/factory-lane.md`, claiming
+jurisdictions via `cargo run -p worker --bin jurisdiction-lease`. `parallel-factory.md`
+is authoritative for the loop semantics; no prompt block is duplicated here anymore.
 
 ---
 
