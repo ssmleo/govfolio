@@ -26,10 +26,10 @@ In:
   `crates/pipeline/src/bin/validate_survey.rs`): frontmatter validates, mandatory sections
   present, size ≤ `max_kb`, entry IDs well-formed, unknown keys reject; index↔filesystem
   bijection (every memory file has exactly one INDEX row; every row's path exists and
-  validates). Runs over the full `docs/memory/` tree + all regime SAFs.
+  validates). Runs over the full `docs/memory/` tree + all regime SAFs (`_templates/` excepted).
 - `memory-index` generator bin: writes `docs/memory/INDEX.md` from frontmatter — one line
-  per memory file (`path · domain · description`), ALL domains including regimes; never
-  hand-edited. CI drift gate: regen then `git diff --exit-code docs/memory/INDEX.md`
+  per memory file (`path · domain · description`), ALL domains including regimes
+  (`_templates/` excepted); never hand-edited. CI drift gate: regen then `git diff --exit-code docs/memory/INDEX.md`
   (same pattern as the openapi contract gate).
 - `docs/memory/` tree seeded from a new `docs/memory/_templates/MEMORY.template.md`:
   `subsystems/{api,web,pipeline,worker,infra,contracts}.md` +
@@ -82,7 +82,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
 - [ ] `MemoryFile` schemars contract in `crates/core` (beside `RegimeSurvey`) + snapshot-committed schema
 - [ ] `validate-memory` bin (factory family, fail-closed): frontmatter + sections + size + entry-ID + unknown-key checks
 - [ ] Seeded red-path fixtures + `#[test]`s: bad frontmatter, oversize (>max_kb), missing section, index drift — proven red
-- [ ] `memory-index` generator bin + `docs/memory/INDEX.md` + CI drift gate (`git diff --exit-code`); index↔filesystem bijection in `validate-memory`
+- [ ] `memory-index` generator bin + `docs/memory/INDEX.md` + CI drift gate (`git diff --exit-code`); index↔filesystem bijection in `validate-memory` (`_templates/` excepted)
 - [ ] `docs/memory/_templates/MEMORY.template.md` + seeded `subsystems/{api,web,pipeline,worker,infra,contracts}.md` + `ops/{prod-incidents,deploys,cost}.md` with real Context paragraphs
 - [ ] `docs/regimes/_templates/AUTHORITY.template.md` gains §4.1 memory-contract frontmatter fields + `[YYYY-MM-DD-nn]` quirks-log entry IDs
 - [ ] `agents/PROMPT.md` load order inserts `docs/memory/INDEX.md` (§6)

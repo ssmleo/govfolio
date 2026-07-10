@@ -6,6 +6,12 @@ Make invariant 9 mechanical — a tamper-evident authority lock, a fail-closed
 
 ## Scope
 In:
+- Pre-existing unlisted files: `agents/goals/022-adversarial-review-loop.md` and
+  `023-extraction-tier-labeling.md` (committed b2139b8, unreviewed import proposals) are
+  quarantined FIRST — `git mv` into `agents/goals/_quarantine/` (outside the bijection glob,
+  which scans `agents/goals/*.md` non-recursively) with a one-line provenance note appended to
+  each; never execute them; 000-INDEX gets no rows for them. The bijection gate must go green
+  deterministically on this tree.
 - `agents/AUTHORITY.lock.json` — sha256 pins over the authority set
   (`agents/GOVERNANCE.md`, `PROMPT.md`, `LOOP.md`, `workflows/orchestration.md`,
   `roles/*.md`, `archetypes/*.md`, `EFFORT.md`, `EPOCHS.md`, `goals/000-INDEX.md`);
@@ -34,8 +40,9 @@ In:
   global RTK hook): a shell script calling the PRE-BUILT binary (never `cargo run` — hook
   latency); blocks Read of unlisted `agents/goals/*.md` and Write/Edit of the authority set +
   the lock + `.claude/settings*` + the `.claude/hooks/` dir; exit code 2. Amendment path per
-  §4.2: writes permitted only on an `authority/*` branch whose HEAD commit references an
-  INDEX-listed goal.
+  §4.2: the hook checks the branch name only (cheap, synchronous); the goal-reference and
+  lock-updated-in-same-commit conditions are enforced by check (c) at the run points, per
+  design §4.2.
 - `agents/GOVERNANCE.md`: one-line rationale per rule + `## Amendments (append-only, dated)` section.
 
 Out: memory contract + index (goal 101), SAF normalization (102), hygiene loop (103),
@@ -63,6 +70,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
 ```
 
 ## Checklist
+- [ ] quarantine pre-existing unlisted 022/023 into agents/goals/_quarantine/ (provenance b2139b8); bijection green on clean tree
 - [ ] `AUTHORITY.lock.json` schema + `--write-lock` generation over the pinned authority set
 - [ ] Bijection check (a): goals↔000-INDEX; unlisted goal → exit 1 + quarantine report w/ git provenance
 - [ ] Hash-match check (b): pinned paths vs lock; missing/extra authority file → exit 1

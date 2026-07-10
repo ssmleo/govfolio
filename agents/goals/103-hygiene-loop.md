@@ -9,7 +9,9 @@ a standing consolidation pass, staleness reporting, and poisoning/collapse defen
 In:
 - Journal entry schema (design §4.1 episodic, P8/P13): `date | role | goal | outcome |
   evidence pointers | blockers`, hard cap ~120 words/entry; documented in
-  `agents/workflows/orchestration.md` step 7 (REPORT) and `agents/LOOP.md`. Long-form
+  `agents/workflows/orchestration.md` step 7 (REPORT) and `agents/LOOP.md`; also update
+  `agents/PROMPT.md` step 5's journal-line wording to the same schema (same amendment-path
+  commit). Long-form
   incident analysis moves into the relevant domain memory file's Log (with a
   `[YYYY-MM-DD-nn]` ID) or `docs/decisions/`; the journal line points at it. Existing
   over-length history stays untouched — append-only, never rewrite past entries.
@@ -56,7 +58,7 @@ alerting/paging; pg schema changes; business-domain memory files.
 
 ## Context (read first)
 - docs/plans/2026-07-10-memory-authority-substrate-design.md §4.3, §4.1 (episodic),
-  §5 (goal-103), §8
+  §5 (goal-103), §6, §8
 - agents/JOURNAL.md (the artifact this goal reshapes + the first consolidation's input)
 - agents/workflows/orchestration.md (step 2 SELECT WORK, step 7 REPORT) · agents/LOOP.md
 - agents/goals/101-memory-contract-and-index.md (predecessor — the `validate-memory` bin
@@ -74,7 +76,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
 ```
 
 ## Checklist
-- [ ] Journal entry schema (`date | role | goal | outcome | evidence pointers | blockers`, ≤120 words) documented in `orchestration.md` step 7 + `agents/LOOP.md`; existing over-length history left untouched (append-only)
+- [ ] Journal entry schema (`date | role | goal | outcome | evidence pointers | blockers`, ≤120 words) documented in `orchestration.md` step 7 + `agents/LOOP.md` + `agents/PROMPT.md` step 5 (same schema); existing over-length history left untouched (append-only)
 - [ ] Rotation mechanics: consolidated span → `agents/journal/archive/YYYY-MM.md`; JOURNAL keeps the recent tail; tail-read unchanged; archive dir excluded from `docs/memory/INDEX.md`
 - [ ] Consolidation standing work item wired into `orchestration.md` SELECT WORK ("consolidation due?" = 10 iterations OR >20KB growth); pass distills → domain Logs (cite date+commit) → promote quirks → rotate → regen INDEX
 - [ ] Delta-only rule in `validate-memory` (`--check-delta <ref>`): a diff deleting/editing a dated `[YYYY-MM-DD-nn]` entry fails; supersedes additive — seeded red-path fixtures + `#[test]`s proven red

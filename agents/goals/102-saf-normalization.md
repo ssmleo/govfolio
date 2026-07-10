@@ -29,8 +29,10 @@ In:
   superseded lock.
 - Sweep ALL references to moved paths (adapters' `lib.rs` doc comments, goal files,
   `docs/plans/`, runbooks, `agents/`): update in the same commit. A `git grep` for
-  `us-house`, `us-senate`, `regimes/canada_ciec.md`, etc. comes back clean (renamed
-  evidence dirs excepted).
+  `us-house`, `us-senate`, `regimes/canada_ciec.md`, etc. comes back clean (excepted: renamed
+  evidence dirs, and append-only historical records — JOURNAL.md entries, done goals'
+  historical text, 000-INDEX done rows, pinned fixture MANIFESTs; the criterion covers LIVE
+  references only).
 - Re-run validate-survey/validate-sources for every regime after the moves — the standing
   lesson: re-run the relevant validate-* after ANY change to a committed regime artifact.
 
@@ -79,7 +81,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
 - [ ] `git mv` hyphenated dirs → underscore: `us-senate/evidence/` → `us_senate/`; `us-house/evidence/` + `us-house/reference/` → `us_house/` (merged into existing `us_house/evidence/`)
 - [ ] Replace legacy `us-house.md` with a tombstone pointer or delete it (implementer decides; journaled)
 - [ ] Update every evidence path referenced from SAF frontmatter/claims to the new locations
-- [ ] Reference sweep: adapters' `lib.rs` doc comments, goal files, `docs/plans/`, runbooks, `agents/`; `git grep` for `us-house`/`us-senate`/`regimes/<x>.md` clean (renamed evidence dirs excepted)
+- [ ] Reference sweep: adapters' `lib.rs` doc comments, goal files, `docs/plans/`, runbooks, `agents/`; `git grep` for `us-house`/`us-senate`/`regimes/<x>.md` clean (excepted: renamed evidence dirs, and append-only historical records — JOURNAL.md entries, done goals' historical text, 000-INDEX done rows, pinned fixture MANIFESTs; the criterion covers LIVE references only)
 - [ ] SUPERSEDE `E1.lock.json` (version bump + note naming goal 102) re-pinning new paths; `cargo test -p pipeline role_evals` green
 - [ ] Re-run validators for all 7 regimes; full acceptance block green; quirks-log move entries; §4.2 amendment path; memory/SAF write-back + JOURNAL line; committed; checklist + 000-INDEX row ticked
 
