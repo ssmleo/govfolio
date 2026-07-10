@@ -10,7 +10,7 @@ import { CoverageHeatmap, type CoverageCell } from "@/components/admin/CoverageH
 import { Unavailable } from "@/components/admin/Unavailable";
 
 // The landing page (goal 091 phase 2): "healthy? covered? what's left?"
-// answerable in five seconds. StatusStrip (mounted once in the shared
+// answerable in five seconds. SentinelTicker (mounted once in the shared
 // layout) already covers the ambient poll — this page is the deeper,
 // static-per-request read of the same snapshot plus the world coverage
 // hero.
