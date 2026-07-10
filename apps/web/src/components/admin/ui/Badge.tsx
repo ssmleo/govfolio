@@ -16,7 +16,8 @@ const VARIANT_CLASS: Record<BadgeVariant, string> = {
     "text-[var(--adm-warning-ink)] bg-[var(--adm-warning-bg)] border-[var(--adm-warning-rule)]",
   danger: "text-[var(--adm-danger-ink)] bg-[var(--adm-danger-bg)] border-[var(--adm-danger-rule)]",
   info: "text-[var(--adm-info-ink)] bg-[var(--adm-info-bg)] border-[var(--adm-info-rule)]",
-  neutral: "text-[var(--adm-muted)] bg-[var(--adm-surface-sunken)] border-[var(--adm-rule-strong)]",
+  neutral:
+    "text-[var(--adm-neutral-ink)] bg-[var(--adm-neutral-bg)] border-[var(--adm-neutral-rule)]",
 };
 
 /**
@@ -70,10 +71,11 @@ export interface BadgeProps {
   className?: string;
 }
 
+// Recipe: dc.html badge() helper — 2px 8px pad, 10px/700, .08em tracking.
 export function Badge({ variant, children, className }: BadgeProps) {
   return (
     <span
-      className={`inline-block rounded-[2px] border px-1.5 py-0.5 text-xs font-semibold tracking-[0.02em] whitespace-nowrap ${VARIANT_CLASS[variant]} ${className ?? ""}`}
+      className={`inline-block rounded-[2px] border px-[8px] py-[2px] text-[10px] font-bold tracking-[.08em] uppercase whitespace-nowrap ${VARIANT_CLASS[variant]} ${className ?? ""}`}
     >
       {children}
     </span>

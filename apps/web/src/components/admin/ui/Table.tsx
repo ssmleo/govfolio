@@ -1,8 +1,10 @@
 export interface TableColumn<T> {
   key: string;
   header: string;
-  /** Right-align + tabular mono — set on every numeric/byte/hash column. */
+  /** Right-align (header + cells) + tabular mono cells — set on every numeric/byte column. */
   numeric?: boolean;
+  /** Prevent wrapping in the header and cells (dates, hashes, regime codes). */
+  nowrap?: boolean;
   render: (row: T) => React.ReactNode;
 }
 
@@ -16,8 +18,8 @@ export interface TableProps<T> {
 }
 
 // Dense data table: hairline rules, no zebra, numeric columns right-aligned
-// in tabular mono. Scrolls its own overflow so a wide table never widens
-// the page.
+// in tabular mono. Cell fonts/colors live in the render callbacks. Scrolls
+// its own overflow so a wide table never widens the page.
 export function Table<T>({
   columns,
   rows,
@@ -26,20 +28,27 @@ export function Table<T>({
   onRowClick,
 }: TableProps<T>) {
   if (rows.length === 0) {
-    return <p className="text-sm text-[var(--adm-muted)]">{emptyMessage}</p>;
+    return (
+      <p className="adm-muted" style={{ fontSize: "12.5px" }}>
+        {emptyMessage}
+      </p>
+    );
   }
+
+  const last = columns.length - 1;
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
+      <table className="w-full border-collapse">
         <thead>
           <tr>
-            {columns.map((col) => (
+            {columns.map((col, i) => (
               <th
                 key={col.key}
-                className={`whitespace-nowrap border-b border-[var(--adm-rule-strong)] py-1.5 pr-4 text-xs font-semibold text-[var(--adm-muted)] ${
+                className={`adm-microlabel border-b border-[var(--adm-rule-strong)] ${
                   col.numeric ? "text-right" : "text-left"
-                }`}
+                } ${col.nowrap ? "whitespace-nowrap" : ""}`}
+                style={{ padding: i === last ? "8px 0" : "8px 14px 8px 0" }}
               >
                 {col.header}
               </th>
@@ -63,14 +72,20 @@ export function Table<T>({
               }
               role={onRowClick ? "button" : undefined}
               tabIndex={onRowClick ? 0 : undefined}
-              className={onRowClick ? "cursor-pointer hover:bg-[var(--adm-surface-sunken)]" : undefined}
+              className={
+                onRowClick
+                  ? "cursor-pointer hover:bg-[var(--adm-gold-06)]"
+                  : "hover:bg-[var(--adm-row-hover)]"
+              }
+              style={{ transition: "background .12s ease" }}
             >
-              {columns.map((col) => (
+              {columns.map((col, i) => (
                 <td
                   key={col.key}
-                  className={`border-b border-[var(--adm-rule)] py-1.5 pr-4 align-top ${
+                  className={`border-b border-[var(--adm-rule)] ${
                     col.numeric ? "adm-num text-right" : "text-left"
-                  }`}
+                  } ${col.nowrap ? "whitespace-nowrap" : ""}`}
+                  style={{ padding: i === last ? "10px 0" : "10px 14px 10px 0" }}
                 >
                   {col.render(row)}
                 </td>
