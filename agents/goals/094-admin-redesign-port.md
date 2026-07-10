@@ -43,16 +43,16 @@ Plus a manual visual-QA pass: Playwright screenshots of all 9 screens + Dossier-
 state, compared against the mockup's dark palette/typography/spacing (see Task 10).
 
 ## Checklist
-- [ ] Task 2: (site)/(admin) route-group split, full e2e green before any restyle
-- [ ] Task 3: admin.css dark token swap + Card shadow-reversal comment update
-- [ ] Task 4: font loading (next/font/google, scoped to (admin))
-- [ ] Task 5: Masthead + AdminSidebar (shortcuts, localStorage) + SentinelTicker
-- [ ] Task 6: Regime Dossier (data-wiring + component + Table.onRowClick)
-- [ ] Task 7: CPF-sweep async wrapper; world-coverage tooltip decision; atmosphere overlay
-- [ ] Task 8: new/updated unit tests
-- [ ] Task 9: e2e additions (shell, shortcuts, dossier, 404 split)
-- [ ] Task 10: docs/runbooks/admin-dashboard.md refresh + visual QA screenshots
-- [ ] Full acceptance block green; committed; checklist + 000-INDEX row updated
+- [x] Task 2: (site)/(admin) route-group split, full e2e green before any restyle
+- [x] Task 3: admin.css dark token swap + Card shadow-reversal comment update
+- [x] Task 4: font loading (next/font/google, scoped to (admin))
+- [x] Task 5: Masthead + AdminSidebar (shortcuts, localStorage) + SentinelTicker
+- [x] Task 6: Regime Dossier (data-wiring + component + Table.onRowClick)
+- [x] Task 7: CPF-sweep async wrapper; world-coverage tooltip decision; atmosphere overlay
+- [x] Task 8: new/updated unit tests
+- [x] Task 9: e2e additions (shell, shortcuts, dossier, 404 split)
+- [x] Task 10: docs/runbooks/admin-dashboard.md refresh + visual QA screenshots
+- [x] Full acceptance block green; committed; checklist + 000-INDEX row updated
 
 ## BLOCKED (human)
 (empty unless the gold_records_estimate field's count(*) vs. reltuples-estimate
