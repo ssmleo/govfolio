@@ -215,7 +215,16 @@ pub async fn authenticate(
         .and_then(|value| value.to_str().ok())
         .map(str::to_owned);
     let path = request.uri().path().to_owned();
-    let context = match resolve(&state, authorization, forwarded_for, path).await {
+    // A VALID admin token exempts the request from the anonymous backstop
+    // (mirroring how Bearer keys use the DB quota instead): the operator
+    // dashboard polls every 15s and its SSR traffic shares one "direct"
+    // bucket with all anonymous requests. Mere header presence must NOT
+    // exempt — that would make the backstop trivially bypassable — so the
+    // token is validated here first. `admin_gate` still re-validates on the
+    // admin subtree; on public routes a valid token merely skips the
+    // backstop (the token holder is the operator).
+    let admin_exempt = require_admin(&state, request.headers()).is_ok();
+    let context = match resolve(&state, authorization, forwarded_for, path, admin_exempt).await {
         Ok(context) => context,
         Err(err) => return err.into_response(),
     };
@@ -228,9 +237,14 @@ async fn resolve(
     authorization: Option<String>,
     forwarded_for: Option<String>,
     path: String,
+    admin_exempt: bool,
 ) -> Result<AuthContext, ApiError> {
     let Some(authorization) = authorization else {
-        limit_anonymous(state, forwarded_for.as_deref())?;
+        // Skipped entirely (not even incremented) for validated admin
+        // tokens, so admin polling cannot starve the shared bucket.
+        if !admin_exempt {
+            limit_anonymous(state, forwarded_for.as_deref())?;
+        }
         return Ok(AuthContext::anonymous());
     };
     let token = authorization

@@ -543,6 +543,86 @@ async fn tiers_anonymous_backstop_limits_per_ip(pool: PgPool) {
 
 #[sqlx::test(migrations = false)]
 #[ignore = "needs postgres"]
+async fn tiers_admin_token_requests_bypass_the_anonymous_backstop(pool: PgPool) {
+    seed_two_ages(&pool).await;
+    let app = api::app(
+        pool.clone(),
+        ApiConfig {
+            unauth_requests_per_minute: 1,
+            ..test_config()
+        },
+    );
+    // A VALID admin token is exempt from the anonymous backstop: the ops
+    // dashboard polls every 15s and must never 429 (nor starve the shared
+    // bucket SSR anonymous traffic lives in). Limit is 1; four requests
+    // through one IP all answer 200.
+    for _ in 0..4 {
+        let (status, body) = request(
+            &app,
+            "GET",
+            "/v1/admin/overview",
+            &[
+                ("x-admin-token", ADMIN_TOKEN),
+                ("x-forwarded-for", "203.0.113.21"),
+            ],
+            None,
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK, "{body:#}");
+    }
+    // Header PRESENCE alone must not exempt — that would make the backstop
+    // trivially bypassable. A wrong token passes the limiter once (401 from
+    // the admin gate), then the bucket catches the second attempt.
+    let (status, body) = request(
+        &app,
+        "GET",
+        "/v1/admin/overview",
+        &[
+            ("x-admin-token", "wrong-token"),
+            ("x-forwarded-for", "203.0.113.22"),
+        ],
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(body["error"]["code"], json!("invalid_admin_token"));
+    let (status, body) = request(
+        &app,
+        "GET",
+        "/v1/admin/overview",
+        &[
+            ("x-admin-token", "wrong-token"),
+            ("x-forwarded-for", "203.0.113.22"),
+        ],
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(body["error"]["code"], json!("rate_limited"));
+    // Plain anonymous traffic is still limited exactly as before.
+    let (status, _) = request(
+        &app,
+        "GET",
+        "/v1/records",
+        &[("x-forwarded-for", "203.0.113.23")],
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, body) = request(
+        &app,
+        "GET",
+        "/v1/records",
+        &[("x-forwarded-for", "203.0.113.23")],
+        None,
+    )
+    .await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(body["error"]["code"], json!("rate_limited"));
+}
+
+#[sqlx::test(migrations = false)]
+#[ignore = "needs postgres"]
 async fn tiers_stripe_webhook_mirrors_subscriptions_with_signed_events_only(pool: PgPool) {
     let seed = seed_two_ages(&pool).await;
     let app = test_app(&pool);
