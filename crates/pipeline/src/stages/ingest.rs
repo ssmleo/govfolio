@@ -10,14 +10,38 @@ use crate::adapter::RawDocRef;
 use crate::run::StagedSilver;
 
 /// Best-effort mime sniff for the `raw_document.mime_type` column; the byte
-/// content is the authority, not the URL suffix.
+/// content is the authority, not the URL suffix. Covers every live adapter's
+/// real byte shape: PDF (Australia/US-House), HTML (US-Senate/Canada report
+/// pages), JSON (UK's API response; Brazil's synthesized per-candidate join).
 #[must_use]
 pub fn sniff_mime(bytes: &[u8]) -> &'static str {
-    if bytes.starts_with(b"%PDF-") {
+    let trimmed = leading_ascii_whitespace_trimmed(bytes);
+    if trimmed.starts_with(b"%PDF-") {
         "application/pdf"
+    } else if starts_with_html(trimmed) {
+        "text/html"
+    } else if looks_like_json(trimmed) {
+        "application/json"
     } else {
         "application/octet-stream"
     }
+}
+
+fn leading_ascii_whitespace_trimmed(bytes: &[u8]) -> &[u8] {
+    let start = bytes
+        .iter()
+        .position(|b| !b.is_ascii_whitespace())
+        .unwrap_or(bytes.len());
+    &bytes[start..]
+}
+
+fn starts_with_html(bytes: &[u8]) -> bool {
+    const PREFIXES: [&[u8]; 4] = [b"<!DOCTYPE", b"<!doctype", b"<html", b"<HTML"];
+    PREFIXES.iter().any(|prefix| bytes.starts_with(prefix))
+}
+
+fn looks_like_json(bytes: &[u8]) -> bool {
+    matches!(bytes.first(), Some(b'{' | b'[')) && std::str::from_utf8(bytes).is_ok()
 }
 
 /// Ensures the `raw_document` row for a Bronze document and returns its id —
@@ -97,5 +121,22 @@ mod tests {
         assert_eq!(sniff_mime(b"%PDF-1.7 rest"), "application/pdf");
         assert_eq!(sniff_mime(b"<?xml?>"), "application/octet-stream");
         assert_eq!(sniff_mime(b""), "application/octet-stream");
+    }
+
+    #[test]
+    fn sniffs_html_by_doctype_or_tag() {
+        assert_eq!(sniff_mime(b"<!DOCTYPE html><html></html>"), "text/html");
+        assert_eq!(sniff_mime(b"<html><body>report</body></html>"), "text/html");
+        assert_eq!(sniff_mime(b"  <!DOCTYPE html>\n<html></html>"), "text/html");
+    }
+
+    #[test]
+    fn sniffs_json_objects_and_arrays_but_not_other_leading_brackets() {
+        assert_eq!(sniff_mime(br#"{"a":1}"#), "application/json");
+        assert_eq!(sniff_mime(b"[1,2,3]"), "application/json");
+        assert_eq!(
+            sniff_mime(b"<?xml version=\"1.0\"?>"),
+            "application/octet-stream"
+        );
     }
 }

@@ -26,8 +26,10 @@ test("politician profile shows identity, mandates, and a linked timeline", async
   // Record summary line
   await expect(page.getByText(/disclosure records? on file/)).toBeVisible();
 
-  // Timeline rows exist and link through to record pages
-  const rows = page.locator("table.records tbody tr");
+  // Timeline rows exist and link through to record pages. The first <tr> in
+  // each filing group is a group header (its own "View filing" link opens
+  // the archived document in a new tab), so target record rows specifically.
+  const rows = page.locator("table.records tbody tr.record-row");
   await expect(rows.first()).toBeVisible();
   await rows.first().locator("a").click();
   await expect(page).toHaveURL(/\/r\/[0-7][0-9A-HJKMNP-TV-Z]{25}$/);

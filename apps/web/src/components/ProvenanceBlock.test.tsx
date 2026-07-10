@@ -37,4 +37,16 @@ describe("ProvenanceBlock", () => {
       screen.getByText("Source URL not recorded for this document"),
     ).toBeInTheDocument();
   });
+
+  it("links the archived copy to our own document endpoint", () => {
+    const provenance = makeProvenance();
+    render(<ProvenanceBlock provenance={provenance} />);
+    const link = screen.getByRole("link", { name: "Open archived copy" });
+    expect(link).toHaveAttribute(
+      "href",
+      expect.stringContaining(`/v1/filings/${provenance.filing.id}/document`),
+    );
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+  });
 });

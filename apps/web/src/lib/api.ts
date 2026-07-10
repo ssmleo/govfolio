@@ -175,6 +175,16 @@ export class ApiError extends Error {
   }
 }
 
+// NOTE: as of the filing-document-viewer feature, this value is also baked
+// directly into browser-facing markup (`ProvenanceBlock`'s "Open archived
+// copy" link, `RecordRows`' "View filing" link — both build
+// `${apiBaseUrl()}/v1/filings/{id}/document` as a plain `<a href>`), not
+// just consumed by server-side `fetch` calls as before. In any deployment
+// topology where this must resolve to something the BROWSER can reach
+// directly (not just this Next.js server), `GOVFOLIO_API_URL` needs to be a
+// publicly browser-reachable origin. Currently latent/unverified — prod
+// deployment itself is separately halted pending infra work outside this
+// feature's scope.
 export function apiBaseUrl(): string {
   return process.env.GOVFOLIO_API_URL ?? "http://localhost:8080";
 }
@@ -414,4 +424,28 @@ export function adminInfra(): Promise<AdminInfra> {
  */
 export function adminLoop(): Promise<AdminLoop> {
   return apiGet("/v1/admin/loop", {}, {}, adminHeaders());
+}
+
+/**
+ * Raw bytes + declared Content-Type for one filing's archived document, via
+ * the ADMIN-gated `/v1/admin/filings/{id}/document` route (design §7.2: the
+ * reviewer surface needs to see freshly-ingested filings in real time — the
+ * PUBLIC document route's 24h free-tier embargo would 404 them). The ONLY
+ * door the same-origin reviewer document proxy route goes through, so
+ * `X-Admin-Token` never reaches the browser — same shape as every other
+ * `apiGet`-based admin* function above, just not JSON, so it can't reuse
+ * `apiGet` itself. Non-2xx throws `ApiError`, same as everywhere else.
+ */
+export async function adminFilingDocument(
+  filingId: string,
+): Promise<{ body: ArrayBuffer; contentType: string }> {
+  const url = buildUrl("/v1/admin/filings/{id}/document", { id: filingId }, {});
+  const res = await fetch(url, { headers: adminHeaders(), cache: "no-store" });
+  if (!res.ok) {
+    throw apiErrorFrom(res.status, await res.text());
+  }
+  return {
+    body: await res.arrayBuffer(),
+    contentType: res.headers.get("content-type") ?? "application/octet-stream",
+  };
 }

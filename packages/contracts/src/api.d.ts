@@ -73,6 +73,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/admin/filings/{id}/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Serves the archived original document for one filing, in REAL TIME
+         *     (admin-gated): the reviewer surface must see freshly-ingested filings the
+         *     moment they exist, not 24h later — mirrors `review::get_review_task`'s
+         *     own `RecordFilter::default()` use for exactly the same reason. Consumed
+         *     by the web app's same-origin reviewer document proxy, never called
+         *     directly from a browser (the `X-Admin-Token` never reaches client JS).
+         * @description # Errors
+         *     Same as [`get_filing_document`], plus `401`/`403` from the admin gate.
+         */
+        get: operations["get_admin_filing_document"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/admin/infra": {
         parameters: {
             query?: never;
@@ -459,6 +485,30 @@ export interface paths {
          *     not the caller's; `500` on backend failure.
          */
         delete: operations["delete_alert_rule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/filings/{id}/document": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Serves the archived original document for one filing (public, tier-gated).
+         * @description # Errors
+         *     `404` for an unknown filing, or one not yet visible under the caller's
+         *     tier (the same freshness bound as every other record-serving route);
+         *     `503` if the document's storage backend is not implemented in this build;
+         *     `500` on backend failure.
+         */
+        get: operations["get_filing_document"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -3683,6 +3733,63 @@ export interface operations {
             };
         };
     };
+    get_admin_filing_document: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Filing ULID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The archived document bytes; Content-Type reflects the sniffed mime type */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing or invalid X-Admin-Token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Unknown filing */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Storage backend not available for this document */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
     admin_infra: {
         parameters: {
             query?: never;
@@ -4575,6 +4682,54 @@ export interface operations {
             };
             /** @description Internal error */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+        };
+    };
+    get_filing_document: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Filing ULID */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The archived document bytes; Content-Type reflects the sniffed mime type */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown filing, or not yet visible under the caller's tier */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Internal error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorBody"];
+                };
+            };
+            /** @description Storage backend not available for this document */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1,12 +1,15 @@
 import Link from "next/link";
 
 import type { Provenance } from "@/lib/api";
+import { apiBaseUrl } from "@/lib/api";
 import { formatDate, formatDateTime } from "@/lib/format";
 
 // The trust surface (design §7.3): official-source link, our archived copy
-// (sha256 + fetched_at), the filing, and the regime it was filed under.
+// (sha256 + fetched_at, and an actual link to it), the filing, and the
+// regime it was filed under.
 export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
   const { filing, raw_document, regime } = provenance;
+  const archivedCopyUrl = `${apiBaseUrl()}/v1/filings/${encodeURIComponent(filing.id)}/document`;
   return (
     <section className="provenance" aria-label="Provenance">
       <h2>Provenance</h2>
@@ -28,6 +31,10 @@ export function ProvenanceBlock({ provenance }: { provenance: Provenance }) {
           <span className="sha" data-testid="sha256">
             sha256:{raw_document.sha256}
           </span>
+          {" · "}
+          <a href={archivedCopyUrl} target="_blank" rel="noopener noreferrer">
+            Open archived copy
+          </a>
         </dd>
 
         <dt>Filing</dt>

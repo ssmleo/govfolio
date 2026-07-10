@@ -4,6 +4,7 @@
 //! committed, never hand-edited; regen drift fails CI.
 
 pub mod auth;
+pub mod bronze;
 pub mod dto;
 pub mod error;
 pub mod etag;
@@ -143,6 +144,10 @@ pub fn app(pool: PgPool, config: ApiConfig) -> Router {
         .route("/v1/records", get(routes::records::list_records))
         .route("/v1/records/{id}", get(routes::records::get_record))
         .route(
+            "/v1/filings/{id}/document",
+            get(routes::filings::get_filing_document),
+        )
+        .route(
             "/v1/politicians",
             get(routes::politicians::list_politicians),
         )
@@ -236,6 +241,16 @@ fn admin_router(state: &AppState) -> Router<AppState> {
         )
         .route("/v1/admin/infra", get(routes::admin::infra::admin_infra))
         .route("/v1/admin/loop", get(routes::admin::loop_meta::admin_loop))
+        // Real-time filing document for the reviewer surface (design §7.2):
+        // the public /v1/filings/{id}/document route is tier-gated (24h
+        // free-tier embargo), which would 404 fresh filings reviewers need
+        // to adjudicate. Same query + bytes as the public route, just
+        // RecordFilter::default() instead of auth.filter() — mirrors
+        // review::get_review_task's own real-time record fetch.
+        .route(
+            "/v1/admin/filings/{id}/document",
+            get(routes::filings::get_admin_filing_document),
+        )
         .route_layer(axum::middleware::from_fn_with_state(
             state.clone(),
             auth::admin_gate,
@@ -266,6 +281,8 @@ fn admin_router(state: &AppState) -> Router<AppState> {
     paths(
         routes::records::list_records,
         routes::records::get_record,
+        routes::filings::get_filing_document,
+        routes::filings::get_admin_filing_document,
         routes::politicians::list_politicians,
         routes::politicians::politician_profile,
         routes::politicians::politician_records,
@@ -306,6 +323,9 @@ fn admin_router(state: &AppState) -> Router<AppState> {
     ),
     tags(
         (name = "records", description = "Canonical disclosure records (Gold)"),
+        (name = "filings", description = "Archived original filing documents \
+         (design §7.3: our own durable copy, not just a link to the \
+         government's site). Same freshness gate as records."),
         (name = "politicians", description = "Politician-scoped views"),
         (name = "jurisdictions", description = "Jurisdictions and disclosure \
          regimes — the transparency scorecard (design §6.1/§7.3)"),

@@ -35,4 +35,40 @@ describe("RecordTable", () => {
     render(<RecordTable records={[]} caption="test records" />);
     expect(screen.getByText(/No disclosure records yet/)).toBeInTheDocument();
   });
+
+  it("shows one 'View filing' link per filing, not one per record row", () => {
+    const sameFiling = [
+      makeRecord({ id: "rec-1", filing_id: "filing-a" }),
+      makeRecord({ id: "rec-2", filing_id: "filing-a" }),
+    ];
+    render(<RecordTable records={sameFiling} caption="test records" />);
+    const links = screen.getAllByRole("link", { name: "View filing" });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAttribute(
+      "href",
+      expect.stringContaining("/v1/filings/filing-a/document"),
+    );
+    expect(links[0]).toHaveAttribute("target", "_blank");
+    expect(links[0]).toHaveAttribute("rel", "noopener noreferrer");
+  });
+
+  it("shows a separate 'View filing' link for each distinct filing", () => {
+    const records = [
+      makeRecord({ id: "rec-1", filing_id: "filing-a" }),
+      makeRecord({ id: "rec-2", filing_id: "filing-b" }),
+    ];
+    render(<RecordTable records={records} caption="test records" />);
+    expect(screen.getAllByRole("link", { name: "View filing" })).toHaveLength(2);
+  });
+
+  it("captions Brazil's filings as a bulk-source reconstruction, not a verbatim document", () => {
+    const record = makeRecord({
+      filing_id: "filing-br",
+      regime_id: "0BRAREG0000000000000000001",
+    });
+    render(<RecordTable records={[record]} caption="test records" />);
+    expect(
+      screen.getByText(/reconstructed per-candidate from TSE's bulk disclosure files/),
+    ).toBeInTheDocument();
+  });
 });

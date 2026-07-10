@@ -5141,6 +5141,72 @@
         ]
       }
     },
+    "/v1/admin/filings/{id}/document": {
+      "get": {
+        "description": "# Errors\nSame as [`get_filing_document`], plus `401`/`403` from the admin gate.",
+        "operationId": "get_admin_filing_document",
+        "parameters": [
+          {
+            "description": "Filing ULID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archived document bytes; Content-Type reflects the sniffed mime type"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Missing or invalid X-Admin-Token"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown filing"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Storage backend not available for this document"
+          }
+        },
+        "summary": "Serves the archived original document for one filing, in REAL TIME\n(admin-gated): the reviewer surface must see freshly-ingested filings the\nmoment they exist, not 24h later — mirrors `review::get_review_task`'s\nown `RecordFilter::default()` use for exactly the same reason. Consumed\nby the web app's same-origin reviewer document proxy, never called\ndirectly from a browser (the `X-Admin-Token` never reaches client JS).",
+        "tags": [
+          "filings"
+        ]
+      }
+    },
     "/v1/admin/infra": {
       "get": {
         "operationId": "admin_infra",
@@ -6250,6 +6316,62 @@
         "summary": "Replaces one of the authenticated account's alert rules.",
         "tags": [
           "alert-rules"
+        ]
+      }
+    },
+    "/v1/filings/{id}/document": {
+      "get": {
+        "description": "# Errors\n`404` for an unknown filing, or one not yet visible under the caller's\ntier (the same freshness bound as every other record-serving route);\n`503` if the document's storage backend is not implemented in this build;\n`500` on backend failure.",
+        "operationId": "get_filing_document",
+        "parameters": [
+          {
+            "description": "Filing ULID",
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The archived document bytes; Content-Type reflects the sniffed mime type"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Unknown filing, or not yet visible under the caller's tier"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Internal error"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "Storage backend not available for this document"
+          }
+        },
+        "summary": "Serves the archived original document for one filing (public, tier-gated).",
+        "tags": [
+          "filings"
         ]
       }
     },
@@ -7371,6 +7493,10 @@
     {
       "description": "Canonical disclosure records (Gold)",
       "name": "records"
+    },
+    {
+      "description": "Archived original filing documents (design §7.3: our own durable copy, not just a link to the government's site). Same freshness gate as records.",
+      "name": "filings"
     },
     {
       "description": "Politician-scoped views",
