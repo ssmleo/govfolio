@@ -8,13 +8,15 @@ export interface CardProps {
   className?: string;
 }
 
-// The base panel of the instrument panel: a flat surface, hairline border,
-// no shadow (a drop shadow reads as generic SaaS chrome on this ground).
+// The base panel of the instrument panel: a flat surface with a hairline
+// border and subtle depth cue (shadow). On the dark ground, inset highlights
+// + drop shadow prevent cards from reading as flat and lifeless.
 export function Card({ eyebrow, title, action, children, className }: CardProps) {
   const hasHead = eyebrow !== undefined || title !== undefined;
   return (
     <section
       className={`rounded-sm border border-[var(--adm-rule)] bg-[var(--adm-surface)] p-4 ${className ?? ""}`}
+      style={{ boxShadow: 'var(--adm-card-shadow)' }}
     >
       {hasHead && (
         <div className="mb-3 flex items-start justify-between gap-3">

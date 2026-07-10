@@ -1,14 +1,13 @@
-/* govfolio admin — design tokens (goal 091).
+/* govfolio admin — design tokens (goal 093, dark theme).
  *
- * Identity: mission control for a worldwide disclosure factory. Kin to the
- * public site's "engraved paper register" (same --font-display serif for
- * titles, same --font-data mono for every number, same --seal accent) but
- * on a graphite-neutral instrument-panel ground instead of warm paper — an
- * operator's console, not a marketing page.
+ * Identity: instrument panel for a worldwide disclosure factory. Dark,
+ * high-contrast reading ground: an operator's console, not a marketing page.
+ * Every color is a custom property for future theme variants.
  *
- * Color discipline: neutrals dominate. --seal is the one brand accent (nav,
- * links, focus rings). Saturated color is reserved EXCLUSIVELY for STATE —
- * a colored number/badge is always a status claim:
+ * Color discipline: neutrals dominate a deep charcoal background. Admin-only
+ * brand accent is warm gold (--adm-accent: #C2A15E, --adm-accent-deep: #E0C084).
+ * Saturated color is reserved EXCLUSIVELY for STATE — a colored number/badge
+ * is always a status claim:
  *   success (green) = live / succeeded / done / resolved / pass / sent
  *   warning (amber) = halted / paused / skipped_budget / pending / open
  *   danger  (red)   = frozen / failed / dead / blocked / discrepant
@@ -17,11 +16,11 @@
  *
  * The coverage-phase ramp (--adm-phase-*) is a SEPARATE sequential scale
  * (design §5.8: stub → scouted → surveyed → sampled → specced → built →
- * live, plus blocked) — progression toward the brand green, not the 4-way
+ * live, plus blocked) — progression toward the brand gold, not the 4-way
  * state palette above. See CoverageHeatmap.tsx.
  *
- * Light theme only for v1; every color is a custom property so a future
- * dark variant is a token swap, not a rewrite.
+ * Series colors (--adm-series-*) are for volume/time/count heatmaps and charts.
+ * Box shadows are inset highlights + drop shadows for card depth on the dark ground.
  */
 
 @layer theme, base, components, utilities;
@@ -44,17 +43,26 @@ main.shell:has(> .admin-root) {
 
 .admin-root {
   /* ---------- ground ---------- */
-  --adm-bg: #e7e9ea;
-  --adm-surface: #fbfbfc;
-  --adm-surface-sunken: #eef0f1;
-  --adm-ink: #1b2023;
-  --adm-muted: #5c6469;
-  --adm-rule: #d1d5d7;
-  --adm-rule-strong: #a7adb0;
+  --adm-bg: #0B0D12;
+  --adm-surface: #12151C;
+  --adm-surface-sunken: #171B24;
+  --adm-ink: #E9E5DA;
+  --adm-muted: #8E9099;
+  --adm-rule: #1D222B;
+  --adm-rule-strong: #383E4A;
 
-  /* ---------- brand accent (reused exactly from globals.css) ---------- */
-  --adm-accent: var(--seal, #176a4f);
-  --adm-accent-deep: var(--seal-deep, #0e4a37);
+  /* ---------- type hierarchy ---------- */
+  --adm-heading: #F0EBDF;
+  --adm-text-secondary: #C7C2B4;
+  --adm-nav-hover: #D8D4C8;
+  --adm-nav-inactive: #9AA0AA;
+  --adm-nav-chip-inactive: #8A7B57;
+  --adm-faint: #5F6570;
+
+  /* ---------- brand accent (admin-only, gold) ---------- */
+  --adm-accent: #C2A15E;
+  --adm-accent-deep: #E0C084;
+  --adm-accent-amber: #E4B45E;
 
   /* ---------- type (reused exactly from globals.css) ---------- */
   --adm-font-display: var(--font-display);
@@ -62,31 +70,53 @@ main.shell:has(> .admin-root) {
   --adm-font-data: var(--font-data);
 
   /* ---------- state colors: the ONLY saturated colors on this surface ---------- */
-  --adm-success-ink: #14573f;
-  --adm-success-bg: #e3f0e9;
-  --adm-success-rule: #9dc4b2;
+  --adm-success-ink: #6CCB9B;  --adm-success-bg: rgba(76,175,130,.10);  --adm-success-rule: rgba(76,175,130,.35);
+  --adm-warning-ink: #E4B45E;  --adm-warning-bg: rgba(217,164,65,.10);  --adm-warning-rule: rgba(217,164,65,.35);
+  --adm-danger-ink:  #E28074;  --adm-danger-bg:  rgba(198,82,74,.12);   --adm-danger-rule:  rgba(198,82,74,.40);
+  --adm-info-ink:    #8FB2E8;  --adm-info-bg:    rgba(107,149,214,.12); --adm-info-rule:    rgba(107,149,214,.35);
+  --adm-neutral-ink: #9AA0AA;  --adm-neutral-bg: rgba(255,255,255,.04); --adm-neutral-rule: #2A2F3A;
 
-  --adm-warning-ink: #7a4a00;
-  --adm-warning-bg: #f7eddc;
-  --adm-warning-rule: #d8be92;
+  /* ---------- coverage-phase ramp (§5.8 progression toward brand gold) ---------- */
+  --adm-phase-stub: #1C212A;
+  --adm-phase-scouted: #23372E;
+  --adm-phase-surveyed: #2A4C3C;
+  --adm-phase-sampled: #32624B;
+  --adm-phase-specced: #3B7A5A;
+  --adm-phase-built: #44966C;
+  --adm-phase-live: #4FB582;
+  --adm-phase-blocked: #83382E;
 
-  --adm-danger-ink: #8f1d12;
-  --adm-danger-bg: #f9e7e4;
-  --adm-danger-rule: #dfa79f;
+  /* ---------- series colors (volume/time/count heatmaps) ---------- */
+  --adm-series-gold: #C2A15E;
+  --adm-series-gold-area: rgba(194,161,94,.12);
+  --adm-series-gold-dot: #E0C084;
+  --adm-series-bronze: #8C7853;
+  --adm-series-silver: #9BA3AD;
+  --adm-series-funnel-gold: #3F8E68;
+  --adm-series-funnel-review: #B98A3B;
+  --adm-series-funnel-suppressed: #A34E45;
+  --adm-series-neutral: #3B4353;
 
-  --adm-info-ink: #1d4e8f;
-  --adm-info-bg: #e4ecf9;
-  --adm-info-rule: #a8c0e0;
+  /* ---------- component tokens ---------- */
+  --adm-card-border: #23272F;
+  --adm-card-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 14px 34px rgba(0,0,0,.35);
+  --adm-progress-track: #1B2027;
+  --adm-chip-border: #2A2F3A;
 
-  /* ---------- coverage-phase ramp (§5.8 progression toward --adm-accent) ---------- */
-  --adm-phase-stub: #eceeef;
-  --adm-phase-scouted: #dbe6e0;
-  --adm-phase-surveyed: #c3d9cc;
-  --adm-phase-sampled: #a2cdb4;
-  --adm-phase-specced: #79bb95;
-  --adm-phase-built: #479875;
-  --adm-phase-live: #176a4f;
-  --adm-phase-blocked: #9a2f22;
+  /* ---------- radii ---------- */
+  --adm-radius-sm: 1px;
+  --adm-radius-badge: 2px;
+  --adm-radius-card: 3px;
+
+  /* ---------- spacing & layout ---------- */
+  --adm-card-pad: 20px 22px;
+  --adm-gap: 16px;
+  --adm-page-pad: 30px 36px 64px;
+  --adm-content-max: 1240px;
+  --adm-masthead-h: 58px;
+  --adm-ticker-h: 38px;
+  --adm-sidebar-w: 230px;
+  --adm-dossier-w: 520px;
 
   background: var(--adm-bg);
   color: var(--adm-ink);
@@ -149,3 +179,10 @@ main.shell:has(> .admin-root) {
   text-transform: uppercase;
   color: var(--adm-muted);
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes gfPulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+  @keyframes gfSweep { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes gfRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+}
+@keyframes gfFade { from { opacity: 0; } to { opacity: 1; } }
