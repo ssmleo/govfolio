@@ -52,7 +52,7 @@ use anyhow::Context as _;
 use chrono::Datelike as _;
 
 use pipeline::adapter::{BronzeStore, Clock, FilingRef, JurisdictionAdapter as _, RunCtx};
-use pipeline::conformance::workspace_root;
+use pipeline::conformance::durable_bronze_parent;
 use pipeline::run::{RunReport, Runner};
 use pipeline::stages::seed::seed_regime;
 use us_house::UsHouseAdapter;
@@ -149,8 +149,10 @@ async fn main() -> anyhow::Result<()> {
     // BronzeStore is content-addressed — re-invocations accumulate/reuse the
     // same store rather than leaking a new directory per run. Unlike the
     // gate's own scratch Bronze (ClerkArchive, wrapped in ScratchDir) a few
-    // lines down.
-    let bronze = workspace_root().join("target").join("bronze-backfill-real");
+    // lines down. Parent via durable_bronze_parent(): parallel loop lanes
+    // (goal 097) share one GOVFOLIO_BRONZE_ROOT so Bronze never strands in a
+    // single worktree's target/ again.
+    let bronze = durable_bronze_parent().join("bronze-backfill-real");
     let ctx = RunCtx::new(
         BronzeStore::open(bronze)?,
         Some(pool.clone()),

@@ -43,6 +43,32 @@ pub fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join("..")
 }
 
+/// Parent directory for DURABLE Bronze stores (`bronze-local`,
+/// `bronze-backfill-real`, ...): `GOVFOLIO_BRONZE_ROOT` (absolute path) when
+/// set, else this checkout's `target/`.
+///
+/// Why the env exists (invariant 2, raw is sacred): `workspace_root()` is
+/// compile-time (`CARGO_MANIFEST_DIR`), so every git worktree resolves to its
+/// OWN `target/` — that is exactly the JOURNAL 2026-07-09 incident where a
+/// 2014 br filing's Bronze bytes physically lived under the `front_b`
+/// worktree's `target/`, invisible to the main checkout. Parallel loop lanes
+/// (goal 097) export one shared absolute `GOVFOLIO_BRONZE_ROOT` so all lanes
+/// converge on a single content-addressed store. Never an OS-temp path.
+#[must_use]
+pub fn durable_bronze_parent() -> PathBuf {
+    durable_bronze_parent_from(|k| std::env::var(k).ok())
+}
+
+/// Pure core of [`durable_bronze_parent`] — env lookup injected so tests
+/// never mutate process env (racy under the parallel test runner).
+#[must_use]
+pub fn durable_bronze_parent_from(lookup: impl Fn(&str) -> Option<String>) -> PathBuf {
+    match lookup("GOVFOLIO_BRONZE_ROOT") {
+        Some(root) if !root.trim().is_empty() => PathBuf::from(root),
+        _ => workspace_root().join("target"),
+    }
+}
+
 /// `crates/adapters/<name>`.
 #[must_use]
 pub fn adapter_dir(name: &str) -> PathBuf {
@@ -337,6 +363,25 @@ mod tests {
     use serde_json::json;
 
     use super::*;
+
+    #[test]
+    fn bronze_parent_honors_env_override_and_defaults_to_workspace_target() {
+        let overridden = durable_bronze_parent_from(|k| {
+            assert_eq!(k, "GOVFOLIO_BRONZE_ROOT");
+            Some("C:/shared/bronze-root".to_owned())
+        });
+        assert_eq!(overridden, PathBuf::from("C:/shared/bronze-root"));
+
+        // Unset and blank both fall back to this checkout's target/.
+        assert_eq!(
+            durable_bronze_parent_from(|_| None),
+            workspace_root().join("target")
+        );
+        assert_eq!(
+            durable_bronze_parent_from(|_| Some("  ".to_owned())),
+            workspace_root().join("target")
+        );
+    }
 
     #[test]
     fn registry_has_fixture_fake_transaction_schema() {
