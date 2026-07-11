@@ -1075,8 +1075,21 @@ fn codex_skill_event(value: &Value, skill: &SkillCanarySpec) -> bool {
 }
 
 fn value_references_skill(value: &Value, skill: &SkillCanarySpec) -> bool {
-    let rendered = value.to_string().replace('\\', "/").to_ascii_lowercase();
-    rendered.contains(&normalized_path(&skill.repository_relative_path).to_ascii_lowercase())
+    let path = normalized_path(&skill.repository_relative_path).to_ascii_lowercase();
+    value_contains_normalized_path(value, &path)
+}
+
+fn value_contains_normalized_path(value: &Value, path: &str) -> bool {
+    match value {
+        Value::String(text) => text.replace('\\', "/").to_ascii_lowercase().contains(path),
+        Value::Array(values) => values
+            .iter()
+            .any(|value| value_contains_normalized_path(value, path)),
+        Value::Object(values) => values
+            .values()
+            .any(|value| value_contains_normalized_path(value, path)),
+        Value::Null | Value::Bool(_) | Value::Number(_) => false,
+    }
 }
 
 fn safe_relative(path: &Path) -> bool {
@@ -1114,6 +1127,49 @@ mod tests {
     use super::*;
     use crate::model::{ProviderIdentity, ResultClass};
     use crate::provider::CodexAdapter;
+
+    #[test]
+    fn claude_skill_event_accepts_absolute_windows_read_path() {
+        let skill = SkillCanarySpec::new(
+            "rust-tdd",
+            PathBuf::from("agents/skills/rust-tdd/SKILL.md"),
+            "a".repeat(64),
+            "challenge",
+            PathBuf::from(".govfolio-loop/marker.json"),
+        )
+        .expect("skill spec");
+        let event = serde_json::json!({
+            "type": "assistant",
+            "message": {
+                "content": [{
+                    "type": "tool_use",
+                    "name": "Read",
+                    "input": {
+                        "file_path": "C:\\tmp\\worktree\\agents\\skills\\rust-tdd\\SKILL.md"
+                    }
+                }]
+            }
+        });
+
+        assert!(claude_skill_event(&event, &skill));
+    }
+
+    #[test]
+    fn skill_path_matcher_does_not_accept_object_keys() {
+        let skill = SkillCanarySpec::new(
+            "rust-tdd",
+            PathBuf::from("agents/skills/rust-tdd/SKILL.md"),
+            "a".repeat(64),
+            "challenge",
+            PathBuf::from(".govfolio-loop/marker.json"),
+        )
+        .expect("skill spec");
+        let key_only = serde_json::json!({
+            "agents/skills/rust-tdd/SKILL.md": "not a path value"
+        });
+
+        assert!(!value_references_skill(&key_only, &skill));
+    }
 
     #[test]
     fn codex_skill_event_accepts_completed_node_read_of_exact_skill() {
