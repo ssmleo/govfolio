@@ -34,3 +34,5 @@ apps/web/test-results/
 Thumbs.db
 agents/loop.lane-*.log
 agents/codex-loop.lane-*.log
+agents/codex-loop.log
+.superpowers/sdd/

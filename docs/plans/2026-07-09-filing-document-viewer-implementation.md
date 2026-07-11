@@ -1,6 +1,7 @@
 # Open the exact filing document — Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Required skills:** skill:subagent-driven-development
 
 **Goal:** Let a user open the archived original filing document for any politician's
 disclosure, from the politician's own timeline, across every jurisdiction — serving OUR

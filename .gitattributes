@@ -10,3 +10,6 @@ crates/adapters/*/fixtures/** -text
 # (goal 097 parallel lanes). Caveat: server-side PR merges may ignore this —
 # lanes merge main into their branch LOCALLY first (factory-lane.md step 6).
 agents/JOURNAL.md merge=union
+
+# Agent runners must remain directly executable and parse identically on Windows.
+agents/run-loop-codex.sh text eol=lf

@@ -9,6 +9,11 @@ Claim through `jurisdiction-lease` and retain its generation. Renew/abandon are
 generation-CAS; producers never write lease fields or phase directly. After local commit,
 submit an immutable receipt and wait. The integrator applies phase and terminal release.
 
+Every phase role dispatch is governed by `skill-dispatch-contract.md`. Resolve the exact
+phase heading, role, explicit triggers, and regime SAF with
+`scripts/agents/resolve-codex-dispatch.mjs`; prepend the unmodified envelope and require
+the exact receipt before phase work. Resolve producer and auditor envelopes separately.
+
 ## Phase 0 — SCOUT (role: scout)
 Prompt core: "Identify the OFFICIAL disclosure system(s) for <jurisdiction>. Prefer primary
 government domains. For each candidate: URL, what it appears to contain, why you believe it

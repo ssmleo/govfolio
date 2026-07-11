@@ -21,8 +21,15 @@ structure is a function of its failure mode, so structure changes are prompt cha
 ## Skill rules
 - One procedure per skill (agents/skills/<name>/SKILL.md): purpose, when to load, core
   checklist, anti-patterns. Deepened via write-back, never forked per role.
-- Roles load ONLY the skills listed in their Skills: section, plus /CLAUDE.md and the
-  relevant SAF. Skill sprawl is a bug: if a role needs >6 skills, split the role.
+- `agents/skill-routing.json` is authoritative for governed role allocations, canonical
+  sources, pins, packs, and explicit trigger IDs. Generated role blocks are projections
+  of this manifest, not a second source of truth.
+- `.agents/skills/govfolio-*` is the generated projection that lets Codex discover the
+  governed canonical skills; `.codex/agents/*.toml` is the generated projection of the
+  governed native role set. Never hand-edit either generated projection. Use the lock
+  refresh and renderer, then validate the complete contract.
+- Roles load ONLY the skills resolved from the manifest envelope, plus /CLAUDE.md and the
+  relevant SAF. Skill sprawl is a bug: if a role needs >6 standing slots, split the role.
 Rationale: one canonical procedure accumulates learnings in one place; per-role forks
 drift apart and rot, and unbounded loading dilutes the context that actually binds.
 
@@ -32,6 +39,8 @@ It never writes production code, never self-certifies, never approves proposals,
 unblocks human lanes. Its full workflow: agents/workflows/orchestration.md.
 Rationale: the verifier must not be the doer — self-certification is how unverified work
 reaches main; separation keeps every claim externally checkable.
+Every provider dispatch follows `agents/workflows/skill-dispatch-contract.md`; resolver
+output and the exact child receipt are mechanical gates, including for nested dispatch.
 
 ## A1 — Standing vs situational skills; packs (approved 2026-07-04)
 Standing skills load every iteration; ceiling 6 slots. Situational skills are

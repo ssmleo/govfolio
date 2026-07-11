@@ -1,0 +1,7 @@
+# GENERATED: govfolio-codex-skill-contract; DO NOT EDIT
+interface:
+  display_name: "Govfolio: human-gate-etiquette"
+  short_description: "Governed bridge; explicit dispatch only."
+  default_prompt: "Use $govfolio-human-gate-etiquette to follow the pinned Govfolio workflow for this task."
+policy:
+  allow_implicit_invocation: false

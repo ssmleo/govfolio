@@ -1,6 +1,7 @@
 # Govfolio v1 Implementation Plan (Rust data plane + TS web)
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+**Required skills:** skill:executing-plans
 > Work on a branch. Human-only lanes: applying DB migrations to prod, `terraform apply`, public claim-making copy.
 > Read `/CLAUDE.md` and the relevant `agents/goals/NNN-*.md` before each task. Repo is memory: update the goal's checklist and commit every iteration.
 
