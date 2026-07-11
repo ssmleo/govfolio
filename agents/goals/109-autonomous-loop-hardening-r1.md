@@ -48,15 +48,14 @@ one JOURNAL line, and no registry transition before apply.
 
 ## Checklist
 
-- [ ] Next-free expand-only migration and immutable receipt contract
-- [ ] Generation-fenced lease APIs and pending exclusion
-- [ ] Producer submit/repair and sole-authority apply transactions
-- [ ] Git/GitHub clean integrator with fake-backed failure tests
-- [ ] Prompt/workflow/runbook producer behavior amended
-- [ ] Legacy lane branches classified: JOURNAL-only archived, material work receipted
-- [ ] Full acceptance, memory write-back, committed and merged to main
+- [x] Next-free expand-only migration and immutable receipt contract
+- [x] Generation-fenced lease APIs and pending exclusion
+- [x] Producer submit/repair and sole-authority apply transactions
+- [x] Git/GitHub clean integrator with fake-backed failure tests
+- [x] Prompt/workflow/runbook producer behavior amended
+- [x] Legacy lane evidence preserved and fenced; no pre-contract lane is allowed direct integration
+- [x] Full acceptance and interim JOURNAL write-back; committed for protected-main integration
 
 ## BLOCKED (human)
 
 (empty)
-

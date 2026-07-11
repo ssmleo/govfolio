@@ -84,7 +84,7 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
 - [x] `.github/workflows/ci.yml` guardrails job gains a `validate-authority` step
 - [x] `agents/GOVERNANCE.md` per-rule rationales + `## Amendments (append-only, dated)` section
 - [x] PreToolUse hook script + repo `.claude/settings.json` additive wiring (LAST — see Bootstrap)
-- [ ] Full acceptance block green; memory/SAF write-back + JOURNAL line; committed; checklist + 000-INDEX row ticked
+- [x] Full acceptance block green; interim memory write-back landed in JOURNAL (goal 101 has not created the subsystem index yet); committed; checklist + 000-INDEX row ticked
 
 ## BLOCKED (human)
 (empty)

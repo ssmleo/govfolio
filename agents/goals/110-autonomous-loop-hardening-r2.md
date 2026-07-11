@@ -52,7 +52,7 @@ not allowed unless the native smoke returns the specific unsupported capability.
 
 - [x] Exact canary and fingerprint state machine with mechanical skill proof
 - [x] Native Codex resolver and disposable linked-worktree smoke
-- [ ] Fenced lane-0 selection/takeover/recovery tests
+- [x] Fenced lane-0 selection/takeover/recovery tests
 - [x] Idempotent fail-closed WSL bootstrap + fake-runner tests
 - [ ] Claude/Codex canary evidence recorded; native used if green
 - [ ] Full acceptance, memory write-back, committed and merged to main

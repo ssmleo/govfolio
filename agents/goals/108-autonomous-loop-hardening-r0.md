@@ -51,16 +51,15 @@ create a supervisor commit or JOURNAL line.
 
 ## Checklist
 
-- [ ] Structured provider fixtures/classifiers and command builders
-- [ ] SQLite control store, singleton/lane fencing, integrity/backup
-- [ ] Circuit, storm-fuse, attempt-budget, and 10,000-outcome proof
-- [ ] Atomic bounded log/artifact store and retention/disk policy
-- [ ] Zero-spend preflights including a real linker canary
-- [ ] Process-group ownership, cancellation, and crash recovery
-- [ ] Supervisor tick/monitor/shims and failure postconditions
-- [ ] Full acceptance, memory/JOURNAL write-back, committed and merged to main
+- [x] Structured provider fixtures/classifiers and command builders
+- [x] SQLite control store, singleton/lane fencing, integrity/backup
+- [x] Circuit, storm-fuse, attempt-budget, and 10,000-outcome proof
+- [x] Atomic bounded log/artifact store and retention/disk policy
+- [x] Zero-spend preflights including a real linker canary
+- [x] Process-group ownership, cancellation, and crash recovery
+- [x] Supervisor tick/monitor/shims and failure postconditions
+- [x] Full acceptance and interim JOURNAL write-back; committed for protected-main integration
 
 ## BLOCKED (human)
 
 (empty)
-
