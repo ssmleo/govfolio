@@ -265,6 +265,7 @@ Generated files begin with a stable marker. `render --write` may replace or remo
 interface:
   display_name: "Govfolio: plan-decomposition"
   short_description: "Governed bridge; explicit dispatch only."
+  default_prompt: "Use $govfolio-plan-decomposition to follow the pinned Govfolio workflow for this task."
 policy:
   allow_implicit_invocation: false
 ```
@@ -297,7 +298,7 @@ node scripts/agents/validate-codex-contract.mjs --repo-root .
 node --test scripts/agents/codex-contract.test.mjs
 ```
 
-Expected: every command exits 0; `--check` writes nothing; eleven Codex TOMLs and every available governed bridge exist.
+Then run the system skill validator against every generated `govfolio-*` bridge using `skill-creator/scripts/quick_validate.py` from the active Codex installation. Expected: every command exits 0; `--check` writes nothing; eleven Codex TOMLs and every available governed bridge exist; every bridge has valid frontmatter, naming, and UI metadata.
 
 - [ ] **Step 6: Commit the manifest and projection**
 
