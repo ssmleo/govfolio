@@ -19,6 +19,25 @@ ROOT="$(pwd)"
 LANES_DIR="${GOVFOLIO_LANES_DIR:-$ROOT/../govfolio-codex-lanes}"
 EPOCH="${GOVFOLIO_EPOCH:-E2}"
 
+TRUSTED_POLICY_PATHS=(
+  .gitattributes
+  .gitignore
+  AGENTS.md
+  CLAUDE.md
+  agents/EPOCHS.md
+  agents/GOVERNANCE.md
+  agents/LOOP.md
+  agents/PROMPT.md
+  agents/PROMPT-FACTORY-LANE.md
+  agents/run-loop-codex.sh
+  agents/skill-routing.json
+  agents/skill-routing.schema.json
+  scripts/agents/codex-contract-lib.mjs
+  scripts/agents/render-codex-contract.mjs
+  scripts/agents/resolve-codex-dispatch.mjs
+  scripts/agents/validate-codex-contract.mjs
+)
+
 case "$REQUESTED_EFFORT" in
   max) EFFORT="xhigh" ;;
   minimal|low|medium|high|xhigh) EFFORT="$REQUESTED_EFFORT" ;;
@@ -37,15 +56,18 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || {
   exit 1
 }
 
+while IFS= read -r -d '' policy_path; do
+  TRUSTED_POLICY_PATHS+=("$policy_path")
+done < <(git -C "$ROOT" ls-files -z -- \
+  'agents/roles/*.md' \
+  'agents/archetypes/*.md' \
+  'agents/workflows/*.md')
+
 require_contract_assets() {
   local worktree="$1"
   local path
   for path in \
-    AGENTS.md \
-    agents/skill-routing.json \
-    scripts/agents/codex-contract-lib.mjs \
-    scripts/agents/render-codex-contract.mjs \
-    scripts/agents/validate-codex-contract.mjs; do
+    "${TRUSTED_POLICY_PATHS[@]}"; do
     [ -f "$worktree/$path" ] || {
       echo "ERROR: tracked Codex contract asset missing in $worktree: $path" >&2
       return 1
@@ -53,11 +75,131 @@ require_contract_assets() {
   done
 }
 
+forbid_tracked_machine_config() {
+  local worktree="$1"
+  if git -C "$worktree" ls-files --error-unmatch -- .codex/config.toml >/dev/null 2>&1; then
+    echo "ERROR: .codex/config.toml is machine-specific and must never be tracked" >&2
+    return 1
+  fi
+}
+
+policy_hash() {
+  local worktree="$1"
+  local path="$2"
+  git -C "$worktree" hash-object --filters --path="$path" "$worktree/$path"
+}
+
+validate_trusted_policy() {
+  local worktree="$1"
+  local path root_hash root_head_hash worktree_hash worktree_head_hash
+  require_contract_assets "$worktree"
+  forbid_tracked_machine_config "$worktree"
+  for path in "${TRUSTED_POLICY_PATHS[@]}"; do
+    git -C "$ROOT" ls-files --error-unmatch -- "$path" >/dev/null 2>&1 || {
+      echo "ERROR: trusted root policy is untracked: $path" >&2
+      return 1
+    }
+    git -C "$worktree" ls-files --error-unmatch -- "$path" >/dev/null 2>&1 || {
+      echo "ERROR: worktree policy is untracked in $worktree: $path" >&2
+      return 1
+    }
+    [ ! -L "$ROOT/$path" ] && [ ! -L "$worktree/$path" ] || {
+      echo "ERROR: policy path must not be a symlink: $path" >&2
+      return 1
+    }
+    root_hash="$(policy_hash "$ROOT" "$path")"
+    root_head_hash="$(git -C "$ROOT" rev-parse "HEAD:$path")"
+    [ "$root_hash" = "$root_head_hash" ] || {
+      echo "ERROR: trusted root policy differs from HEAD: $path" >&2
+      return 1
+    }
+    worktree_hash="$(policy_hash "$worktree" "$path")"
+    worktree_head_hash="$(git -C "$worktree" rev-parse "HEAD:$path")"
+    [ "$worktree_hash" = "$worktree_head_hash" ] || {
+      echo "ERROR: worktree policy differs from HEAD in $worktree: $path" >&2
+      return 1
+    }
+    if [ "$worktree" != "$ROOT" ]; then
+      [ "$root_hash" = "$worktree_hash" ] || {
+        echo "ERROR: lane policy differs from the trusted root: $path" >&2
+        return 1
+      }
+    fi
+  done
+}
+
 validate_contract() {
   local worktree="$1"
-  require_contract_assets "$worktree"
-  node "$worktree/scripts/agents/render-codex-contract.mjs" --check --repo-root "$worktree"
-  node "$worktree/scripts/agents/validate-codex-contract.mjs" --repo-root "$worktree"
+  validate_trusted_policy "$worktree"
+  node "$ROOT/scripts/agents/render-codex-contract.mjs" --check --repo-root "$worktree"
+  node "$ROOT/scripts/agents/validate-codex-contract.mjs" --repo-root "$worktree"
+}
+
+canonical_path() {
+  node -e 'process.stdout.write(require("node:fs").realpathSync(process.argv[1]).replaceAll("\\\\", "/"))' "$1"
+}
+
+absolute_path() {
+  node -e 'process.stdout.write(require("node:path").resolve(process.argv[1]).replaceAll("\\\\", "/"))' "$1"
+}
+
+reject_symlink_path() {
+  node -e '
+    const fs = require("node:fs");
+    const path = require("node:path");
+    let cursor = path.resolve(process.argv[1]);
+    const root = path.parse(cursor).root;
+    while (cursor !== root) {
+      if (fs.lstatSync(cursor).isSymbolicLink()) {
+        process.stderr.write(`ERROR: lane worktree path contains a symlink: ${cursor}\n`);
+        process.exit(1);
+      }
+      cursor = path.dirname(cursor);
+    }
+  ' "$1"
+}
+
+verify_lane_worktree() {
+  local n="$1"
+  local worktree="$2"
+  local expected_branch="codex/lane/$n"
+  local worktree_absolute worktree_real top_level branch root_common lane_common registered line candidate
+  [ -d "$worktree" ] || { echo "ERROR: configured Codex lane worktree missing: $worktree" >&2; return 1; }
+  worktree_absolute="$(absolute_path "$worktree")"
+  reject_symlink_path "$worktree_absolute"
+  worktree="$worktree_absolute"
+  worktree_real="$(canonical_path "$worktree")"
+  top_level="$(canonical_path "$(git -C "$worktree" rev-parse --show-toplevel)")"
+  [ "$top_level" = "$worktree_real" ] || {
+    echo "ERROR: lane top-level mismatch: expected $worktree_real, got $top_level" >&2
+    return 1
+  }
+  branch="$(git -C "$worktree" symbolic-ref --short HEAD 2>/dev/null || true)"
+  [ "$branch" = "$expected_branch" ] || {
+    echo "ERROR: lane branch mismatch: expected $expected_branch, got ${branch:-detached}" >&2
+    return 1
+  }
+  root_common="$(canonical_path "$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)")"
+  lane_common="$(canonical_path "$(git -C "$worktree" rev-parse --path-format=absolute --git-common-dir)")"
+  [ "$root_common" = "$lane_common" ] || {
+    echo "ERROR: lane does not share the trusted root's common Git directory" >&2
+    return 1
+  }
+  registered=0
+  while IFS= read -r line; do
+    case "$line" in
+      "worktree "*)
+        candidate="${line#worktree }"
+        if [ -d "$candidate" ] && [ "$(canonical_path "$candidate")" = "$worktree_real" ]; then
+          registered=1
+        fi
+        ;;
+    esac
+  done < <(git -C "$ROOT" worktree list --porcelain)
+  [ "$registered" = "1" ] || {
+    echo "ERROR: lane is not a registered worktree of the trusted root: $worktree" >&2
+    return 1
+  }
 }
 
 if [ "$FACTORY_ONLY" = "1" ]; then
@@ -73,10 +215,7 @@ if [ "$PREFLIGHT_ONLY" = "1" ]; then
   n="$first_lane"
   while [ "$n" -le "$last_lane" ]; do
     wt="$LANES_DIR/lane-$n"
-    [ -d "$wt" ] || {
-      echo "ERROR: configured Codex lane worktree missing: $wt" >&2
-      exit 1
-    }
+    verify_lane_worktree "$n" "$wt"
     validate_contract "$wt"
     n=$((n + 1))
   done
@@ -138,12 +277,19 @@ CODEX_ARGS+=(-)
 codex_with_contract() {
   local worktree="$1"
   local prompt="$2"
-  require_contract_assets "$worktree"
-  node "$worktree/scripts/agents/render-codex-contract.mjs" --check --repo-root "$worktree"
-  node "$worktree/scripts/agents/validate-codex-contract.mjs" --repo-root "$worktree"
+  local section_file="$3"
+  local section_heading="$4"
+  local envelope
+  validate_contract "$worktree"
+  envelope="$(node "$ROOT/scripts/agents/resolve-codex-dispatch.mjs" \
+    --repo-root "$worktree" \
+    --role orchestrator \
+    --section-file "$section_file" \
+    --section-heading "$section_heading" \
+    --source-context none)"
   (
     cd "$worktree"
-    printf '%s' "$prompt" | codex "${CODEX_ARGS[@]}"
+    printf '%s\n\n%s' "$envelope" "$prompt" | codex "${CODEX_ARGS[@]}"
   )
 }
 
@@ -169,6 +315,7 @@ run_factory_lane() {
       }
     fi
   fi
+  verify_lane_worktree "$n" "$wt"
   [ -f "$wt/agents/PROMPT-FACTORY-LANE.md" ] || {
     echo "$lane_id: stale worktree $wt - merge the current base into $branch first" >&2
     return 1
@@ -189,7 +336,11 @@ run_factory_lane() {
   echo "$(date -u +%FT%TZ) $lane_id: epoch gate $EPOCH green - starting Codex sessions" >>"$log"
   while :; do
     prompt="$(cat "$wt/agents/PROMPT-FACTORY-LANE.md")"
-    if GOVFOLIO_LANE_ID="$lane_id" codex_with_contract "$wt" "$prompt" >>"$log" 2>&1; then
+    if GOVFOLIO_LANE_ID="$lane_id" codex_with_contract \
+      "$wt" "$prompt" \
+      agents/PROMPT-FACTORY-LANE.md \
+      "govfolio factory-lane prompt (stable — all state lives in the repo + registry)" \
+      >>"$log" 2>&1; then
       status=0
     else
       status=$?
@@ -258,7 +409,11 @@ while :; do
   prompt="$(cat agents/PROMPT.md)"
   echo
   echo "---- Codex lane 0 iteration $i | $(date -u +%FT%TZ) | effort=$EFFORT ----"
-  if codex_with_contract "$ROOT" "$prompt" 2>&1 | tee -a agents/codex-loop.log; then
+  if codex_with_contract \
+    "$ROOT" "$prompt" \
+    agents/PROMPT.md \
+    "govfolio orchestration prompt (stable — all state lives in the repo)" \
+    2>&1 | tee -a agents/codex-loop.log; then
     status=0
   else
     status=$?

@@ -4,11 +4,12 @@ import {
   lstatSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 import {
   GENERATED_MARKERS,
@@ -70,6 +71,162 @@ function isOwnedBridgeSkill(text) {
 
 function isOwnedCommentFile(text) {
   return normalized(text).split("\n")[0] === GENERATED_MARKERS.comment;
+}
+
+function isContained(root, candidate) {
+  const child = relative(root, candidate);
+  return child === "" || (!child.startsWith(`..${sep}`) && child !== ".." && !isAbsolute(child));
+}
+
+function unsafePath(path, message) {
+  return issue(
+    "PROJECTION_UNSAFE_PATH",
+    path,
+    message,
+    "replace every generated-path symlink, junction, or special file with ordinary in-repository directories and files",
+  );
+}
+
+function throwContractIssue(contractIssue) {
+  const error = new Error(contractIssue.message);
+  error.contractIssue = contractIssue;
+  throw error;
+}
+
+function canonicalRepositoryRoot(path) {
+  let stat;
+  try {
+    stat = lstatSync(path);
+  } catch (error) {
+    throwContractIssue(unsafePath(path, `cannot inspect repository root ${path}: ${error.message}`));
+  }
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throwContractIssue(unsafePath(path, `repository root must be an ordinary directory, not a symlink or special file: ${path}`));
+  }
+  try {
+    return realpathSync(path);
+  } catch (error) {
+    throwContractIssue(unsafePath(path, `cannot canonicalize repository root ${path}: ${error.message}`));
+  }
+}
+
+function inspectSafePath(repoRoot, path, expectedType = "either") {
+  const absolute = resolve(path);
+  if (!isContained(repoRoot, absolute)) {
+    return unsafePath(path, `generated projection path escapes the real repository root: ${path}`);
+  }
+
+  const child = relative(repoRoot, absolute);
+  const components = child === "" ? [] : child.split(sep);
+  let current = repoRoot;
+  for (let index = 0; index < components.length; index += 1) {
+    current = join(current, components[index]);
+    let stat;
+    try {
+      stat = lstatSync(current);
+    } catch (error) {
+      if (error?.code === "ENOENT") return null;
+      return unsafePath(current, `cannot inspect generated projection path component ${current}: ${error.message}`);
+    }
+
+    if (stat.isSymbolicLink()) {
+      return unsafePath(current, `generated projection path component is a symlink or junction: ${current}`);
+    }
+    const final = index === components.length - 1;
+    if (!final && !stat.isDirectory()) {
+      return unsafePath(current, `generated projection ancestor is not a directory: ${current}`);
+    }
+    if (final) {
+      if (expectedType === "directory" && !stat.isDirectory()) {
+        return unsafePath(current, `generated projection path must be an ordinary directory: ${current}`);
+      }
+      if (expectedType === "file" && !stat.isFile()) {
+        return unsafePath(current, `generated projection path must be an ordinary file: ${current}`);
+      }
+      if (expectedType === "either" && !stat.isDirectory() && !stat.isFile()) {
+        return unsafePath(current, `generated projection path is a special file: ${current}`);
+      }
+    }
+
+    let canonical;
+    try {
+      canonical = realpathSync(current);
+    } catch (error) {
+      return unsafePath(current, `cannot canonicalize generated projection path component ${current}: ${error.message}`);
+    }
+    if (!isContained(repoRoot, canonical)) {
+      return unsafePath(current, `generated projection path resolves outside the real repository root: ${current}`);
+    }
+  }
+  return null;
+}
+
+function scanDirectory(repoRoot, directory, diagnostics) {
+  const rootIssue = inspectSafePath(repoRoot, directory, "directory");
+  if (rootIssue) {
+    diagnostics.push(rootIssue);
+    return;
+  }
+  if (!existsSync(directory)) return;
+
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const child = join(directory, entry.name);
+    const childIssue = inspectSafePath(
+      repoRoot,
+      child,
+      entry.isDirectory() ? "directory" : "file",
+    );
+    if (childIssue) {
+      diagnostics.push(childIssue);
+      continue;
+    }
+    if (entry.isDirectory()) scanDirectory(repoRoot, child, diagnostics);
+  }
+}
+
+function scanProjectionSafety(manifest, repoRoot) {
+  const diagnostics = [];
+  const bridgeRoot = join(repoRoot, ...manifest.codex.bridge_root.split("/"));
+  const agentRoot = join(repoRoot, ...manifest.codex.agent_root.split("/"));
+  const bridgeRootIssue = inspectSafePath(repoRoot, bridgeRoot, "directory");
+  if (bridgeRootIssue) diagnostics.push(bridgeRootIssue);
+  else if (existsSync(bridgeRoot)) {
+    for (const entry of readdirSync(bridgeRoot, { withFileTypes: true })) {
+      if (!entry.name.startsWith("govfolio-")) continue;
+      scanDirectory(repoRoot, join(bridgeRoot, entry.name), diagnostics);
+    }
+  }
+  const agentRootIssue = inspectSafePath(repoRoot, agentRoot, "directory");
+  if (agentRootIssue) diagnostics.push(agentRootIssue);
+  else if (existsSync(agentRoot)) {
+    for (const entry of readdirSync(agentRoot, { withFileTypes: true })) {
+      if (!entry.name.endsWith(".toml")) continue;
+      const path = join(agentRoot, entry.name);
+      const pathIssue = inspectSafePath(repoRoot, path, "file");
+      if (pathIssue) diagnostics.push(pathIssue);
+    }
+  }
+
+  for (const skill of manifest.skills.filter(({ status }) => status === "available")) {
+    const bridgeDirectory = join(bridgeRoot, skill.codex_name);
+    for (const path of [
+      join(bridgeDirectory, "SKILL.md"),
+      join(bridgeDirectory, "agents", "openai.yaml"),
+    ]) {
+      const pathIssue = inspectSafePath(repoRoot, path, "file");
+      if (pathIssue) diagnostics.push(pathIssue);
+    }
+  }
+  for (const role of manifest.roles) {
+    for (const path of [
+      join(agentRoot, `${role.id}.toml`),
+      join(repoRoot, ...role.role_path.split("/")),
+    ]) {
+      const pathIssue = inspectSafePath(repoRoot, path, "file");
+      if (pathIssue) diagnostics.push(pathIssue);
+    }
+  }
+  return diagnostics;
 }
 
 function bridgeDirectoryOwnership(directory) {
@@ -134,19 +291,8 @@ function roleProjection(sourceText, manifest, role) {
   return { text: `${source}${suffix}${expectedBlock}\n`, diagnostics: [] };
 }
 
-function compareOrWrite(path, expected, mode, ownership, diagnostics) {
+function compareOrPlan(path, expected, mode, ownership, diagnostics, operations) {
   if (existsSync(path)) {
-    if (lstatSync(path).isSymbolicLink()) {
-      diagnostics.push(
-        issue(
-          "GENERATED_SYMLINK_FORBIDDEN",
-          path,
-          `generated output path must not be a symlink: ${path}`,
-          "replace the symlink with the generated regular file",
-        ),
-      );
-      return;
-    }
     const actual = readFileSync(path, "utf8");
     if (actual === expected) return;
     if (!ownership(actual)) {
@@ -160,39 +306,41 @@ function compareOrWrite(path, expected, mode, ownership, diagnostics) {
       );
       return;
     }
-    if (mode === "write") writeFileSync(path, expected);
+    if (mode === "write") operations.push({ kind: "write", path, contents: expected });
     else diagnostics.push(issue("GENERATED_OUTPUT_DRIFT", path, `generated output differs: ${path}`));
     return;
   }
   if (mode === "write") {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, expected);
+    operations.push({ kind: "write", path, contents: expected });
   } else {
     diagnostics.push(issue("GENERATED_FILE_MISSING", path, `generated output is missing: ${path}`));
   }
 }
 
-function project(manifest, repoRoot, mode) {
+function planProjection(manifest, repoRoot, mode) {
   const diagnostics = [];
+  const operations = [];
   const expectedBridgeDirectories = new Set();
   const expectedAgentFiles = new Set();
 
   for (const skill of manifest.skills.filter(({ status }) => status === "available")) {
     const bridgeDirectory = join(repoRoot, ...manifest.codex.bridge_root.split("/"), skill.codex_name);
     expectedBridgeDirectories.add(resolve(bridgeDirectory));
-    compareOrWrite(
+    compareOrPlan(
       join(bridgeDirectory, "SKILL.md"),
       renderBridgeSkill(manifest, skill),
       mode,
       isOwnedBridgeSkill,
       diagnostics,
+      operations,
     );
-    compareOrWrite(
+    compareOrPlan(
       join(bridgeDirectory, "agents", "openai.yaml"),
       renderOpenAiMetadata(skill),
       mode,
       isOwnedCommentFile,
       diagnostics,
+      operations,
     );
     if (existsSync(bridgeDirectory)) {
       const allowed = new Set(["SKILL.md", "agents/openai.yaml"]);
@@ -211,7 +359,7 @@ function project(manifest, repoRoot, mode) {
         }
         const text = readFileSync(file.path, "utf8");
         if (isOwnedCommentFile(text) || isOwnedBridgeSkill(text)) {
-          if (mode === "write") rmSync(file.path);
+          if (mode === "write") operations.push({ kind: "remove-file", path: file.path });
           else diagnostics.push(issue("STALE_MARKED_OUTPUT", file.path, `stale marked bridge output: ${file.path}`));
         } else {
           diagnostics.push(
@@ -230,7 +378,14 @@ function project(manifest, repoRoot, mode) {
   for (const role of manifest.roles) {
     const agentPath = join(repoRoot, ...manifest.codex.agent_root.split("/"), `${role.id}.toml`);
     expectedAgentFiles.add(resolve(agentPath));
-    compareOrWrite(agentPath, renderCodexAgent(manifest, role), mode, isOwnedCommentFile, diagnostics);
+    compareOrPlan(
+      agentPath,
+      renderCodexAgent(manifest, role),
+      mode,
+      isOwnedCommentFile,
+      diagnostics,
+      operations,
+    );
 
     const rolePath = join(repoRoot, ...role.role_path.split("/"));
     if (!existsSync(rolePath)) {
@@ -241,7 +396,7 @@ function project(manifest, repoRoot, mode) {
     const rendered = roleProjection(actual, manifest, role);
     diagnostics.push(...rendered.diagnostics);
     if (rendered.text === null || rendered.text === actual) continue;
-    if (mode === "write") writeFileSync(rolePath, rendered.text);
+    if (mode === "write") operations.push({ kind: "write", path: rolePath, contents: rendered.text });
     else diagnostics.push(issue("ROLE_BLOCK_DRIFT", role.role_path, `generated Slot-5 block differs for ${role.id}`));
   }
 
@@ -261,7 +416,7 @@ function project(manifest, repoRoot, mode) {
           ),
         );
       } else if (mode === "write") {
-        rmSync(directory, { recursive: true, force: true });
+        operations.push({ kind: "remove-directory", path: directory });
       } else {
         diagnostics.push(issue("STALE_MARKED_OUTPUT", directory, `stale marked bridge: ${directory}`));
       }
@@ -276,16 +431,58 @@ function project(manifest, repoRoot, mode) {
       if (expectedAgentFiles.has(path)) continue;
       const text = readFileSync(path, "utf8");
       if (!isOwnedCommentFile(text)) continue;
-      if (mode === "write") rmSync(path);
+      if (mode === "write") operations.push({ kind: "remove-file", path });
       else diagnostics.push(issue("STALE_MARKED_OUTPUT", path, `stale marked Codex shim: ${path}`));
     }
+  }
+  return { diagnostics, operations };
+}
+
+function operationSafety(manifest, repoRoot, operations) {
+  const diagnostics = scanProjectionSafety(manifest, repoRoot);
+  for (const operation of operations) {
+    const expectedType = operation.kind === "remove-directory" ? "directory" : "file";
+    const pathIssue = inspectSafePath(repoRoot, operation.path, expectedType);
+    if (pathIssue) diagnostics.push(pathIssue);
   }
   return diagnostics;
 }
 
+function applyOperations(operations) {
+  for (const operation of operations) {
+    if (operation.kind === "write") {
+      mkdirSync(dirname(operation.path), { recursive: true });
+      writeFileSync(operation.path, operation.contents);
+    } else if (operation.kind === "remove-file") {
+      rmSync(operation.path);
+    } else if (operation.kind === "remove-directory") {
+      rmSync(operation.path, { recursive: true, force: true });
+    } else {
+      throw new Error(`unknown projection operation: ${operation.kind}`);
+    }
+  }
+}
+
+function project(manifest, repoRoot, mode) {
+  const safetyDiagnostics = scanProjectionSafety(manifest, repoRoot);
+  if (safetyDiagnostics.length > 0) return safetyDiagnostics;
+
+  const planned = planProjection(manifest, repoRoot, mode);
+  if (planned.diagnostics.length > 0 || mode === "check") return planned.diagnostics;
+
+  const finalSafetyDiagnostics = operationSafety(manifest, repoRoot, planned.operations);
+  if (finalSafetyDiagnostics.length > 0) return finalSafetyDiagnostics;
+  applyOperations(planned.operations);
+  return [];
+}
+
 try {
-  const { mode, repoRoot } = parseArguments(process.argv.slice(2));
+  const arguments_ = parseArguments(process.argv.slice(2));
+  const mode = arguments_.mode;
+  const repoRoot = canonicalRepositoryRoot(arguments_.repoRoot);
   const manifestPath = join(repoRoot, "agents", "skill-routing.json");
+  const manifestIssue = inspectSafePath(repoRoot, manifestPath, "file");
+  if (manifestIssue) throwContractIssue(manifestIssue);
   const parsed = parseManifest(readFileSync(manifestPath, "utf8"), "agents/skill-routing.json");
   const diagnostics = [...parsed.diagnostics];
   if (parsed.manifest) diagnostics.push(...validateManifest(parsed.manifest, repoRoot));
@@ -298,7 +495,7 @@ try {
   }
 } catch (error) {
   process.stderr.write(
-    `${formatDiagnostics([issue("PROJECTION_RENDER_FAILED", "agents/skill-routing.json", error.message)])}\n`,
+    `${formatDiagnostics([error.contractIssue ?? issue("PROJECTION_RENDER_FAILED", "agents/skill-routing.json", error.message)])}\n`,
   );
   process.exitCode = 1;
 }
