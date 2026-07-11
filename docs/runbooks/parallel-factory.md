@@ -42,3 +42,8 @@ retired.
 An aging lease with no pending receipt is stalled producer work. A pending receipt is
 integrator work and must never be reclaimed manually. Preserve unresolved evidence and
 let startup reconciliation decide the next action.
+
+`./agents/monitor.sh` combines the supervisor's fenced process/receipt status with the
+read-only `loop-board` view: DONE/DOING/LEFT registry state, live provider processes,
+structured journal/commit digests, semantic log tails, and aggressive stall tripwires.
+Both binaries are pre-built; the monitor never compiles or mutates repository state.

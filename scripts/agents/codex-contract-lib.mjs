@@ -100,6 +100,331 @@ function safeRepositoryPath(repoRoot, repositoryPath) {
   return { absolutePath, repositoryPath: normalizedRelativePath(fromRoot) };
 }
 
+function resolveRegularRepositoryFile(repoRoot, repositoryPath, diagnosticPrefix) {
+  const safe = safeRepositoryPath(repoRoot, repositoryPath);
+  if (!safe) {
+    return {
+      file: null,
+      diagnostics: [
+        diagnostic(
+          `${diagnosticPrefix}_PATH_OUTSIDE_REPO`,
+          `${repositoryPath} must be a repository-relative path`,
+          {
+            path: repositoryPath,
+            actual: repositoryPath,
+            repair: "use a forward-slash path to a regular file inside the repository",
+          },
+        ),
+      ],
+    };
+  }
+  if (!existsSync(safe.absolutePath)) {
+    return {
+      file: null,
+      diagnostics: [
+        diagnostic(`${diagnosticPrefix}_MISSING`, `required file does not exist: ${repositoryPath}`, {
+          path: repositoryPath,
+          actual: null,
+          repair: `restore ${repositoryPath} or select an existing repository file`,
+        }),
+      ],
+    };
+  }
+  const stat = lstatSync(safe.absolutePath);
+  if (!stat.isFile()) {
+    return {
+      file: null,
+      diagnostics: [
+        diagnostic(
+          `${diagnosticPrefix}_NOT_REGULAR_FILE`,
+          `required path is not a regular file: ${repositoryPath}`,
+          {
+            path: repositoryPath,
+            expected: "regular file",
+            actual: stat.isSymbolicLink() ? "symbolic link" : "non-regular file",
+            repair: "replace the path with a regular repository file",
+          },
+        ),
+      ],
+    };
+  }
+  const rootReal = realpathSync(resolve(repoRoot));
+  const fileReal = realpathSync(safe.absolutePath);
+  const fromRoot = relative(rootReal, fileReal);
+  if (fromRoot === "" || fromRoot === ".." || fromRoot.startsWith(`..${sep}`) || isAbsolute(fromRoot)) {
+    return {
+      file: null,
+      diagnostics: [
+        diagnostic(
+          `${diagnosticPrefix}_PATH_OUTSIDE_REPO`,
+          `required path resolves outside the repository: ${repositoryPath}`,
+          {
+            path: repositoryPath,
+            actual: fileReal,
+            repair: "replace symlinked ancestors with a regular path inside the repository",
+          },
+        ),
+      ],
+    };
+  }
+  return {
+    file: {
+      absolutePath: fileReal,
+      repositoryPath: normalizedRelativePath(fromRoot),
+      buffer: readFileSync(fileReal),
+    },
+    diagnostics: [],
+  };
+}
+
+function isSourceAuthorityPath(repositoryPath) {
+  return /^docs\/regimes\/(?:[a-z0-9][a-z0-9_-]*\.md|[a-z0-9][a-z0-9_-]*\/AUTHORITY\.md)$/.test(
+    repositoryPath,
+  );
+}
+
+function isGitTracked(repoRoot, repositoryPath) {
+  try {
+    const output = execFileSync(
+      "git",
+      ["ls-files", "--error-unmatch", "--", repositoryPath],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    return output
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .map(normalizedRelativePath)
+      .includes(repositoryPath);
+  } catch (error) {
+    if (error?.status === 1) return false;
+    throw error;
+  }
+}
+
+function trackedGoalPaths(repoRoot, goalId) {
+  return execFileSync(
+    "git",
+    ["ls-files", "--", `agents/goals/${goalId}-*.md`],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  )
+    .split(/\r?\n/)
+    .filter(Boolean)
+    .map(normalizedRelativePath)
+    .sort(byteCompare);
+}
+
+function parseGitTreeEntry(output, repositoryPath) {
+  for (const entry of output.split("\0").filter(Boolean)) {
+    const match = entry.match(/^(\d+) (blob|tree) ([0-9a-f]+)\t(.+)$/);
+    if (match && normalizedRelativePath(match[4]) === repositoryPath) {
+      return { mode: match[1], type: match[2], blob: match[3] };
+    }
+  }
+  return null;
+}
+
+function gitHeadEntry(repoRoot, repositoryPath) {
+  const output = execFileSync(
+    "git",
+    ["ls-tree", "-z", "HEAD", "--", repositoryPath],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  const entry = parseGitTreeEntry(output, repositoryPath);
+  return entry?.type === "blob" && /^100\d{3}$/.test(entry.mode) ? entry : null;
+}
+
+function gitIndexEntry(repoRoot, repositoryPath) {
+  const output = execFileSync(
+    "git",
+    ["ls-files", "--stage", "-z", "--", repositoryPath],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    },
+  );
+  for (const entry of output.split("\0").filter(Boolean)) {
+    const match = entry.match(/^(\d+) ([0-9a-f]+) (\d)\t(.+)$/);
+    if (
+      match &&
+      match[3] === "0" &&
+      normalizedRelativePath(match[4]) === repositoryPath
+    ) {
+      return { mode: match[1], blob: match[2] };
+    }
+  }
+  return null;
+}
+
+function filteredBufferBlob(repoRoot, file) {
+  return execFileSync(
+    "git",
+    ["hash-object", "--filters", `--path=${file.repositoryPath}`, "--stdin"],
+    {
+      cwd: repoRoot,
+      input: file.buffer,
+      encoding: "utf8",
+      stdio: ["pipe", "pipe", "pipe"],
+    },
+  ).trim();
+}
+
+function reviewedHeadDiagnostics(repoRoot, file, diagnosticPrefix, label) {
+  const head = gitHeadEntry(repoRoot, file.repositoryPath);
+  if (!head) {
+    return [
+      diagnostic(
+        `${diagnosticPrefix}_NOT_IN_HEAD`,
+        `${label} is not present in HEAD: ${file.repositoryPath}`,
+        {
+          path: file.repositoryPath,
+          expected: "reviewed file committed in HEAD",
+          actual: "absent from HEAD",
+          repair: `select a reviewed ${label} already committed in HEAD`,
+        },
+      ),
+    ];
+  }
+  const index = gitIndexEntry(repoRoot, file.repositoryPath);
+  const worktreeBlob = filteredBufferBlob(repoRoot, file);
+  if (
+    !index ||
+    index.mode !== head.mode ||
+    index.blob !== head.blob ||
+    worktreeBlob !== head.blob
+  ) {
+    return [
+      diagnostic(
+        `${diagnosticPrefix}_DIRTY`,
+        `${label} differs from HEAD: ${file.repositoryPath}`,
+        {
+          path: file.repositoryPath,
+          expected: "index and worktree bytes equal HEAD",
+          actual: {
+            head_blob: head.blob,
+            index_blob: index?.blob ?? null,
+            worktree_blob: worktreeBlob,
+          },
+          repair: `restore ${file.repositoryPath} to HEAD before dispatch`,
+        },
+      ),
+    ];
+  }
+  return [];
+}
+
+function approvedSectionDiagnostics(repoRoot, file) {
+  if (!isGitTracked(repoRoot, file.repositoryPath)) {
+    return [
+      diagnostic("SECTION_UNTRACKED", `dispatch section is not Git-tracked: ${file.repositoryPath}`, {
+        path: file.repositoryPath,
+        expected: "Git-tracked approved dispatch section",
+        actual: "untracked",
+        repair: "select a reviewed tracked prompt, plan, or actively indexed goal",
+      }),
+    ];
+  }
+  const sectionHeadDiagnostics = reviewedHeadDiagnostics(
+    repoRoot,
+    file,
+    "SECTION",
+    "dispatch section",
+  );
+  if (sectionHeadDiagnostics.length > 0) return sectionHeadDiagnostics;
+  if (
+    file.repositoryPath === "agents/PROMPT.md" ||
+    file.repositoryPath === "agents/PROMPT-FACTORY-LANE.md" ||
+    /^docs\/plans\/.+\.md$/.test(file.repositoryPath) ||
+    /^agents\/workflows\/[^/]+\.md$/.test(file.repositoryPath)
+  ) {
+    return [];
+  }
+
+  const goal = file.repositoryPath.match(/^agents\/goals\/(\d{3})-[a-z0-9][a-z0-9-]*\.md$/);
+  if (!goal) {
+    return [
+      diagnostic("SECTION_NOT_APPROVED", `path is not an approved dispatch section: ${file.repositoryPath}`, {
+        path: file.repositoryPath,
+        expected: "runner prompt, docs/plans/**/*.md, agents/workflows/*.md, or actively indexed agents/goals/*.md",
+        actual: file.repositoryPath,
+        repair: "select an approved tracked dispatch section",
+      }),
+    ];
+  }
+
+  const index = resolveRegularRepositoryFile(
+    repoRoot,
+    "agents/goals/000-INDEX.md",
+    "GOAL_INDEX",
+  );
+  if (index.diagnostics.length > 0) return index.diagnostics;
+  if (!isGitTracked(repoRoot, index.file.repositoryPath)) {
+    return [
+      diagnostic("GOAL_INDEX_UNTRACKED", "goal index must be Git-tracked", {
+        path: index.file.repositoryPath,
+        expected: "Git-tracked goal index",
+        actual: "untracked",
+        repair: "restore the tracked agents/goals/000-INDEX.md",
+      }),
+    ];
+  }
+  const indexHeadDiagnostics = reviewedHeadDiagnostics(
+    repoRoot,
+    index.file,
+    "GOAL_INDEX",
+    "goal index",
+  );
+  if (indexHeadDiagnostics.length > 0) return indexHeadDiagnostics;
+  const goalId = goal[1];
+  const matchingGoalPaths = trackedGoalPaths(repoRoot, goalId);
+  if (
+    matchingGoalPaths.length !== 1 ||
+    matchingGoalPaths[0] !== file.repositoryPath
+  ) {
+    return [
+      diagnostic(
+        "SECTION_GOAL_AMBIGUOUS",
+        `goal id ${goalId} does not resolve to one tracked basename`,
+        {
+          path: file.repositoryPath,
+          expected: [file.repositoryPath],
+          actual: matchingGoalPaths,
+          repair: `keep exactly one tracked agents/goals/${goalId}-*.md file before dispatch`,
+        },
+      ),
+    ];
+  }
+  const indexText = index.file.buffer.toString("utf8");
+  const activeEntry = new RegExp(`^- \\[(?: |~)\\] ${goalId}(?:\\s|$)`, "m");
+  if (!activeEntry.test(indexText)) {
+    return [
+      diagnostic(
+        "SECTION_GOAL_NOT_INDEXED",
+        `goal ${file.repositoryPath} is not active in agents/goals/000-INDEX.md`,
+        {
+          path: file.repositoryPath,
+          expected: `an unchecked or in-progress ${goalId} entry in agents/goals/000-INDEX.md`,
+          actual: null,
+          repair: "select an actively indexed goal; never register a goal during dispatch",
+        },
+      ),
+    ];
+  }
+  return [];
+}
+
 function frame(buffer) {
   const length = Buffer.alloc(4);
   length.writeUInt32BE(buffer.length);
@@ -641,6 +966,23 @@ export function validateManifest(manifest, repoRoot) {
         }),
       );
     }
+    const situationalTriggers = asArray(role.situational)
+      .map((situation) => situation?.trigger)
+      .filter((trigger) => typeof trigger === "string");
+    for (const trigger of duplicates(situationalTriggers, (value) => value)) {
+      diagnostics.push(
+        diagnostic(
+          "DUPLICATE_SITUATIONAL_TRIGGER",
+          `${role.id} repeats situational trigger ${trigger}`,
+          {
+            path: "agents/skill-routing.json",
+            role: role.id,
+            actual: trigger,
+            repair: `merge ${role.id}'s requirements for ${trigger} into one situational allocation`,
+          },
+        ),
+      );
+    }
     let slotCost = 0;
     for (const requirement of asArray(role.active)) {
       slotCost += packById.get(requirement)?.slot_cost ?? 1;
@@ -885,26 +1227,24 @@ export function parseRequiredSkills(markdown, sourcePath, heading) {
     }
     return fenced ? null : line;
   });
-  let start = -1;
-  let targetIndex = -1;
-  let level = 0;
-  let ancestors = [];
+  const headings = [];
   const headingStack = [];
   for (let index = 0; index < visible.length; index += 1) {
     const match = visible[index]?.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
     if (!match) continue;
     const currentLevel = match[1].length;
     while (headingStack.at(-1)?.level >= currentLevel) headingStack.pop();
-    if (match[2] === heading) {
-      start = index + 1;
-      targetIndex = index;
-      level = currentLevel;
-      ancestors = [...headingStack];
-      break;
-    }
-    headingStack.push({ index, level: currentLevel, heading: match[2] });
+    const current = {
+      index,
+      level: currentLevel,
+      heading: match[2],
+      ancestors: [...headingStack],
+    };
+    headings.push(current);
+    headingStack.push(current);
   }
-  if (start < 0) {
+  const matches = headings.filter((entry) => entry.heading === heading);
+  if (matches.length === 0) {
     return {
       requirements: [],
       diagnostics: [
@@ -917,31 +1257,73 @@ export function parseRequiredSkills(markdown, sourcePath, heading) {
       ],
     };
   }
+  if (matches.length > 1) {
+    return {
+      requirements: [],
+      diagnostics: [
+        diagnostic(
+          "REQUIRED_SKILLS_HEADING_AMBIGUOUS",
+          `heading is not unique in ${sourcePath}: ${heading}`,
+          {
+            path: sourcePath,
+            expected: "one exact heading",
+            actual: matches.map(({ index, level }) => ({ line: index + 1, level })),
+            repair: `make the selectable heading unique in ${sourcePath}`,
+          },
+        ),
+      ],
+    };
+  }
+  const target = matches[0];
+  const start = target.index + 1;
+  const targetIndex = target.index;
+  const level = target.level;
+  const ancestors = target.ancestors;
+
   function fieldInRange(rangeStart, rangeEnd, ownerHeading) {
+    const fields = [];
     for (let index = rangeStart; index < rangeEnd; index += 1) {
       const field = visible[index]?.match(/^\s*\*\*Required skills:\*\*\s*(.*?)\s*$/);
-      if (!field) continue;
-      if (field[1] === "" || /^none$/i.test(field[1])) {
-        return { requirements: [], diagnostics: [] };
-      }
-      const requirements = field[1].split(",").map((value) => value.trim()).filter(Boolean);
-      const invalid = requirements.filter((value) => !/^(skill|pack):[a-z0-9][a-z0-9-]*$/.test(value));
-      if (invalid.length > 0) {
-        return {
-          requirements: [],
-          diagnostics: invalid.map((value) =>
-            diagnostic("INVALID_REQUIRED_SKILL_ID", `invalid Required skills entry: ${value}`, {
-              path: sourcePath,
-              skill: value,
-              actual: value,
-              repair: `use comma-separated namespaced skill: or pack: IDs under ${ownerHeading}`,
-            }),
-          ),
-        };
-      }
-      return { requirements, diagnostics: [] };
+      if (field) fields.push({ field, index });
     }
-    return { requirements: [], diagnostics: [] };
+    if (fields.length > 1) {
+      return {
+        requirements: [],
+        diagnostics: [
+          diagnostic(
+            "DUPLICATE_REQUIRED_SKILLS_FIELD",
+            `multiple Required skills fields appear directly under ${ownerHeading}`,
+            {
+              path: sourcePath,
+              expected: "at most one Required skills field per heading scope",
+              actual: fields.map(({ index }) => index + 1),
+              repair: `merge the Required skills fields directly under ${ownerHeading}`,
+            },
+          ),
+        ],
+      };
+    }
+    if (fields.length === 0) return { requirements: [], diagnostics: [] };
+    const value = fields[0].field[1];
+    if (value === "" || /^none$/i.test(value)) {
+      return { requirements: [], diagnostics: [] };
+    }
+    const requirements = value.split(",").map((entry) => entry.trim()).filter(Boolean);
+    const invalid = requirements.filter((entry) => !/^(skill|pack):[a-z0-9][a-z0-9-]*$/.test(entry));
+    if (invalid.length > 0) {
+      return {
+        requirements: [],
+        diagnostics: invalid.map((entry) =>
+          diagnostic("INVALID_REQUIRED_SKILL_ID", `invalid Required skills entry: ${entry}`, {
+            path: sourcePath,
+            skill: entry,
+            actual: entry,
+            repair: `use comma-separated namespaced skill: or pack: IDs under ${ownerHeading}`,
+          }),
+        ),
+      };
+    }
+    return { requirements, diagnostics: [] };
   }
 
   const requirements = [];
@@ -966,7 +1348,14 @@ export function parseRequiredSkills(markdown, sourcePath, heading) {
       break;
     }
   }
-  const selected = fieldInRange(start, sectionEnd, heading);
+  let selectedScopeEnd = sectionEnd;
+  for (let index = start; index < sectionEnd; index += 1) {
+    if (visible[index]?.match(/^(#{1,6})\s+/)) {
+      selectedScopeEnd = index;
+      break;
+    }
+  }
+  const selected = fieldInRange(start, selectedScopeEnd, heading);
   requirements.push(...selected.requirements);
   diagnostics.push(...selected.diagnostics);
   if (diagnostics.length > 0) return { requirements: [], diagnostics: sortDiagnostics(diagnostics) };
@@ -1058,8 +1447,8 @@ export function resolveDispatch(manifest, options) {
 
   const requirements = [...asArray(role.active)];
   for (const trigger of requestedTriggers) {
-    const situation = asArray(role.situational).find((entry) => entry.trigger === trigger);
-    if (!situation) {
+    const matchingSituations = asArray(role.situational).filter((entry) => entry.trigger === trigger);
+    if (matchingSituations.length === 0) {
       diagnostics.push(
         diagnostic("TRIGGER_NOT_ASSIGNED_TO_ROLE", `${trigger} is not assigned to role ${role.id}`, {
           path: "agents/skill-routing.json",
@@ -1069,8 +1458,27 @@ export function resolveDispatch(manifest, options) {
       );
       continue;
     }
-    requirements.push(...asArray(situation.requirements));
+    if (matchingSituations.length > 1) {
+      diagnostics.push(
+        diagnostic(
+          "DUPLICATE_SITUATIONAL_TRIGGER",
+          `role ${role.id} has multiple allocations for ${trigger}`,
+          {
+            path: "agents/skill-routing.json",
+            role: role.id,
+            actual: trigger,
+            repair: `merge ${role.id}'s requirements for ${trigger} into one situational allocation`,
+          },
+        ),
+      );
+      continue;
+    }
+    requirements.push(...asArray(matchingSituations[0].requirements));
   }
+
+  const needsRepository = Boolean(options?.sectionFile || options?.sectionHeading) ||
+    options?.sourceContext !== null && options?.sourceContext !== undefined;
+  const repoRoot = needsRepository ? findRepoRoot(process.cwd()) : null;
 
   if (options?.sectionFile || options?.sectionHeading) {
     if (!options.sectionFile || !options.sectionHeading) {
@@ -1082,16 +1490,21 @@ export function resolveDispatch(manifest, options) {
       );
     } else {
       try {
-        const repoRoot = findRepoRoot(process.cwd());
-        const safe = safeRepositoryPath(repoRoot, options.sectionFile);
-        if (!safe) throw new Error("section path escapes the repository");
-        const parsed = parseRequiredSkills(
-          readFileSync(safe.absolutePath, "utf8"),
-          options.sectionFile,
-          options.sectionHeading,
-        );
-        diagnostics.push(...parsed.diagnostics.map((item) => ({ ...item, role: role.id })));
-        requirements.push(...parsed.requirements);
+        const section = resolveRegularRepositoryFile(repoRoot, options.sectionFile, "SECTION");
+        diagnostics.push(...section.diagnostics.map((item) => ({ ...item, role: role.id })));
+        if (section.file) {
+          const approvalDiagnostics = approvedSectionDiagnostics(repoRoot, section.file);
+          diagnostics.push(...approvalDiagnostics.map((item) => ({ ...item, role: role.id })));
+          if (approvalDiagnostics.length === 0) {
+            const parsed = parseRequiredSkills(
+              section.file.buffer.toString("utf8"),
+              section.file.repositoryPath,
+              options.sectionHeading,
+            );
+            diagnostics.push(...parsed.diagnostics.map((item) => ({ ...item, role: role.id })));
+            requirements.push(...parsed.requirements);
+          }
+        }
       } catch (error) {
         diagnostics.push(
           diagnostic("SECTION_READ_FAILED", `cannot read dispatch section: ${error.message}`, {
@@ -1100,6 +1513,58 @@ export function resolveDispatch(manifest, options) {
             actual: error.message,
           }),
         );
+      }
+    }
+  }
+
+  let canonicalSourceContext = null;
+  if (options?.sourceContext !== null && options?.sourceContext !== undefined) {
+    const sourceContext = resolveRegularRepositoryFile(
+      repoRoot,
+      options.sourceContext,
+      "SOURCE_CONTEXT",
+    );
+    diagnostics.push(...sourceContext.diagnostics.map((item) => ({ ...item, role: role.id })));
+    if (sourceContext.file) {
+      if (!isSourceAuthorityPath(sourceContext.file.repositoryPath)) {
+        diagnostics.push(
+          diagnostic(
+            "SOURCE_CONTEXT_NOT_SAF",
+            `source context is not a recognized SAF path: ${sourceContext.file.repositoryPath}`,
+            {
+              path: sourceContext.file.repositoryPath,
+              role: role.id,
+              expected: "docs/regimes/<regime>.md or docs/regimes/<regime>/AUTHORITY.md",
+              actual: sourceContext.file.repositoryPath,
+              repair: "select the regime's tracked source-authority file",
+            },
+          ),
+        );
+      } else if (!isGitTracked(repoRoot, sourceContext.file.repositoryPath)) {
+        diagnostics.push(
+          diagnostic(
+            "SOURCE_CONTEXT_UNTRACKED",
+            `source context is not Git-tracked: ${sourceContext.file.repositoryPath}`,
+            {
+              path: sourceContext.file.repositoryPath,
+              role: role.id,
+              expected: "Git-tracked SAF",
+              actual: "untracked",
+              repair: "select the regime's reviewed tracked source-authority file",
+            },
+          ),
+        );
+      } else {
+        const sourceHeadDiagnostics = reviewedHeadDiagnostics(
+          repoRoot,
+          sourceContext.file,
+          "SOURCE_CONTEXT",
+          "source SAF",
+        );
+        diagnostics.push(...sourceHeadDiagnostics.map((item) => ({ ...item, role: role.id })));
+        if (sourceHeadDiagnostics.length === 0) {
+          canonicalSourceContext = sourceContext.file.repositoryPath;
+        }
       }
     }
   }
@@ -1114,7 +1579,7 @@ export function resolveDispatch(manifest, options) {
     envelope: {
       contract_sha256: contractSha256,
       role: role.id,
-      source_context: options?.sourceContext ?? null,
+      source_context: canonicalSourceContext,
       triggers: requestedTriggers,
       skills: expanded.skills.map((entry) => ({
         id: entry.id,

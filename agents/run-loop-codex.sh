@@ -48,7 +48,5 @@ if [ "$PREFLIGHT_ONLY" = "1" ]; then
   exit 0
 fi
 
-# The compatibility name selects Codex as lane 0's preferred provider. The
-# supervisor may use only an exact, mechanically proven Claude fallback.
 export GOVFOLIO_LOOP_PROVIDER=codex
 exec "$ROOT/agents/run-loop.sh" "$@"

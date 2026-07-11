@@ -36,3 +36,4 @@ agents/loop.lane-*.log
 agents/codex-loop.lane-*.log
 agents/codex-loop.log
 .superpowers/sdd/
+.codex/config.toml
