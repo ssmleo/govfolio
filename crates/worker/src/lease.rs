@@ -1,157 +1,160 @@
-//! Atomic jurisdiction lease (goal 097) — implements the claim path that
-//! `docs/runbooks/parallel-factory.md` pre-check 1 required before running
-//! N>1 loop workers: claiming a jurisdiction is a SINGLE statement; a
-//! SELECT-then-UPDATE races and two lanes grab the same source.
+//! Generation-fenced jurisdiction leases for factory producers.
 //!
-//! `FOR UPDATE SKIP LOCKED` in the claim subquery is load-bearing: without
-//! it, a concurrent claim blocks on the winner's row lock and — under READ
-//! COMMITTED re-check semantics — re-evaluates only the outer `j.id = pick.id`
-//! predicate after the winner commits, silently overwriting the winner's
-//! lease. With it, a locked row is passed over entirely.
-//!
-//! Lease semantics (source-exploration.md conventions):
-//! - one jurisdiction lease per lane; `claim_next` prefers resuming the
-//!   lane's own in-flight row (renewing `claimed_at` as the heartbeat)
-//!   before taking anything new, so a lane can never accumulate two leases
-//!   through the claim path;
-//! - a lease older than 24h is stale and free for any lane to reclaim;
-//! - `advance` moves `coverage_phase` at an intermediate phase boundary and
-//!   KEEPS the lease; `release` clears it (optionally advancing to a final
-//!   phase or blocking with a reason).
+//! Claim selection and ownership transfer remain one SQL statement with
+//! `FOR UPDATE SKIP LOCKED`. New or stale ownership increments the durable
+//! generation; resuming the same lane preserves it. Once an immutable
+//! integration receipt is pending, every producer claim/renew/abandon path
+//! excludes the row. Receipt apply is the sole `coverage_phase` authority.
 
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Utc};
 
-/// Intermediate phases a holder may [`advance`] to while KEEPING the lease.
-/// `live` is deliberately absent: a live row is invisible to every claim path
-/// (`coverage_phase not in ('live','blocked')`), so advancing to live without
-/// releasing would strand an unreclaimable ghost lease — live goes through
-/// [`Disposition::Advance`] on [`release`] only. `stub` is the seed state
-/// (never a target); `blocked` only enters through [`Disposition::Block`].
-const ADVANCE_KEEP_PHASES: &[&str] = &["scouted", "surveyed", "sampled", "specced", "built"];
+/// The claimability definition shared by [`claim_next`] and
+/// [`claimable_count`]. `$1` is an optional lane identity and `$2` is epoch.
+/// A pending receipt remains a live lane holding, so the `not exists` leg
+/// deliberately still prevents that lane from acquiring a second row.
+const CLAIMABLE_PREDICATE: &str = "\
+pending_integration_id is null
+and coverage_phase not in ('live', 'blocked')
+and (
+  ($1::text is not null and claimed_by = $1)
+  or (
+    epoch = $2
+    and (claimed_by is null
+         or claimed_at < now() - interval '24 hours')
+    and not exists (
+      select 1 from jurisdiction held
+      where held.claimed_by = $1
+        and held.coverage_phase not in ('live', 'blocked')
+    )
+  )
+)";
 
-/// Phases a [`release`] may land on (the terminal `live` included).
-const RELEASE_PHASES: &[&str] = &["scouted", "surveyed", "sampled", "specced", "built", "live"];
+fn claimable_sql(head: &str, tail: &str) -> String {
+    // Both call sites supply compile-time SQL fragments. Runtime values remain
+    // bind parameters before the locally constructed statement is asserted.
+    format!("{head}\nwhere {CLAIMABLE_PREDICATE}\n{tail}")
+}
 
-/// A successfully claimed registry row.
+/// One successfully claimed registry row.
 #[derive(Debug, sqlx::FromRow)]
 pub struct Lease {
     pub id: String,
     pub coverage_phase: String,
     pub epoch: Option<i16>,
     pub priority_score: Option<f32>,
+    pub generation: i64,
 }
 
-/// One live lease, as reported by [`status`].
+/// One currently held lease for monitoring.
 #[derive(Debug, sqlx::FromRow)]
 pub struct LeaseStatus {
     pub id: String,
     pub coverage_phase: String,
     pub claimed_by: String,
     pub claimed_at: DateTime<Utc>,
+    pub generation: i64,
+    pub pending_integration_id: Option<String>,
 }
 
-/// How a lease ends.
+/// Retained only so legacy direct-release callers fail at runtime instead of
+/// silently mutating phase. New producer code uses generation-CAS [`abandon`].
 #[derive(Debug)]
 pub enum Disposition {
-    /// Clear the lease, leave `coverage_phase` untouched.
     Keep,
-    /// Clear the lease and advance to a final phase (validated against the
-    /// phase contract).
     Advance(String),
-    /// Clear the lease, set `coverage_phase = 'blocked'` + the reason.
     Block(String),
 }
 
-fn validate_phase(phase: &str, allowed: &[&str]) -> anyhow::Result<()> {
-    if !allowed.contains(&phase) {
-        bail!(
-            "phase {phase:?} is outside the contract {allowed:?} \
-             (blocked goes through release --block <reason>; \
-             live goes through release --advance live)"
-        );
-    }
-    Ok(())
-}
-
-/// Atomically claim the best claimable jurisdiction in `epoch` for `me`:
-/// the lane's own in-flight lease first (resume + heartbeat renew — in ANY
-/// epoch, so an epoch flip can never hand a lane a second lease while it
-/// still holds an unfinished row), then unclaimed or stale (>24h) rows in
-/// `epoch` by `priority_score`. Returns `None` when nothing is claimable —
-/// the caller stops, fail closed.
+/// Claim the best row atomically, preferring the lane's own unfinished row.
+/// An own resume renews the heartbeat without changing generation; a new or
+/// stale ownership transfer increments generation in the same statement.
 ///
 /// # Errors
-/// Propagates the Postgres error when either claim statement fails.
+///
+/// Propagates connection acquisition or Postgres claim failures.
 pub async fn claim_next<'a, A>(acq: A, me: &str, epoch: i16) -> anyhow::Result<Option<Lease>>
 where
     A: sqlx::Acquire<'a, Database = sqlx::Postgres>,
 {
     let mut conn = acq.acquire().await.context("acquiring connection")?;
-    // Resume-own runs FIRST and WITHOUT the epoch filter: a lease held from a
-    // previous epoch still binds this lane until released (never two leases).
-    // No race window between the two statements — only `me` writes
-    // `claimed_by = $1` rows, and a lane is a single process.
-    let own: Option<Lease> = sqlx::query_as(
-        "update jurisdiction
-         set claimed_at = now()
-         where claimed_by = $1
-           and coverage_phase not in ('live', 'blocked')
-         returning id, coverage_phase, epoch, priority_score",
-    )
-    .bind(me)
-    .fetch_optional(&mut *conn)
-    .await
-    .context("resuming own jurisdiction lease")?;
-    if own.is_some() {
-        return Ok(own);
-    }
-    sqlx::query_as(
+    let pick = claimable_sql(
+        "select id from jurisdiction",
+        "order by case when claimed_by = $1 then 0 else 1 end,
+                  priority_score desc nulls last, id
+         limit 1
+         for update skip locked",
+    );
+    let statement = format!(
         "update jurisdiction j
-         set claimed_by = $1, claimed_at = now()
-         from (
-           select id from jurisdiction
-           where epoch = $2
-             and coverage_phase not in ('live', 'blocked')
-             and (claimed_by is null
-                  or claimed_at < now() - interval '24 hours')
-           order by priority_score desc nulls last, id
-           limit 1
-           for update skip locked
-         ) pick
+         set claimed_by = $1,
+             claimed_at = now(),
+             lease_generation = case
+               when j.claimed_by = $1 then j.lease_generation
+               else j.lease_generation + 1
+             end
+         from ({pick}) pick
          where j.id = pick.id
-         returning j.id, j.coverage_phase, j.epoch, j.priority_score",
-    )
-    .bind(me)
-    .bind(epoch)
-    .fetch_optional(&mut *conn)
-    .await
-    .context("claiming next jurisdiction lease")
+         returning j.id, j.coverage_phase, j.epoch, j.priority_score,
+                   j.lease_generation as generation"
+    );
+    sqlx::query_as(sqlx::AssertSqlSafe(statement))
+        .bind(me)
+        .bind(epoch)
+        .fetch_optional(&mut *conn)
+        .await
+        .context("claiming next jurisdiction lease")
 }
 
-/// Atomically claim one specific jurisdiction. Same holdability guard as
-/// [`claim_next`] (free, own, or stale) but no phase/epoch filter — targeted
-/// claims are an operator affordance, not the factory path.
+/// Count rows visible to the exact [`claim_next`] predicate without locking or
+/// mutating them. Suppressed/pending rows therefore yield a zero-spend stop.
 ///
 /// # Errors
-/// Propagates the Postgres error when the claim statement fails.
+///
+/// Propagates the Postgres read failure.
+pub async fn claimable_count<'e, E>(exec: E, me: Option<&str>, epoch: i16) -> anyhow::Result<i64>
+where
+    E: sqlx::PgExecutor<'e>,
+{
+    let statement = claimable_sql("select count(*) from jurisdiction", "");
+    sqlx::query_scalar(sqlx::AssertSqlSafe(statement))
+        .bind(me)
+        .bind(epoch)
+        .fetch_one(exec)
+        .await
+        .context("counting claimable jurisdictions")
+}
+
+/// Claim or resume one specific jurisdiction atomically. Pending integration
+/// excludes unclaimed, own, and stale targeted paths alike.
+///
+/// # Errors
+///
+/// Propagates the Postgres claim failure.
 pub async fn claim_id<'e, E>(exec: E, me: &str, id: &str) -> anyhow::Result<Option<Lease>>
 where
     E: sqlx::PgExecutor<'e>,
 {
     sqlx::query_as(
         "update jurisdiction j
-         set claimed_by = $1, claimed_at = now()
+         set claimed_by = $1,
+             claimed_at = now(),
+             lease_generation = case
+               when j.claimed_by = $1 then j.lease_generation
+               else j.lease_generation + 1
+             end
          from (
            select id from jurisdiction
            where id = $2
+             and pending_integration_id is null
              and (claimed_by is null
                   or claimed_by = $1
                   or claimed_at < now() - interval '24 hours')
            for update skip locked
          ) pick
          where j.id = pick.id
-         returning j.id, j.coverage_phase, j.epoch, j.priority_score",
+         returning j.id, j.coverage_phase, j.epoch, j.priority_score,
+                   j.lease_generation as generation",
     )
     .bind(me)
     .bind(id)
@@ -160,98 +163,108 @@ where
     .context("claiming jurisdiction lease by id")
 }
 
-/// Advance `coverage_phase` at an intermediate phase boundary while KEEPING
-/// the lease (renews the heartbeat). Returns `false` when `me` does not hold
-/// the lease — never advances a row that isn't yours.
+/// Renew only the exact lane/generation pair while no receipt is pending.
+/// A stale or foreign credential returns `false` without changing the row.
 ///
 /// # Errors
-/// `to` outside the phase contract (fail closed, before the DB CHECK would
-/// reject it), or a Postgres error from the update.
-pub async fn advance<'e, E>(exec: E, me: &str, id: &str, to: &str) -> anyhow::Result<bool>
+///
+/// Propagates the Postgres compare-and-swap failure.
+pub async fn renew<'e, E>(exec: E, me: &str, id: &str, generation: i64) -> anyhow::Result<bool>
 where
     E: sqlx::PgExecutor<'e>,
 {
-    validate_phase(to, ADVANCE_KEEP_PHASES)?;
     let row: Option<(String,)> = sqlx::query_as(
         "update jurisdiction
-         set coverage_phase = $3, claimed_at = now()
-         where id = $2 and claimed_by = $1
+         set claimed_at = now()
+         where id = $2
+           and claimed_by = $1
+           and lease_generation = $3
+           and pending_integration_id is null
          returning id",
     )
     .bind(me)
     .bind(id)
-    .bind(to)
+    .bind(generation)
     .fetch_optional(exec)
     .await
-    .context("advancing leased jurisdiction phase")?;
+    .context("renewing jurisdiction lease generation")?;
     Ok(row.is_some())
 }
 
-/// Clear the lease per the disposition. Returns `false` when `me` does not
-/// hold it (can't release a lease that isn't yours).
+/// Abandon without changing phase, only for the exact lane/generation pair
+/// and only before receipt submission. Receipt apply owns pending leases.
 ///
 /// # Errors
-/// A [`Disposition::Advance`] phase outside the contract, or a Postgres
-/// error from the update.
+///
+/// Propagates the Postgres compare-and-swap failure.
+pub async fn abandon<'e, E>(exec: E, me: &str, id: &str, generation: i64) -> anyhow::Result<bool>
+where
+    E: sqlx::PgExecutor<'e>,
+{
+    let row: Option<(String,)> = sqlx::query_as(
+        "update jurisdiction
+         set claimed_by = null, claimed_at = null
+         where id = $2
+           and claimed_by = $1
+           and lease_generation = $3
+           and pending_integration_id is null
+         returning id",
+    )
+    .bind(me)
+    .bind(id)
+    .bind(generation)
+    .fetch_optional(exec)
+    .await
+    .context("abandoning jurisdiction lease generation")?;
+    Ok(row.is_some())
+}
+
+/// Retired direct phase mutation. Receipt apply is the sole phase authority.
+///
+/// # Errors
+///
+/// Always returns an error so old callers cannot move registry state ahead of
+/// the exact green commit on `origin/main`.
+#[expect(clippy::unused_async, reason = "retired async API must fail closed")]
+pub async fn advance<'e, E>(_exec: E, _me: &str, _id: &str, _to: &str) -> anyhow::Result<bool>
+where
+    E: sqlx::PgExecutor<'e>,
+{
+    bail!("direct phase advance is retired; submit an immutable integration receipt")
+}
+
+/// Retired direct release/live/block mutation. Generation-CAS [`abandon`] is
+/// the only pre-receipt producer release path.
+///
+/// # Errors
+///
+/// Always returns an error so old callers cannot mutate phase or release a
+/// pending integration lease.
+#[expect(clippy::unused_async, reason = "retired async API must fail closed")]
 pub async fn release<'e, E>(
-    exec: E,
-    me: &str,
-    id: &str,
-    disposition: Disposition,
+    _exec: E,
+    _me: &str,
+    _id: &str,
+    _disposition: Disposition,
 ) -> anyhow::Result<bool>
 where
     E: sqlx::PgExecutor<'e>,
 {
-    let query = match &disposition {
-        Disposition::Keep => sqlx::query_as(
-            "update jurisdiction
-             set claimed_by = null, claimed_at = null
-             where id = $2 and claimed_by = $1
-             returning id",
-        )
-        .bind(me)
-        .bind(id),
-        Disposition::Advance(phase) => {
-            validate_phase(phase, RELEASE_PHASES)?;
-            sqlx::query_as(
-                "update jurisdiction
-                 set claimed_by = null, claimed_at = null, coverage_phase = $3
-                 where id = $2 and claimed_by = $1
-                 returning id",
-            )
-            .bind(me)
-            .bind(id)
-            .bind(phase.clone())
-        }
-        Disposition::Block(reason) => sqlx::query_as(
-            "update jurisdiction
-             set claimed_by = null, claimed_at = null,
-                 coverage_phase = 'blocked', blocked_reason = $3
-             where id = $2 and claimed_by = $1
-             returning id",
-        )
-        .bind(me)
-        .bind(id)
-        .bind(reason.clone()),
-    };
-    let row: Option<(String,)> = query
-        .fetch_optional(exec)
-        .await
-        .context("releasing jurisdiction lease")?;
-    Ok(row.is_some())
+    bail!("direct phase release is retired; submit an immutable integration receipt")
 }
 
-/// Every live lease — the shared "who's doing what" board
-/// (parallel-factory.md legibility discipline).
+/// Return every held lease, including pending integration, for monitoring.
 ///
 /// # Errors
-/// Propagates the Postgres error when the select fails.
+///
+/// Propagates the Postgres read failure.
 pub async fn status<'e, E>(exec: E) -> anyhow::Result<Vec<LeaseStatus>>
 where
     E: sqlx::PgExecutor<'e>,
 {
     sqlx::query_as(
-        "select id, coverage_phase, claimed_by, claimed_at
+        "select id, coverage_phase, claimed_by, claimed_at,
+                lease_generation as generation, pending_integration_id
          from jurisdiction
          where claimed_by is not null
          order by claimed_at",

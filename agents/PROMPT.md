@@ -23,11 +23,14 @@ You are the govfolio ORCHESTRATOR. Do EXACTLY ONE orchestrator iteration, then s
    guardrail breach HALTS that action, files a goal, and you continue OTHER work — never
    wait on a human. Fixtures/verification auto-resolve to `unverified` + sampling audit.
 
-5. End of iteration: commit on a branch (conventional message referencing the item),
-   append one JOURNAL.md line (date | item | outcome | blockers), then STOP.
-   Never push --force. Never mark anything done without its acceptance commands
-   passing in THIS session. Founder steering commands (/status /queue /proceed
-   /pivot /park) may arrive mid-session; honor them per the role files.
+5. End of a producer iteration: commit locally, create the typed receipt, run
+   `govfolio-loop submit-receipt <receipt.json>`, then
+   `govfolio-loop receipt-status <receipt-id>` and STOP. The producer never appends
+   JOURNAL, advances/blocks/releases phase, pushes, merges, opens a PR, or amends a
+   submitted source commit. Only `govfolio-loop integrate` performs those integration
+   actions and marks domain state applied after exact-SHA checks. Never mark anything
+   done from local acceptance alone. Founder steering commands (/status /queue
+   /proceed /pivot /park) may arrive mid-session; honor them per the role files.
 
 ## FOUNDER APPROVALS LOG (recorded decisions; cite the relevant line when acting)
 - [AUTOMATED 2026-07-04, founder in chat] FULL AUTONOMY: all human gates lifted. Skill

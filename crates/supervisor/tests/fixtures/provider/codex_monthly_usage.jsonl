@@ -1,0 +1,3 @@
+{"type":"thread.started","thread_id":"019f-thread-monthly"}
+{"type":"turn.started"}
+{"type":"error","will_retry":false,"codex_error_info":"usage_limit","message":"Monthly usage limit reached. Resets 2026-08-01T00:00:00Z","request_id":"req_codex_monthly"}

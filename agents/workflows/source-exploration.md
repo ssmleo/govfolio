@@ -5,7 +5,9 @@ by validation, not exhortation: a phase is done when its artifact validates.
 
 State machine (registry: jurisdiction.coverage_phase):
 stub → scouted → surveyed → sampled → specced → built → live | blocked:<reason>
-Lease before working: set claimed_by/claimed_at; release on commit. Stale leases (>24h) are free.
+Claim through `jurisdiction-lease` and retain its generation. Renew/abandon are
+generation-CAS; producers never write lease fields or phase directly. After local commit,
+submit an immutable receipt and wait. The integrator applies phase and terminal release.
 
 ## Phase 0 — SCOUT (role: scout)
 Prompt core: "Identify the OFFICIAL disclosure system(s) for <jurisdiction>. Prefer primary

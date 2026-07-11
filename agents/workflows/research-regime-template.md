@@ -9,8 +9,10 @@ that gates the work: `jurisdiction.coverage_phase`
 seeded worldwide by goal 065 (`crates/core/src/seed/`).
 
 ## Before you start
-- **Claim the lease.** Set `claimed_by` / `claimed_at` on the jurisdiction row;
-  release on commit. Stale leases (>24 h) are free. One jurisdiction per loop.
+- **Claim the lease.** Use `jurisdiction-lease claim`, retain the returned generation,
+  and use generation-CAS renew/abandon only before receipt submission. Never edit lease
+  or phase fields directly. Commit locally, submit the immutable receipt, and wait for
+  the singleton integrator. One jurisdiction per loop.
 - **Pick the phase.** Run the phase that follows the jurisdiction's current
   `coverage_phase`. Do exactly one phase; its validated artifact is "done".
 - **Epoch gate.** Only advance jurisdictions in the open epoch (`agents/EPOCHS.md`);
@@ -51,6 +53,7 @@ evidence.
 - **Write-back is part of done** — new quirks land in the regime doc in the same PR.
 
 ## Done
-The phase's validator passes, the auditor pass (where required) is green, the
-registry row advances (`coverage_phase` bumped, lease released), and the work is
-committed. Then the next loop claims the next-highest-priority stub.
+The phase's validator and auditor pass, the work and SAF write-back are committed locally,
+and an immutable receipt is submitted. Done is the receipt reaching `applied`: only then
+has the integrator proven the exact commit on green `origin/main`, appended the canonical
+JOURNAL line, and projected the registry phase/lease state.

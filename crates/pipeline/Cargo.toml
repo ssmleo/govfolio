@@ -48,6 +48,12 @@ path = "src/bin/validate_survey.rs"
 name = "validate-manifest"
 path = "src/bin/validate_manifest.rs"
 
+# Authority gate (goal 100, design §4.2): invariant 9 made mechanical —
+# lock pins + goal-queue bijection + amendment discipline + hook check-path.
+[[bin]]
+name = "validate-authority"
+path = "src/bin/validate_authority.rs"
+
 # Role-eval epoch gate (goal 016): per-role scores vs the frozen E1
 # reference + entry verdict, for orchestrator use.
 [[bin]]

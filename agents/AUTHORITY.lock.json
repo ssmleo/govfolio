@@ -1,0 +1,33 @@
+{
+  "version": 1,
+  "pinned": {
+    "CLAUDE.md": "9dbaf3959c873b619a8350f7d297d53b5525f2f625bc5dcfa5608bd0e06ddb4c",
+    "agents/EFFORT.md": "3a934c731fce7cff3ccb9ea3ebc7aad22683eeab608b3a291974db9ca715c613",
+    "agents/EPOCHS.md": "183db2e359f4d8d0d847ae8854e2ec1f7b18d266cc3686fb6c06b5a55ecfff06",
+    "agents/GOVERNANCE.md": "a2956ecaf9629b89dc4cf5652101fece0a36805ef6720fb8345b51faf190814f",
+    "agents/LOOP.md": "fdb6f0475087d87e54e8a5a60b3c2bceef18e0dbead9b7648bc5d740d5bf8e13",
+    "agents/PROMPT.md": "54db97e1e066eae4ae29dadfb698e274c0d20c11cdabd9c8492915514cec9c67",
+    "agents/archetypes/_CHASSIS.md": "7c9d2dce34e76d5fdb90e78f106719e9b21841f556eb317e8d59dea8d45d649b",
+    "agents/archetypes/collector.md": "6f5380770b2c3ccdd652b566e2bc9c0a8d449d5dd9915b7b626d1187db567d81",
+    "agents/archetypes/doer.md": "4f06df51418dd57d4673510bb256eee3f79639c665429c595c9d0af8f7b3c761",
+    "agents/archetypes/monitor.md": "01c7032f0d1244715bdd4027559871dce19a00b4ec01a048eba28aa36f8759b1",
+    "agents/archetypes/planner.md": "627dd5f1336bcd5a77fdc9e80926704edf3c848460b0322bfad0aef60d84ab69",
+    "agents/archetypes/researcher.md": "566843cf0c2b5e359e3ce18b03afa0a390ca8c0184c5c67b56296315adfbcbdb",
+    "agents/archetypes/synthesizer.md": "2dd0e9da4947fc6091823e07701c247a5a38e7d90f08c734b4a3b7604858c278",
+    "agents/archetypes/verifier.md": "7436d980a8d0f5870ce53729bc4ea5d1a341f8a6af8feb25388c56a175db48cf",
+    "agents/goals/000-INDEX.md": "0f2167c604ef267cb27d8f75aeb3dce3b02f7801b00ab51e7267aefcb619c202",
+    "agents/roles/_PROPOSAL_TEMPLATE.md": "fdc1775971321a0d314f12a4c612896381f7e4479e3317c3a347eae08a03f0fc",
+    "agents/roles/auditor.md": "7ad69fb2a1fe26717c20bd1e9e40872b483b0160ddf62d5517aebf919015de29",
+    "agents/roles/orchestrator.md": "43adffb531f28be94a3f89aa90285dc04fd20e2fa080cfcf9ce6486d6a29365a",
+    "agents/roles/planner.md": "b94746f17243da57e718b85f4f136dab02702f02b89926b5d69e2f0e3f709a11",
+    "agents/roles/rust-builder.md": "640df56a6f37775f8dea34804c8ac12a124096eb07a407d9d43da895f94759b9",
+    "agents/roles/sampler.md": "a113416755851ff61c312f478e1aedcb8d96ca552b4a835a5091a1fed219a357",
+    "agents/roles/scout.md": "b32642131ebd29aaee8eeb0e0974679adcdd22df7aeb9a60f6a98c02782fdc4e",
+    "agents/roles/sentinel.md": "14190884b67b314328a5bd1c47c8798e63f38088516303186bfa2b2ffa26496e",
+    "agents/roles/spec-writer.md": "91cb31faf7834c732d1ccd947314631f4cc8940cb44689a1ba06f57e3ac95829",
+    "agents/roles/surveyor.md": "54aae56ea03136ea6cef109c932cc47f63b7c4292232b1871f531f51a94bb7aa",
+    "agents/roles/test-designer.md": "113a62987d82547efbc079ecc569c2d9d4442ff798177ae0937abd5a7a226ee0",
+    "agents/roles/web-builder.md": "b04bf8bfa1e157c57b2d10c9124a417c62eb0a4eb2916bdf54c7c0661f45ec91",
+    "agents/workflows/orchestration.md": "3f5e08653e0705e8ff8023aaddab80346758b142fdd24ddfa9b8171d7e3b8897"
+  }
+}

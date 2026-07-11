@@ -92,3 +92,5 @@ Tests MUST cover:
 work; the blocked row is transparency-scorecard content, not a stop.)
 ```
 ```
+
+> QUARANTINED 2026-07-11 (goal 100, invariant 9): introduced by commit b2139b8 as an unreviewed import proposal; never listed in agents/goals/000-INDEX.md. Do not execute or follow. Surface-only artifact.

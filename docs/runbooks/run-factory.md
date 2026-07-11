@@ -2,6 +2,12 @@
 
 Place at: `C:\projects\govfolio.io\docs\runbooks\run-factory.md`
 
+> Release-1 execution amendment (2026-07-11): the calibration content below remains
+> historical context, but all standing producer/integration mechanics are superseded by
+> `docs/runbooks/autonomous-loop.md` and `agents/workflows/factory-lane.md`. Producers
+> commit locally, submit immutable receipts, wait, and never mutate phase, append
+> JOURNAL, push, or merge. The singleton integrator owns those actions.
+
 Drives E1 calibration and every epoch from Brazil onward. Two prompt workflows: first a
 **calibration run** that produces the three missing E1 reference artifacts through the
 specialist agents (which unblocks the E2 gate), then the **standing factory** that runs
@@ -106,8 +112,8 @@ Run the coverage factory. Repeatedly: select the highest priority_score jurisdic
       step 2d); lease it via `cargo run -p worker --bin jurisdiction-lease -- claim`
       (atomic, goal 097 — never raw claimed_by/claimed_at writes); execute its current phase with the mapped
       specialist agent + its allocator-assigned skills + the source SAF; stage the artifact,
-      run the auditor pass where mandated, validate, and on green advance coverage_phase and
-      release the lease; commit.
+      run the auditor pass where mandated, validate, commit locally without JOURNAL, submit
+      an immutable receipt, and wait. Never advance/block/release phase, push, or merge.
       Drive ALL work through registry coverage_phase transitions ONLY — never write goal
       files (invariant 9: unlisted goal files are quarantined). Honor the epoch gate before
       entering each new epoch. Continue until every jurisdiction in the epoch reaches
@@ -140,9 +146,9 @@ artifact has already landed.
 
 ## Monitoring & stop conditions
 
-- Semantic heartbeat: `./agents/monitor.sh` (journal + commits + coverage_phase deltas).
-  Tripwire: journal/commits must advance in lockstep; a phase advancing with no commit, or
-  vice versa, means something claimed progress it didn't make.
+- Semantic heartbeat: `./agents/monitor.sh`, `jurisdiction-lease status`, and
+  `govfolio-loop receipt-status <receipt-id>`. A phase may advance only with an applied
+  receipt for the exact green source commit; pending rows are integrator-owned.
 - Gate re-check anytime: `cargo run -p pipeline --bin epoch-gate -- E2` (or the next epoch id).
 - Blocked jurisdictions are not failures — `blocked:<reason>` rows are transparency-scorecard
   content. Review them, don't force them.

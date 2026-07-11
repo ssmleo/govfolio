@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","session_id":"claude-session-quota","model":"claude-opus-4-6"}
+{"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"claude-session-quota","errors":["Usage limit reached"],"error":{"type":"usage_limit_error","code":"usage_limit","message":"Usage limit reached","reset_at":"2026-07-12T03:00:00Z","request_id":"req_quota_1"}}

@@ -1,5 +1,16 @@
 # 107 — lane-branch-convergence
 
+## Status (superseded 2026-07-11)
+
+Superseded by goal 109 and
+`docs/plans/2026-07-11-autonomous-loop-hardening.md` §6. The earlier proposal used
+`coverage_phase = live|blocked` plus a released lease as permission to merge a lane.
+That ordering is unsafe: the shared phase must instead be the final atomic result of a
+green integration receipt whose exact source SHA is already present on `origin/main`.
+
+Do not implement the direct lane→main merge or push described below. It remains as the
+historical proposal and rationale; goal 109 owns the replacement.
+
 ## Objective
 Give lane-0 an explicit, repeatable step to merge completed factory-lane work back into
 main. Today nothing does this: `factory-lane.md` merges main INTO lane branches and
@@ -76,7 +87,8 @@ sh -n agents/run-loop.sh
 ```
 
 ## Checklist
-- [ ] Task 1: design note — where the step lives (orchestration.md step 6 vs new step),
+- [x] Task 0: superseded by receipt-authoritative goal 109 before direct merge work began
+- [~] Task 1: design note — where the step lives (orchestration.md step 6 vs new step),
       the exact registry-state check that gates a merge, conflict-halt behavior
 - [ ] Task 2: implement the merge-back logic + doc updates
       (orchestration.md/factory-lane.md)

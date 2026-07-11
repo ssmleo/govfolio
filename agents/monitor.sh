@@ -1,30 +1,24 @@
 #!/usr/bin/env sh
-# govfolio monitor — read-only dashboard over the loop's artifacts. Safe to run
-# alongside the loop: it only reads. Refresh: 15s. Stop: Ctrl-C.
+# Read-only SQLite/receipt monitor. Never invokes cargo and never scrapes logs.
 set -eu
 cd "$(dirname "$0")/.."
+
+repo=$(pwd)
+target_dir="${CARGO_TARGET_DIR:-$repo/target}"
+case "$target_dir" in
+  /* | [A-Za-z]:*) ;;
+  *) target_dir="$repo/$target_dir" ;;
+esac
+bin="$target_dir/debug/govfolio-loop"
+[ -x "$bin" ] || bin="$bin.exe"
+if [ ! -x "$bin" ]; then
+  echo "ERROR: pre-built supervisor missing at $bin" >&2
+  exit 1
+fi
+
+interval="${GOVFOLIO_MONITOR_INTERVAL:-15}"
 while :; do
-  clear
-  echo "== govfolio monitor | $(date -u +%FT%TZ) | branch: $(git rev-parse --abbrev-ref HEAD) =="
-  echo
-  echo "-- JOURNAL (last 10 iterations) --"
-  tail -n 10 agents/JOURNAL.md 2>/dev/null || echo "(no iterations yet)"
-  echo
-  echo "-- COMMITS (last 10) --"
-  git log --oneline -10
-  echo
-  echo "-- WAITING ON YOU (BLOCKED human gates) --"
-  grep -rn -A2 "BLOCKED (human)" agents/goals/ 2>/dev/null | grep -v "(empty)" | head -20 || echo "(none)"
-  echo
-  echo "-- GOAL QUEUE (next 8) --"
-  grep -m 8 "^- \[" agents/goals/000-INDEX.md
-  echo
-  echo "-- LANES (live jurisdiction leases; goal 097) --"
-  cargo run -q -p worker --bin jurisdiction-lease -- status 2>/dev/null || echo "(unavailable: DATABASE_URL/pg down or bin not built)"
-  for lanelog in agents/loop.lane-*.log; do
-    [ -f "$lanelog" ] || continue
-    echo "--- $lanelog (last 3) ---"
-    tail -n 3 "$lanelog"
-  done
-  sleep 15
+  clear 2>/dev/null || true
+  "$bin" status
+  sleep "$interval"
 done

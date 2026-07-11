@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","session_id":"claude-session-rate","model":"claude-opus-4-6"}
+{"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"claude-session-rate","errors":["Rate limit exceeded"],"error":{"type":"rate_limit_error","code":"rate_limit","message":"Rate limit exceeded","retry_after_seconds":90}}

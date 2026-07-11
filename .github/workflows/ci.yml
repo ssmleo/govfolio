@@ -69,6 +69,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # validate-authority --ci (check c) inspects HEAD's parents and the
+          # merged-side commit messages — a shallow clone would fail closed.
+          fetch-depth: 0
+      - uses: Swatinem/rust-cache@v2
+      # Invariant 9 (goal 100, design §4.2 run point 2): goal-queue bijection,
+      # AUTHORITY.lock.json pins, amendment discipline. A poisoned tree cannot merge.
+      - name: authority lock + goal-queue bijection
+        run: cargo run -q -p pipeline --bin validate-authority -- --ci
       - name: migrations expand-only
         run: sh scripts/check-migration-safety.sh crates/core/migrations
       # CI has no cloud credentials by design, so the destroy-budget gate

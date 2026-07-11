@@ -1,0 +1,40 @@
+[package]
+name = "loop-supervisor"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "loop_supervisor"
+
+[[bin]]
+name = "govfolio-loop"
+path = "src/main.rs"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = "1.0.103"
+async-trait = "0.1.89"
+chrono = { version = "0.4.45", features = ["serde"] }
+core = { version = "0.1.0", path = "../core" }
+flate2 = "1.1.5"
+hex = "0.4.3"
+regex = "1.12.4"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+sha2 = "0.10.9"
+sqlx = { version = "0.9.0", default-features = false, features = ["runtime-tokio", "sqlite", "postgres", "chrono", "json", "migrate"] }
+thiserror = "2.0.18"
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "process", "io-util", "fs", "time", "sync", "signal"] }
+ulid = { version = "1.2.1", features = ["serde"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2.186"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_Diagnostics_ToolHelp", "Win32_System_JobObjects", "Win32_System_Threading"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros", "process", "io-util", "fs", "time", "sync", "signal", "test-util"] }

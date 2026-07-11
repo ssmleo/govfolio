@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","session_id":"claude-session-budget","model":"claude-opus-4-6"}
+{"type":"result","subtype":"error_max_budget_usd","is_error":true,"session_id":"claude-session-budget","errors":["Maximum configured turn budget reached"]}

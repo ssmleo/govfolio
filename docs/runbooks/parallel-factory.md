@@ -1,99 +1,44 @@
-# Runbook — start the coverage factory: subagent-driven, source-parallel
+# Parallel coverage factory
 
-Place at: `C:\projects\govfolio.io\docs\runbooks\parallel-factory.md`
+The hardened operational procedure is
+[`docs/runbooks/autonomous-loop.md`](autonomous-loop.md). This page retains only
+coverage-specific scaling and legibility rules.
 
-Two workflows: the calibration run must have already turned the E2 gate green (see
-run-factory.md). This runbook is the STANDING parallel factory — driven by
-`GOVFOLIO_LANES=N ./agents/run-loop.sh` lanes since goal 097. Authority:
-`docs/decisions/automation-policy.md` (no human gates), `agents/workflows/orchestration.md`
-(selection + step 2d), `agents/workflows/source-exploration.md` (phase->role chain).
+## Preconditions
 
----
+1. Claims are atomic and generation-fenced through `jurisdiction-lease`; never write
+   registry lease columns directly.
+2. Every producer has a dedicated worktree/branch and fenced lane identity.
+3. Guardrail counters are shared host-wide.
+4. Release 0 singleton/circuit/storm-fuse proof and Release 1 receipt/integrator proof
+   are green. Factory providers remain stopped before both releases.
+5. Producer count follows the metric gate in hardening design section 9. Do not start
+   extra shell runners.
 
-## Pre-checks the goal MUST pass before scaling past ONE worker
-(Under full autonomy these fail SILENTLY if missing — double-work or multiplied spend, no error.)
+## One producer iteration
 
-1. ATOMIC LEASE — IMPLEMENTED (goal 097): `cargo run -p worker --bin jurisdiction-lease`
-   (claim --next is one UPDATE with FOR UPDATE SKIP LOCKED; a SELECT-then-UPDATE races and
-   two workers grab the same source). Race-proven by `crates/worker/tests/lease.rs`
-   (--ignored suite). Never claim by hand-rolled SQL — use the bin.
-2. WORKTREE PER WORKER. Each worker runs in its own git worktree/branch and PRs into protected
-   main. N workers sharing one working tree collide on git. (skill: using-git-worktrees.)
-3. GLOBAL GUARDRAILS. The billing HARD CAP and terraform DESTROY_BUDGET must read SHARED state,
-   not per-process. N workers each under a per-action limit can COLLECTIVELY blow the monthly
-   ceiling. Confirm caps are global counters before parallel + full-auto.
+`agents/workflows/factory-lane.md` is authoritative:
 
-If any pre-check fails: run ONE worker until it is fixed. One worker is always safe.
+1. claim one row and retain its generation;
+2. execute and validate one current phase;
+3. renew only by exact generation while working;
+4. commit locally without JOURNAL;
+5. submit `govfolio-loop submit-receipt <receipt.json>`;
+6. wait on `govfolio-loop receipt-status <receipt-id>` and stop.
 
----
+The singleton integrator owns push, PR, merge, canonical JOURNAL, exact-SHA CI proof,
+and atomic phase/lease apply. Direct advance/live/block and producer merge paths are
+retired.
 
-## Legibility discipline (keeps "what's being done / done / left" answerable WHILE parallel)
-Reason: leases show the in-flight SET; without per-phase heartbeat you go blind between a claim
-and a completion, especially across workers. So every worker MUST:
-- CLAIM VISIBLY: atomic lease before touching a jurisdiction (this is also the shared
-  "who's doing what" board other workers read).
-- JOURNAL PER PHASE, not just per jurisdiction: append date | jurisdiction | phase | outcome
-  | blockers to agents/JOURNAL.md at every phase boundary.
-- COMMIT PER PHASE BOUNDARY: a commit at each phase advance (promote-on-review), so "being done"
-  is never staler than one phase.
-- RELEASE ON DONE/BLOCK: clear the lease when advancing to live or setting blocked:<reason>.
-Then any agent/human answers all three questions mechanically:
-  DONE   -> git log + JOURNAL + promoted docs/regimes/<x>/ folders
-  LEFT   -> registry: coverage_phase < live, ordered by priority_score (blocked:<reason> = stuck)
-  DOING  -> registry: rows with a live lease (claimed_by set, claimed_at < 24h)
+## Legibility
 
----
+- DOING: held leases with lane, generation, age, and pending receipt from
+  `jurisdiction-lease status`.
+- WAITING: nonterminal receipt states from the supervisor.
+- DONE: `applied` receipts whose exact source SHA is an ancestor of green
+  `origin/main`, with one canonical receipt JOURNAL line.
+- LEFT: nonterminal, nonpending registry rows ordered by epoch/priority.
 
-## The lane (run-loop.sh spawns one per worktree; they self-coordinate via the lease)
-
-Standing driver: `GOVFOLIO_LANES=N ./agents/run-loop.sh` (lanes execute
-`agents/workflows/factory-lane.md`). The prompt below is what each lane iteration
-effectively does (kept for single-session/manual runs):
-
-```
-Run the coverage factory as a subagent-driven, source-parallel loop.
-
-PRE-CHECK (once, before N>1): confirm atomic lease claim, worktree-per-worker, and GLOBAL
-billing/destroy caps (see parallel-factory.md). If any is missing, run as a single worker only.
-
-LOOP:
-1. SELECT (orchestration step 2d): highest priority_score jurisdiction in the current epoch
-   with coverage_phase < live and NO live lease.
-2. CLAIM atomically: `cargo run -p worker --bin jurisdiction-lease -- claim --next --epoch <n>`
-   (never hand-rolled SQL). Exit 1 (`none`) means nothing claimable — stop. Never work a
-   row whose claimed_by is not your identity.
-3. EXECUTE the jurisdiction's CURRENT phase with the mapped specialist (source-exploration.md:
-   scout->surveyor->sampler->spec-writer/test-designer->builder). Phases within one jurisdiction
-   are a dependency chain — strictly sequential. Intra-source fetches stay concurrency-1 (politeness).
-   Fan out with SUBAGENTS only WITHIN a single phase's work where independent (e.g. builder
-   sub-tasks, auditor evidence sweep) — never to skip the phase order.
-4. REVIEW: independent auditor pass (goal 022 bounded loop) — a BOUNCE routes back to the
-   producer with notes and re-reviews; MAX bounces -> blocked:review_failed:<phase>.
-5. TEST/VALIDATE: the phase's validator / conformance must be GREEN (real command exit codes;
-   never a model judging a model). Stage artifacts; promote into docs/regimes/ only on PASS.
-6. LABEL: set extraction_tier per record; non-deterministic tiers -> unverified + sampling audit
-   and SAF refinement_trigger recorded (goal 023).
-7. ADVANCE coverage_phase; JOURNAL the phase line; COMMIT; RELEASE the lease.
-8. Repeat. Drive ALL work through registry state transitions — NEVER write goal files
-   (invariant 9). Honor the epoch gate before entering each new epoch.
-
-STOP when every jurisdiction in the epoch is live or blocked:<reason>. A guardrail breach or
-MAX-bounce halts THAT jurisdiction (blocked + lease released) and you continue other sources.
-```
-
-Parallelism axes (so expectations match reality):
-- ACROSS SOURCES (breadth): run N lanes (`GOVFOLIO_LANES=N`, one worktree each); leases
-  keep them on different jurisdictions. This is the throughput win — more sources/hour.
-- WITHIN A TASK (depth): subagent fan-out inside one phase (step 3). Composes with the above.
-- NOT PARALLELIZABLE: a single source's phase chain (dependency-ordered) and intra-source
-  fetches (politeness). Parallelism scales breadth, never a single source's finish time.
-
-## Monitor (answers your three questions live)
-```
-watch -n 15 'echo DONE:; git log --oneline -8; echo; echo DOING:; \
-  echo "(query registry: rows with claimed_by set, claimed_at < 24h)"; echo; \
-  echo LEFT:; echo "(query registry: coverage_phase < live, order by priority_score)"'
-```
-Or ./agents/monitor.sh extended with the two registry queries. Tripwire: a leased row whose
-claimed_at is aging with no new commit/journal line = a stalled or crashed worker (reclaim >24h).
-```
+An aging lease with no pending receipt is stalled producer work. A pending receipt is
+integrator work and must never be reclaimed manually. Preserve unresolved evidence and
+let startup reconciliation decide the next action.

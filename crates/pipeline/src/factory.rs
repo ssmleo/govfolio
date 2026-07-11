@@ -12,10 +12,11 @@
 //!
 //! Each validator returns human-readable failure strings; empty means valid.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
 use govfolio_core::domain::enums::RecordType;
@@ -894,6 +895,795 @@ pub fn bin_main(gate: Gate) -> std::process::ExitCode {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Authority plane (goal 100, design §4.2): invariant 9 made mechanical.
+// ---------------------------------------------------------------------------
+
+/// Workspace-relative path of the authority lock.
+pub const AUTHORITY_LOCK_PATH: &str = "agents/AUTHORITY.lock.json";
+
+/// Content-pinned authority files (design §4.2 pinned set, Amendment 1).
+/// Root `CLAUDE.md` is pinned (invariants + universal memory pointer); nested
+/// folder CLAUDE.md stubs are NOT. Goal files are NOT content-pinned
+/// (legitimately mutable) — the bijection check covers them.
+const AUTHORITY_FIXED: &[&str] = &[
+    "CLAUDE.md",
+    "agents/GOVERNANCE.md",
+    "agents/PROMPT.md",
+    "agents/LOOP.md",
+    "agents/workflows/orchestration.md",
+    "agents/EFFORT.md",
+    "agents/EPOCHS.md",
+    "agents/goals/000-INDEX.md",
+];
+
+/// Directories whose immediate `*.md` children are all pinned (non-recursive).
+const AUTHORITY_GLOB_DIRS: &[&str] = &["agents/roles", "agents/archetypes"];
+
+/// The single-path verdict `--check-path` renders for the `PreToolUse` hook.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PathVerdict {
+    /// Ungoverned (or listed-goal) path — the tool call may proceed.
+    Allow,
+    /// An `agents/goals/*.md` not listed in 000-INDEX: untrusted input,
+    /// blocked for EVERY tool (never even read it) — invariant 9.
+    DenyUntrustedGoal,
+    /// Authority set / lock / `.claude/settings*` / `.claude/hooks/`:
+    /// write-protected below the model; amendment path only.
+    DenyProtected,
+}
+
+/// The lock manifest (design §4.2): `{version, superseded_note?, pinned}`.
+/// `superseded_note` records what changed and why on every version bump
+/// (the `E1.lock.json` supersede policy generalized).
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AuthorityLock {
+    /// Lock version; superseding bumps this (never mutate in place).
+    pub version: u32,
+    /// What changed and why — REQUIRED from version 2 on.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub superseded_note: Option<String>,
+    /// Workspace-relative path (forward slashes) → sha256 (64 hex chars).
+    pub pinned: BTreeMap<String, String>,
+}
+
+/// Checks (a) goals↔000-INDEX bijection and (b) lock hash match on the tree.
+/// Returns human-readable failures; empty means the tree validates.
+#[must_use]
+pub fn validate_authority_tree(root: &Path) -> Vec<String> {
+    let mut fails = Vec::new();
+    check_bijection(root, &mut fails);
+    check_lock(root, &mut fails);
+    fails
+}
+
+/// Check (a): every `agents/goals/*.md` (non-recursive; `000-INDEX.md` and
+/// `_TEMPLATE.md` excepted) must be listed in the index, and every listed
+/// number must have exactly one file. An unlisted file additionally emits a
+/// quarantine report with git provenance (invariant 9).
+fn check_bijection(root: &Path, fails: &mut Vec<String>) {
+    const INDEX_REL: &str = "agents/goals/000-INDEX.md";
+    let index_text = match fs::read_to_string(join_rel(root, INDEX_REL)) {
+        Ok(text) => text,
+        Err(e) => {
+            fails.push(format!(
+                "{INDEX_REL}: unreadable goal queue: {e} (fail closed)"
+            ));
+            return;
+        }
+    };
+    let listed = listed_goal_numbers(&index_text);
+    let entries = match fs::read_dir(join_rel(root, "agents/goals")) {
+        Ok(entries) => entries,
+        Err(e) => {
+            fails.push(format!("agents/goals/: unreadable: {e} (fail closed)"));
+            return;
+        }
+    };
+    let mut seen = BTreeSet::new();
+    for entry in entries.flatten() {
+        if !entry.path().is_file() {
+            continue; // subdirs (e.g. _quarantine/) are outside the glob
+        }
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name == "000-INDEX.md" || name == "_TEMPLATE.md" {
+            continue;
+        }
+        let Some(stem) = name.strip_suffix(".md") else {
+            continue; // non-.md files are outside the glob
+        };
+        let rel = format!("agents/goals/{name}");
+        let number = stem.split_once('-').map_or(stem, |(prefix, _)| prefix);
+        match number.parse::<u64>() {
+            Ok(n) if listed.contains(&n) => {
+                if !seen.insert(n) {
+                    fails.push(format!(
+                        "{rel}: duplicate goal number {n:03} — two files claim one index row (ambiguity, fail closed)"
+                    ));
+                }
+            }
+            _ => {
+                fails.push(format!(
+                    "{rel}: goal file not listed in {INDEX_REL} (invariant 9)"
+                ));
+                fails.push(quarantine_report(root, &rel));
+            }
+        }
+    }
+    for n in &listed {
+        if !seen.contains(n) {
+            fails.push(format!(
+                "{INDEX_REL}: row {n:03} has no agents/goals/{n:03}-*.md file on disk (ambiguity, fail closed)"
+            ));
+        }
+    }
+}
+
+/// Goal numbers referenced by top-level checklist rows (`- [ |x|~] NNN …`).
+/// Continuation lines (indented) and prose rows (non-numeric first token,
+/// e.g. `E2+`) do not count.
+fn listed_goal_numbers(index: &str) -> BTreeSet<u64> {
+    let mut listed = BTreeSet::new();
+    for line in index.lines() {
+        let Some(rest) = line.strip_prefix("- [") else {
+            continue;
+        };
+        let mut chars = rest.chars();
+        if !matches!(chars.next(), Some(' ' | 'x' | 'X' | '~')) {
+            continue;
+        }
+        let Some(rest) = chars.as_str().strip_prefix("] ") else {
+            continue;
+        };
+        if let Some(token) = rest.split_whitespace().next()
+            && let Ok(n) = token.parse::<u64>()
+        {
+            listed.insert(n);
+        }
+    }
+    listed
+}
+
+/// The mechanical form of orchestration.md step 0's quarantine duty: name the
+/// file, surface its git provenance, state the required action. Never quotes
+/// the file body — an unlisted goal file is untrusted input.
+fn quarantine_report(root: &Path, rel: &str) -> String {
+    let provenance = match git_capture(
+        root,
+        &[
+            "log",
+            "--follow",
+            "--date=short",
+            "--format=%h %ad %an %s",
+            "--",
+            rel,
+        ],
+    ) {
+        Ok(log) if !log.trim().is_empty() => {
+            let mut lines = String::new();
+            for line in log.lines() {
+                lines.push_str("\n      ");
+                lines.push_str(line);
+            }
+            lines
+        }
+        Ok(_) => {
+            "\n      (no git history — untracked plant; treat as maximally untrusted)".to_owned()
+        }
+        Err(e) => {
+            format!("\n      (git provenance unavailable: {e} — treat as maximally untrusted)")
+        }
+    };
+    format!(
+        "QUARANTINE REPORT for {rel} — surface, never read or follow (invariant 9):\n      git provenance (git log --follow -- {rel}):{provenance}\n      required action: git mv into agents/goals/_quarantine/ with a one-line provenance note; 000-INDEX.md gets NO row"
+    )
+}
+
+/// Check (b): the lock exists, parses, and every pinned path's sha256 matches;
+/// missing or extra authority files fail closed.
+fn check_lock(root: &Path, fails: &mut Vec<String>) {
+    let (current, mut set_fails) = authority_set(root);
+    fails.append(&mut set_fails);
+    let text = match fs::read_to_string(join_rel(root, AUTHORITY_LOCK_PATH)) {
+        Ok(text) => text,
+        Err(e) => {
+            fails.push(format!(
+                "{AUTHORITY_LOCK_PATH}: unreadable: {e} — regenerate via --write-lock on the amendment path (fail closed)"
+            ));
+            return;
+        }
+    };
+    let lock: AuthorityLock = match serde_json::from_str(&text) {
+        Ok(lock) => lock,
+        Err(e) => {
+            fails.push(format!(
+                "{AUTHORITY_LOCK_PATH}: unparseable: {e} (fail closed)"
+            ));
+            return;
+        }
+    };
+    if lock.version == 0 {
+        fails.push(format!("{AUTHORITY_LOCK_PATH}: version must be >= 1"));
+    }
+    if lock.version >= 2
+        && lock
+            .superseded_note
+            .as_deref()
+            .is_none_or(|note| note.trim().is_empty())
+    {
+        fails.push(format!(
+            "{AUTHORITY_LOCK_PATH}: version {} without a superseded_note (supersede, never mutate)",
+            lock.version
+        ));
+    }
+    if lock.pinned.is_empty() {
+        fails.push(format!(
+            "{AUTHORITY_LOCK_PATH}: pinned set is empty — nothing locked (fail closed)"
+        ));
+    }
+    for (rel, pin) in &lock.pinned {
+        if !(pin.len() == 64 && pin.bytes().all(|b| b.is_ascii_hexdigit())) {
+            fails.push(format!("{rel}: pin must be 64 hex chars, got {pin:?}"));
+            continue;
+        }
+        if !current.contains(rel) {
+            fails.push(format!(
+                "{rel}: pinned in {AUTHORITY_LOCK_PATH} but not in the current authority set (missing or non-authority file) — supersede the lock on the amendment path"
+            ));
+            continue;
+        }
+        match fs::read(join_rel(root, rel)) {
+            Ok(bytes) => {
+                let actual = sha256_hex(&bytes);
+                if !actual.eq_ignore_ascii_case(pin) {
+                    fails.push(format!(
+                        "{rel}: pinned at {pin} but now hashes to {actual} — authority file drifted; amend via an authority/* branch + --write-lock, referencing an INDEX-listed goal"
+                    ));
+                }
+            }
+            Err(e) => fails.push(format!("{rel}: pinned file unreadable: {e} (fail closed)")),
+        }
+    }
+    for rel in &current {
+        if !lock.pinned.contains_key(rel) {
+            fails.push(format!(
+                "{rel}: authority file on disk is not pinned in {AUTHORITY_LOCK_PATH} — supersede the lock on the amendment path (fail closed)"
+            ));
+        }
+    }
+}
+
+/// Enumerates the authority set on disk: the fixed paths (missing → failure)
+/// plus the immediate `*.md` children of the glob directories.
+fn authority_set(root: &Path) -> (BTreeSet<String>, Vec<String>) {
+    let mut set = BTreeSet::new();
+    let mut fails = Vec::new();
+    for rel in AUTHORITY_FIXED {
+        if join_rel(root, rel).is_file() {
+            set.insert((*rel).to_owned());
+        } else {
+            fails.push(format!(
+                "{rel}: authority file missing on disk (fail closed)"
+            ));
+        }
+    }
+    for dir_rel in AUTHORITY_GLOB_DIRS {
+        match fs::read_dir(join_rel(root, dir_rel)) {
+            Ok(entries) => {
+                for entry in entries.flatten() {
+                    let name = entry.file_name().to_string_lossy().into_owned();
+                    if entry.path().is_file() && name.strip_suffix(".md").is_some() {
+                        set.insert(format!("{dir_rel}/{name}"));
+                    }
+                }
+            }
+            Err(e) => fails.push(format!(
+                "{dir_rel}/: unreadable authority directory: {e} (fail closed)"
+            )),
+        }
+    }
+    (set, fails)
+}
+
+/// Check (c), `--ci` mode: a HEAD whose diff touches authority files must
+/// update the lock in the same commit AND reference an INDEX-listed goal
+/// (evaluated against HEAD's own tree). Scope choice per design §4.2: HEAD
+/// only; for a merge HEAD the diff is vs the first parent and messages are
+/// harvested from the merge plus all merged-side commits.
+#[must_use]
+pub fn check_amendment_discipline(root: &Path) -> Vec<String> {
+    let mut fails = Vec::new();
+    let parents_line = match git_capture(root, &["rev-list", "--parents", "-n", "1", "HEAD"]) {
+        Ok(line) => line,
+        Err(e) => {
+            fails.push(format!(
+                "amendment discipline: cannot read HEAD ({e}) — fail closed"
+            ));
+            return fails;
+        }
+    };
+    let parent_count = parents_line.split_whitespace().count().saturating_sub(1);
+    let (changed, messages) = match parent_count {
+        0 => (
+            git_capture(root, &["show", "--format=", "--name-only", "HEAD"]),
+            git_capture(root, &["log", "-1", "--format=%B", "HEAD"]),
+        ),
+        1 => (
+            git_capture(
+                root,
+                &["diff-tree", "--no-commit-id", "--name-only", "-r", "HEAD"],
+            ),
+            git_capture(root, &["log", "-1", "--format=%B", "HEAD"]),
+        ),
+        _ => (
+            git_capture(root, &["diff", "--name-only", "HEAD^1", "HEAD"]),
+            git_capture(root, &["log", "--format=%B", "HEAD^1..HEAD"]),
+        ),
+    };
+    let changed = match changed {
+        Ok(changed) => changed,
+        Err(e) => {
+            fails.push(format!(
+                "amendment discipline: cannot diff HEAD ({e}) — fail closed (shallow clone? fetch full history)"
+            ));
+            return fails;
+        }
+    };
+    let messages = match messages {
+        Ok(messages) => messages,
+        Err(e) => {
+            fails.push(format!(
+                "amendment discipline: cannot read commit messages ({e}) — fail closed"
+            ));
+            return fails;
+        }
+    };
+    let touched: Vec<&str> = changed
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && is_authority_path(line))
+        .collect();
+    if touched.is_empty() {
+        return fails;
+    }
+    if !touched.contains(&AUTHORITY_LOCK_PATH) {
+        fails.push(format!(
+            "amendment discipline: HEAD touches authority file(s) [{}] without updating {AUTHORITY_LOCK_PATH} in the same commit (design §4.2 check (c))",
+            touched.join(", ")
+        ));
+    } else if parent_count > 0 {
+        fails.extend(check_lock_supersession(root));
+    }
+    let listed = match git_capture(root, &["show", "HEAD:agents/goals/000-INDEX.md"]) {
+        Ok(index) => listed_goal_numbers(&index),
+        Err(e) => {
+            fails.push(format!(
+                "amendment discipline: cannot read 000-INDEX.md at HEAD ({e}) — fail closed"
+            ));
+            return fails;
+        }
+    };
+    let refs = goal_refs_in(&messages);
+    if !refs.iter().any(|n| listed.contains(n)) {
+        fails.push(format!(
+            "amendment discipline: HEAD touches authority file(s) [{}] but no commit message in scope references an INDEX-listed goal (write e.g. \"(goal NNN)\") (design §4.2 check (c))",
+            touched.join(", ")
+        ));
+    }
+    fails
+}
+
+/// True for members of the pinned authority surface (fixed set, glob
+/// children by NAME — deleted files still match — and the lock itself).
+fn is_authority_path(rel: &str) -> bool {
+    if rel.eq_ignore_ascii_case(AUTHORITY_LOCK_PATH)
+        || AUTHORITY_FIXED
+            .iter()
+            .any(|fixed| rel.eq_ignore_ascii_case(fixed))
+    {
+        return true;
+    }
+    AUTHORITY_GLOB_DIRS.iter().any(|dir| {
+        strip_prefix_ascii_ci(rel, dir)
+            .and_then(|rest| rest.strip_prefix('/'))
+            .is_some_and(|name| !name.contains('/') && has_md_suffix(name))
+    })
+}
+
+fn has_md_suffix(name: &str) -> bool {
+    name.get(name.len().saturating_sub(3)..)
+        .is_some_and(|suffix| suffix.eq_ignore_ascii_case(".md"))
+}
+
+/// A committed lock update is a supersession, never an in-place rewrite.
+/// The first lock has no first-parent predecessor; every later lock must raise
+/// the version and carry a new, non-empty explanation.
+fn check_lock_supersession(root: &Path) -> Vec<String> {
+    let mut fails = Vec::new();
+    let old_text = match git_file_at(root, "HEAD^1", AUTHORITY_LOCK_PATH) {
+        Ok(Some(text)) => text,
+        Ok(None) => return fails,
+        Err(e) => {
+            fails.push(format!(
+                "amendment discipline: cannot read first-parent {AUTHORITY_LOCK_PATH} ({e}) — fail closed"
+            ));
+            return fails;
+        }
+    };
+    let new_text = match git_file_at(root, "HEAD", AUTHORITY_LOCK_PATH) {
+        Ok(Some(text)) => text,
+        Ok(None) => {
+            fails.push(format!(
+                "amendment discipline: {AUTHORITY_LOCK_PATH} is absent at HEAD — fail closed"
+            ));
+            return fails;
+        }
+        Err(e) => {
+            fails.push(format!(
+                "amendment discipline: cannot read HEAD {AUTHORITY_LOCK_PATH} ({e}) — fail closed"
+            ));
+            return fails;
+        }
+    };
+    let old: AuthorityLock = match serde_json::from_str(&old_text) {
+        Ok(lock) => lock,
+        Err(e) => {
+            fails.push(format!(
+                "amendment discipline: first-parent {AUTHORITY_LOCK_PATH} is unparseable ({e}) — fail closed"
+            ));
+            return fails;
+        }
+    };
+    let new: AuthorityLock = match serde_json::from_str(&new_text) {
+        Ok(lock) => lock,
+        Err(e) => {
+            fails.push(format!(
+                "amendment discipline: HEAD {AUTHORITY_LOCK_PATH} is unparseable ({e}) — fail closed"
+            ));
+            return fails;
+        }
+    };
+    if new.version <= old.version {
+        fails.push(format!(
+            "amendment discipline: {AUTHORITY_LOCK_PATH} must genuinely supersede first-parent version {} with a higher version, got {}",
+            old.version, new.version
+        ));
+    }
+    let new_note = new.superseded_note.as_deref().map(str::trim);
+    if new_note.is_none_or(str::is_empty) {
+        fails.push(format!(
+            "amendment discipline: superseding {AUTHORITY_LOCK_PATH} requires a non-empty superseded_note"
+        ));
+    } else if old.superseded_note.as_deref().map(str::trim) == new_note {
+        fails.push(format!(
+            "amendment discipline: superseding {AUTHORITY_LOCK_PATH} requires a changed superseded_note"
+        ));
+    }
+    fails
+}
+
+/// Goal numbers referenced in commit-message text: `goal <n>` (any of
+/// ` /#-_:` between the word and the digits) and the `authority/<n>` branch
+/// form that merge messages carry.
+fn goal_refs_in(text: &str) -> BTreeSet<u64> {
+    let lower = text.to_lowercase();
+    let bytes = lower.as_bytes();
+    let mut refs = BTreeSet::new();
+    for pat in ["goal", "authority/"] {
+        let mut from = 0;
+        while let Some(pos) = lower[from..].find(pat) {
+            let mut i = from + pos + pat.len();
+            while i < bytes.len()
+                && matches!(bytes[i], b' ' | b'\t' | b'/' | b'#' | b'-' | b'_' | b':')
+            {
+                i += 1;
+            }
+            let digits = i;
+            while i < bytes.len() && bytes[i].is_ascii_digit() {
+                i += 1;
+            }
+            if i > digits
+                && let Ok(n) = lower[digits..i].parse::<u64>()
+            {
+                refs.insert(n);
+            }
+            from = from + pos + pat.len();
+        }
+    }
+    refs
+}
+
+/// Fast single-path mode for the hook (no repo walk; reads at most the goal
+/// index). Unlisted `agents/goals/*.md` → untrusted (deny every tool);
+/// authority set + lock + `.claude/settings*` + `.claude/hooks/` → protected
+/// (the hook allows reads and amendment-branch writes itself). Paths outside
+/// the repo are ungoverned.
+#[must_use]
+pub fn check_path(root: &Path, raw: &str) -> PathVerdict {
+    let Some(rel) = normalize_rel(root, raw) else {
+        return PathVerdict::Allow;
+    };
+    if let Some(name) = strip_prefix_ascii_ci(&rel, "agents/goals/")
+        && !name.contains('/')
+    {
+        if name.eq_ignore_ascii_case("000-INDEX.md") {
+            return PathVerdict::DenyProtected;
+        }
+        if name.eq_ignore_ascii_case("_TEMPLATE.md") {
+            return PathVerdict::Allow;
+        }
+        if has_md_suffix(name) {
+            let stem = &name[..name.len() - 3];
+            let number = stem.split_once('-').map_or(stem, |(prefix, _)| prefix);
+            let listed = fs::read_to_string(join_rel(root, "agents/goals/000-INDEX.md"))
+                .map(|text| listed_goal_numbers(&text));
+            return match (number.parse::<u64>(), listed) {
+                (Ok(n), Ok(listed)) if listed.contains(&n) => PathVerdict::Allow,
+                // Unlisted, non-numeric, or unreadable index: untrusted
+                // input — fail closed (invariant 9).
+                _ => PathVerdict::DenyUntrustedGoal,
+            };
+        }
+        return PathVerdict::Allow; // non-.md under agents/goals/ is outside the glob
+    }
+    if is_authority_path(&rel) {
+        return PathVerdict::DenyProtected;
+    }
+    if strip_prefix_ascii_ci(&rel, ".claude/").is_some_and(|rest| {
+        strip_prefix_ascii_ci(rest, "hooks/").is_some()
+            || strip_prefix_ascii_ci(rest, "settings").is_some()
+    }) {
+        return PathVerdict::DenyProtected;
+    }
+    PathVerdict::Allow
+}
+
+/// Normalizes a raw tool path to a forward-slash repo-relative path:
+/// backslashes → slashes, `.`/`..` resolved textually, absolute paths
+/// stripped of the repo root (ASCII-case-insensitively — Windows). `None`
+/// means the path is outside the repo (ungoverned).
+fn normalize_rel(root: &Path, raw: &str) -> Option<String> {
+    let slashes = raw.replace('\\', "/");
+    let root_str = root.to_string_lossy().replace('\\', "/");
+    let trimmed_root = root_str.trim_end_matches('/');
+    let is_abs = slashes.starts_with('/') || slashes.get(1..2) == Some(":");
+    let rel_raw = if is_abs {
+        match strip_prefix_ascii_ci(&slashes, trimmed_root) {
+            Some(rest) if rest.starts_with('/') => rest[1..].to_owned(),
+            _ => return None,
+        }
+    } else {
+        slashes
+    };
+    let mut segments: Vec<&str> = Vec::new();
+    for seg in rel_raw.split('/') {
+        match seg {
+            "" | "." => {}
+            // Popping past the top escapes the repo → ungoverned.
+            ".." => {
+                segments.pop()?;
+            }
+            other => segments.push(other),
+        }
+    }
+    if segments.is_empty() {
+        return None;
+    }
+    Some(segments.join("/"))
+}
+
+/// `strip_prefix`, ASCII-case-insensitive (Windows paths).
+fn strip_prefix_ascii_ci<'s>(s: &'s str, prefix: &str) -> Option<&'s str> {
+    if s.len() < prefix.len() || !s.is_char_boundary(prefix.len()) {
+        return None;
+    }
+    let (head, tail) = s.split_at(prefix.len());
+    head.eq_ignore_ascii_case(prefix).then_some(tail)
+}
+
+/// Regenerates the lock over the current authority set (`--write-lock`).
+/// First lock is version 1; superseding an existing lock bumps the version
+/// and REQUIRES a `--note` saying what changed and why (supersede, never
+/// mutate — the `E1.lock.json` policy).
+///
+/// # Errors
+/// Missing authority files, unreadable tree, unparseable existing lock, or a
+/// supersession without a note (fail closed).
+pub fn write_authority_lock(root: &Path, note: Option<&str>) -> anyhow::Result<u32> {
+    use anyhow::Context as _;
+    let (set, fails) = authority_set(root);
+    if !fails.is_empty() {
+        anyhow::bail!("authority set incomplete:\n  - {}", fails.join("\n  - "));
+    }
+    let lock_file = join_rel(root, AUTHORITY_LOCK_PATH);
+    let version = if lock_file.is_file() {
+        let text = fs::read_to_string(&lock_file)
+            .with_context(|| format!("reading existing {AUTHORITY_LOCK_PATH}"))?;
+        let old: AuthorityLock = serde_json::from_str(&text)
+            .with_context(|| format!("parsing existing {AUTHORITY_LOCK_PATH}"))?;
+        if note.is_none_or(|n| n.trim().is_empty()) {
+            anyhow::bail!(
+                "superseding {AUTHORITY_LOCK_PATH} v{} requires --note <what changed and why> (supersede, never mutate)",
+                old.version
+            );
+        }
+        old.version + 1
+    } else {
+        1
+    };
+    let mut pinned = BTreeMap::new();
+    for rel in &set {
+        let bytes = fs::read(join_rel(root, rel)).with_context(|| format!("reading {rel}"))?;
+        pinned.insert(rel.clone(), sha256_hex(&bytes));
+    }
+    let lock = AuthorityLock {
+        version,
+        superseded_note: note.map(str::to_owned),
+        pinned,
+    };
+    let mut text = serde_json::to_string_pretty(&lock).context("serializing the authority lock")?;
+    text.push('\n');
+    fs::write(&lock_file, text).with_context(|| format!("writing {AUTHORITY_LOCK_PATH}"))?;
+    Ok(version)
+}
+
+/// Runs one read-only git subcommand against the checkout; any spawn
+/// failure, non-zero exit, or non-UTF-8 output is an `Err` (fail closed).
+fn git_capture(root: &Path, args: &[&str]) -> Result<String, String> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(root)
+        .args(args)
+        .output()
+        .map_err(|e| format!("git not runnable: {e}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "git {} exited {}: {}",
+            args.join(" "),
+            output.status,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
+/// Reads one file from a git tree. A path absent from an otherwise-readable
+/// tree is `Ok(None)`; repository/history ambiguity remains an error.
+fn git_file_at(root: &Path, revision: &str, rel: &str) -> Result<Option<String>, String> {
+    let listed = git_capture(root, &["ls-tree", "--name-only", revision, "--", rel])?;
+    if listed.lines().any(|line| line.trim() == rel) {
+        let spec = format!("{revision}:{rel}");
+        git_capture(root, &["show", &spec]).map(Some)
+    } else {
+        Ok(None)
+    }
+}
+
+/// Joins a forward-slash workspace-relative path under `root` (Windows-safe).
+fn join_rel(root: &Path, rel: &str) -> PathBuf {
+    let mut path = root.to_path_buf();
+    for segment in rel.split('/') {
+        path.push(segment);
+    }
+    path
+}
+
+/// Driver for the `validate-authority` bin. Modes:
+/// no flags = tree checks (a+b); `--ci` adds amendment discipline (c);
+/// `--write-lock [--note <text>]` regenerates the lock;
+/// `--check-path <p>` renders the hook verdict (deny → exit 2).
+#[must_use]
+pub fn authority_bin_main() -> std::process::ExitCode {
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let usage =
+        "usage: validate-authority [--ci | --write-lock [--note <text>] | --check-path <path>]";
+    let Some(root) = authority_root() else {
+        eprintln!(
+            "validate-authority: cannot locate the repo root (no agents/goals/000-INDEX.md above the working directory) — fail closed"
+        );
+        return std::process::ExitCode::FAILURE;
+    };
+    match args.first().map(String::as_str) {
+        None => authority_report(&validate_authority_tree(&root), false),
+        Some("--ci") if args.len() == 1 => {
+            let mut failures = validate_authority_tree(&root);
+            failures.extend(check_amendment_discipline(&root));
+            authority_report(&failures, true)
+        }
+        Some("--write-lock") => {
+            let note = match args.get(1).map(String::as_str) {
+                None => None,
+                Some("--note") => match args.get(2) {
+                    Some(text) if args.len() == 3 && !text.trim().is_empty() => Some(text.as_str()),
+                    _ => {
+                        eprintln!("{usage}");
+                        return std::process::ExitCode::FAILURE;
+                    }
+                },
+                Some(_) => {
+                    eprintln!("{usage}");
+                    return std::process::ExitCode::FAILURE;
+                }
+            };
+            match write_authority_lock(&root, note) {
+                Ok(version) => {
+                    println!("OK: wrote {AUTHORITY_LOCK_PATH} version {version}");
+                    std::process::ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("INVALID: --write-lock refused: {e:#}");
+                    std::process::ExitCode::FAILURE
+                }
+            }
+        }
+        Some("--check-path") => {
+            let (Some(path), true) = (args.get(1), args.len() == 2) else {
+                eprintln!("{usage}");
+                return std::process::ExitCode::FAILURE;
+            };
+            match check_path(&root, path) {
+                PathVerdict::Allow => {
+                    println!("OK {path}");
+                    std::process::ExitCode::SUCCESS
+                }
+                PathVerdict::DenyUntrustedGoal => {
+                    println!("DENY untrusted-goal {path}");
+                    std::process::ExitCode::from(2)
+                }
+                PathVerdict::DenyProtected => {
+                    println!("DENY protected {path}");
+                    std::process::ExitCode::from(2)
+                }
+            }
+        }
+        Some(_) => {
+            eprintln!("{usage}");
+            std::process::ExitCode::FAILURE
+        }
+    }
+}
+
+/// Renders the standard OK/INVALID report and exit code.
+fn authority_report(failures: &[String], ci: bool) -> std::process::ExitCode {
+    let scope = if ci {
+        "authority set + goal queue + amendment discipline"
+    } else {
+        "authority set + goal queue"
+    };
+    if failures.is_empty() {
+        println!("OK: {scope} validate (invariant 9)");
+        std::process::ExitCode::SUCCESS
+    } else {
+        eprintln!("INVALID: {scope} — {} problem(s):", failures.len());
+        for failure in failures {
+            eprintln!("  - {failure}");
+        }
+        std::process::ExitCode::FAILURE
+    }
+}
+
+/// Resolves the repo root at RUNTIME (cwd upward search for
+/// `agents/goals/000-INDEX.md`). Unlike the compile-time
+/// [`crate::conformance::workspace_root`], this works for the pre-built bin
+/// invoked from hooks and loop pre-flights in any checkout/worktree.
+fn authority_root() -> Option<PathBuf> {
+    let mut dir = std::env::current_dir().ok()?;
+    loop {
+        if dir
+            .join("agents")
+            .join("goals")
+            .join("000-INDEX.md")
+            .is_file()
+        {
+            return Some(dir);
+        }
+        if !dir.pop() {
+            return None;
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -1538,5 +2328,74 @@ regime_versions:
         // provenance keys) must satisfy the derived schema.
         let root = crate::conformance::workspace_root();
         assert_eq!(validate_manifest(&root, "us_house"), Vec::<String>::new());
+    }
+
+    // ------------- validate_authority helpers (goal 100, §4.2) -------------
+
+    #[test]
+    fn validate_authority_index_rows_parse_like_the_real_queue() {
+        let index = concat!(
+            "# Goal queue (ordered)\n\n",
+            "- [x] 001 M0-M1 walking skeleton (done)\n",
+            "- [~] 021 LLM extraction fallback - RE-OPENED\n",
+            "- [x] 081 US backfill real write execution - built\n",
+            "  (874 real Gold rows, zero alerts) continuation line with 999 numbers\n",
+            "- [ ] 104 lane idle backoff (founder-directed)\n",
+            "- [ ] E2+ Brazil onward: NO hand-written goals\n",
+            "  - [x] 555 indented pseudo-row must not count\n",
+        );
+        let listed = listed_goal_numbers(index);
+        assert_eq!(
+            listed.iter().copied().collect::<Vec<u64>>(),
+            vec![1, 21, 81, 104],
+            "continuation lines, prose rows, and indented rows never list a goal"
+        );
+    }
+
+    #[test]
+    fn validate_authority_goal_refs_scan_commit_message_shapes() {
+        let refs = goal_refs_in(
+            "feat(pipeline): authority lock (goal 100)\n\
+             Merge branch 'authority/015-amend'\n\
+             see goal/104-lane-idle-backoff and Goal-021 notes\n\
+             fix 404 handling; renumbered from 0011\n\
+             agents/goals/000-INDEX.md row untouched",
+        );
+        assert_eq!(
+            refs.iter().copied().collect::<Vec<u64>>(),
+            vec![15, 21, 100, 104],
+            "goal/authority forms parse; bare numbers (404, 0011) and \
+             agents/goals/ path mentions never count"
+        );
+    }
+
+    #[test]
+    fn validate_authority_normalize_rel_handles_windows_and_traversal() {
+        let root = Path::new("C:/repo");
+        let n = |raw: &str| normalize_rel(root, raw);
+        assert_eq!(
+            n("agents/goals/099.md").as_deref(),
+            Some("agents/goals/099.md")
+        );
+        assert_eq!(
+            n("agents\\goals\\099.md").as_deref(),
+            Some("agents/goals/099.md")
+        );
+        assert_eq!(
+            n("agents/../agents/goals/099.md").as_deref(),
+            Some("agents/goals/099.md")
+        );
+        assert_eq!(
+            n("C:/repo/CLAUDE.md").as_deref(),
+            Some("CLAUDE.md"),
+            "absolute under root strips"
+        );
+        assert_eq!(
+            n("c:\\REPO\\CLAUDE.md").as_deref(),
+            Some("CLAUDE.md"),
+            "windows paths compare case-insensitively"
+        );
+        assert_eq!(n("C:/elsewhere/CLAUDE.md"), None, "outside the repo");
+        assert_eq!(n("../escape.md"), None, "escaping the repo is ungoverned");
     }
 }
