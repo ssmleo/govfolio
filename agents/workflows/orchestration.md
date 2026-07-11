@@ -21,17 +21,27 @@
       select ONLY via this lease — a..c stay lane 0's (this workflow's) alone.
 3. GATE CHECK: preconditions for the selected item (dependencies done; role evals green
    when entering a new epoch; lease free; not human-blocked).
-4. DISPATCH: map item -> role (phase table in source-exploration.md, or goal's stated
-   role). Under Claude Code, dispatch the matching .claude/agents/<role> shim so the
-   effort policy (agents/EFFORT.md) applies natively; otherwise adopt the role
-   in-session. Load: role file + ACTIVE skills + source SAF when source-scoped.
+4. DISPATCH: map item -> governed role (phase table in source-exploration.md, or the
+   trusted goal/plan/workflow section's stated role). Select that exact section, every
+   explicit `trigger:*` ID, and the source SAF when source-scoped. Follow
+   skill-dispatch-contract.md: run `node scripts/agents/resolve-codex-dispatch.mjs`,
+   prepend its unmodified `GOVFOLIO_DISPATCH_V1` envelope, and require the exact
+   `SKILLS_LOADED` receipt. Under Codex dispatch the generated
+   `.codex/agents/<role>.toml`; a missing shim is a hard failure, never an in-session
+   role inference. Under Claude Code retain `.claude/agents/<role>` so
+   agents/EFFORT.md applies natively. Imported templates remain unchanged and receive
+   the envelope prepended to their task prompt. A missing envelope or receipt is a hard failure: do no task work.
+   Return `BLOCKED(skill-contract)` and reject the output.
+   Resolve a new envelope and receipt independently for every nested dispatch.
 4b. WORKFLOW DISPATCH: if the item matches an eligible class in agents/EFFORT.md,
    include the ultracode keyword in the dispatched prompt (per-task workflow) — never
    set session-wide ultracode. First-of-class runs reduced scope; script reviewed
    before write-path approval; results still pass our validators and auditor gates;
    journal the dispatch with a cost note.
-5. VERIFY: run the phase/goal validators and acceptance commands; require the auditor
-   pass where the workflow mandates it. The orchestrator never self-certifies.
+5. VERIFY: first verify the child's exact `SKILLS_LOADED` receipt against the resolver
+   envelope; an invalid receipt is a failed verification. Then run the phase/goal
+   validators and acceptance commands; require the auditor pass where the workflow
+   mandates it. The orchestrator never self-certifies.
 6. RECORD: advance checklist/coverage_phase, release lease (`jurisdiction-lease
    advance|release`, goal 097), ensure SAF write-back happened, commit (conventional
    message, reference goal/phase).

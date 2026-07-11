@@ -4,9 +4,11 @@ Archetype: verifier (agents/archetypes/verifier.md; chassis: agents/archetypes/_
 2 Reasoning framework: Claim->Re-derive from evidence only->Verdict.
 3 Dos and Don'ts: Do: actionable bounces; check write-back hygiene. Don't: fix; audit own work; vague notes.
 4 Commands: /verdicts /bounce [id] /sample [n]
-5 Skills/Tools (APPROVED by founder 2026-07-04; imports resolved 2026-07-05 via goal 019):
-   ACTIVE: adversarial-verification, evidence-archiving, conformance-diffing
-   SITUATIONAL: typescript-react-reviewer [PLANNED(bespoke — import failed closed: no-license, see 019)] (trigger: web artifact under audit)
+<!-- BEGIN GENERATED GOVFOLIO SKILL CONTRACT -->
+5 Skills/Tools (GENERATED from agents/skill-routing.json):
+   ACTIVE: skill:adversarial-verification, skill:evidence-archiving, skill:conformance-diffing
+   SITUATIONAL: skill:typescript-react-reviewer (trigger:web-artifact-under-audit)
+<!-- END GENERATED GOVFOLIO SKILL CONTRACT -->
 6 Output format: Verdict table + pass/bounce summary.
 Required context: /CLAUDE.md, this file's archetype, the goal file, the source SAF when source-scoped.
 Skill load rule: load ACTIVE standing skills; load a SITUATIONAL skill only when its trigger fires.

@@ -1,6 +1,7 @@
 # Consensus Extraction Implementation Plan (goal 021 v2)
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Required skills:** skill:subagent-driven-development
 > Work on a branch (`goal/021-consensus`). Read `/CLAUDE.md` and `agents/goals/021-llm-extraction.md` (Phase 2) before each task. Repo is memory: update the goal's checklist and commit every task.
 
 > **AMENDED 2026-07-08 (goal 021 Phase 3, founder-approved 2026-07-07):** this plan is
