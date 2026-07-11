@@ -2,6 +2,7 @@ pub mod alerts;
 pub mod db;
 pub mod domain;
 pub mod ids;
+pub mod integration;
 pub mod query;
 pub mod schemas;
 pub mod seed;

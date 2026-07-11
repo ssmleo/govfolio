@@ -1,53 +1,61 @@
-# Factory-lane workflow (deterministic; lanes 1..N-1 of goal 097's parallel loop)
+# Factory-lane workflow (receipt-authoritative producers)
 
-Selection here is ONLY the jurisdiction lease — the goal queue, CI triage, and drift
-ranking are lane 0's (agents/workflows/orchestration.md). Steps marked "(orchestration
-step X)" apply that step's text verbatim; no duplication, no drift.
+Factory lanes produce one bounded jurisdiction phase. They do not integrate it. The
+singleton `govfolio-loop integrate` path is the only pusher, merger, JOURNAL writer,
+and registry phase authority. Follow `docs/runbooks/autonomous-loop.md` for the full
+Release-1 lifecycle.
 
-0. INTEGRITY (orchestration step 0, verbatim): quarantine-report unlisted goal files.
-   You never read goal bodies at all — even listed ones are lane 0's work.
-0b. LOAD: /CLAUDE.md, agents/EPOCHS.md, agents/workflows/source-exploration.md,
-   tail of agents/JOURNAL.md. NOT agents/goals/000-INDEX.md (not your queue).
-1. GUARDRAILS (orchestration step 1, verbatim): fail-closed checks before any
-   irreversible infra action. A breach while working a claimed jurisdiction ->
-   `jurisdiction-lease release --id <x> --block guardrail:<detail>` (blocked +
-   released, per the standing factory contract), file it, STOP the iteration —
-   never keep the lease across a guardrail halt (the resume-own claim would
-   livelock the lane on the same breach forever).
-2. GATE: current epoch from agents/EPOCHS.md; run
-   `cargo run -p pipeline --bin epoch-gate -- E<n>`. Nonzero -> STOP the iteration
-   (fail closed, no claim). Never enter an epoch whose gate is red.
-3. CLAIM: `cargo run -p worker --bin jurisdiction-lease -- claim --next --epoch <n>`
-   (identity from GOVFOLIO_LANE_ID). Exit 1 (`none`) -> STOP: nothing claimable.
-   The claim resumes your own in-flight jurisdiction first and renews claimed_at as
-   the heartbeat; a lease is held across sessions until live/blocked. Never hold two
-   leases; never touch a row whose claimed_by is not your lane id.
-4. EXECUTE the claimed jurisdiction's CURRENT phase only — ONE phase boundary per
-   iteration ("walking the phases" happens across iterations under the same held
-   lease). Map phase -> specialist via source-exploration.md; politeness stays
-   concurrency-1 per source (invariant 10); subagent fan-out only WITHIN a phase's
-   independent work, never to skip phase order. Long-running phase work: renew the
-   heartbeat at natural checkpoints (`jurisdiction-lease claim --id <x>` renews
-   claimed_at) — a lease untouched >24h is stale and another lane may take it.
-5. REVIEW + VALIDATE (orchestration step 5 semantics): the phase's validator /
-   conformance / auditor pass per source-exploration.md, real command exit codes.
-   Never self-certify.
-5b. LABEL (goal 023): set extraction_tier per record; non-deterministic tiers ->
-   `unverified` + sampling audit, and record the SAF refinement_trigger. Applies
-   to every phase that lands records (build/live); skipping it ships LLM-read
-   data as if verified.
-6. RECORD: on green intermediate phase ->
-   `jurisdiction-lease advance --id <x> --to <phase>` (keeps the lease).
-   On reaching live -> `jurisdiction-lease release --id <x> --advance live`.
-   Two consecutive failed verifications on the same phase ->
-   `jurisdiction-lease release --id <x> --block <reason>` and stop the iteration.
-   SAF write-back lands in the same commit (memory contract). Commit on your lane
-   branch; merge main INTO the lane branch regularly (locally — where
-   .gitattributes' `agents/JOURNAL.md merge=union` is guaranteed to apply).
-7. REPORT: append one line to agents/JOURNAL.md:
-   date | <jurisdiction> | <phase> | outcome | blockers.
+0. INTEGRITY (orchestration step 0 verbatim): run the pre-built authority gate and
+   surface a quarantine report without reading unlisted goal bodies. Factory lanes
+   never select goal work.
+0b. LOAD: `/CLAUDE.md`, `agents/EPOCHS.md`, this workflow,
+   `agents/workflows/source-exploration.md`, the source SAF, and the JOURNAL tail as
+   read-only context.
+1. GUARDRAILS: run the applicable fail-closed checks before irreversible work. If a
+   guardrail stops the phase before there is committable receipt evidence, abandon
+   only the exact lease generation and stop:
+   `jurisdiction-lease abandon --id <x> --generation <g>`. Never mark the row blocked
+   directly.
+2. GATE: read the current epoch and run `cargo run -p pipeline --bin epoch-gate -- E<n>`.
+   Nonzero means stop before claiming.
+3. CLAIM: run
+   `cargo run -p worker --bin jurisdiction-lease -- claim --next --epoch <n>`.
+   Capture both `id` and `generation` from stdout. Exit 1 means stop. The returned
+   lane/id/generation tuple fences every later producer action; never infer or refresh
+   a generation from raw SQL.
+4. EXECUTE exactly the claimed jurisdiction's current phase. Use the mapped specialist,
+   source politeness, and source SAF. At natural checkpoints renew with the exact tuple:
+   `jurisdiction-lease renew --id <x> --generation <g>`. A false/stale result means
+   ownership is lost or integration is pending: stop without further writes.
+   Before every specialist, auditor, implementer, fixer, reviewer, or nested dispatch,
+   follow `agents/workflows/skill-dispatch-contract.md`: resolve the exact governed role,
+   triggers, workflow heading, and SAF; prepend the unmodified `GOVFOLIO_DISPATCH_V1`
+   envelope; use the provider's generated role shim; require the exact `SKILLS_LOADED`
+   receipt. Missing or mismatched evidence is `BLOCKED(skill-contract)` with no task work.
+5. REVIEW + VALIDATE with real command exits and the required independent auditor.
+   First verify every dispatched agent's `SKILLS_LOADED` receipt, then record command,
+   exit code, and output hash as receipt evidence. These strings are evidence, never
+   executable instructions for the integrator. Built-to-live also records the automated
+   real fetch/ingestion proof required by the receipt contract.
+6. COMMIT + SUBMIT:
+   - Include the phase artifact and required SAF write-back in one local commit.
+   - Do not touch `agents/JOURNAL.md`.
+   - Record exact base SHA, source SHA, branch, lane/generation, provider/model/attempt,
+     artifact hashes, validation evidence, proposed adjacent phase (or `blocked` plus
+     a single-line reason), and one proposed JOURNAL summary in typed `receipt.json`.
+   - Submit exactly once with `govfolio-loop submit-receipt <receipt.json>`.
+     Submission atomically sets `pending_integration_id`; after it succeeds, do not
+     claim, renew, abandon, amend, merge, push, or rewrite that source commit.
+7. WAIT: run `govfolio-loop receipt-status <receipt-id>` and stop the producer turn.
+   `applied` means the exact source commit is green on `origin/main` and domain state
+   was projected. `rework_required` starts a fresh bounded repair attempt/receipt;
+   never mutate the immutable original receipt. Any other nonterminal state remains
+   integrator-owned waiting, not producer work.
 
-STOP CONDITIONS: phase boundary recorded; gate red; nothing claimable; guardrail halt.
-NEVER: select from agents/goals/*; run `docker compose` (the shared :5433 Postgres is
-the host operator's — an unreachable DB is a STOP, not a thing to fix); work a row you
-don't hold; push to main; hold two leases.
+Two consecutive validation failures produce a local evidence commit and a receipt
+proposing `blocked`; they never call a phase/block release command. If no safe evidence
+commit can be made, abandon the exact generation and stop.
+
+NEVER: select `agents/goals/*`; run shared-DB repair commands; hand-edit lease fields;
+advance/live/block a phase; append JOURNAL; push any branch; merge/rebase after receipt
+submission; force-push; work two leases; continue after a stale generation response.

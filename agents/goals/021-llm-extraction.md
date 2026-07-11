@@ -178,6 +178,7 @@ amendment) + `docs/plans/2026-07-07-consensus-hardening.md` (addendum plan, Task
 ### Goal 021 — Phase 3: Consensus hardening + cross-lab third vote — PLANNING phase
 
 Status: OPEN · Phase: P (plan) · Role: planner (skills: plan-decomposition + @superpowers:writing-plans)
+**Required skills:** skill:plan-decomposition, skill:writing-plans
 Register in `agents/goals/000-INDEX.md` before acting (invariant 9; goal numbers 022/023 are
 quarantined untracked files — do not reuse or read them). Usable verbatim as a fresh-session
 prompt at the repo root; work on a branch per house convention.

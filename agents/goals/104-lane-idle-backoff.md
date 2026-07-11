@@ -64,13 +64,13 @@ sh -n agents/run-loop.sh
 ```
 
 ## Checklist
-- [ ] Task 1: shared claimable predicate in lease.rs + `claimable` subcommand + tests
+- [x] Task 1: shared claimable predicate in lease.rs + `claimable` subcommand + tests
       (--ignored, live pg: empty case, claimable case, epoch filter)
-- [ ] Task 2: run-loop.sh lane-loop pre-check + `GOVFOLIO_LANE_SLEEP_IDLE` (default 3600)
+- [x] Task 2: run-loop.sh lane-loop pre-check + `GOVFOLIO_LANE_SLEEP_IDLE` (default 3600)
       + header doc + factory-lane.md note
-- [ ] Task 3: stubbed-claude smoke green (zero spawns on empty registry)
-- [ ] Task 4: close-out — JOURNAL line, this checklist, 000-INDEX tick, note that the
-      running loop needs a restart to pick up the new wrapper
+- [x] Task 3: stubbed-claude smoke green (zero spawns on empty registry)
+- [x] Task 4: close-out — JOURNAL line, this checklist, 000-INDEX tick; the legacy
+      wrapper is superseded and the new fenced supervisor must be started fresh
 
 ## BLOCKED (human)
 (empty)

@@ -73,18 +73,18 @@ cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test --w
 ```
 
 ## Checklist
-- [ ] quarantine pre-existing unlisted 022/023 into agents/goals/_quarantine/ (provenance b2139b8); bijection green on clean tree
-- [ ] `AUTHORITY.lock.json` schema + `--write-lock` generation over the pinned authority set
-- [ ] Bijection check (a): goals↔000-INDEX; unlisted goal → exit 1 + quarantine report w/ git provenance
-- [ ] Hash-match check (b): pinned paths vs lock; missing/extra authority file → exit 1
-- [ ] `--ci` amendment-discipline check (c) + `--check-path <p>` fast single-path mode
-- [ ] Seeded-violation fixtures + `#[test]`s (unlisted goal, tampered role, missing/stale lock, --check-path deny) proven red
-- [ ] `agents/run-loop.sh` pre-iteration halt wired (pre-built bin; nonzero → no session)
-- [ ] `agents/workflows/orchestration.md` step 0 replaced by running the bin (quarantine duty retained)
-- [ ] `.github/workflows/ci.yml` guardrails job gains a `validate-authority` step
-- [ ] `agents/GOVERNANCE.md` per-rule rationales + `## Amendments (append-only, dated)` section
-- [ ] PreToolUse hook script + repo `.claude/settings.json` additive wiring (LAST — see Bootstrap)
-- [ ] Full acceptance block green; memory/SAF write-back + JOURNAL line; committed; checklist + 000-INDEX row ticked
+- [x] quarantine pre-existing unlisted 022/023 into agents/goals/_quarantine/ (provenance b2139b8); bijection green on clean tree
+- [x] `AUTHORITY.lock.json` schema + `--write-lock` generation over the pinned authority set
+- [x] Bijection check (a): goals↔000-INDEX; unlisted goal → exit 1 + quarantine report w/ git provenance
+- [x] Hash-match check (b): pinned paths vs lock; missing/extra authority file → exit 1
+- [x] `--ci` amendment-discipline check (c) + `--check-path <p>` fast single-path mode
+- [x] Seeded-violation fixtures + `#[test]`s (unlisted goal, tampered role, missing/stale lock, --check-path deny) proven red
+- [x] `agents/run-loop.sh` pre-iteration halt wired (pre-built bin; nonzero → no session)
+- [x] `agents/workflows/orchestration.md` step 0 replaced by running the bin (quarantine duty retained)
+- [x] `.github/workflows/ci.yml` guardrails job gains a `validate-authority` step
+- [x] `agents/GOVERNANCE.md` per-rule rationales + `## Amendments (append-only, dated)` section
+- [x] PreToolUse hook script + repo `.claude/settings.json` additive wiring (LAST — see Bootstrap)
+- [x] Full acceptance block green; interim memory write-back landed in JOURNAL (goal 101 has not created the subsystem index yet); committed; checklist + 000-INDEX row ticked
 
 ## BLOCKED (human)
 (empty)

@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","session_id":"claude-session-auth","model":"claude-opus-4-6"}
+{"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"claude-session-auth","errors":["Authentication failed: invalid API key"],"error":{"type":"authentication_error","code":"invalid_api_key","message":"Authentication failed: invalid API key","status":401}}

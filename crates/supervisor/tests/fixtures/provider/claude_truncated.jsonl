@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","session_id":"claude-session-truncated","model":"claude-opus-4-6"}
+{"type":"result","subtype":"error_during_execution","is_error":true,"errors":["Usage limit reached"]

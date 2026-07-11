@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","session_id":"claude-session-monthly","model":"claude-opus-4-6"}
+{"type":"result","subtype":"error_during_execution","is_error":true,"session_id":"claude-session-monthly","errors":["Monthly usage limit reached. Resets 2026-08-01T00:00:00Z"],"api_error_status":"usage_limit"}

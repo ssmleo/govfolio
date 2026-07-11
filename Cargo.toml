@@ -2,7 +2,7 @@
 # Top-level crates are listed explicitly: a bare "crates/*" glob would try to load
 # the package-less `crates/adapters/` directory itself and fail, while excluding it
 # would also exclude every adapter beneath it. Adapters scale via their own glob.
-members = ["crates/api", "crates/core", "crates/pipeline", "crates/worker", "crates/adapters/*"]
+members = ["crates/api", "crates/core", "crates/pipeline", "crates/supervisor", "crates/worker", "crates/adapters/*"]
 resolver = "2"
 
 [workspace.lints.clippy]

@@ -1,0 +1,2 @@
+{"type":"system","subtype":"init","session_id":"claude-session-cleanup","model":"claude-opus-4-6"}
+{"type":"result","subtype":"success","is_error":false,"session_id":"claude-session-cleanup","result":"committed"}

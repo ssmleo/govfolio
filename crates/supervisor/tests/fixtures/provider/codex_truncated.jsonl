@@ -1,0 +1,2 @@
+{"type":"thread.started","thread_id":"019f-thread-truncated"}
+{"type":"turn.failed","error":{"type":"usage_limit_error","code":"usage_limit","message":"Usage limit reached"}

@@ -1,6 +1,11 @@
 # THE factory prompt — calibrate first, then mass factory with backfill (definitive)
 
 Place at: `C:\projects\govfolio.io\agents\FACTORY-GOAL.md` (supersedes prior versions).
+
+> Release-1 execution amendment (2026-07-11): producer/integration instructions in this
+> historical prompt are superseded by `docs/runbooks/autonomous-loop.md` and
+> `agents/workflows/factory-lane.md`. Producers commit locally, submit immutable receipts,
+> wait, and never advance/block/release phase, append JOURNAL, push, or merge.
 Requires goal 024's BACKFILL machinery (per-source backfill phase + alert suppression + budget).
 This goal enforces calibrate-first via its OWN sequencing, so it is correct whether or not
 024's gate change is applied.
@@ -71,9 +76,8 @@ protected main; (3) billing HARD CAP + terraform DESTROY_BUDGET read GLOBAL/shar
 7. LABEL (023): extraction_tier per record (backfilled scanned docs → ocr/llm → unverified → sampling audit).
 8. PROMOTE: stage to scratch; write into docs/regimes/ ONLY on PASS + green (stage-then-promote).
    Never write docs/regimes/us-house/reference/ (frozen).
-9. RECORD & RELEASE: advance coverage_phase (SUPERSEDE, never UPDATE Gold facts); append a PER-PHASE
-   line to agents/JOURNAL.md (date | jurisdiction | phase | outcome | blockers); COMMIT on a branch;
-   RELEASE the lease.
+9. COMMIT & RECEIPT: commit locally without JOURNAL; submit the typed immutable receipt and wait.
+   Never advance/block/release phase, push, or merge; the singleton integrator owns those actions.
 
 === INVARIANTS ===
 - NO goal files: drive ALL work through registry state transitions; an unlisted goal file is
@@ -83,9 +87,9 @@ protected main; (3) billing HARD CAP + terraform DESTROY_BUDGET read GLOBAL/shar
 - Backfill ALWAYS suppresses alerts (correctness precondition, not a gate).
 - Guardrails FAIL CLOSED (check-migration-safety.sh before prod migration; check-tf-plan.sh before
   terraform apply; billing HARD CAP). A breach HALTS that action, files it, continue other work.
-- LEGIBILITY: claim VISIBLY, journal PER PHASE, commit PER PHASE BOUNDARY, release on done/block.
-    DONE = git log + JOURNAL + promoted docs/regimes/<x>/ ; LEFT = coverage_phase < backfilled by
-    priority_score ; DOING = rows with a live lease (claimed_at < 24h).
+- LEGIBILITY: claim with generation, commit locally, submit a receipt, and wait.
+    DONE = applied receipts; LEFT = nonterminal nonpending registry rows;
+    DOING = held leases plus nonterminal receipt state.
 
 === STOP ===
 Budget exhausted, OR every epoch jurisdiction backfilled/blocked, OR a guardrail halt. Never push
@@ -93,5 +97,5 @@ Budget exhausted, OR every epoch jurisdiction backfilled/blocked, OR a guardrail
 steering (/status /queue /proceed /pivot /park) may arrive mid-run — honor it.
 ------------------------------------------------------------------------------------------
 MONITOR (another terminal): DONE=git log --oneline ; DOING=registry live leases (<24h) ;
-LEFT=registry coverage_phase<backfilled by priority_score. Tripwire: a leased row aging with no
-new commit/journal line = stalled/crashed worker (reclaim >24h).
+LEFT=registry coverage_phase<backfilled by priority_score. Tripwire: a nonpending lease aging
+without a producer commit is stalled; a pending lease is integrator work, never manual reclaim.

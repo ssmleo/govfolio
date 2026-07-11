@@ -1,0 +1,3 @@
+{"type":"thread.started","thread_id":"019f-thread-auth"}
+{"type":"turn.started"}
+{"type":"turn.failed","error":{"type":"authentication_error","code":"invalid_api_key","message":"Incorrect API key provided","status_code":401}}

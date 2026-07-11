@@ -1,0 +1,7 @@
+# GENERATED: govfolio-codex-skill-contract; DO NOT EDIT
+interface:
+  display_name: "Govfolio: dispatching-parallel-agents"
+  short_description: "Governed bridge; explicit dispatch only."
+  default_prompt: "Use $govfolio-dispatching-parallel-agents to follow the pinned Govfolio workflow for this task."
+policy:
+  allow_implicit_invocation: false

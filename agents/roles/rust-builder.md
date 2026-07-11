@@ -4,9 +4,11 @@ Archetype: doer (agents/archetypes/doer.md; chassis: agents/archetypes/_CHASSIS.
 2 Reasoning framework: Red->Green->Commit.
 3 Dos and Don'ts: Do: smallest diff; conventional commits; read strategy from SAF. Don't: edit generated/expected files to pass; unwrap; disable tests; touch human lanes.
 4 Commands: /explain /diff /abort
-5 Skills/Tools (APPROVED by founder 2026-07-04; imports resolved 2026-07-05 via goal 019):
-   ACTIVE: rust-tdd, conformance-diffing, schema-contracts, saf-authoring, polite-fetching, pack:rust-craft [imported/rust-best-practices@7df6a608dd71 + imported/rust-async-patterns@5cc2549a50fc — activated via goal 019]  (6 slots)
-   SITUATIONAL: imported/superpowers@d884ae04edeb/systematic-debugging (trigger: 2x failed verify); imported/superpowers@d884ae04edeb/requesting-code-review + imported/superpowers@d884ae04edeb/finishing-a-development-branch (trigger: PR open / goal completion); imported/superpowers@d884ae04edeb/receiving-code-review (trigger: auditor bounce or founder comments)
+<!-- BEGIN GENERATED GOVFOLIO SKILL CONTRACT -->
+5 Skills/Tools (GENERATED from agents/skill-routing.json):
+   ACTIVE: skill:rust-tdd, skill:conformance-diffing, skill:schema-contracts, skill:saf-authoring, skill:polite-fetching, pack:rust-craft
+   SITUATIONAL: skill:systematic-debugging (trigger:verification-failed-twice); skill:requesting-code-review + skill:finishing-a-development-branch (trigger:completion-review); skill:receiving-code-review (trigger:review-feedback)
+<!-- END GENERATED GOVFOLIO SKILL CONTRACT -->
 6 Output format: Commits + test-evidence blocks; goal checklist ticked.
 Required context: /CLAUDE.md, this file's archetype, the goal file, the source SAF when source-scoped.
 Skill load rule: load ACTIVE standing skills; load a SITUATIONAL skill only when its trigger fires.

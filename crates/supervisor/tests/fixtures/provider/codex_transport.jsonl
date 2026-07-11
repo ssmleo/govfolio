@@ -1,0 +1,3 @@
+{"type":"thread.started","thread_id":"019f-thread-transport"}
+{"type":"turn.started"}
+{"type":"error","will_retry":false,"error":{"type":"api_connection_error","code":"api_connection_error","message":"TLS connection timed out"}}

@@ -3,6 +3,11 @@
   "private": true,
   "packageManager": "pnpm@11.10.0",
   "scripts": {
+    "agent-contract:test": "node --test scripts/agents/codex-contract.test.mjs",
+    "agent-contract:lock": "node scripts/agents/refresh-codex-skill-lock.mjs",
+    "agent-contract:render": "node scripts/agents/render-codex-contract.mjs --write",
+    "agent-contract:check": "node scripts/agents/render-codex-contract.mjs --check && node scripts/agents/validate-codex-contract.mjs --repo-root .",
+    "agent-contract:clean": "node scripts/agents/check-codex-contract-clean-worktree.mjs",
     "e2e": "pnpm --filter web e2e"
   }
 }

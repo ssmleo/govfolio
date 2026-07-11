@@ -69,6 +69,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          # validate-authority --ci (check c) inspects HEAD's parents and the
+          # merged-side commit messages — a shallow clone would fail closed.
+          fetch-depth: 0
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Invariant 9 (goal 100, design §4.2 run point 2): goal-queue bijection,
+      # AUTHORITY.lock.json pins, amendment discipline. A poisoned tree cannot merge.
+      - name: authority lock + goal-queue bijection
+        run: cargo run -q -p pipeline --bin validate-authority -- --ci
+      - name: Codex skill-dispatch contract
+        run: |
+          node --test scripts/agents/codex-contract.test.mjs
+          node scripts/agents/render-codex-contract.mjs --check
+          node scripts/agents/validate-codex-contract.mjs --repo-root .
+          bash -n agents/run-loop.sh agents/run-loop-codex.sh agents/monitor.sh
+          node scripts/agents/check-codex-contract-clean-worktree.mjs
       - name: migrations expand-only
         run: sh scripts/check-migration-safety.sh crates/core/migrations
       # CI has no cloud credentials by design, so the destroy-budget gate
