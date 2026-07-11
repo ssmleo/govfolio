@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -10,18 +11,34 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
+  GENERATED_MARKERS,
   expandRequirements,
+  formatDiagnostics,
   formatEnvelope,
   hashSkillTree,
   parseManifest,
   parseRequiredSkills,
   renderBridgeSkill,
+  renderCodexAgent,
+  renderOpenAiMetadata,
+  renderRoleSkillBlock,
   resolveDispatch,
   validateManifest,
 } from "./codex-contract-lib.mjs";
+
+const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+
+function runCli(name, args, options = {}) {
+  return execFileSync(process.execPath, [join(scriptDirectory, name), ...args], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    ...options,
+  });
+}
 
 function write(root, relativePath, contents) {
   const path = join(root, ...relativePath.split("/"));
@@ -80,6 +97,35 @@ function manifest(overrides = {}) {
     triggers: [],
     roles: [],
     ...overrides,
+  };
+}
+
+function lockedSkill(root, id, overrides = {}) {
+  const { canonicalPath = `agents/skills/${id.replace(/^skill:/, "")}`, ...skillOverrides } = overrides;
+  write(root, `${canonicalPath}/SKILL.md`, `${id}\n`);
+  const hashed = hashSkillTree(root, canonicalPath);
+  assert.deepEqual(hashed.diagnostics, []);
+  return skill(id, {
+    ...skillOverrides,
+    source: {
+      canonical_path: canonicalPath,
+      tree_sha256: hashed.tree_sha256,
+      file_count: hashed.file_count,
+    },
+  });
+}
+
+function writeManifest(root, value) {
+  write(root, "agents/skill-routing.json", `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function fixtureRole(id = "builder") {
+  return {
+    id,
+    description: `Perform governed work as ${id}.`,
+    role_path: `agents/roles/${id}.md`,
+    active: ["skill:alpha"],
+    situational: [],
   };
 }
 
@@ -341,4 +387,339 @@ test("generated bridge starts with valid YAML frontmatter", () => {
   assert.equal(lines[0], "---");
   assert.match(lines[1], /^# GENERATED: govfolio-codex-skill-contract/);
   assert.equal(lines[4], "---");
+});
+
+test("refresh-lock changes only lock fields", (t) => {
+  const root = fixtureRepository(t);
+  write(root, "agents/skills/alpha/SKILL.md", "alpha\n");
+  const input = manifest({
+    skills: [
+      skill("skill:alpha", {
+        source: {
+          canonical_path: "agents/skills/alpha",
+          tree_sha256: "0".repeat(64),
+          file_count: 99,
+        },
+      }),
+    ],
+  });
+  writeManifest(root, input);
+
+  runCli("refresh-codex-skill-lock.mjs", ["--repo-root", root]);
+
+  const actual = JSON.parse(readFileSync(join(root, "agents", "skill-routing.json"), "utf8"));
+  assert.notEqual(actual.skills[0].source.tree_sha256, input.skills[0].source.tree_sha256);
+  assert.equal(actual.skills[0].source.file_count, 1);
+  actual.skills[0].source.tree_sha256 = input.skills[0].source.tree_sha256;
+  actual.skills[0].source.file_count = input.skills[0].source.file_count;
+  assert.deepEqual(actual, input);
+});
+
+test("render check mode performs no writes", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({ skills: [lockedSkill(root, "skill:alpha")], roles: [fixtureRole()] });
+  writeManifest(root, input);
+  const roleText = "# role: builder\n5 Skills/Tools (legacy)\n6 Output format: report.\n";
+  write(root, "agents/roles/builder.md", roleText);
+
+  assert.throws(
+    () => runCli("render-codex-contract.mjs", ["--check", "--repo-root", root]),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("GENERATED_FILE_MISSING"),
+  );
+  assert.equal(readFileSync(join(root, "agents", "roles", "builder.md"), "utf8"), roleText);
+  assert.equal(existsSync(join(root, ".agents")), false);
+  assert.equal(existsSync(join(root, ".codex")), false);
+});
+
+test("render write mode repairs marked generated drift", (t) => {
+  const root = fixtureRepository(t);
+  const alpha = lockedSkill(root, "skill:alpha");
+  const role = fixtureRole();
+  const input = manifest({ skills: [alpha], roles: [role] });
+  writeManifest(root, input);
+  write(root, role.role_path, "# role: builder\n6 Output format: report.\n");
+
+  runCli("render-codex-contract.mjs", ["--write", "--repo-root", root]);
+  const bridgePath = join(root, ".agents", "skills", alpha.codex_name, "SKILL.md");
+  writeFileSync(bridgePath, `---\n${GENERATED_MARKERS.comment}\ndrift\n`);
+  runCli("render-codex-contract.mjs", ["--write", "--repo-root", root]);
+
+  assert.equal(readFileSync(bridgePath, "utf8"), renderBridgeSkill(input, alpha));
+  assert.equal(
+    readFileSync(join(root, ".agents", "skills", alpha.codex_name, "agents", "openai.yaml"), "utf8"),
+    renderOpenAiMetadata(alpha),
+  );
+  assert.equal(
+    readFileSync(join(root, ".codex", "agents", `${role.id}.toml`), "utf8"),
+    renderCodexAgent(input, role),
+  );
+});
+
+test("render never deletes an unmarked custom agent or skill", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({ skills: [lockedSkill(root, "skill:alpha")], roles: [fixtureRole()] });
+  writeManifest(root, input);
+  write(root, "agents/roles/builder.md", "# role: builder\n6 Output format: report.\n");
+  write(root, ".agents/skills/custom/SKILL.md", "---\nname: custom\ndescription: custom\n---\n");
+  write(root, ".codex/agents/custom.toml", "name = \"custom\"\n");
+
+  runCli("render-codex-contract.mjs", ["--write", "--repo-root", root]);
+
+  assert.equal(existsSync(join(root, ".agents", "skills", "custom", "SKILL.md")), true);
+  assert.equal(existsSync(join(root, ".codex", "agents", "custom.toml")), true);
+});
+
+test("stale marked bridge and shim are rejected", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({ skills: [lockedSkill(root, "skill:alpha")], roles: [fixtureRole()] });
+  writeManifest(root, input);
+  write(root, "agents/roles/builder.md", "# role: builder\n6 Output format: report.\n");
+  write(root, ".agents/skills/govfolio-stale/SKILL.md", `---\n${GENERATED_MARKERS.comment}\nstale\n`);
+  write(root, ".codex/agents/stale.toml", `${GENERATED_MARKERS.comment}\nstale\n`);
+
+  assert.throws(
+    () => runCli("render-codex-contract.mjs", ["--check", "--repo-root", root]),
+    (error) => {
+      const output = `${error.stdout}\n${error.stderr}`;
+      return output.includes("STALE_MARKED_OUTPUT") &&
+        output.includes("govfolio-stale") && output.includes("stale.toml");
+    },
+  );
+});
+
+test("role generated blocks match manifest slots and trigger IDs", (t) => {
+  const root = fixtureRepository(t);
+  const alpha = lockedSkill(root, "skill:alpha");
+  const beta = lockedSkill(root, "skill:beta");
+  const role = {
+    ...fixtureRole(),
+    situational: [
+      {
+        trigger: "trigger:completion-review",
+        requirements: ["skill:beta"],
+      },
+    ],
+  };
+  const input = manifest({
+    skills: [alpha, beta],
+    triggers: [{ id: "trigger:completion-review", description: "Review completed work." }],
+    roles: [role],
+  });
+  writeManifest(root, input);
+  write(root, role.role_path, "# role: builder\n6 Output format: report.\n");
+
+  runCli("render-codex-contract.mjs", ["--write", "--repo-root", root]);
+
+  const renderedRole = readFileSync(join(root, ...role.role_path.split("/")), "utf8");
+  assert.ok(renderedRole.includes(renderRoleSkillBlock(input, role)));
+  assert.match(renderedRole, /trigger:completion-review/);
+});
+
+test("resolver expands role, trigger, step, pack, and dependencies", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [
+      lockedSkill(root, "skill:alpha"),
+      lockedSkill(root, "skill:beta"),
+      lockedSkill(root, "skill:gamma", { dependencies: ["skill:delta"] }),
+      lockedSkill(root, "skill:delta"),
+    ],
+    packs: [{ id: "pack:craft", slot_cost: 1, members: ["skill:gamma"], planned_members: [] }],
+    triggers: [{ id: "trigger:completion-review", description: "Review completed work." }],
+    roles: [
+      {
+        ...fixtureRole(),
+        situational: [
+          { trigger: "trigger:completion-review", requirements: ["skill:beta"] },
+        ],
+      },
+    ],
+  });
+  writeManifest(root, input);
+  write(
+    root,
+    "plan.md",
+    "### Task 1: Build\n\n**Required skills:** pack:craft\n",
+  );
+
+  const output = runCli(
+    "resolve-codex-dispatch.mjs",
+    [
+      "--repo-root", root,
+      "--role", "builder",
+      "--trigger", "trigger:completion-review",
+      "--section-file", "plan.md",
+      "--section-heading", "Task 1: Build",
+      "--source-context", "docs/context.md",
+    ],
+    { cwd: root },
+  );
+  const envelope = JSON.parse(output.split(/\r?\n/)[1]);
+  assert.deepEqual(envelope.skills.map(({ id }) => id), [
+    "skill:alpha",
+    "skill:beta",
+    "skill:delta",
+    "skill:gamma",
+  ]);
+});
+
+test("resolver blocks a triggered planned skill", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [
+      lockedSkill(root, "skill:alpha"),
+      skill("skill:future", {
+        status: "planned",
+        source: null,
+        unavailable_reason: "not imported",
+      }),
+    ],
+    triggers: [{ id: "trigger:future", description: "Require unavailable future work." }],
+    roles: [
+      {
+        ...fixtureRole(),
+        situational: [{ trigger: "trigger:future", requirements: ["skill:future"] }],
+      },
+    ],
+  });
+  writeManifest(root, input);
+
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      ["--repo-root", root, "--role", "builder", "--trigger", "trigger:future"],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("PLANNED_SKILL_REQUIRED"),
+  );
+});
+
+test("impeccable bridge preserves docs-only script restrictions", () => {
+  const repositoryRoot = join(scriptDirectory, "..", "..");
+  const input = JSON.parse(
+    readFileSync(join(repositoryRoot, "agents", "skill-routing.json"), "utf8"),
+  );
+  const impeccable = input.skills.find(({ id }) => id === "skill:impeccable");
+  assert.ok(impeccable);
+  assert.ok(
+    impeccable.restrictions.some((restriction) =>
+      /never.*(?:execute|import|copy|adapt|vendor).*scripts/i.test(restriction),
+    ),
+  );
+  const rendered = renderBridgeSkill(input, impeccable);
+  for (const restriction of impeccable.restrictions) assert.ok(rendered.includes(restriction));
+});
+
+test("nested manifest constraints fail closed", (t) => {
+  const root = fixtureRepository(t);
+  const alpha = lockedSkill(root, "skill:alpha");
+  alpha.source.unexpected = true;
+  const future = skill("skill:future", {
+    status: "planned",
+    source: null,
+    unavailable_reason: "not imported",
+  });
+  const repeatedActive = Array.from({ length: 7 }, () => "skill:alpha");
+  const input = manifest({
+    skills: [alpha, future],
+    packs: [
+      {
+        id: "pack:broken",
+        slot_cost: 2,
+        members: ["skill:alpha", "skill:future", "skill:alpha", "skill:alpha"],
+        planned_members: ["skill:alpha"],
+      },
+    ],
+    triggers: [{ id: "not-namespaced", description: "" }],
+    roles: [
+      {
+        ...fixtureRole("builder-one"),
+        role_path: "agents/roles/shared.md",
+        active: repeatedActive,
+      },
+      {
+        ...fixtureRole("builder-two"),
+        role_path: "agents/roles/shared.md",
+      },
+    ],
+  });
+
+  const codes = new Set(validateManifest(input, root).map(({ code }) => code));
+  for (const expected of [
+    "DUPLICATE_PACK_MEMBER",
+    "DUPLICATE_ROLE_PATH",
+    "INVALID_PACK_SIZE",
+    "INVALID_PACK_SLOT_COST",
+    "INVALID_SOURCE_KEYS",
+    "INVALID_TRIGGER_DESCRIPTION",
+    "INVALID_TRIGGER_ID",
+    "PACK_MEMBER_UNAVAILABLE",
+    "ROLE_SLOT_LIMIT_EXCEEDED",
+  ]) {
+    assert.ok(codes.has(expected), `missing diagnostic ${expected}`);
+  }
+});
+
+test("validator rejects governed role-set drift", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  write(root, "agents/roles/builder.md", "# role: builder\n6 Output format: report.\n");
+  runCli("render-codex-contract.mjs", ["--write", "--repo-root", root]);
+  write(root, ".claude/agents/other.md", "---\nname: other\n---\n");
+
+  assert.throws(
+    () => runCli("validate-codex-contract.mjs", ["--repo-root", root]),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("ROLE_SET_MISMATCH"),
+  );
+});
+
+test("expected generated bridge rejects unowned extra files", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  write(root, "agents/roles/builder.md", "# role: builder\n6 Output format: report.\n");
+  runCli("render-codex-contract.mjs", ["--write", "--repo-root", root]);
+  write(root, ".agents/skills/govfolio-alpha/notes.md", "unowned procedure text\n");
+
+  assert.throws(
+    () => runCli("render-codex-contract.mjs", ["--check", "--repo-root", root]),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("UNOWNED_BRIDGE_EXTRA"),
+  );
+  assert.equal(
+    readFileSync(join(root, ".agents", "skills", "govfolio-alpha", "notes.md"), "utf8"),
+    "unowned procedure text\n",
+  );
+});
+
+test("formatted diagnostics always use the stable contract shape", () => {
+  const output = formatDiagnostics([
+    {
+      code: "EXAMPLE_FAILURE",
+      message: "example",
+      path: "example.md",
+      repair: "repair example",
+    },
+  ]);
+  const parsed = JSON.parse(output.replace(/^BLOCKED\(skill-contract\): /, ""));
+  assert.deepEqual(Object.keys(parsed), [
+    "code",
+    "message",
+    "path",
+    "role",
+    "skill",
+    "expected",
+    "actual",
+    "repair",
+  ]);
+  assert.equal(parsed.role, null);
+  assert.equal(parsed.skill, null);
+  assert.equal(parsed.expected, null);
+  assert.equal(parsed.actual, null);
 });

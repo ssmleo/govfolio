@@ -1,0 +1,735 @@
+{
+  "schema_version": 1,
+  "hash_algorithm": "sha256-git-blobs-v1",
+  "codex": {
+    "bridge_root": ".agents/skills",
+    "agent_root": ".codex/agents",
+    "max_depth": 2,
+    "max_threads": 6,
+    "effort": "xhigh"
+  },
+  "dispatch": {
+    "envelope_version": 1,
+    "required_skills_field": "Required skills",
+    "failure_prefix": "BLOCKED(skill-contract)"
+  },
+  "skills": [
+    {
+      "id": "skill:adversarial-verification",
+      "codex_name": "govfolio-adversarial-verification",
+      "description": "Adversarially re-derive Govfolio claims from evidence and issue actionable verdicts.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/adversarial-verification",
+        "tree_sha256": "8082c7e73ab42259cbd1a4bcb4524477f1917a60f0aba21dfceadb56cb0ad534",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:brainstorming",
+      "codex_name": "govfolio-brainstorming",
+      "description": "Explore requirements and produce an approved design before creative implementation work.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/brainstorming",
+        "tree_sha256": "b0ed1d651c0051c986a49d2749f92af795d577f06c4b86fde23f1c1e4fa4279b",
+        "file_count": 8
+      },
+      "dependencies": [
+        "skill:writing-plans"
+      ],
+      "restrictions": []
+    },
+    {
+      "id": "skill:conformance-diffing",
+      "codex_name": "govfolio-conformance-diffing",
+      "description": "Compare adapter output against reviewed fixtures and explain semantic differences.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/conformance-diffing",
+        "tree_sha256": "e43bab43b4f20fefdfa2f1e1eec928fe672d8aece6cef4e09b5e31708dd75196",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:dispatching-parallel-agents",
+      "codex_name": "govfolio-dispatching-parallel-agents",
+      "description": "Dispatch independent work to parallel agents without overlapping state.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/dispatching-parallel-agents",
+        "tree_sha256": "957f1925a145110cf8e1bb9018bf8ba726dc0940d7d0550a9c64ab4cfc553a31",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:drift-detection",
+      "codex_name": "govfolio-drift-detection",
+      "description": "Detect, classify, rank, and report source drift against reviewed baselines.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/drift-detection",
+        "tree_sha256": "9786fc6702227993534a77462b182fc15a5c0e0d1cb2e5ade730acae738ef9a4",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:evidence-archiving",
+      "codex_name": "govfolio-evidence-archiving",
+      "description": "Archive primary-source evidence with stable provenance for Govfolio claims.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/evidence-archiving",
+        "tree_sha256": "618322744761e424a4ac5b430c9f429501dce94536f483cf8c55560b793c5615",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:executing-plans",
+      "codex_name": "govfolio-executing-plans",
+      "description": "Execute a reviewed implementation plan in gated batches with verification.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/executing-plans",
+        "tree_sha256": "7b32eac840a51587b41c49818a6f0ec92473c67a638a81c215e68965e22b414e",
+        "file_count": 1
+      },
+      "dependencies": [
+        "skill:finishing-a-development-branch",
+        "skill:using-git-worktrees",
+        "skill:writing-plans"
+      ],
+      "restrictions": []
+    },
+    {
+      "id": "skill:extraction-strategy",
+      "codex_name": "govfolio-extraction-strategy",
+      "description": "Design evidence-backed extraction mappings and flag every unresolved ambiguity.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/extraction-strategy",
+        "tree_sha256": "a6073c42f7358254e6d6c2e0e21d5b367ccce265f32dcdcf4c207d501831d5cb",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:finishing-a-development-branch",
+      "codex_name": "govfolio-finishing-a-development-branch",
+      "description": "Verify completed branch work and choose a safe integration outcome.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/finishing-a-development-branch",
+        "tree_sha256": "7c07120372c030c043b846f464b71834afc2627916f379abd0576b6725db4484",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:fixture-capture",
+      "codex_name": "govfolio-fixture-capture",
+      "description": "Capture representative immutable source fixtures with complete manifests.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/fixture-capture",
+        "tree_sha256": "5d276e208c76b87d9b06bbdf46e1303d6d71d471809d4cdd6eb8f05d1f588fbb",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:frontend-design",
+      "codex_name": "govfolio-frontend-design",
+      "description": "Create distinctive, production-grade frontend interfaces with deliberate visual design.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/frontend-design@9d2f1ae18723",
+        "tree_sha256": "77dd89a3cb102d4b433af8c3562770a8293acdacd884a5a2d4ebce4b75a7233c",
+        "file_count": 2
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:human-gate-etiquette",
+      "codex_name": "govfolio-human-gate-etiquette",
+      "description": "Fail closed around Govfolio's residual legal, brand, and approval gates.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/human-gate-etiquette",
+        "tree_sha256": "7f8d9fc6521c906cd3ff554ab9dc712d8d0aca8b5f16bd9beb7d6265c6e4612b",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:impeccable",
+      "codex_name": "govfolio-impeccable",
+      "description": "Apply the pinned Impeccable design guidance in documentation-only mode.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/impeccable@582f23eae3c9/skills/impeccable",
+        "tree_sha256": "5076d58119ab3b0cafc1732dca0318a4b90c97c52592c8f969a592b6998536f8",
+        "file_count": 96
+      },
+      "dependencies": [],
+      "restrictions": [
+        "Docs-only: use only the canonical SKILL.md and docs/ guidance.",
+        "Never execute, import, copy, adapt, or vendor any files under the canonical scripts/ directory or any other vendored script/code."
+      ]
+    },
+    {
+      "id": "skill:plan-decomposition",
+      "codex_name": "govfolio-plan-decomposition",
+      "description": "Decompose a Govfolio goal into small, command-gated implementation tasks.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/plan-decomposition",
+        "tree_sha256": "a0237b90fdb3f8f753682d8493a9f128cc57d655c4ffc4c9233b025f837dee49",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:polite-fetching",
+      "codex_name": "govfolio-polite-fetching",
+      "description": "Fetch official sources conditionally with bounded concurrency and source-specific politeness.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/polite-fetching",
+        "tree_sha256": "3e473ae345acf99a9172180066d82397bdfdf17357a268cde94c89b9f738cd2c",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:receiving-code-review",
+      "codex_name": "govfolio-receiving-code-review",
+      "description": "Evaluate code-review feedback technically before applying verified changes.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/receiving-code-review",
+        "tree_sha256": "072b604b8cb6775f23679cc92d0fa8be74ac13f15943f6e96b03a5ead267fa60",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:regime-research",
+      "codex_name": "govfolio-regime-research",
+      "description": "Research official financial-disclosure regimes from primary evidence without inference.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/regime-research",
+        "tree_sha256": "82bdecadd9b3f7f9c9a42ebb4d8632b5f146e95a72b16bf4522043606c29fa8a",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:requesting-code-review",
+      "codex_name": "govfolio-requesting-code-review",
+      "description": "Request focused code review against requirements and concrete diff evidence.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/requesting-code-review",
+        "tree_sha256": "871b031e58a2468ae1680a871e6022abf0ff1dc9bbcda6d1bd9939bf802940b8",
+        "file_count": 2
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:rust-async-patterns",
+      "codex_name": "govfolio-rust-async-patterns",
+      "description": "Apply safe, idiomatic Rust async and Tokio concurrency patterns.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/rust-async-patterns@5cc2549a50fc",
+        "tree_sha256": "b7c8e50402f567a127b8033732ad6fb2fe10d7bb0d8424c7e16262e49eef298d",
+        "file_count": 3
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:rust-best-practices",
+      "codex_name": "govfolio-rust-best-practices",
+      "description": "Apply idiomatic Rust ownership, API, error-handling, and performance practices.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/rust-best-practices@7df6a608dd71",
+        "tree_sha256": "a1ec28da4b18fad3def33c8f7fff72edbdbfae75680e133bb38a7fbc28420fde",
+        "file_count": 11
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:rust-tdd",
+      "codex_name": "govfolio-rust-tdd",
+      "description": "Implement Rust changes through Govfolio's strict red-green-refactor discipline.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/rust-tdd",
+        "tree_sha256": "cac8422a886d65e3c1158025906969c92ba5dd8fa272752c4bf60368fa669802",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:saf-authoring",
+      "codex_name": "govfolio-saf-authoring",
+      "description": "Author append-only source-authority memory with trusted and untrusted evidence separated.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/saf-authoring",
+        "tree_sha256": "f01958df72b037a87a69b661ccecdd6ad5a65017fba836baf28a1ba19974131d",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:schema-contracts",
+      "codex_name": "govfolio-schema-contracts",
+      "description": "Preserve Govfolio's domain schema and generated OpenAPI contract boundaries.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/schema-contracts",
+        "tree_sha256": "38262cc80f2c929d0a9946019533f3a3ce831796a560a644859b61de9c53952e",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:subagent-driven-development",
+      "codex_name": "govfolio-subagent-driven-development",
+      "description": "Execute implementation plans with fresh implementer and reviewer subagents per task.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/subagent-driven-development",
+        "tree_sha256": "c581c12b662d763f32a6aaa8f1a03a1df8fdfe2f877c132fe33dd806f24a4e20",
+        "file_count": 6
+      },
+      "dependencies": [
+        "skill:test-driven-development",
+        "skill:requesting-code-review",
+        "skill:finishing-a-development-branch",
+        "skill:using-git-worktrees",
+        "skill:writing-plans"
+      ],
+      "restrictions": []
+    },
+    {
+      "id": "skill:systematic-debugging",
+      "codex_name": "govfolio-systematic-debugging",
+      "description": "Diagnose failures from evidence and root cause before changing implementation.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/systematic-debugging",
+        "tree_sha256": "e7b983472a472091f8bc01261b8ad618409f25dc47a4193c4b2d067be8e6b055",
+        "file_count": 11
+      },
+      "dependencies": [
+        "skill:test-driven-development",
+        "skill:verification-before-completion"
+      ],
+      "restrictions": []
+    },
+    {
+      "id": "skill:test-driven-development",
+      "codex_name": "govfolio-test-driven-development",
+      "description": "Implement features and bug fixes by first observing a meaningful failing test.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/test-driven-development",
+        "tree_sha256": "b0951638f530ddf72ce598298d82f3501144bd12779bf30661f8bc99c6b84ce0",
+        "file_count": 2
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:typescript-advanced-types",
+      "codex_name": "govfolio-typescript-advanced-types",
+      "description": "Use advanced TypeScript types to preserve compile-time contract safety.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/typescript-advanced-types@5cc2549a50fc",
+        "tree_sha256": "fbab9bc3b8352deca3c494ccb1b4d85005ccc5b3363b85a42389968219939c6c",
+        "file_count": 3
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:typescript-expert",
+      "codex_name": "govfolio-typescript-expert",
+      "description": "Apply a reviewed expert TypeScript workflow when a licensable source is available.",
+      "status": "planned",
+      "source": null,
+      "dependencies": [],
+      "restrictions": [],
+      "unavailable_reason": "The proposed bespoke import failed closed because its source was ambiguous."
+    },
+    {
+      "id": "skill:typescript-react-reviewer",
+      "codex_name": "govfolio-typescript-react-reviewer",
+      "description": "Review TypeScript and React artifacts when a licensed canonical source is available.",
+      "status": "planned",
+      "source": null,
+      "dependencies": [],
+      "restrictions": [],
+      "unavailable_reason": "The proposed bespoke import failed closed because no license was present."
+    },
+    {
+      "id": "skill:using-git-worktrees",
+      "codex_name": "govfolio-using-git-worktrees",
+      "description": "Create or verify isolated Git worktrees with safety checks before implementation.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/using-git-worktrees",
+        "tree_sha256": "83a3667e5a4dad7a31b4ce138f49b9bc0d8c65bf6d58ddf77dc40ea76fd9e0a8",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:using-superpowers",
+      "codex_name": "govfolio-using-superpowers",
+      "description": "Discover and invoke applicable workflow skills before responding or acting.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/using-superpowers",
+        "tree_sha256": "cb04980fde93edfb2fddeb8dd835ad8104f0b8f172bbd5b2a032250b68f21a38",
+        "file_count": 4
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:verification-before-completion",
+      "codex_name": "govfolio-verification-before-completion",
+      "description": "Run fresh acceptance evidence before claiming work is complete or fixed.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/verification-before-completion",
+        "tree_sha256": "20a0b4a09fbe5cb066dc22300574b6fb6e30d3002b83fc81624ec07492560617",
+        "file_count": 1
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:writing-plans",
+      "codex_name": "govfolio-writing-plans",
+      "description": "Write detailed implementation plans with exact files, tests, and command gates.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/writing-plans",
+        "tree_sha256": "fe3d37eaa6888b379d63d73dd514e8ecef5ccd84b25e03799e0ce9a18d39a584",
+        "file_count": 2
+      },
+      "dependencies": [],
+      "restrictions": []
+    },
+    {
+      "id": "skill:writing-skills",
+      "codex_name": "govfolio-writing-skills",
+      "description": "Create and verify skills through a test-driven documentation workflow.",
+      "status": "available",
+      "source": {
+        "canonical_path": "agents/skills/imported/superpowers@d884ae04edeb/writing-skills",
+        "tree_sha256": "77bfd42c4da97d6635cd1ca6ce7d01852c9beb0c42398efe9b35b3d32a8856fd",
+        "file_count": 7
+      },
+      "dependencies": [
+        "skill:test-driven-development"
+      ],
+      "restrictions": []
+    }
+  ],
+  "packs": [
+    {
+      "id": "pack:impeccable",
+      "slot_cost": 1,
+      "members": [
+        "skill:impeccable"
+      ],
+      "planned_members": []
+    },
+    {
+      "id": "pack:rust-craft",
+      "slot_cost": 1,
+      "members": [
+        "skill:rust-best-practices",
+        "skill:rust-async-patterns"
+      ],
+      "planned_members": []
+    },
+    {
+      "id": "pack:ts-craft",
+      "slot_cost": 1,
+      "members": [
+        "skill:typescript-advanced-types"
+      ],
+      "planned_members": [
+        "skill:typescript-expert"
+      ]
+    }
+  ],
+  "triggers": [
+    {
+      "id": "trigger:web-artifact-under-audit",
+      "description": "A web artifact is included in the audit scope."
+    },
+    {
+      "id": "trigger:parallel-work",
+      "description": "Independent governed work is ready for bounded parallel dispatch."
+    },
+    {
+      "id": "trigger:novel-feature-without-spec",
+      "description": "A novel feature has no approved design specification."
+    },
+    {
+      "id": "trigger:skill-authoring",
+      "description": "The task creates, edits, or restructures a skill."
+    },
+    {
+      "id": "trigger:verification-failed-twice",
+      "description": "The same verification has failed twice."
+    },
+    {
+      "id": "trigger:completion-review",
+      "description": "Task or goal work is ready for completion review."
+    },
+    {
+      "id": "trigger:review-feedback",
+      "description": "An auditor, reviewer, or founder supplied review feedback."
+    }
+  ],
+  "roles": [
+    {
+      "id": "auditor",
+      "description": "Adversarially verify artifacts and claims, then file a verdict per claim.",
+      "role_path": "agents/roles/auditor.md",
+      "active": [
+        "skill:adversarial-verification",
+        "skill:evidence-archiving",
+        "skill:conformance-diffing"
+      ],
+      "situational": [
+        {
+          "trigger": "trigger:web-artifact-under-audit",
+          "requirements": [
+            "skill:typescript-react-reviewer"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "orchestrator",
+      "description": "Select, dispatch, verify, and record one governed orchestration iteration.",
+      "role_path": "agents/roles/orchestrator.md",
+      "active": [
+        "skill:plan-decomposition",
+        "skill:human-gate-etiquette",
+        "skill:subagent-driven-development",
+        "skill:executing-plans"
+      ],
+      "situational": [
+        {
+          "trigger": "trigger:parallel-work",
+          "requirements": [
+            "skill:dispatching-parallel-agents",
+            "skill:using-git-worktrees"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "planner",
+      "description": "Expand one oversized goal into an executable, command-gated plan.",
+      "role_path": "agents/roles/planner.md",
+      "active": [
+        "skill:plan-decomposition",
+        "skill:writing-plans"
+      ],
+      "situational": [
+        {
+          "trigger": "trigger:novel-feature-without-spec",
+          "requirements": [
+            "skill:brainstorming"
+          ]
+        },
+        {
+          "trigger": "trigger:skill-authoring",
+          "requirements": [
+            "skill:writing-skills"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "rust-builder",
+      "description": "Implement one scoped Rust data-plane task to green with required write-back.",
+      "role_path": "agents/roles/rust-builder.md",
+      "active": [
+        "skill:rust-tdd",
+        "skill:conformance-diffing",
+        "skill:schema-contracts",
+        "skill:saf-authoring",
+        "skill:polite-fetching",
+        "pack:rust-craft"
+      ],
+      "situational": [
+        {
+          "trigger": "trigger:verification-failed-twice",
+          "requirements": [
+            "skill:systematic-debugging"
+          ]
+        },
+        {
+          "trigger": "trigger:completion-review",
+          "requirements": [
+            "skill:requesting-code-review",
+            "skill:finishing-a-development-branch"
+          ]
+        },
+        {
+          "trigger": "trigger:review-feedback",
+          "requirements": [
+            "skill:receiving-code-review"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "sampler",
+      "description": "Capture representative fixtures and manifests for a disclosure source.",
+      "role_path": "agents/roles/sampler.md",
+      "active": [
+        "skill:fixture-capture",
+        "skill:polite-fetching",
+        "skill:evidence-archiving",
+        "skill:human-gate-etiquette"
+      ],
+      "situational": []
+    },
+    {
+      "id": "scout",
+      "description": "Identify official disclosure systems for one jurisdiction from primary evidence.",
+      "role_path": "agents/roles/scout.md",
+      "active": [
+        "skill:regime-research",
+        "skill:polite-fetching",
+        "skill:evidence-archiving"
+      ],
+      "situational": []
+    },
+    {
+      "id": "sentinel",
+      "description": "Monitor live sources and file ranked, deduplicated drift reports.",
+      "role_path": "agents/roles/sentinel.md",
+      "active": [
+        "skill:drift-detection",
+        "skill:polite-fetching",
+        "skill:evidence-archiving",
+        "skill:human-gate-etiquette"
+      ],
+      "situational": []
+    },
+    {
+      "id": "spec-writer",
+      "description": "Draft an evidence-backed extraction plan from authority memory and samples.",
+      "role_path": "agents/roles/spec-writer.md",
+      "active": [
+        "skill:schema-contracts",
+        "skill:extraction-strategy",
+        "skill:saf-authoring",
+        "skill:human-gate-etiquette"
+      ],
+      "situational": []
+    },
+    {
+      "id": "surveyor",
+      "description": "Complete a regime survey with evidence and tried-logs for every unknown.",
+      "role_path": "agents/roles/surveyor.md",
+      "active": [
+        "skill:regime-research",
+        "skill:evidence-archiving",
+        "skill:saf-authoring",
+        "skill:polite-fetching",
+        "skill:human-gate-etiquette"
+      ],
+      "situational": []
+    },
+    {
+      "id": "test-designer",
+      "description": "Author expected outputs and evaluations for every reviewed fixture.",
+      "role_path": "agents/roles/test-designer.md",
+      "active": [
+        "skill:fixture-capture",
+        "skill:conformance-diffing",
+        "skill:schema-contracts",
+        "skill:human-gate-etiquette"
+      ],
+      "situational": []
+    },
+    {
+      "id": "web-builder",
+      "description": "Implement one scoped TypeScript web task to green within contract boundaries.",
+      "role_path": "agents/roles/web-builder.md",
+      "active": [
+        "skill:schema-contracts",
+        "skill:human-gate-etiquette",
+        "pack:ts-craft",
+        "skill:frontend-design",
+        "pack:impeccable"
+      ],
+      "situational": [
+        {
+          "trigger": "trigger:verification-failed-twice",
+          "requirements": [
+            "skill:systematic-debugging"
+          ]
+        },
+        {
+          "trigger": "trigger:completion-review",
+          "requirements": [
+            "skill:requesting-code-review",
+            "skill:finishing-a-development-branch"
+          ]
+        },
+        {
+          "trigger": "trigger:review-feedback",
+          "requirements": [
+            "skill:receiving-code-review"
+          ]
+        }
+      ]
+    }
+  ]
+}

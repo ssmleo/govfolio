@@ -124,10 +124,12 @@
         },
         "dependencies": {
           "type": "array",
+          "uniqueItems": true,
           "items": { "$ref": "#/$defs/requirementId" }
         },
         "restrictions": {
           "type": "array",
+          "uniqueItems": true,
           "items": { "type": "string", "minLength": 1 }
         },
         "unavailable_reason": {
@@ -167,11 +169,13 @@
         "members": {
           "type": "array",
           "maxItems": 3,
-          "items": { "$ref": "#/$defs/requirementId" }
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/skillId" }
         },
         "planned_members": {
           "type": "array",
           "maxItems": 3,
+          "uniqueItems": true,
           "items": { "$ref": "#/$defs/skillId" }
         }
       }
@@ -214,6 +218,7 @@
         },
         "active": {
           "type": "array",
+          "uniqueItems": true,
           "items": { "$ref": "#/$defs/requirementId" }
         },
         "situational": {

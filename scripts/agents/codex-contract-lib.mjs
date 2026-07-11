@@ -317,6 +317,14 @@ export function validateManifest(manifest, repoRoot) {
       );
     }
   }
+  for (const rolePath of duplicates(roles, (entry) => entry?.role_path)) {
+    diagnostics.push(
+      diagnostic("DUPLICATE_ROLE_PATH", `multiple roles use the same role path: ${rolePath}`, {
+        path: rolePath,
+        actual: rolePath,
+      }),
+    );
+  }
 
   for (const entry of skills) {
     if (!entry || typeof entry !== "object") continue;
@@ -400,6 +408,33 @@ export function validateManifest(manifest, repoRoot) {
       );
       continue;
     }
+    const sourceKeys = Object.keys(entry.source).sort(byteCompare);
+    const expectedSourceKeys = ["canonical_path", "file_count", "tree_sha256"].sort(byteCompare);
+    if (stableStringify(sourceKeys) !== stableStringify(expectedSourceKeys)) {
+      diagnostics.push(
+        diagnostic("INVALID_SOURCE_KEYS", `${entry.id} source has unexpected or missing keys`, {
+          path: "agents/skill-routing.json",
+          skill: entry.id,
+          expected: expectedSourceKeys,
+          actual: sourceKeys,
+        }),
+      );
+    }
+    if (
+      typeof entry.source.canonical_path !== "string" ||
+      !/^[0-9a-f]{64}$/.test(entry.source.tree_sha256 ?? "") ||
+      !Number.isInteger(entry.source.file_count) ||
+      entry.source.file_count < 1
+    ) {
+      diagnostics.push(
+        diagnostic("INVALID_SKILL_SOURCE", `${entry.id} source lock is malformed`, {
+          path: "agents/skill-routing.json",
+          skill: entry.id,
+          expected: "canonical_path, 64-char lowercase SHA-256, and positive file_count",
+          actual: entry.source,
+        }),
+      );
+    }
     const hashed = hashSkillTree(repoRoot, entry.source.canonical_path);
     diagnostics.push(
       ...hashed.diagnostics.map((item) => ({ ...item, skill: entry.id })),
@@ -443,13 +478,76 @@ export function validateManifest(manifest, repoRoot) {
 
   for (const pack of packs) {
     if (!pack || typeof pack !== "object") continue;
+    const packKeys = Object.keys(pack).sort(byteCompare);
+    const expectedPackKeys = ["id", "members", "planned_members", "slot_cost"].sort(byteCompare);
+    if (stableStringify(packKeys) !== stableStringify(expectedPackKeys)) {
+      diagnostics.push(
+        diagnostic("INVALID_PACK_KEYS", `${pack.id ?? "pack"} has unexpected or missing keys`, {
+          path: "agents/skill-routing.json",
+          expected: expectedPackKeys,
+          actual: packKeys,
+        }),
+      );
+    }
+    if (!/^pack:[a-z0-9][a-z0-9-]*$/.test(pack.id ?? "")) {
+      diagnostics.push(
+        diagnostic("INVALID_PACK_ID", `invalid governed pack id: ${pack.id}`, {
+          path: "agents/skill-routing.json",
+          actual: pack.id,
+        }),
+      );
+    }
+    if (pack.slot_cost !== 1) {
+      diagnostics.push(
+        diagnostic("INVALID_PACK_SLOT_COST", `${pack.id} must cost exactly one slot`, {
+          path: "agents/skill-routing.json",
+          expected: 1,
+          actual: pack.slot_cost,
+        }),
+      );
+    }
+    if (!Array.isArray(pack.members) || !Array.isArray(pack.planned_members)) {
+      diagnostics.push(
+        diagnostic("INVALID_PACK_LIST", `${pack.id} members and planned_members must be arrays`, {
+          path: "agents/skill-routing.json",
+        }),
+      );
+    }
+    const allMembers = [...asArray(pack.members), ...asArray(pack.planned_members)];
+    if (allMembers.length > 3) {
+      diagnostics.push(
+        diagnostic("INVALID_PACK_SIZE", `${pack.id} may contain at most three total members`, {
+          path: "agents/skill-routing.json",
+          expected: 3,
+          actual: allMembers.length,
+        }),
+      );
+    }
+    for (const member of duplicates(allMembers, (value) => value)) {
+      diagnostics.push(
+        diagnostic("DUPLICATE_PACK_MEMBER", `${pack.id} repeats member ${member}`, {
+          path: "agents/skill-routing.json",
+          skill: member,
+          actual: member,
+        }),
+      );
+    }
     for (const member of asArray(pack.members)) {
-      if (!skillById.has(member) && !packById.has(member)) {
+      if (!skillById.has(member)) {
         diagnostics.push(
           diagnostic("UNKNOWN_PACK_MEMBER", `${pack.id} references unknown member ${member}`, {
             path: "agents/skill-routing.json",
             skill: member,
             actual: member,
+          }),
+        );
+      } else if (skillById.get(member).status !== "available") {
+        diagnostics.push(
+          diagnostic("PACK_MEMBER_UNAVAILABLE", `${pack.id} dispatchable member is unavailable: ${member}`, {
+            path: "agents/skill-routing.json",
+            skill: member,
+            expected: "available",
+            actual: skillById.get(member).status,
           }),
         );
       }
@@ -468,9 +566,105 @@ export function validateManifest(manifest, repoRoot) {
     }
   }
 
+  for (const trigger of triggers) {
+    if (!trigger || typeof trigger !== "object") continue;
+    const triggerKeys = Object.keys(trigger).sort(byteCompare);
+    const expectedTriggerKeys = ["description", "id"];
+    if (stableStringify(triggerKeys) !== stableStringify(expectedTriggerKeys)) {
+      diagnostics.push(
+        diagnostic("INVALID_TRIGGER_KEYS", `${trigger.id ?? "trigger"} has unexpected or missing keys`, {
+          path: "agents/skill-routing.json",
+          expected: expectedTriggerKeys,
+          actual: triggerKeys,
+        }),
+      );
+    }
+    if (!/^trigger:[a-z0-9][a-z0-9-]*$/.test(trigger.id ?? "")) {
+      diagnostics.push(
+        diagnostic("INVALID_TRIGGER_ID", `invalid governed trigger id: ${trigger.id}`, {
+          path: "agents/skill-routing.json",
+          actual: trigger.id,
+        }),
+      );
+    }
+    if (typeof trigger.description !== "string" || trigger.description.trim() === "") {
+      diagnostics.push(
+        diagnostic("INVALID_TRIGGER_DESCRIPTION", `${trigger.id} must have a non-empty description`, {
+          path: "agents/skill-routing.json",
+          actual: trigger.description,
+        }),
+      );
+    }
+  }
+
   const knownRequirements = new Set([...skillById.keys(), ...packById.keys()]);
   for (const role of roles) {
     if (!role || typeof role !== "object") continue;
+    const roleKeys = Object.keys(role).sort(byteCompare);
+    const expectedRoleKeys = ["active", "description", "id", "role_path", "situational"];
+    if (stableStringify(roleKeys) !== stableStringify(expectedRoleKeys)) {
+      diagnostics.push(
+        diagnostic("INVALID_ROLE_KEYS", `${role.id ?? "role"} has unexpected or missing keys`, {
+          path: "agents/skill-routing.json",
+          role: role.id,
+          expected: expectedRoleKeys,
+          actual: roleKeys,
+        }),
+      );
+    }
+    if (!/^[a-z0-9][a-z0-9-]*$/.test(role.id ?? "")) {
+      diagnostics.push(
+        diagnostic("INVALID_ROLE_ID", `invalid governed role id: ${role.id}`, {
+          path: "agents/skill-routing.json",
+          role: role.id,
+          actual: role.id,
+        }),
+      );
+    }
+    if (
+      typeof role.role_path !== "string" ||
+      !/^agents\/roles\/[a-z0-9][a-z0-9-]*\.md$/.test(role.role_path)
+    ) {
+      diagnostics.push(
+        diagnostic("INVALID_ROLE_PATH", `${role.id} has invalid role_path`, {
+          path: "agents/skill-routing.json",
+          role: role.id,
+          actual: role.role_path,
+        }),
+      );
+    }
+    if (!Array.isArray(role.active) || !Array.isArray(role.situational)) {
+      diagnostics.push(
+        diagnostic("INVALID_ROLE_LIST", `${role.id} active and situational fields must be arrays`, {
+          path: "agents/skill-routing.json",
+          role: role.id,
+        }),
+      );
+    }
+    let slotCost = 0;
+    for (const requirement of asArray(role.active)) {
+      slotCost += packById.get(requirement)?.slot_cost ?? 1;
+    }
+    if (slotCost > 6) {
+      diagnostics.push(
+        diagnostic("ROLE_SLOT_LIMIT_EXCEEDED", `${role.id} uses more than six ACTIVE slots`, {
+          path: "agents/skill-routing.json",
+          role: role.id,
+          expected: 6,
+          actual: slotCost,
+        }),
+      );
+    }
+    for (const requirement of duplicates(asArray(role.active), (value) => value)) {
+      diagnostics.push(
+        diagnostic("DUPLICATE_ACTIVE_REQUIREMENT", `${role.id} repeats ACTIVE requirement ${requirement}`, {
+          path: "agents/skill-routing.json",
+          role: role.id,
+          skill: requirement,
+          actual: requirement,
+        }),
+      );
+    }
     for (const requirement of asArray(role.active)) {
       if (!knownRequirements.has(requirement)) {
         diagnostics.push(
@@ -493,6 +687,28 @@ export function validateManifest(manifest, repoRoot) {
       }
     }
     for (const situation of asArray(role.situational)) {
+      const situationKeys = situation && typeof situation === "object"
+        ? Object.keys(situation).sort(byteCompare)
+        : [];
+      if (stableStringify(situationKeys) !== stableStringify(["requirements", "trigger"])) {
+        diagnostics.push(
+          diagnostic("INVALID_SITUATION_KEYS", `${role.id} has malformed situational allocation`, {
+            path: "agents/skill-routing.json",
+            role: role.id,
+            expected: ["requirements", "trigger"],
+            actual: situationKeys,
+          }),
+        );
+      }
+      if (!Array.isArray(situation?.requirements) || situation.requirements.length === 0) {
+        diagnostics.push(
+          diagnostic("INVALID_SITUATION_REQUIREMENTS", `${role.id} situational requirements must be a non-empty array`, {
+            path: "agents/skill-routing.json",
+            role: role.id,
+            actual: situation?.requirements,
+          }),
+        );
+      }
       if (!triggerById.has(situation?.trigger)) {
         diagnostics.push(
           diagnostic("UNKNOWN_TRIGGER_ID", `role ${role.id} references unknown trigger ${situation?.trigger}`, {
@@ -924,11 +1140,12 @@ export function renderOpenAiMetadata(skill) {
 }
 
 export function renderCodexAgent(manifest, role) {
+  const receipt = `SKILLS_LOADED role=${role.id} contract=<contract_sha256> skills=<comma-separated envelope skill IDs in envelope order>`;
   const instructions = [
     "Before task work, require an unmodified GOVFOLIO_DISPATCH_V1 envelope.",
     "The only permitted pre-receipt actions are reading AGENTS.md, the exact role file, agents/skill-routing.json, and every listed bridge and canonical SKILL.md, plus running the deterministic contract validator.",
     `Load AGENTS.md completely, then ${role.role_path}.`,
-    "Verify every envelope path and hash. Emit the exact SKILLS_LOADED receipt before task actions.",
+    `Verify every envelope path and hash. Emit exactly: ${receipt}.`,
     `On any mismatch, return ${manifest.dispatch.failure_prefix} and perform no mutation.`,
     "Apply the same envelope and receipt process to every nested dispatch.",
   ].join(" ");
@@ -968,7 +1185,9 @@ export function formatEnvelope(envelope) {
 }
 
 export function formatDiagnostics(diagnostics) {
-  return sortDiagnostics(asArray(diagnostics))
+  const normalized = asArray(diagnostics).map((item) =>
+    diagnostic(item.code, item.message, item));
+  return sortDiagnostics(normalized)
     .map((item) => `BLOCKED(skill-contract): ${JSON.stringify(item)}`)
     .join("\n");
 }

@@ -1,0 +1,5 @@
+# GENERATED: govfolio-codex-skill-contract; DO NOT EDIT
+name = "sampler"
+description = "Capture representative fixtures and manifests for a disclosure source."
+model_reasoning_effort = "xhigh"
+developer_instructions = "Before task work, require an unmodified GOVFOLIO_DISPATCH_V1 envelope. The only permitted pre-receipt actions are reading AGENTS.md, the exact role file, agents/skill-routing.json, and every listed bridge and canonical SKILL.md, plus running the deterministic contract validator. Load AGENTS.md completely, then agents/roles/sampler.md. Verify every envelope path and hash. Emit exactly: SKILLS_LOADED role=sampler contract=<contract_sha256> skills=<comma-separated envelope skill IDs in envelope order>. On any mismatch, return BLOCKED(skill-contract) and perform no mutation. Apply the same envelope and receipt process to every nested dispatch."
