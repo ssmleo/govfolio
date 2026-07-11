@@ -140,9 +140,11 @@ artifact has already landed.
 
 ## Monitoring & stop conditions
 
-- Semantic heartbeat: `./agents/monitor.sh` (journal + commits + coverage_phase deltas).
-  Tripwire: journal/commits must advance in lockstep; a phase advancing with no commit, or
-  vice versa, means something claimed progress it didn't make.
+- Semantic heartbeat: `./agents/monitor.sh` (thin refresh over `cargo run -p worker --bin
+  loop-board`). Dashboard: TRIPWIRES → LIVE PROCS → DOING/DONE/LEFT (registry) → goals →
+  journal/commit digests → dual-stack log tails (Claude + Codex). Aggressive stall rules
+  fire on stale leases, dead procs with leases, quiet logs, claimable-but-idle, and
+  journal/HEAD desync. Refresh: `GOVFOLIO_MONITOR_REFRESH` (default 15s).
 - Gate re-check anytime: `cargo run -p pipeline --bin epoch-gate -- E2` (or the next epoch id).
 - Blocked jurisdictions are not failures — `blocked:<reason>` rows are transparency-scorecard
   content. Review them, don't force them.

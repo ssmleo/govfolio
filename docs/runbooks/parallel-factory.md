@@ -89,11 +89,15 @@ Parallelism axes (so expectations match reality):
   fetches (politeness). Parallelism scales breadth, never a single source's finish time.
 
 ## Monitor (answers your three questions live)
+
 ```
-watch -n 15 'echo DONE:; git log --oneline -8; echo; echo DOING:; \
-  echo "(query registry: rows with claimed_by set, claimed_at < 24h)"; echo; \
-  echo LEFT:; echo "(query registry: coverage_phase < live, order by priority_score)"'
+./agents/monitor.sh
 ```
-Or ./agents/monitor.sh extended with the two registry queries. Tripwire: a leased row whose
-claimed_at is aging with no new commit/journal line = a stalled or crashed worker (reclaim >24h).
-```
+
+Read-only `loop-board` snapshot every 15s (override with `GOVFOLIO_MONITOR_REFRESH`): DONE /
+DOING / LEFT from the registry, live claude/codex procs, structured journal + commit digests,
+dual-stack log tails, aggressive tripwires (stale lease, dead proc + lease, log quiet, active
+but no commit, claimable-but-idle, journal/HEAD desync). One-shot: `cargo run -q -p worker
+--bin loop-board`. A leased row aging with no journal/commit signal = stalled or crashed
+worker (lease reclaim >24h still applies).
+
