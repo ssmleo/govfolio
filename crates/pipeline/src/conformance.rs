@@ -370,11 +370,19 @@ mod tests {
 
     #[test]
     fn bronze_parent_honors_env_override_and_defaults_to_workspace_target() {
+        // Absolute on the platform running the test: `is_absolute()` requires
+        // a drive prefix on Windows but a leading `/` on Unix ("C:/..." is a
+        // plain relative component there).
+        let abs_root = if cfg!(windows) {
+            "C:/shared/bronze-root"
+        } else {
+            "/shared/bronze-root"
+        };
         let overridden = durable_bronze_parent_from(|k| {
             assert_eq!(k, "GOVFOLIO_BRONZE_ROOT");
-            Some("C:/shared/bronze-root".to_owned())
+            Some(abs_root.to_owned())
         });
-        assert_eq!(overridden, PathBuf::from("C:/shared/bronze-root"));
+        assert_eq!(overridden, PathBuf::from(abs_root));
 
         // Unset, blank, and RELATIVE values all fall back to this checkout's
         // target/ — a relative root would resolve per-process-cwd and split
