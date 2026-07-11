@@ -33,3 +33,4 @@ apps/web/test-results/
 .DS_Store
 Thumbs.db
 agents/loop.lane-*.log
+.superpowers/sdd/

@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://govfolio.io/schemas/skill-routing.schema.json",
+  "title": "Govfolio Codex skill-routing contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "hash_algorithm",
+    "codex",
+    "dispatch",
+    "skills",
+    "packs",
+    "triggers",
+    "roles"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "hash_algorithm": { "const": "sha256-git-blobs-v1" },
+    "codex": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bridge_root", "agent_root", "max_depth", "max_threads", "effort"],
+      "properties": {
+        "bridge_root": { "const": ".agents/skills" },
+        "agent_root": { "const": ".codex/agents" },
+        "max_depth": { "const": 2 },
+        "max_threads": { "const": 6 },
+        "effort": { "const": "xhigh" }
+      }
+    },
+    "dispatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["envelope_version", "required_skills_field", "failure_prefix"],
+      "properties": {
+        "envelope_version": { "const": 1 },
+        "required_skills_field": { "const": "Required skills" },
+        "failure_prefix": { "const": "BLOCKED(skill-contract)" }
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/skill" }
+    },
+    "packs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/pack" }
+    },
+    "triggers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/trigger" }
+    },
+    "roles": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/role" }
+    }
+  },
+  "$defs": {
+    "skillId": {
+      "type": "string",
+      "pattern": "^skill:[a-z0-9][a-z0-9-]*$"
+    },
+    "packId": {
+      "type": "string",
+      "pattern": "^pack:[a-z0-9][a-z0-9-]*$"
+    },
+    "requirementId": {
+      "type": "string",
+      "pattern": "^(skill|pack):[a-z0-9][a-z0-9-]*$"
+    },
+    "triggerId": {
+      "type": "string",
+      "pattern": "^trigger:[a-z0-9][a-z0-9-]*$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonical_path", "tree_sha256", "file_count"],
+      "properties": {
+        "canonical_path": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\).+$"
+        },
+        "tree_sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "file_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "skill": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "codex_name",
+        "description",
+        "status",
+        "source",
+        "dependencies",
+        "restrictions"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/skillId" },
+        "codex_name": {
+          "type": "string",
+          "pattern": "^govfolio-[a-z0-9][a-z0-9-]*$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "status": { "enum": ["available", "planned"] },
+        "source": {
+          "oneOf": [
+            { "$ref": "#/$defs/source" },
+            { "type": "null" }
+          ]
+        },
+        "dependencies": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/requirementId" }
+        },
+        "restrictions": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "unavailable_reason": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "available" } },
+            "required": ["status"]
+          },
+          "then": {
+            "properties": { "source": { "$ref": "#/$defs/source" } }
+          }
+        },
+        {
+          "if": {
+            "properties": { "status": { "const": "planned" } },
+            "required": ["status"]
+          },
+          "then": {
+            "required": ["unavailable_reason"],
+            "properties": { "source": { "type": "null" } }
+          }
+        }
+      ]
+    },
+    "pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "slot_cost", "members", "planned_members"],
+      "properties": {
+        "id": { "$ref": "#/$defs/packId" },
+        "slot_cost": { "const": 1 },
+        "members": {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/requirementId" }
+        },
+        "planned_members": {
+          "type": "array",
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/skillId" }
+        }
+      }
+    },
+    "trigger": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description"],
+      "properties": {
+        "id": { "$ref": "#/$defs/triggerId" },
+        "description": { "type": "string", "minLength": 1 }
+      }
+    },
+    "situation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["trigger", "requirements"],
+      "properties": {
+        "trigger": { "$ref": "#/$defs/triggerId" },
+        "requirements": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/requirementId" }
+        }
+      }
+    },
+    "role": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "description", "role_path", "active", "situational"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$"
+        },
+        "description": { "type": "string", "minLength": 1 },
+        "role_path": {
+          "type": "string",
+          "pattern": "^agents/roles/[a-z0-9][a-z0-9-]*\\.md$"
+        },
+        "active": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/requirementId" }
+        },
+        "situational": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/situation" }
+        }
+      }
+    }
+  }
+}
