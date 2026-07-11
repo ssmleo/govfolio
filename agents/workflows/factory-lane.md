@@ -29,8 +29,17 @@ step X)" apply that step's text verbatim; no duplication, no drift.
    independent work, never to skip phase order. Long-running phase work: renew the
    heartbeat at natural checkpoints (`jurisdiction-lease claim --id <x>` renews
    claimed_at) — a lease untouched >24h is stale and another lane may take it.
-5. REVIEW + VALIDATE (orchestration step 5 semantics): the phase's validator /
-   conformance / auditor pass per source-exploration.md, real command exit codes.
+   Before every producer, auditor, implementer, fixer, or reviewer dispatch, independently
+   run `node scripts/agents/resolve-codex-dispatch.mjs` with the phase's exact workflow
+   heading, governed role, explicit triggers, and SAF. Follow skill-dispatch-contract.md:
+   prepend the unmodified `GOVFOLIO_DISPATCH_V1` envelope, use
+   `.codex/agents/<role>.toml` under Codex or `.claude/agents/<role>` under Claude Code,
+   and require the exact `SKILLS_LOADED` receipt. Missing or mismatched contract data
+   returns `BLOCKED(skill-contract)` and does no task work. Repeat for nested fan-out.
+5. REVIEW + VALIDATE (orchestration step 5 semantics): verify every dispatched agent's
+   `SKILLS_LOADED` receipt first, then the phase's validator / conformance / auditor pass
+   per source-exploration.md, using real command exit codes. An invalid receipt is a
+   failed verification under step 6's existing two-consecutive-failure lease semantics.
    Never self-certify.
 5b. LABEL (goal 023): set extraction_tier per record; non-deterministic tiers ->
    `unverified` + sampling audit, and record the SAF refinement_trigger. Applies

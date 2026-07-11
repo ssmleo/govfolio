@@ -886,14 +886,23 @@ export function parseRequiredSkills(markdown, sourcePath, heading) {
     return fenced ? null : line;
   });
   let start = -1;
+  let targetIndex = -1;
   let level = 0;
+  let ancestors = [];
+  const headingStack = [];
   for (let index = 0; index < visible.length; index += 1) {
     const match = visible[index]?.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
-    if (match && match[2] === heading) {
+    if (!match) continue;
+    const currentLevel = match[1].length;
+    while (headingStack.at(-1)?.level >= currentLevel) headingStack.pop();
+    if (match[2] === heading) {
       start = index + 1;
-      level = match[1].length;
+      targetIndex = index;
+      level = currentLevel;
+      ancestors = [...headingStack];
       break;
     }
+    headingStack.push({ index, level: currentLevel, heading: match[2] });
   }
   if (start < 0) {
     return {
@@ -908,34 +917,60 @@ export function parseRequiredSkills(markdown, sourcePath, heading) {
       ],
     };
   }
-  for (let index = start; index < visible.length; index += 1) {
-    const line = visible[index];
-    if (line === null) continue;
-    const nextHeading = line.match(/^(#{1,6})\s+/);
-    if (nextHeading && nextHeading[1].length <= level) break;
-    const field = line.match(/^\s*\*\*Required skills:\*\*\s*(.*?)\s*$/);
-    if (!field) continue;
-    if (field[1] === "" || /^none$/i.test(field[1])) {
-      return { requirements: [], diagnostics: [] };
+  function fieldInRange(rangeStart, rangeEnd, ownerHeading) {
+    for (let index = rangeStart; index < rangeEnd; index += 1) {
+      const field = visible[index]?.match(/^\s*\*\*Required skills:\*\*\s*(.*?)\s*$/);
+      if (!field) continue;
+      if (field[1] === "" || /^none$/i.test(field[1])) {
+        return { requirements: [], diagnostics: [] };
+      }
+      const requirements = field[1].split(",").map((value) => value.trim()).filter(Boolean);
+      const invalid = requirements.filter((value) => !/^(skill|pack):[a-z0-9][a-z0-9-]*$/.test(value));
+      if (invalid.length > 0) {
+        return {
+          requirements: [],
+          diagnostics: invalid.map((value) =>
+            diagnostic("INVALID_REQUIRED_SKILL_ID", `invalid Required skills entry: ${value}`, {
+              path: sourcePath,
+              skill: value,
+              actual: value,
+              repair: `use comma-separated namespaced skill: or pack: IDs under ${ownerHeading}`,
+            }),
+          ),
+        };
+      }
+      return { requirements, diagnostics: [] };
     }
-    const requirements = field[1].split(",").map((value) => value.trim()).filter(Boolean);
-    const invalid = requirements.filter((value) => !/^(skill|pack):[a-z0-9][a-z0-9-]*$/.test(value));
-    if (invalid.length > 0) {
-      return {
-        requirements: [],
-        diagnostics: invalid.map((value) =>
-          diagnostic("INVALID_REQUIRED_SKILL_ID", `invalid Required skills entry: ${value}`, {
-            path: sourcePath,
-            skill: value,
-            actual: value,
-            repair: `use comma-separated namespaced skill: or pack: IDs under ${heading}`,
-          }),
-        ),
-      };
-    }
-    return { requirements, diagnostics: [] };
+    return { requirements: [], diagnostics: [] };
   }
-  return { requirements: [], diagnostics: [] };
+
+  const requirements = [];
+  const diagnostics = [];
+  for (const ancestor of ancestors) {
+    let end = targetIndex;
+    for (let index = ancestor.index + 1; index < targetIndex; index += 1) {
+      if (visible[index]?.match(/^(#{1,6})\s+/)) {
+        end = index;
+        break;
+      }
+    }
+    const parsed = fieldInRange(ancestor.index + 1, end, ancestor.heading);
+    requirements.push(...parsed.requirements);
+    diagnostics.push(...parsed.diagnostics);
+  }
+  let sectionEnd = visible.length;
+  for (let index = start; index < visible.length; index += 1) {
+    const nextHeading = visible[index]?.match(/^(#{1,6})\s+/);
+    if (nextHeading && nextHeading[1].length <= level) {
+      sectionEnd = index;
+      break;
+    }
+  }
+  const selected = fieldInRange(start, sectionEnd, heading);
+  requirements.push(...selected.requirements);
+  diagnostics.push(...selected.diagnostics);
+  if (diagnostics.length > 0) return { requirements: [], diagnostics: sortDiagnostics(diagnostics) };
+  return { requirements: [...new Set(requirements)], diagnostics: [] };
 }
 
 export function expandRequirements(manifest, requirementIds) {
@@ -1143,8 +1178,8 @@ export function renderCodexAgent(manifest, role) {
   const receipt = `SKILLS_LOADED role=${role.id} contract=<contract_sha256> skills=<comma-separated envelope skill IDs in envelope order>`;
   const instructions = [
     "Before task work, require an unmodified GOVFOLIO_DISPATCH_V1 envelope.",
-    "The only permitted pre-receipt actions are reading AGENTS.md, the exact role file, agents/skill-routing.json, and every listed bridge and canonical SKILL.md, plus running the deterministic contract validator.",
-    `Load AGENTS.md completely, then ${role.role_path}.`,
+    "The only permitted pre-receipt actions are reading AGENTS.md, tracked CLAUDE.md completely, the exact role file, agents/skill-routing.json, and every listed bridge and canonical SKILL.md, plus running the deterministic contract validator.",
+    `Load AGENTS.md and tracked CLAUDE.md completely, then ${role.role_path}.`,
     `Verify every envelope path and hash. Emit exactly: ${receipt}.`,
     `On any mismatch, return ${manifest.dispatch.failure_prefix} and perform no mutation.`,
     "Apply the same envelope and receipt process to every nested dispatch.",

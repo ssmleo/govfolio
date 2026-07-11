@@ -1,6 +1,7 @@
 # Consensus Hardening Addendum Plan (goal 021 Phase 3)
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+**Required skills:** skill:subagent-driven-development
 > Work on the existing branch (`goal/021-consensus`). Read `/CLAUDE.md` and `agents/goals/021-llm-extraction.md` (§ Phase 3) before each task. Repo is memory: update the goal's Phase-3 checklist and commit every task.
 > This is an ADDENDUM to `docs/plans/2026-07-07-consensus-extraction.md` (26 tasks, amended in place — its Tasks 3/9/10/13/17/18/19/20/22/23/24/25 carry **AMENDED** banners and are executed AS EDITED). Task numbering continues that plan's space as H27–H47. Interleaving is normative: follow the **Merged Execution Order** below, never plain numeric order.
 

@@ -10,6 +10,24 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  agent-governance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: contract tests
+        run: node --test scripts/agents/codex-contract.test.mjs
+      - name: generated contract is current
+        run: node scripts/agents/render-codex-contract.mjs --check
+      - name: contract is valid
+        run: node scripts/agents/validate-codex-contract.mjs --repo-root .
+      - name: runner syntax
+        run: bash -n agents/run-loop-codex.sh
+      - name: clean detached worktree
+        run: node scripts/agents/check-codex-contract-clean-worktree.mjs
+
   rust:
     runs-on: ubuntu-latest
     steps:

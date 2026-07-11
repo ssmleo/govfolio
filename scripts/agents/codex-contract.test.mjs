@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -31,6 +32,11 @@ import {
 } from "./codex-contract-lib.mjs";
 
 const scriptDirectory = dirname(fileURLToPath(import.meta.url));
+const repositoryRoot = join(scriptDirectory, "..", "..");
+
+function repositoryFile(relativePath) {
+  return readFileSync(join(repositoryRoot, ...relativePath.split("/")), "utf8");
+}
 
 function runCli(name, args, options = {}) {
   return execFileSync(process.execPath, [join(scriptDirectory, name), ...args], {
@@ -55,6 +61,7 @@ function fixtureRepository(t) {
     cwd: root,
   });
   execFileSync("git", ["config", "user.name", "Contract Test"], { cwd: root });
+  execFileSync("git", ["config", "core.autocrlf", "false"], { cwd: root });
   return root;
 }
 
@@ -313,6 +320,25 @@ test("Required skills ignores fenced examples and selects the exact heading", ()
   const parsed = parseRequiredSkills(markdown, "plan.md", "Task 2: Target");
   assert.deepEqual(parsed.diagnostics, []);
   assert.deepEqual(parsed.requirements, ["skill:beta", "pack:craft"]);
+});
+
+test("Required skills inherits plan preamble requirements", () => {
+  const markdown = [
+    "# Plan",
+    "",
+    "**Required skills:** skill:executing-plans",
+    "",
+    "## Task 1: Build",
+    "",
+    "**Required skills:** skill:rust-tdd",
+  ].join("\n");
+
+  const parsed = parseRequiredSkills(markdown, "plan.md", "Task 1: Build");
+  assert.deepEqual(parsed.diagnostics, []);
+  assert.deepEqual(parsed.requirements, [
+    "skill:executing-plans",
+    "skill:rust-tdd",
+  ]);
 });
 
 test("unknown triggers are rejected instead of inferred", () => {
@@ -722,4 +748,235 @@ test("formatted diagnostics always use the stable contract shape", () => {
   assert.equal(parsed.skill, null);
   assert.equal(parsed.expected, null);
   assert.equal(parsed.actual, null);
+});
+
+test("root and factory prompts require resolver output and native Codex roles", () => {
+  for (const path of ["agents/PROMPT.md", "agents/PROMPT-FACTORY-LANE.md"]) {
+    const contents = repositoryFile(path);
+    assert.match(contents, /resolve-codex-dispatch\.mjs/);
+    assert.match(contents, /unmodified.*GOVFOLIO_DISPATCH_V1/i);
+    assert.match(contents, /\.codex\/agents\/<role>\.toml/);
+    assert.match(contents, /\.claude\/agents\/<role>/);
+  }
+});
+
+test("orchestration rejects missing envelope and receipt", () => {
+  const orchestration = repositoryFile("agents/workflows/orchestration.md");
+  const contract = repositoryFile("agents/workflows/skill-dispatch-contract.md");
+  for (const contents of [orchestration, contract]) {
+    assert.match(contents, /SKILLS_LOADED/);
+    assert.match(contents, /BLOCKED\(skill-contract\)/);
+    assert.match(contents, /missing.*(?:envelope|receipt).*(?:hard failure|do no task work)/i);
+  }
+});
+
+test("chassis propagates the contract to nested dispatch", () => {
+  const contents = repositoryFile("agents/archetypes/_CHASSIS.md");
+  assert.match(contents, /pre-slot skill-contract precondition/i);
+  assert.match(contents, /every nested dispatch/i);
+  assert.match(contents, /SKILLS_LOADED/);
+  assert.match(contents, /BLOCKED\(skill-contract\)/);
+});
+
+test("governance declares manifest authority and generated projections", () => {
+  const contents = repositoryFile("agents/GOVERNANCE.md");
+  assert.match(contents, /agents\/skill-routing\.json.*authoritative/i);
+  assert.match(contents, /\.agents\/skills.*generated projection/i);
+  assert.match(contents, /\.codex\/agents.*generated projection/i);
+  assert.match(contents, /never.*hand-edit/i);
+});
+
+test("known plan and goal sub-skills use Required skills fields", () => {
+  const expectations = new Map([
+    ["docs/plans/2026-07-04-govfolio-implementation.md", "**Required skills:** skill:executing-plans"],
+    ["docs/plans/2026-07-07-consensus-extraction.md", "**Required skills:** skill:subagent-driven-development"],
+    ["docs/plans/2026-07-07-consensus-hardening.md", "**Required skills:** skill:subagent-driven-development"],
+    ["docs/plans/2026-07-09-filing-document-viewer-implementation.md", "**Required skills:** skill:subagent-driven-development"],
+    ["agents/goals/021-llm-extraction.md", "**Required skills:** skill:plan-decomposition, skill:writing-plans"],
+  ]);
+  for (const [path, marker] of expectations) {
+    assert.ok(repositoryFile(path).includes(marker), `${path} is missing ${marker}`);
+  }
+});
+
+test("real plan task headings inherit their governed workflow skill", () => {
+  const expectations = [
+    [
+      "docs/plans/2026-07-04-govfolio-implementation.md",
+      "Task 1: Cargo workspace + lint regime + smoke test",
+      "skill:executing-plans",
+    ],
+    [
+      "docs/plans/2026-07-07-consensus-extraction.md",
+      "Task 1: Consensus DTOs + content-key derivation",
+      "skill:subagent-driven-development",
+    ],
+    [
+      "docs/plans/2026-07-07-consensus-hardening.md",
+      "Task H27: Frontier re-check + amendment reclassification",
+      "skill:subagent-driven-development",
+    ],
+    [
+      "docs/plans/2026-07-09-filing-document-viewer-implementation.md",
+      "Task 1: Fix `mime_type` — sniff real content instead of hardcoding `application/pdf`",
+      "skill:subagent-driven-development",
+    ],
+  ];
+  for (const [path, heading, required] of expectations) {
+    const parsed = parseRequiredSkills(repositoryFile(path), path, heading);
+    assert.deepEqual(parsed.diagnostics, [], path);
+    assert.ok(parsed.requirements.includes(required), `${path} did not inherit ${required}`);
+  }
+});
+
+test("tracked AGENTS requires CLAUDE and the dispatch contract", () => {
+  const contents = repositoryFile("AGENTS.md");
+  assert.match(contents, /read.*CLAUDE\.md.*completely/i);
+  assert.match(contents, /agents\/workflows\/skill-dispatch-contract\.md/);
+  assert.match(contents, /resolve-codex-dispatch\.mjs/);
+  assert.match(contents, /only permitted pre-receipt actions/i);
+  assert.match(contents, /every nested dispatch/i);
+});
+
+test("every pre-receipt boundary permits the mandatory CLAUDE read", () => {
+  const paths = [
+    "AGENTS.md",
+    "agents/workflows/skill-dispatch-contract.md",
+    ".codex/agents/rust-builder.toml",
+  ];
+  for (const path of paths) {
+    assert.match(
+      repositoryFile(path),
+      /pre-receipt[\s\S]{0,500}CLAUDE\.md/i,
+      `${path} omits CLAUDE.md from its pre-receipt boundary`,
+    );
+  }
+});
+
+function gitBash() {
+  const candidates = process.platform === "win32"
+    ? [
+        "C:\\Program Files\\Git\\bin\\bash.exe",
+        "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+      ]
+    : ["bash"];
+  const candidate = candidates.find((path) => path === "bash" || existsSync(path));
+  if (!candidate) throw new Error("Git Bash is required for runner contract tests");
+  return candidate;
+}
+
+function bashPath(path) {
+  if (process.platform !== "win32") return path;
+  return path.replace(/^([A-Za-z]):[\\/]/, (_, drive) => `/${drive.toLowerCase()}/`).replaceAll("\\", "/");
+}
+
+function cleanVerifierFixture(t, { trackMachineConfig = false } = {}) {
+  const root = fixtureRepository(t);
+  const verifier = repositoryFile("scripts/agents/check-codex-contract-clean-worktree.mjs");
+  write(root, "scripts/agents/check-codex-contract-clean-worktree.mjs", verifier);
+  write(root, "scripts/agents/render-codex-contract.mjs", "process.exit(0);\n");
+  write(root, "scripts/agents/validate-codex-contract.mjs", "process.exit(0);\n");
+  write(root, "AGENTS.md", "# Fixture agent contract\n");
+  write(root, "agents/run-loop-codex.sh", "#!/usr/bin/env bash\nexit 0\n");
+  write(root, ".agents/skills/govfolio-alpha/SKILL.md", "---\nname: govfolio-alpha\ndescription: fixture\n---\n");
+  write(root, ".agents/skills/govfolio-alpha/agents/openai.yaml", "interface: {}\n");
+  write(root, ".codex/agents/builder.toml", "name = \"builder\"\n");
+  writeManifest(root, manifest({
+    skills: [skill("skill:alpha")],
+    roles: [fixtureRole()],
+  }));
+  if (trackMachineConfig) write(root, ".codex/config.toml", "model = \"local-only\"\n");
+  execFileSync("git", ["add", "."], { cwd: root });
+  execFileSync("git", ["update-index", "--chmod=+x", "agents/run-loop-codex.sh"], {
+    cwd: root,
+  });
+  execFileSync("git", ["commit", "--quiet", "-m", "fixture"], { cwd: root });
+  return root;
+}
+
+test("runner has no raw Codex call outside the contract wrapper", () => {
+  const contents = repositoryFile("agents/run-loop-codex.sh");
+  const calls = [...contents.matchAll(/\bcodex\s+"\$\{CODEX_ARGS\[@\]\}"/g)];
+  assert.equal(calls.length, 1);
+  const wrapperStart = contents.indexOf("codex_with_contract() {");
+  const wrapperEnd = contents.indexOf("\n}", wrapperStart);
+  assert.ok(wrapperStart >= 0 && calls[0].index > wrapperStart && calls[0].index < wrapperEnd);
+  assert.doesNotMatch(contents, /\r\n/);
+});
+
+test("runner validates immediately before every Codex exec", () => {
+  const contents = repositoryFile("agents/run-loop-codex.sh");
+  assert.match(
+    contents,
+    /codex_with_contract\(\) \{[\s\S]*?render-codex-contract\.mjs"? --check --repo-root "\$worktree"\s+node .*?validate-codex-contract\.mjs"? --repo-root "\$worktree"\s+\(\s*cd "\$worktree"\s+printf '%s' "\$prompt" \| codex "\$\{CODEX_ARGS\[@\]\}"\s*\)/,
+  );
+});
+
+test("runner passes depth two and thread bound six", () => {
+  const contents = repositoryFile("agents/run-loop-codex.sh");
+  assert.match(contents, /--config 'agents\.max_depth=2'/);
+  assert.match(contents, /--config 'agents\.max_threads=6'/);
+});
+
+test("runner reloads each prompt inside its iteration loop", () => {
+  const contents = repositoryFile("agents/run-loop-codex.sh");
+  assert.match(
+    contents,
+    /while :; do\s+prompt="\$\(cat "\$wt\/agents\/PROMPT-FACTORY-LANE\.md"\)"[\s\S]*?codex_with_contract "\$wt" "\$prompt"/,
+  );
+  assert.match(
+    contents,
+    /while :; do\s+i=\$\(\(i \+ 1\)\)\s+prompt="\$\(cat agents\/PROMPT\.md\)"[\s\S]*?codex_with_contract "\$ROOT" "\$prompt"/,
+  );
+});
+
+test("runner preflight-only mode never invokes a stub Codex binary", (t) => {
+  const stub = mkdtempSync(join(tmpdir(), "govfolio-codex-stub-"));
+  t.after(() => rmSync(stub, { recursive: true, force: true }));
+  const marker = join(stub, "invoked");
+  const stubPath = write(stub, "codex", "#!/usr/bin/env bash\nprintf invoked >\"$CODEX_STUB_MARKER\"\nexit 97\n");
+  chmodSync(stubPath, 0o755);
+  const output = execFileSync(
+    gitBash(),
+    [
+      "-c",
+      'PATH="$1:$PATH" GOVFOLIO_CODEX_PREFLIGHT_ONLY=1 GOVFOLIO_LANES=1 CODEX_STUB_MARKER="$2" bash agents/run-loop-codex.sh',
+      "contract-test",
+      bashPath(stub),
+      bashPath(marker),
+    ],
+    { cwd: repositoryRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+  );
+  assert.match(output, /Codex contract preflight passed/i);
+  assert.equal(existsSync(marker), false);
+});
+
+test("tracked machine Codex config is forbidden", (t) => {
+  const root = cleanVerifierFixture(t, { trackMachineConfig: true });
+  assert.throws(
+    () => runCli("check-codex-contract-clean-worktree.mjs", ["--repo-root", root]),
+    (error) => `${error.stdout}\n${error.stderr}`.includes(".codex/config.toml"),
+  );
+});
+
+test("clean detached worktree validates without mutation", (t) => {
+  const root = cleanVerifierFixture(t);
+  const before = execFileSync("git", ["worktree", "list", "--porcelain"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  const output = runCli("check-codex-contract-clean-worktree.mjs", ["--repo-root", root]);
+  const after = execFileSync("git", ["worktree", "list", "--porcelain"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.match(output, /clean detached worktree passed/i);
+  assert.equal(after, before);
+  assert.equal(
+    execFileSync("git", ["status", "--porcelain", "--untracked-files=all"], {
+      cwd: root,
+      encoding: "utf8",
+    }),
+    "",
+  );
 });

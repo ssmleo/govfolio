@@ -11,9 +11,13 @@ Do EXACTLY ONE factory-lane iteration, then stop.
 2. Execute factory-lane.md steps 0-7 exactly as written. Reason Thought / Action /
    Observation for every step, before every action.
 
-3. When dispatching a specialist (step 4), prefer the native .claude/agents/<role>
-   shim (its effort frontmatter applies); otherwise adopt the role in-session per
-   agents/workflows/orchestration.md step 4's rules.
+3. Every specialist dispatch (step 4) follows
+   agents/workflows/skill-dispatch-contract.md. Run
+   `node scripts/agents/resolve-codex-dispatch.mjs` separately for the claimed phase,
+   selected role, explicit trigger IDs, workflow section, and source SAF. Prepend its unmodified GOVFOLIO_DISPATCH_V1 envelope.
+   Under Codex dispatch the exact generated `.codex/agents/<role>.toml`; a missing shim is a hard failure. Under Claude Code
+   preserve the native `.claude/agents/<role>` shim and its effort frontmatter. Require
+   the exact SKILLS_LOADED receipt, including for every nested dispatch.
 
 4. Full autonomy (docs/decisions/automation-policy.md): NO human gates; guardrails fail
    closed. You NEVER select work from agents/goals/ — the goal queue is lane 0's alone

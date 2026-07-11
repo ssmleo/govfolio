@@ -7,6 +7,11 @@ State machine (registry: jurisdiction.coverage_phase):
 stub → scouted → surveyed → sampled → specced → built → live | blocked:<reason>
 Lease before working: set claimed_by/claimed_at; release on commit. Stale leases (>24h) are free.
 
+Every phase role dispatch is governed by `skill-dispatch-contract.md`. Resolve the exact
+phase heading, role, explicit triggers, and regime SAF with
+`scripts/agents/resolve-codex-dispatch.mjs`; prepend the unmodified envelope and require
+the exact receipt before phase work. Resolve producer and auditor envelopes separately.
+
 ## Phase 0 — SCOUT (role: scout)
 Prompt core: "Identify the OFFICIAL disclosure system(s) for <jurisdiction>. Prefer primary
 government domains. For each candidate: URL, what it appears to contain, why you believe it
