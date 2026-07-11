@@ -38,4 +38,15 @@
 - [ ] 102 SAF normalization (7 regimes → docs/regimes/<x>/AUTHORITY.md dir form, hyphen/underscore drift resolved, legacy us-house.md reconciled, E1.lock.json superseded per its own policy) — design §4.1; after 101
 - [ ] 103 memory hygiene loop (journal entry schema + rotation, standing consolidation work item, memory-staleness report bin, untrusted-block lint, delta-only rule) — design §4.3; after 101
 - [ ] 104 lane idle backoff (founder-directed 2026-07-10) — zero-spend claimable pre-check per lane iteration: read-only `jurisdiction-lease claimable --epoch` probe (same predicate as claim_next) + run-loop.sh lane-loop idle sleep `GOVFOLIO_LANE_SLEEP_IDLE` (default 3600); stops full-context no-op lane sessions when the registry has no claimable rows (observed 2026-07-11 first live GOVFOLIO_LANES run: lanes 1–3 respinning no-ops against exhausted E2); see agents/goals/104-lane-idle-backoff.md
+- [ ] 106 open epoch 3 (founder-directed 2026-07-11) — wire the E3 epoch-gate (mirror
+  goal 016's E1→E2 role-eval/reference-bundle pattern; `epoch-gate` currently admits
+  "only E2 is wired") + survey/seed `priority_score` (or `blocked`+reason) for the
+  European stub tail per EPOCHS.md's formula — gives factory lanes real claimable work
+  once E2 (br-only) is exhausted; see agents/goals/106-open-epoch-3.md
+- [ ] 107 lane branch convergence (founder-directed 2026-07-11) — orchestrator step to
+  merge a completed factory-lane branch back into main (today only main→lane merges
+  exist; lanes never push to main and nothing merges them the other way — confirmed via
+  `lane/1-3` sitting 7-10 commits stranded from the 2026-07-11 overnight run); safety:
+  only merge once the jurisdiction's lease is released and `coverage_phase` is
+  live/blocked, never while still claimed; see agents/goals/107-lane-branch-convergence.md
 - [ ] E2+ Brazil onward: NO hand-written goals — the coverage factory (015) generates work from the registry per agents/EPOCHS.md
