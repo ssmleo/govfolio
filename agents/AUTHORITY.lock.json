@@ -1,6 +1,6 @@
 {
-  "version": 4,
-  "superseded_note": "Close goal 110 after native smoke and exact Codex/Claude skill canaries passed",
+  "version": 5,
+  "superseded_note": "List goal 112 after live root-dispatch skill-contract failure",
   "pinned": {
     "CLAUDE.md": "9dbaf3959c873b619a8350f7d297d53b5525f2f625bc5dcfa5608bd0e06ddb4c",
     "agents/EFFORT.md": "3a934c731fce7cff3ccb9ea3ebc7aad22683eeab608b3a291974db9ca715c613",
@@ -16,7 +16,7 @@
     "agents/archetypes/researcher.md": "566843cf0c2b5e359e3ce18b03afa0a390ca8c0184c5c67b56296315adfbcbdb",
     "agents/archetypes/synthesizer.md": "2dd0e9da4947fc6091823e07701c247a5a38e7d90f08c734b4a3b7604858c278",
     "agents/archetypes/verifier.md": "7436d980a8d0f5870ce53729bc4ea5d1a341f8a6af8feb25388c56a175db48cf",
-    "agents/goals/000-INDEX.md": "c9aae30234a7364c2204dbdb535e579ca70a8336730f002e2e54c4e155a77dd0",
+    "agents/goals/000-INDEX.md": "ab368c66a60a98e1997f76e8c0074756270324b0ee8cea02d019b24e60805c1e",
     "agents/roles/_PROPOSAL_TEMPLATE.md": "fdc1775971321a0d314f12a4c612896381f7e4479e3317c3a347eae08a03f0fc",
     "agents/roles/auditor.md": "d2c284328d4aedb846304f8aa55615044fa552a31c7c78d6894a8072d2e2f98c",
     "agents/roles/orchestrator.md": "b120220e50cb9b98953ff82478d10e948f612428e44de2bf158d2c42f9f43206",
