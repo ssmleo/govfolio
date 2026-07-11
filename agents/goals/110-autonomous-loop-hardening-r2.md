@@ -54,8 +54,16 @@ not allowed unless the native smoke returns the specific unsupported capability.
 - [x] Native Codex resolver and disposable linked-worktree smoke
 - [x] Fenced lane-0 selection/takeover/recovery tests
 - [x] Idempotent fail-closed WSL bootstrap + fake-runner tests
-- [ ] Claude/Codex canary evidence recorded; native used if green
-- [ ] Full acceptance, memory write-back, committed and merged to main
+- [x] Claude/Codex canary evidence recorded; native used if green
+- [x] Full acceptance, memory write-back, committed and merged to main
+
+Live rollout evidence (2026-07-11): native Codex linked-worktree smoke passed on
+Windows without WSL; Codex compatibility proof
+`sha256:9161dc75557a0cb5b1a03d48acd24bfe579ba783647f8a14b1dde086b5754ced`
+proved `gpt-5.6-sol`; Claude compatibility proof
+`sha256:b56183de7f91f1d739eefc3395635419cb7627567e3c5a0353a004ea145a3a9a`
+proved `claude-opus-4-8[1m]`. Both proofs include structured loading of the tracked
+`rust-tdd` skill, its approved SHA-256 marker, and exact session/thread resume.
 
 ## BLOCKED (human)
 
