@@ -34,19 +34,22 @@
 - [x] 096 admin design-parity pass (founder-directed 2026-07-10) — second Claude Design handoff implemented for full parity beyond 094's token-only match: ui primitives rebuilt design-exact, recharts removed for 6 hand-rolled chart components + WorldWall, shell (masthead/ticker/sidebar/footer) restyled, atmosphere moved on top of content, all 9 screens + Regime Dossier swept (dossier now stays mounted post-first-open for its slide-out transition); found+fixed a real Backfill completion-caption bug during visual QA; verified via scratch Playwright harness screenshotting the design prototype vs. the live app + full lint/typecheck/test/e2e; same-day follow-up fixed an unrelated pre-existing reviewer.spec.ts/BronzeDocument stale proxy-URL assertion found during the e2e run (commit b03379b), full e2e 26/26; see goal file + docs/runbooks/admin-dashboard.md § Design-parity pass; branch feat/admin-design-parity merged to main
 - [x] 097 parallel lanes + all-roles xhigh + /goal removal (founder-directed 2026-07-10) — atomic jurisdiction-lease bin (parallel-factory pre-check 1), GOVFOLIO_LANES run-loop.sh worktree lanes, shared GOVFOLIO_BRONZE_ROOT, factory-lane prompt/workflow, JOURNAL merge=union, all 11 shims xhigh, /goal dropped from runbooks; done 2026-07-10 Task 7: fmt/clippy/test/--ignored all green (28 passed --ignored, re-verified under an isolated CARGO_TARGET_DIR after colliding with another agent's concurrent build on shared target/), /goal grep 0, xhigh 11/11, jurisdiction-lease status clean; live-loop smoke deliberately not re-run at merge time (real side effect — launches an unattended claude -p session immediately; Task 5's stubbed-claude smoke already proves spawn mechanics); branch goal/097-parallel-lanes-xhigh merged to main
 - [ ] 100 authority lock + validator (invariant 9 → mechanical: AUTHORITY.lock.json, validate-authority bin, run-loop pre-flight, CI guardrails step, PreToolUse hook, GOVERNANCE amendments, pin root CLAUDE.md) — design docs/plans/2026-07-10-memory-authority-substrate-design.md §4.2 (Amendment 1)
+- [ ] 106 open epoch 3 (founder-directed 2026-07-11, REPRIORITIZED ahead of 101-103
+  2026-07-11 — founder wants coverage-factory throughput over memory-substrate work)
+  — wire the E3 epoch-gate (mirror goal 016's E1→E2 role-eval/reference-bundle
+  pattern; `epoch-gate` currently admits "only E2 is wired") + survey/seed
+  `priority_score` (or `blocked`+reason) for the European stub tail per EPOCHS.md's
+  formula — gives factory lanes real claimable work once E2 (br-only) is exhausted;
+  see agents/goals/106-open-epoch-3.md
+- [ ] 107 lane branch convergence (founder-directed 2026-07-11, REPRIORITIZED ahead of
+  101-103 alongside 106) — orchestrator step to merge a completed factory-lane branch
+  back into main (today only main→lane merges exist; lanes never push to main and
+  nothing merges them the other way — confirmed via `lane/1-3` sitting 7-10 commits
+  stranded from the 2026-07-11 overnight run); safety: only merge once the
+  jurisdiction's lease is released and `coverage_phase` is live/blocked, never while
+  still claimed; see agents/goals/107-lane-branch-convergence.md
 - [ ] 101 memory contract + index (MemoryFile schemars contract, validate-memory + memory-index bins w/ CI drift gate, docs/memory tree, PROMPT load-order + chassis/roles write-back amendments, memory-authoring skill, root/nested CLAUDE.md memory pointers) — design §4.1/§6 (Amendment 1); after 100
 - [ ] 102 SAF normalization (7 regimes → docs/regimes/<x>/AUTHORITY.md dir form, hyphen/underscore drift resolved, legacy us-house.md reconciled, E1.lock.json superseded per its own policy) — design §4.1; after 101
 - [ ] 103 memory hygiene loop (journal entry schema + rotation, standing consolidation work item, memory-staleness report bin, untrusted-block lint, delta-only rule) — design §4.3; after 101
 - [ ] 104 lane idle backoff (founder-directed 2026-07-10) — zero-spend claimable pre-check per lane iteration: read-only `jurisdiction-lease claimable --epoch` probe (same predicate as claim_next) + run-loop.sh lane-loop idle sleep `GOVFOLIO_LANE_SLEEP_IDLE` (default 3600); stops full-context no-op lane sessions when the registry has no claimable rows (observed 2026-07-11 first live GOVFOLIO_LANES run: lanes 1–3 respinning no-ops against exhausted E2); see agents/goals/104-lane-idle-backoff.md
-- [ ] 106 open epoch 3 (founder-directed 2026-07-11) — wire the E3 epoch-gate (mirror
-  goal 016's E1→E2 role-eval/reference-bundle pattern; `epoch-gate` currently admits
-  "only E2 is wired") + survey/seed `priority_score` (or `blocked`+reason) for the
-  European stub tail per EPOCHS.md's formula — gives factory lanes real claimable work
-  once E2 (br-only) is exhausted; see agents/goals/106-open-epoch-3.md
-- [ ] 107 lane branch convergence (founder-directed 2026-07-11) — orchestrator step to
-  merge a completed factory-lane branch back into main (today only main→lane merges
-  exist; lanes never push to main and nothing merges them the other way — confirmed via
-  `lane/1-3` sitting 7-10 commits stranded from the 2026-07-11 overnight run); safety:
-  only merge once the jurisdiction's lease is released and `coverage_phase` is
-  live/blocked, never while still claimed; see agents/goals/107-lane-branch-convergence.md
 - [ ] E2+ Brazil onward: NO hand-written goals — the coverage factory (015) generates work from the registry per agents/EPOCHS.md
