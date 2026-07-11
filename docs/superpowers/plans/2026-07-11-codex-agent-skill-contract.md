@@ -34,6 +34,7 @@
 - Create: `agents/skill-routing.schema.json`
 - Create: `scripts/agents/codex-contract-lib.mjs`
 - Create: `scripts/agents/codex-contract.test.mjs`
+- Modify: `.gitignore`
 
 **Interfaces:**
 
@@ -153,6 +154,8 @@ Hash length-framed relative paths and the resulting 40-character Git blob IDs wi
 
 It expands ACTIVE slots, explicit triggers, the nearest exact `**Required skills:**` field, packs, and transitive dependencies. It returns a hard diagnostic for planned/unavailable skills and emits no partial envelope.
 
+Add `.superpowers/sdd/` to `.gitignore` so the required durable execution ledger never contaminates contract clean-worktree checks or commits.
+
 - [ ] **Step 4: Run the core tests and confirm GREEN**
 
 Run:
@@ -166,7 +169,7 @@ Expected: all core tests PASS with no warnings.
 - [ ] **Step 5: Commit the core**
 
 ```powershell
-git add agents/skill-routing.schema.json scripts/agents/codex-contract-lib.mjs scripts/agents/codex-contract.test.mjs
+git add .gitignore agents/skill-routing.schema.json scripts/agents/codex-contract-lib.mjs scripts/agents/codex-contract.test.mjs
 git commit -m "feat(agents): add Codex skill contract core"
 ```
 
