@@ -1023,7 +1023,22 @@ fn first_line(bytes: &[u8]) -> Option<String> {
 }
 
 fn path_text(path: &Path) -> String {
-    path.to_string_lossy().into_owned()
+    let text = path.to_string_lossy().into_owned();
+    if cfg!(windows) {
+        windows_child_path_text(&text)
+    } else {
+        text
+    }
+}
+
+fn windows_child_path_text(text: &str) -> String {
+    if let Some(path) = text.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{path}");
+    }
+    if let Some(path) = text.strip_prefix(r"\\?\") {
+        return path.to_owned();
+    }
+    text.to_owned()
 }
 
 fn stderr_summary(stderr: &[u8]) -> String {
@@ -1307,6 +1322,22 @@ mod tests {
                 .pop_front()
                 .expect("scripted response")
         }
+    }
+
+    #[test]
+    fn windows_child_paths_drop_verbatim_prefixes() {
+        assert_eq!(
+            windows_child_path_text(r"\\?\C:\tmp\govfolio"),
+            r"C:\tmp\govfolio"
+        );
+        assert_eq!(
+            windows_child_path_text(r"\\?\UNC\server\share\govfolio"),
+            r"\\server\share\govfolio"
+        );
+        assert_eq!(
+            windows_child_path_text(r"C:\tmp\govfolio"),
+            r"C:\tmp\govfolio"
+        );
     }
 
     #[tokio::test]
