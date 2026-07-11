@@ -1,11 +1,13 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -124,6 +126,11 @@ function lockedSkill(root, id, overrides = {}) {
 
 function writeManifest(root, value) {
   write(root, "agents/skill-routing.json", `${JSON.stringify(value, null, 2)}\n`);
+}
+
+function commitAll(root, message = "fixture") {
+  execFileSync("git", ["add", "--all"], { cwd: root });
+  execFileSync("git", ["commit", "--quiet", "-m", message], { cwd: root });
 }
 
 function fixtureRole(id = "builder") {
@@ -341,6 +348,98 @@ test("Required skills inherits plan preamble requirements", () => {
   ]);
 });
 
+test("duplicate selectable headings fail closed", () => {
+  const markdown = [
+    "# Plan",
+    "",
+    "## Task 1: Build",
+    "",
+    "**Required skills:** skill:alpha",
+    "",
+    "## Task 1: Build",
+    "",
+    "**Required skills:** skill:beta",
+  ].join("\n");
+
+  const parsed = parseRequiredSkills(markdown, "plan.md", "Task 1: Build");
+  assert.deepEqual(parsed.requirements, []);
+  assert.deepEqual(parsed.diagnostics.map(({ code }) => code), [
+    "REQUIRED_SKILLS_HEADING_AMBIGUOUS",
+  ]);
+});
+
+test("duplicate Required skills fields in one scope fail closed", () => {
+  const inherited = parseRequiredSkills(
+    [
+      "# Plan",
+      "",
+      "**Required skills:** skill:executing-plans",
+      "**Required skills:** skill:subagent-driven-development",
+      "",
+      "## Task 1: Build",
+    ].join("\n"),
+    "plan.md",
+    "Task 1: Build",
+  );
+  assert.deepEqual(inherited.requirements, []);
+  assert.deepEqual(inherited.diagnostics.map(({ code }) => code), [
+    "DUPLICATE_REQUIRED_SKILLS_FIELD",
+  ]);
+
+  const selected = parseRequiredSkills(
+    [
+      "# Plan",
+      "",
+      "## Task 1: Build",
+      "",
+      "**Required skills:** skill:alpha",
+      "**Required skills:** skill:beta",
+      "",
+      "### Notes",
+      "**Required skills:** skill:nested",
+    ].join("\n"),
+    "plan.md",
+    "Task 1: Build",
+  );
+  assert.deepEqual(selected.requirements, []);
+  assert.deepEqual(selected.diagnostics.map(({ code }) => code), [
+    "DUPLICATE_REQUIRED_SKILLS_FIELD",
+  ]);
+});
+
+test("duplicate situational triggers fail closed", () => {
+  const input = manifest({
+    skills: [skill("skill:alpha"), skill("skill:beta")],
+    triggers: [{ id: "trigger:review", description: "Review the result." }],
+    roles: [
+      {
+        ...fixtureRole(),
+        situational: [
+          { trigger: "trigger:review", requirements: ["skill:alpha"] },
+          { trigger: "trigger:review", requirements: ["skill:beta"] },
+        ],
+      },
+    ],
+  });
+
+  assert.ok(
+    validateManifest(input, process.cwd()).some(
+      ({ code }) => code === "DUPLICATE_SITUATIONAL_TRIGGER",
+    ),
+  );
+  const resolution = resolveDispatch(input, {
+    role: "builder",
+    triggers: ["trigger:review"],
+    sectionFile: null,
+    sectionHeading: null,
+    sourceContext: null,
+  });
+  assert.equal(resolution.envelope, null);
+  assert.deepEqual(resolution.diagnostics.map(({ code }) => code), [
+    "DUPLICATE_SITUATIONAL_TRIGGER",
+  ]);
+});
+
 test("unknown triggers are rejected instead of inferred", () => {
   const input = manifest({
     skills: [skill("skill:alpha")],
@@ -387,7 +486,7 @@ test("dispatch formatting is deterministic JSON", () => {
     triggers: [],
     sectionFile: null,
     sectionHeading: null,
-    sourceContext: "docs/context.md",
+    sourceContext: "docs/regimes/us_house/AUTHORITY.md",
   });
   assert.deepEqual(resolution.diagnostics, []);
   assert.ok(resolution.envelope);
@@ -481,6 +580,59 @@ test("render write mode repairs marked generated drift", (t) => {
   );
 });
 
+test("renderer rejects symlinked generated-output ancestors", (t) => {
+  const root = fixtureRepository(t);
+  const outside = mkdtempSync(join(tmpdir(), "govfolio-render-outside-"));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  const input = manifest({ skills: [lockedSkill(root, "skill:alpha")], roles: [fixtureRole()] });
+  writeManifest(root, input);
+  const roleText = "# role: builder\n6 Output format: report.\n";
+  write(root, "agents/roles/builder.md", roleText);
+  symlinkSync(outside, join(root, ".agents"), "junction");
+
+  assert.throws(
+    () => runCli("render-codex-contract.mjs", ["--write", "--repo-root", root]),
+    (error) => {
+      const output = `${error.stdout}\n${error.stderr}`;
+      return output.includes("PROJECTION_UNSAFE_PATH") && output.includes(".agents");
+    },
+  );
+  assert.deepEqual(readdirSync(outside), []);
+  assert.equal(readFileSync(join(root, "agents", "roles", "builder.md"), "utf8"), roleText);
+});
+
+test("renderer completes its safety scan before any write or delete", (t) => {
+  const root = fixtureRepository(t);
+  const outside = mkdtempSync(join(tmpdir(), "govfolio-render-outside-"));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  const alpha = lockedSkill(root, "skill:alpha");
+  const beta = lockedSkill(root, "skill:beta");
+  const input = manifest({ skills: [alpha, beta], roles: [fixtureRole()] });
+  writeManifest(root, input);
+  write(root, "agents/roles/builder.md", "# role: builder\n6 Output format: report.\n");
+  runCli("render-codex-contract.mjs", ["--write", "--repo-root", root]);
+
+  const alphaPath = join(root, ".agents", "skills", alpha.codex_name, "SKILL.md");
+  const drift = `---\n${GENERATED_MARKERS.comment}\nleave this drift untouched\n`;
+  writeFileSync(alphaPath, drift);
+  const staleShim = write(
+    root,
+    ".codex/agents/stale.toml",
+    `${GENERATED_MARKERS.comment}\nleave this stale shim untouched\n`,
+  );
+  const betaDirectory = join(root, ".agents", "skills", beta.codex_name);
+  rmSync(betaDirectory, { recursive: true, force: true });
+  symlinkSync(outside, betaDirectory, "junction");
+
+  assert.throws(
+    () => runCli("render-codex-contract.mjs", ["--write", "--repo-root", root]),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("PROJECTION_UNSAFE_PATH"),
+  );
+  assert.equal(readFileSync(alphaPath, "utf8"), drift);
+  assert.match(readFileSync(staleShim, "utf8"), /leave this stale shim untouched/);
+  assert.deepEqual(readdirSync(outside), []);
+});
+
 test("render never deletes an unmarked custom agent or skill", (t) => {
   const root = fixtureRepository(t);
   const input = manifest({ skills: [lockedSkill(root, "skill:alpha")], roles: [fixtureRole()] });
@@ -564,9 +716,11 @@ test("resolver expands role, trigger, step, pack, and dependencies", (t) => {
   writeManifest(root, input);
   write(
     root,
-    "plan.md",
+    "docs/plans/plan.md",
     "### Task 1: Build\n\n**Required skills:** pack:craft\n",
   );
+  write(root, "docs/regimes/example.md", "# Example SAF\n");
+  commitAll(root);
 
   const output = runCli(
     "resolve-codex-dispatch.mjs",
@@ -574,9 +728,9 @@ test("resolver expands role, trigger, step, pack, and dependencies", (t) => {
       "--repo-root", root,
       "--role", "builder",
       "--trigger", "trigger:completion-review",
-      "--section-file", "plan.md",
+      "--section-file", "docs/plans/plan.md",
       "--section-heading", "Task 1: Build",
-      "--source-context", "docs/context.md",
+      "--source-context", "docs/regimes/example.md",
     ],
     { cwd: root },
   );
@@ -587,6 +741,418 @@ test("resolver expands role, trigger, step, pack, and dependencies", (t) => {
     "skill:delta",
     "skill:gamma",
   ]);
+  assert.equal(envelope.source_context, "docs/regimes/example.md");
+});
+
+test("resolver rejects section symlink escapes", (t) => {
+  const root = fixtureRepository(t);
+  const outside = mkdtempSync(join(tmpdir(), "govfolio-section-outside-"));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  write(outside, "plan.md", "## Task 1: Build\n\n**Required skills:** skill:alpha\n");
+  symlinkSync(outside, join(root, "linked-plan"), "junction");
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--section-file", "linked-plan/plan.md",
+        "--section-heading", "Task 1: Build",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("SECTION_PATH_OUTSIDE_REPO"),
+  );
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--section-file", "agents",
+        "--section-heading", "Task 1: Build",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("SECTION_NOT_REGULAR_FILE"),
+  );
+});
+
+test("resolver canonicalizes and validates source SAF paths", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  write(root, "docs/regimes/example.md", "# Example SAF\n");
+  write(root, "docs/not-a-saf.md", "# Not a SAF\n");
+  commitAll(root);
+
+  const output = runCli(
+    "resolve-codex-dispatch.mjs",
+    [
+      "--repo-root", root,
+      "--role", "builder",
+      "--source-context", "docs/regimes/../regimes/example.md",
+    ],
+    { cwd: root },
+  );
+  assert.equal(JSON.parse(output.split(/\r?\n/)[1]).source_context, "docs/regimes/example.md");
+
+  for (const [sourceContext, code] of [
+    ["../outside.md", "SOURCE_CONTEXT_PATH_OUTSIDE_REPO"],
+    ["docs/not-a-saf.md", "SOURCE_CONTEXT_NOT_SAF"],
+    ["docs/regimes/missing.md", "SOURCE_CONTEXT_MISSING"],
+    ["docs/regimes", "SOURCE_CONTEXT_NOT_REGULAR_FILE"],
+  ]) {
+    assert.throws(
+      () => runCli(
+        "resolve-codex-dispatch.mjs",
+        ["--repo-root", root, "--role", "builder", "--source-context", sourceContext],
+        { cwd: root },
+      ),
+      (error) => `${error.stdout}\n${error.stderr}`.includes(code),
+      `${sourceContext} should fail with ${code}`,
+    );
+  }
+
+  write(root, "docs/regimes/manufactured.md", "# Untracked SAF\n");
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--source-context", "docs/regimes/manufactured.md",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("SOURCE_CONTEXT_UNTRACKED"),
+  );
+
+  const outside = mkdtempSync(join(tmpdir(), "govfolio-saf-outside-"));
+  t.after(() => rmSync(outside, { recursive: true, force: true }));
+  write(outside, "AUTHORITY.md", "# Outside SAF\n");
+  mkdirSync(join(root, "docs", "regimes"), { recursive: true });
+  symlinkSync(outside, join(root, "docs", "regimes", "escape"), "junction");
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--source-context", "docs/regimes/escape/AUTHORITY.md",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("SOURCE_CONTEXT_PATH_OUTSIDE_REPO"),
+  );
+});
+
+test("resolver rejects untracked plans before envelope construction", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  commitAll(root);
+  write(
+    root,
+    "docs/plans/manufactured.md",
+    "## Task 1: Build\n\n**Required skills:** skill:alpha\n",
+  );
+
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--section-file", "docs/plans/manufactured.md",
+        "--section-heading", "Task 1: Build",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("SECTION_UNTRACKED"),
+  );
+});
+
+test("resolver rejects tracked goals not actively indexed", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  write(root, "agents/goals/000-INDEX.md", "# Goal queue\n\n- [ ] 021 legitimate work\n");
+  write(
+    root,
+    "agents/goals/999-manufactured.md",
+    "## Task 1: Build\n\n**Required skills:** skill:alpha\n",
+  );
+  commitAll(root);
+
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--section-file", "agents/goals/999-manufactured.md",
+        "--section-heading", "Task 1: Build",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("SECTION_GOAL_NOT_INDEXED"),
+  );
+});
+
+test("resolver rejects ambiguous basenames for one active goal id", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  write(root, "agents/goals/000-INDEX.md", "# Goal queue\n\n- [ ] 021 active work\n");
+  for (const path of [
+    "agents/goals/021-legitimate.md",
+    "agents/goals/021-manufactured.md",
+  ]) {
+    write(root, path, "## Task 1: Build\n\n**Required skills:** skill:alpha\n");
+  }
+  commitAll(root);
+
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--section-file", "agents/goals/021-manufactured.md",
+        "--section-heading", "Task 1: Build",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("SECTION_GOAL_AMBIGUOUS"),
+  );
+});
+
+test("resolver rejects staged-new plans absent from HEAD", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  commitAll(root);
+  write(
+    root,
+    "docs/plans/staged-new.md",
+    "## Task 1: Build\n\n**Required skills:** skill:alpha\n",
+  );
+  execFileSync("git", ["add", "docs/plans/staged-new.md"], { cwd: root });
+
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--section-file", "docs/plans/staged-new.md",
+        "--section-heading", "Task 1: Build",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("SECTION_NOT_IN_HEAD"),
+  );
+});
+
+test("resolver rejects a committed SAF modified after HEAD", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  const safPath = write(root, "docs/regimes/example.md", "# Reviewed SAF\n");
+  commitAll(root);
+  writeFileSync(safPath, "# Unreviewed SAF mutation\n");
+
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--source-context", "docs/regimes/example.md",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("SOURCE_CONTEXT_DIRTY"),
+  );
+});
+
+test("resolver rejects uncommitted goal-index activation", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  const indexPath = write(
+    root,
+    "agents/goals/000-INDEX.md",
+    "# Goal queue\n\n- [ ] 021 existing work\n",
+  );
+  write(
+    root,
+    "agents/goals/999-manufactured.md",
+    "## Task 1: Build\n\n**Required skills:** skill:alpha\n",
+  );
+  commitAll(root);
+  writeFileSync(indexPath, "# Goal queue\n\n- [ ] 021 existing work\n- [ ] 999 unreviewed activation\n");
+
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--section-file", "agents/goals/999-manufactured.md",
+        "--section-heading", "Task 1: Build",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("GOAL_INDEX_DIRTY"),
+  );
+});
+
+test("resolver accepts committed clean workflow sections", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  write(
+    root,
+    "agents/workflows/example.md",
+    "## Task 1: Build\n\n**Required skills:** skill:alpha\n",
+  );
+  commitAll(root);
+
+  const output = runCli(
+    "resolve-codex-dispatch.mjs",
+    [
+      "--repo-root", root,
+      "--role", "builder",
+      "--section-file", "agents/workflows/example.md",
+      "--section-heading", "Task 1: Build",
+    ],
+    { cwd: root },
+  );
+  assert.deepEqual(
+    JSON.parse(output.split(/\r?\n/)[1]).skills.map(({ id }) => id),
+    ["skill:alpha"],
+  );
+});
+
+test("resolver detects assume-unchanged plan edits", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  const planPath = write(
+    root,
+    "docs/plans/reviewed.md",
+    "## Task 1: Build\n\n**Required skills:** skill:alpha\n",
+  );
+  commitAll(root);
+  execFileSync("git", ["update-index", "--assume-unchanged", "docs/plans/reviewed.md"], { cwd: root });
+  writeFileSync(planPath, "## Task 1: Build\n\n**Required skills:** none\n");
+
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--section-file", "docs/plans/reviewed.md",
+        "--section-heading", "Task 1: Build",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("SECTION_DIRTY"),
+  );
+});
+
+test("resolver detects assume-unchanged SAF edits", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  const safPath = write(root, "docs/regimes/example.md", "# Reviewed SAF\n");
+  commitAll(root);
+  execFileSync("git", ["update-index", "--assume-unchanged", "docs/regimes/example.md"], { cwd: root });
+  writeFileSync(safPath, "# Hidden SAF mutation\n");
+
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--source-context", "docs/regimes/example.md",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("SOURCE_CONTEXT_DIRTY"),
+  );
+});
+
+test("resolver detects assume-unchanged goal-index activation", (t) => {
+  const root = fixtureRepository(t);
+  const input = manifest({
+    skills: [lockedSkill(root, "skill:alpha")],
+    roles: [fixtureRole()],
+  });
+  writeManifest(root, input);
+  const indexPath = write(root, "agents/goals/000-INDEX.md", "# Goal queue\n");
+  write(
+    root,
+    "agents/goals/999-manufactured.md",
+    "## Task 1: Build\n\n**Required skills:** skill:alpha\n",
+  );
+  commitAll(root);
+  execFileSync("git", ["update-index", "--assume-unchanged", "agents/goals/000-INDEX.md"], { cwd: root });
+  writeFileSync(indexPath, "# Goal queue\n\n- [ ] 999 hidden activation\n");
+
+  assert.throws(
+    () => runCli(
+      "resolve-codex-dispatch.mjs",
+      [
+        "--repo-root", root,
+        "--role", "builder",
+        "--section-file", "agents/goals/999-manufactured.md",
+        "--section-heading", "Task 1: Build",
+      ],
+      { cwd: root },
+    ),
+    (error) => `${error.stdout}\n${error.stderr}`.includes("GOAL_INDEX_DIRTY"),
+  );
 });
 
 test("resolver blocks a triggered planned skill", (t) => {
@@ -925,6 +1491,7 @@ test("provider looping is owned by the fenced Rust supervisor", () => {
 });
 
 test("runner preflight-only mode never invokes a stub Codex binary", (t) => {
+  const { root } = runnerRepositoryFixture(t);
   const stub = mkdtempSync(join(tmpdir(), "govfolio-codex-stub-"));
   t.after(() => rmSync(stub, { recursive: true, force: true }));
   const marker = join(stub, "invoked");
@@ -939,7 +1506,7 @@ test("runner preflight-only mode never invokes a stub Codex binary", (t) => {
       bashPath(stub),
       bashPath(marker),
     ],
-    { cwd: repositoryRoot, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
   );
   assert.match(output, /Codex contract preflight passed/i);
   assert.equal(existsSync(marker), false);
@@ -973,4 +1540,236 @@ test("clean detached worktree validates without mutation", (t) => {
     }),
     "",
   );
+});
+
+function runnerRepositoryFixture(t, { stubSupervisor = false } = {}) {
+  const parent = mkdtempSync(join(tmpdir(), "govfolio-runner-fixture-"));
+  const root = join(parent, "repo");
+  t.after(() => rmSync(parent, { recursive: true, force: true }));
+  for (const path of [
+    ".gitattributes",
+    ".gitignore",
+    "AGENTS.md",
+    "CLAUDE.md",
+    ".agents/skills",
+    ".claude/agents",
+    ".codex/agents",
+    "agents/GOVERNANCE.md",
+    "agents/EPOCHS.md",
+    "agents/LOOP.md",
+    "agents/PROMPT.md",
+    "agents/PROMPT-FACTORY-LANE.md",
+    "agents/run-loop.sh",
+    "agents/archetypes",
+    "agents/roles",
+    "agents/run-loop-codex.sh",
+    "agents/skill-routing.json",
+    "agents/skill-routing.schema.json",
+    "agents/skills",
+    "agents/workflows",
+    "scripts/agents",
+  ]) {
+    const destination = join(root, ...path.split("/"));
+    mkdirSync(dirname(destination), { recursive: true });
+    cpSync(join(repositoryRoot, ...path.split("/")), destination, { recursive: true });
+  }
+  if (stubSupervisor) {
+    const supervisor = write(
+      root,
+      "agents/run-loop.sh",
+      '#!/usr/bin/env bash\nprintf delegated >"$SUPERVISOR_STUB_MARKER"\n',
+    );
+    chmodSync(supervisor, 0o755);
+  }
+  execFileSync("git", ["init", "--quiet", "--initial-branch=test-contract"], { cwd: root });
+  execFileSync("git", ["config", "user.email", "contract@example.invalid"], { cwd: root });
+  execFileSync("git", ["config", "user.name", "Contract Test"], { cwd: root });
+  execFileSync("git", ["config", "core.autocrlf", "false"], { cwd: root });
+  execFileSync("git", ["add", "."], { cwd: root });
+  execFileSync(
+    "git",
+    ["update-index", "--chmod=+x", "agents/run-loop.sh", "agents/run-loop-codex.sh"],
+    { cwd: root },
+  );
+  execFileSync("git", ["commit", "--quiet", "-m", "runner fixture"], { cwd: root });
+  return { parent, root };
+}
+
+function runRunnerOnce(t, root, supervisorMarker, codexMarker, extraCommand = "") {
+  const stub = mkdtempSync(join(tmpdir(), "govfolio-runner-stub-"));
+  t.after(() => rmSync(stub, { recursive: true, force: true }));
+  for (const [name, body] of [
+    [
+      "codex",
+      '#!/usr/bin/env bash\nprintf invoked >"$CODEX_STUB_MARKER"\nexit 97\n',
+    ],
+  ]) {
+    const path = write(stub, name, body);
+    chmodSync(path, 0o755);
+  }
+  return spawnSync(
+    gitBash(),
+    [
+      "-c",
+      `PATH="$1:$PATH" SUPERVISOR_STUB_MARKER="$2" CODEX_STUB_MARKER="$3" GOVFOLIO_LANES=1 ${extraCommand} bash agents/run-loop-codex.sh`,
+      "contract-test",
+      bashPath(stub),
+      bashPath(supervisorMarker),
+      bashPath(codexMarker),
+    ],
+    { cwd: root, encoding: "utf8", timeout: 120_000 },
+  );
+}
+
+test("normal launcher validates then delegates without invoking Codex", (t) => {
+  const { root } = runnerRepositoryFixture(t, { stubSupervisor: true });
+  write(root, ".codex/config.toml", "model = \"local-only\"\n");
+  const supervisorMarker = join(root, "supervisor-invoked.txt");
+  const codexMarker = join(root, "codex-invoked.txt");
+  const result = runRunnerOnce(t, root, supervisorMarker, codexMarker);
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.equal(readFileSync(supervisorMarker, "utf8"), "delegated");
+  assert.equal(existsSync(codexMarker), false);
+  assert.equal(execFileSync("git", ["check-ignore", ".codex/config.toml"], { cwd: root, encoding: "utf8" }).trim(), ".codex/config.toml");
+});
+
+test("normal launcher rejects tracked machine config before delegation", (t) => {
+  const { root } = runnerRepositoryFixture(t, { stubSupervisor: true });
+  write(root, ".codex/config.toml", "model = \"tracked-is-forbidden\"\n");
+  execFileSync("git", ["add", "--force", ".codex/config.toml"], { cwd: root });
+  execFileSync("git", ["commit", "--quiet", "-m", "bad config"], { cwd: root });
+  const supervisorMarker = join(root, "supervisor-invoked.txt");
+  const codexMarker = join(root, "codex-invoked.txt");
+  const result = runRunnerOnce(t, root, supervisorMarker, codexMarker);
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /\.codex\/config\.toml.*must never be tracked/i);
+  assert.equal(existsSync(supervisorMarker), false);
+  assert.equal(existsSync(codexMarker), false);
+});
+
+test("preflight rejects a lane from another repository", (t) => {
+  const { parent, root } = runnerRepositoryFixture(t);
+  const lanes = join(parent, "lanes");
+  const lane = join(lanes, "lane-1");
+  mkdirSync(lanes);
+  execFileSync("git", ["clone", "--quiet", root, lane]);
+  execFileSync("git", ["checkout", "--quiet", "-b", "codex/lane/1"], { cwd: lane });
+  const result = spawnSync(
+    gitBash(),
+    [
+      "-c",
+      'GOVFOLIO_CODEX_PREFLIGHT_ONLY=1 GOVFOLIO_LANES=2 GOVFOLIO_LANES_DIR="$1" bash agents/run-loop-codex.sh',
+      "contract-test",
+      bashPath(lanes),
+    ],
+    { cwd: root, encoding: "utf8", timeout: 120_000 },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /registered worktree|common Git directory/i);
+});
+
+test("preflight rejects modified lane-local contract tools", (t) => {
+  const { parent, root } = runnerRepositoryFixture(t);
+  const lanes = join(parent, "lanes");
+  const lane = join(lanes, "lane-1");
+  mkdirSync(lanes);
+  execFileSync("git", ["branch", "codex/lane/1"], { cwd: root });
+  execFileSync("git", ["worktree", "add", "--quiet", lane, "codex/lane/1"], { cwd: root });
+  writeFileSync(
+    join(lane, "scripts", "agents", "validate-codex-contract.mjs"),
+    "process.exit(0);\n",
+  );
+  const result = spawnSync(
+    gitBash(),
+    [
+      "-c",
+      'GOVFOLIO_CODEX_PREFLIGHT_ONLY=1 GOVFOLIO_LANES=2 GOVFOLIO_LANES_DIR="$1" bash agents/run-loop-codex.sh',
+      "contract-test",
+      bashPath(lanes),
+    ],
+    { cwd: root, encoding: "utf8", timeout: 120_000 },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /worktree policy differs from HEAD|lane policy differs/i);
+});
+
+test("preflight rejects assume-unchanged lane role tampering", (t) => {
+  const { parent, root } = runnerRepositoryFixture(t);
+  const lanes = join(parent, "lanes");
+  const lane = join(lanes, "lane-1");
+  mkdirSync(lanes);
+  execFileSync("git", ["branch", "codex/lane/1"], { cwd: root });
+  execFileSync("git", ["worktree", "add", "--quiet", lane, "codex/lane/1"], { cwd: root });
+  const rolePath = join(lane, "agents", "roles", "orchestrator.md");
+  execFileSync("git", ["update-index", "--assume-unchanged", "agents/roles/orchestrator.md"], {
+    cwd: lane,
+  });
+  writeFileSync(
+    rolePath,
+    `${readFileSync(rolePath, "utf8")}\nUntrusted lane-only instruction outside Slot 5.\n`,
+  );
+  assert.equal(
+    execFileSync("git", ["diff", "--quiet", "HEAD", "--", "agents/roles/orchestrator.md"], {
+      cwd: lane,
+      encoding: "utf8",
+    }),
+    "",
+  );
+  const result = spawnSync(
+    gitBash(),
+    [
+      "-c",
+      'GOVFOLIO_CODEX_PREFLIGHT_ONLY=1 GOVFOLIO_LANES=2 GOVFOLIO_LANES_DIR="$1" bash agents/run-loop-codex.sh',
+      "contract-test",
+      bashPath(lanes),
+    ],
+    { cwd: root, encoding: "utf8", timeout: 120_000 },
+  );
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /worktree policy differs from HEAD|lane policy differs/i);
+});
+
+test("relative lane-directory override is bounded before rejecting a foreign worktree", (t) => {
+  const { parent, root } = runnerRepositoryFixture(t);
+  const lanes = join(parent, "lanes");
+  const lane = join(lanes, "lane-1");
+  mkdirSync(lanes);
+  execFileSync("git", ["clone", "--quiet", root, lane]);
+  execFileSync("git", ["checkout", "--quiet", "-b", "codex/lane/1"], { cwd: lane });
+  const result = spawnSync(
+    gitBash(),
+    [
+      "-c",
+      'GOVFOLIO_CODEX_PREFLIGHT_ONLY=1 GOVFOLIO_LANES=2 GOVFOLIO_LANES_DIR=../lanes bash agents/run-loop-codex.sh',
+    ],
+    { cwd: root, encoding: "utf8", timeout: 120_000 },
+  );
+  assert.notEqual(result.error?.code, "ETIMEDOUT");
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /registered worktree|common Git directory/i);
+});
+
+test("runner uses trusted root tools and verifies lane identity and policy", () => {
+  const contents = repositoryFile("agents/run-loop-codex.sh");
+  assert.doesNotMatch(contents, /node "\$worktree\/scripts\/agents\/(?:render|validate|resolve)/);
+  assert.match(contents, /\$ROOT\/scripts\/agents\/render-codex-contract\.mjs/);
+  assert.match(contents, /\$ROOT\/scripts\/agents\/validate-codex-contract\.mjs/);
+  assert.doesNotMatch(contents, /resolve-codex-dispatch\.mjs/);
+  assert.match(contents, /verify_lane_worktree/);
+  assert.match(contents, /symbolic-ref --short HEAD/);
+  assert.match(contents, /--git-common-dir/);
+  assert.match(contents, /symlink/i);
+  assert.doesNotMatch(contents, /git -C "\$(?:ROOT|worktree)" diff --quiet HEAD/);
+  assert.match(contents, /rev-parse "HEAD:\$path"/);
+  assert.match(contents, /policy_hash "\$worktree" "\$path"/);
+  assert.match(contents, /lane policy differs from the trusted root/);
+  assert.match(contents, /agents\/roles\/\*\.md/);
+  assert.match(contents, /agents\/archetypes\/\*\.md/);
+  assert.match(contents, /agents\/workflows\/\*\.md/);
+  assert.match(contents, /agents\/EPOCHS\.md/);
+  assert.match(contents, /agents\/LOOP\.md/);
+  assert.match(contents, /worktree_absolute="\$\(absolute_path "\$worktree"\)"/);
+  assert.match(contents, /exec "\$ROOT\/agents\/run-loop\.sh"/);
+  assert.doesNotMatch(contents, /^\s*codex\s+(?:exec|"\$\{)/m);
+  assert.doesNotMatch(contents, /while\s+:/);
 });

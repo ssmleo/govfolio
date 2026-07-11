@@ -10,11 +10,14 @@
 //! write-back into a future root `CLAUDE.md` invariant) in
 //! [`migrate_local_to_prod`] (the `migrate-local-to-prod` bin); the atomic
 //! jurisdiction lease for parallel loop lanes (goal 097, parallel-factory
-//! pre-check 1) in [`lease`] (the `jurisdiction-lease` bin).
+//! pre-check 1) in [`lease`] (the `jurisdiction-lease` bin); the read-only
+//! factory/loop dashboard in [`board`] (the `loop-board` bin, drives
+//! `agents/monitor.sh`).
 
 pub mod alerts;
 pub mod backfill;
 pub mod billing;
+pub mod board;
 pub mod lease;
 pub mod migrate_local_to_prod;
 pub mod sampler;

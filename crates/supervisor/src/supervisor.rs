@@ -347,14 +347,21 @@ fn configured_lanes() -> anyhow::Result<Vec<ConfiguredLane>> {
         lane.model = std::env::var(format!("{prefix}_MODEL"))
             .ok()
             .filter(|value| !value.is_empty());
-        lane.prompt_file = std::env::var_os(format!("{prefix}_PROMPT"))
-            .map_or_else(|| worktree.join("agents").join("PROMPT.md"), PathBuf::from);
+        lane.prompt_file =
+            factory_prompt_file(&worktree, std::env::var_os(format!("{prefix}_PROMPT")));
         lanes.push(ConfiguredLane {
             primary: lane,
             fallback: None,
         });
     }
     Ok(lanes)
+}
+
+fn factory_prompt_file(worktree: &Path, configured: Option<std::ffi::OsString>) -> PathBuf {
+    configured.map_or_else(
+        || worktree.join("agents").join("PROMPT-FACTORY-LANE.md"),
+        PathBuf::from,
+    )
 }
 
 fn configured_fallback(primary: &LoopConfig) -> anyhow::Result<Option<LoopConfig>> {
@@ -2182,6 +2189,20 @@ mod tests {
             model: Some("gpt-fixture".to_owned()),
             config_fingerprint: "fixture".to_owned(),
         }
+    }
+
+    #[test]
+    fn factory_lanes_default_to_the_factory_prompt() {
+        let worktree = PathBuf::from("fixture");
+
+        assert_eq!(
+            factory_prompt_file(&worktree, None),
+            worktree.join("agents/PROMPT-FACTORY-LANE.md")
+        );
+        assert_eq!(
+            factory_prompt_file(&worktree, Some("custom/prompt.md".into())),
+            PathBuf::from("custom/prompt.md")
+        );
     }
 
     fn alternate_provider() -> ProviderIdentity {

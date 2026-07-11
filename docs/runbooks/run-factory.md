@@ -148,7 +148,10 @@ artifact has already landed.
 
 - Semantic heartbeat: `./agents/monitor.sh`, `jurisdiction-lease status`, and
   `govfolio-loop receipt-status <receipt-id>`. A phase may advance only with an applied
-  receipt for the exact green source commit; pending rows are integrator-owned.
+  receipt for the exact green source commit; pending rows are integrator-owned. The same
+  dashboard includes pre-built `loop-board` tripwires, provider processes, registry
+  DOING/DONE/LEFT, journal/commit digests, and semantic log tails. Refresh with
+  `GOVFOLIO_MONITOR_REFRESH` (default 15s).
 - Gate re-check anytime: `cargo run -p pipeline --bin epoch-gate -- E2` (or the next epoch id).
 - Blocked jurisdictions are not failures — `blocked:<reason>` rows are transparency-scorecard
   content. Review them, don't force them.
