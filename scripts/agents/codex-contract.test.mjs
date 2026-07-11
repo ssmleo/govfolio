@@ -1542,7 +1542,7 @@ test("clean detached worktree validates without mutation", (t) => {
   );
 });
 
-function runnerRepositoryFixture(t) {
+function runnerRepositoryFixture(t, { stubSupervisor = false } = {}) {
   const parent = mkdtempSync(join(tmpdir(), "govfolio-runner-fixture-"));
   const root = join(parent, "repo");
   t.after(() => rmSync(parent, { recursive: true, force: true }));
@@ -1559,6 +1559,7 @@ function runnerRepositoryFixture(t) {
     "agents/LOOP.md",
     "agents/PROMPT.md",
     "agents/PROMPT-FACTORY-LANE.md",
+    "agents/run-loop.sh",
     "agents/archetypes",
     "agents/roles",
     "agents/run-loop-codex.sh",
@@ -1572,66 +1573,78 @@ function runnerRepositoryFixture(t) {
     mkdirSync(dirname(destination), { recursive: true });
     cpSync(join(repositoryRoot, ...path.split("/")), destination, { recursive: true });
   }
+  if (stubSupervisor) {
+    const supervisor = write(
+      root,
+      "agents/run-loop.sh",
+      '#!/usr/bin/env bash\nprintf delegated >"$SUPERVISOR_STUB_MARKER"\n',
+    );
+    chmodSync(supervisor, 0o755);
+  }
   execFileSync("git", ["init", "--quiet", "--initial-branch=test-contract"], { cwd: root });
   execFileSync("git", ["config", "user.email", "contract@example.invalid"], { cwd: root });
   execFileSync("git", ["config", "user.name", "Contract Test"], { cwd: root });
   execFileSync("git", ["config", "core.autocrlf", "false"], { cwd: root });
   execFileSync("git", ["add", "."], { cwd: root });
-  execFileSync("git", ["update-index", "--chmod=+x", "agents/run-loop-codex.sh"], { cwd: root });
+  execFileSync(
+    "git",
+    ["update-index", "--chmod=+x", "agents/run-loop.sh", "agents/run-loop-codex.sh"],
+    { cwd: root },
+  );
   execFileSync("git", ["commit", "--quiet", "-m", "runner fixture"], { cwd: root });
   return { parent, root };
 }
 
-function runRunnerOnce(t, root, marker, extraCommand = "") {
+function runRunnerOnce(t, root, supervisorMarker, codexMarker, extraCommand = "") {
   const stub = mkdtempSync(join(tmpdir(), "govfolio-runner-stub-"));
   t.after(() => rmSync(stub, { recursive: true, force: true }));
   for (const [name, body] of [
-    ["codex", '#!/usr/bin/env bash\ncat >"$CODEX_STDIN_PATH"\n'],
-    ["cargo", "#!/usr/bin/env bash\nexit 0\n"],
-    ["sleep", "#!/usr/bin/env bash\nexit 91\n"],
+    [
+      "codex",
+      '#!/usr/bin/env bash\nprintf invoked >"$CODEX_STUB_MARKER"\nexit 97\n',
+    ],
   ]) {
     const path = write(stub, name, body);
     chmodSync(path, 0o755);
   }
-  const bronze = join(stub, "bronze");
-  mkdirSync(bronze);
   return spawnSync(
     gitBash(),
     [
       "-c",
-      `PATH="$1:$PATH" CODEX_STDIN_PATH="$2" GOVFOLIO_BRONZE_ROOT="$3" GOVFOLIO_LANES=1 ${extraCommand} bash agents/run-loop-codex.sh`,
+      `PATH="$1:$PATH" SUPERVISOR_STUB_MARKER="$2" CODEX_STUB_MARKER="$3" GOVFOLIO_LANES=1 ${extraCommand} bash agents/run-loop-codex.sh`,
       "contract-test",
       bashPath(stub),
-      bashPath(marker),
-      bashPath(bronze),
+      bashPath(supervisorMarker),
+      bashPath(codexMarker),
     ],
     { cwd: root, encoding: "utf8", timeout: 120_000 },
   );
 }
 
-test("runner prepends a resolver envelope to stub Codex stdin and allows ignored local config", (t) => {
-  const { root } = runnerRepositoryFixture(t);
+test("normal launcher validates then delegates without invoking Codex", (t) => {
+  const { root } = runnerRepositoryFixture(t, { stubSupervisor: true });
   write(root, ".codex/config.toml", "model = \"local-only\"\n");
-  const marker = join(root, "codex-stdin.txt");
-  runRunnerOnce(t, root, marker);
-  const stdin = readFileSync(marker, "utf8");
-  const lines = stdin.split(/\r?\n/);
-  assert.equal(lines[0], "--- GOVFOLIO_DISPATCH_V1 ---");
-  assert.equal(JSON.parse(lines[1]).role, "orchestrator");
-  assert.ok(stdin.includes("--- END GOVFOLIO_DISPATCH_V1 ---\n\n# govfolio orchestration prompt"));
+  const supervisorMarker = join(root, "supervisor-invoked.txt");
+  const codexMarker = join(root, "codex-invoked.txt");
+  const result = runRunnerOnce(t, root, supervisorMarker, codexMarker);
+  assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+  assert.equal(readFileSync(supervisorMarker, "utf8"), "delegated");
+  assert.equal(existsSync(codexMarker), false);
   assert.equal(execFileSync("git", ["check-ignore", ".codex/config.toml"], { cwd: root, encoding: "utf8" }).trim(), ".codex/config.toml");
 });
 
-test("normal runner rejects tracked machine config before Codex", (t) => {
-  const { root } = runnerRepositoryFixture(t);
+test("normal launcher rejects tracked machine config before delegation", (t) => {
+  const { root } = runnerRepositoryFixture(t, { stubSupervisor: true });
   write(root, ".codex/config.toml", "model = \"tracked-is-forbidden\"\n");
   execFileSync("git", ["add", "--force", ".codex/config.toml"], { cwd: root });
   execFileSync("git", ["commit", "--quiet", "-m", "bad config"], { cwd: root });
-  const marker = join(root, "codex-stdin.txt");
-  const result = runRunnerOnce(t, root, marker);
+  const supervisorMarker = join(root, "supervisor-invoked.txt");
+  const codexMarker = join(root, "codex-invoked.txt");
+  const result = runRunnerOnce(t, root, supervisorMarker, codexMarker);
   assert.notEqual(result.status, 0);
   assert.match(`${result.stdout}\n${result.stderr}`, /\.codex\/config\.toml.*must never be tracked/i);
-  assert.equal(existsSync(marker), false);
+  assert.equal(existsSync(supervisorMarker), false);
+  assert.equal(existsSync(codexMarker), false);
 });
 
 test("preflight rejects a lane from another repository", (t) => {
@@ -1741,7 +1754,7 @@ test("runner uses trusted root tools and verifies lane identity and policy", () 
   assert.doesNotMatch(contents, /node "\$worktree\/scripts\/agents\/(?:render|validate|resolve)/);
   assert.match(contents, /\$ROOT\/scripts\/agents\/render-codex-contract\.mjs/);
   assert.match(contents, /\$ROOT\/scripts\/agents\/validate-codex-contract\.mjs/);
-  assert.match(contents, /\$ROOT\/scripts\/agents\/resolve-codex-dispatch\.mjs/);
+  assert.doesNotMatch(contents, /resolve-codex-dispatch\.mjs/);
   assert.match(contents, /verify_lane_worktree/);
   assert.match(contents, /symbolic-ref --short HEAD/);
   assert.match(contents, /--git-common-dir/);
@@ -1756,4 +1769,7 @@ test("runner uses trusted root tools and verifies lane identity and policy", () 
   assert.match(contents, /agents\/EPOCHS\.md/);
   assert.match(contents, /agents\/LOOP\.md/);
   assert.match(contents, /worktree_absolute="\$\(absolute_path "\$worktree"\)"/);
+  assert.match(contents, /exec "\$ROOT\/agents\/run-loop\.sh"/);
+  assert.doesNotMatch(contents, /^\s*codex\s+(?:exec|"\$\{)/m);
+  assert.doesNotMatch(contents, /while\s+:/);
 });
