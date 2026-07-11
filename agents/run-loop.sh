@@ -22,6 +22,18 @@ if [ -z "${GOVFOLIO_FACTORY_LANES:-}" ]; then
 fi
 
 repo=$(pwd)
+if [ -z "${GOVFOLIO_BRONZE_ROOT:-}" ]; then
+  GOVFOLIO_BRONZE_ROOT="$(dirname "$repo")/govfolio-bronze"
+  export GOVFOLIO_BRONZE_ROOT
+fi
+case "$GOVFOLIO_BRONZE_ROOT" in
+  /* | [A-Za-z]:/* | [A-Za-z]:\\\\*) ;;
+  *)
+    echo "ERROR: GOVFOLIO_BRONZE_ROOT must be an absolute path" >&2
+    exit 1
+    ;;
+esac
+
 target_dir="${CARGO_TARGET_DIR:-$repo/target}"
 case "$target_dir" in
   /* | [A-Za-z]:*) ;;
