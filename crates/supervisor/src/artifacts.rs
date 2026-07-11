@@ -690,7 +690,7 @@ fn filesystem_space(path: &Path) -> io::Result<(u64, u64)> {
     // initialization before the operating system fills every field.
     let mut stats: libc::statvfs = unsafe { std::mem::zeroed() };
     // SAFETY: `path` is NUL-terminated and `stats` is a valid writable pointer.
-    let succeeded = unsafe { libc::statvfs(path.as_ptr(), &mut stats) };
+    let succeeded = unsafe { libc::statvfs(path.as_ptr(), &raw mut stats) };
     if succeeded != 0 {
         return Err(io::Error::last_os_error());
     }

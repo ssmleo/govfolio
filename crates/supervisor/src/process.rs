@@ -517,6 +517,7 @@ struct PreparedProcessGroup;
 
 #[cfg(unix)]
 impl PreparedProcessGroup {
+    #[allow(clippy::unnecessary_wraps)] // signature matches fallible Windows Job setup
     fn prepare(command: &mut Command) -> io::Result<Self> {
         command.process_group(0);
         Ok(Self)
@@ -529,8 +530,8 @@ impl PreparedProcessGroup {
                 "spawned provider has no process identifier",
             )
         })?;
-        let pgid = i32::try_from(pid).map_err(io::Error::other)?;
-        Ok(ProcessGroup { pgid })
+        let group_id = i32::try_from(pid).map_err(io::Error::other)?;
+        Ok(ProcessGroup { pgid: group_id })
     }
 }
 

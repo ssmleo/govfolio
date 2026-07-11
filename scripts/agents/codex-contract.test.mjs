@@ -878,6 +878,7 @@ function cleanVerifierFixture(t, { trackMachineConfig = false } = {}) {
   write(root, "scripts/agents/validate-codex-contract.mjs", "process.exit(0);\n");
   write(root, "AGENTS.md", "# Fixture agent contract\n");
   write(root, "agents/run-loop-codex.sh", "#!/usr/bin/env bash\nexit 0\n");
+  chmodSync(join(root, "agents", "run-loop-codex.sh"), 0o755);
   write(root, ".agents/skills/govfolio-alpha/SKILL.md", "---\nname: govfolio-alpha\ndescription: fixture\n---\n");
   write(root, ".agents/skills/govfolio-alpha/agents/openai.yaml", "interface: {}\n");
   write(root, ".codex/agents/builder.toml", "name = \"builder\"\n");
