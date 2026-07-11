@@ -1,6 +1,8 @@
 //! `cargo run -p pipeline --bin epoch-gate -- E2` — the epoch gate for
 //! orchestrator use (goal 016): verifies the frozen E1 reference bundle,
-//! prints per-role scores vs thresholds, and renders the entry verdict.
+//! prints per-role calibration scores vs thresholds, and renders the entry
+//! verdict. It reads frozen artifacts and recorded evidence only; current-code
+//! verification runs in the separate commit-bound release gate.
 //! Exit 0 = gate open; nonzero = blocked (fail closed). A BLOCKED verdict
 //! over missing scout/surveyor/sampler references is honest output, not a
 //! harness failure.

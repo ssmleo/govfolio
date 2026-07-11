@@ -17,10 +17,26 @@ fn root() -> PathBuf {
     pipeline::conformance::workspace_root()
 }
 
-/// True inside the nested `cargo test --workspace` spawned by the
-/// rust-builder scorer — the heavy gate test must not recurse.
-fn nested() -> bool {
-    std::env::var_os(evals::INNER_ENV).is_some()
+#[test]
+fn role_evals_scorers_do_not_spawn_cargo() {
+    let scorer_sources = [
+        include_str!("../src/evals/mod.rs"),
+        include_str!("../src/evals/roles.rs"),
+    ]
+    .join("\n");
+    let forbidden = [
+        ["GOVFOLIO_ROLE_EVALS_", "INNER"].concat(),
+        ["CARGO", "_TARGET_DIR"].concat(),
+        ["Command", "::new"].concat(),
+        ["std::process::", "Command"].concat(),
+    ];
+
+    for token in forbidden {
+        assert!(
+            !scorer_sources.contains(&token),
+            "role scoring must be pure filesystem evaluation; found forbidden token {token:?}"
+        );
+    }
 }
 
 fn assert_meets_threshold(role: Role) {
@@ -131,13 +147,14 @@ fn role_evals_test_designer_meets_threshold() {
 }
 
 #[test]
+fn role_evals_rust_builder_meets_threshold() {
+    assert_meets_threshold(Role::RustBuilder);
+}
+
+#[test]
 fn role_evals_auditor_meets_threshold() {
     assert_meets_threshold(Role::Auditor);
 }
-
-// rust-builder is asserted inside the epoch-gate test below: its scorer
-// invokes the real gate commands (fmt/clippy/test/conformance) and must run
-// exactly once per suite.
 
 // ---------------------------------------------------------------------------
 // 3. Scout/surveyor/sampler now have E1 reference artifacts (Stage 0
@@ -199,18 +216,41 @@ fn role_evals_gate_rejects_unwired_epochs() {
     );
 }
 
+#[test]
+fn role_evals_gate_blocks_missing_reference_artifacts() {
+    let empty_root = tempfile::tempdir().unwrap();
+    let report = evals::gate(empty_root.path(), "E2").unwrap();
+
+    assert!(!report.open(), "an empty reference root must fail closed");
+    assert!(
+        !report.lock_failures.is_empty(),
+        "a missing reference lock must be a blocker"
+    );
+    assert!(
+        report
+            .roles
+            .iter()
+            .any(|role| matches!(role.outcome, Outcome::NotApplicable { .. })),
+        "missing role artifacts must remain NOT_APPLICABLE"
+    );
+    assert!(
+        report
+            .blockers
+            .iter()
+            .any(|blocker| blocker.contains("NOT_APPLICABLE")
+                || blocker.contains("no reference artifact")),
+        "NOT_APPLICABLE must remain epoch-blocking: {:#?}",
+        report.blockers
+    );
+}
+
 /// The full epoch gate: every role >= threshold, zero `NOT_APPLICABLE`, E2 OPEN.
 /// Stage 0 calibration (docs/decisions/role-eval-thresholds.md) produced real
 /// scout/surveyor/sampler E1 reference artifacts, so all 7 roles now score
-/// instead of blocking on missing references. The rust-builder scorer invokes
-/// the real command block here, so this test is the expensive one; it must
-/// not recurse through the nested `cargo test --workspace`.
+/// instead of blocking on missing references. Current-code release checks are
+/// deliberately separate from this pure calibration scorer.
 #[test]
 fn role_evals_epoch_gate_e2_open() {
-    if nested() {
-        eprintln!("nested role_evals run — skipping the gate test (no recursion)");
-        return;
-    }
     let report = evals::gate(&root(), "E2").unwrap();
     assert_eq!(
         report.lock_failures,
