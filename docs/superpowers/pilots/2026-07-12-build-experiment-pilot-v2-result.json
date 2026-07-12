@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "experiment_id": "pr3-unix-cargo-proxy-pilot-v2",
+  "manifest_sha256": "87a451ff1f1b44f134de6eb14b2ec9b6990f8616f9a04414991e85f83c38e5ea",
+  "review_sha256": "a5112b5fd93ee9fbd07a7f0b2e86b3a3f4459b52a10a097d4a528ae9ee1b6559",
+  "phase_evidence_sha256": "d0875a9e4ec40d650527f506e89cc0c5da985c18fcffe07193d6d6af5214d376",
+  "outcome": "NO-GO",
+  "baseline_median_ms": 62195,
+  "candidate_median_ms": 63643,
+  "improvement_bps": -232,
+  "reason": "candidate has no useful signal or triggers the regression veto"
+}

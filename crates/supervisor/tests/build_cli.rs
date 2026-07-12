@@ -42,9 +42,32 @@ fn build_protocol_cli_help_lists_the_admission_commands() {
         .unwrap();
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    for command in ["serve-builds", "build-policy", "cargo", "recover-build"] {
+    for command in [
+        "serve-builds",
+        "build-policy",
+        "cargo",
+        "recover-build",
+        "experiment-start",
+        "experiment-review",
+    ] {
         assert!(stdout.contains(command), "missing {command} in help");
     }
+}
+
+#[test]
+fn experiment_start_fails_closed_when_admission_server_is_absent() {
+    let temp = tempfile::tempdir().unwrap();
+    let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../docs/superpowers/pilots/2026-07-12-build-experiment-schema-pilot-v3.json");
+    let output = Command::new(env!("CARGO_BIN_EXE_govfolio-loop"))
+        .arg("experiment-start")
+        .arg(manifest)
+        .env("GOVFOLIO_LOOP_STATE_DIR", temp.path())
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("running build admission server"));
+    assert!(!temp.path().join("experiments").exists());
 }
 
 #[test]

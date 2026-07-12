@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "experiment_id": "pr3-unix-cargo-proxy-pilot-v2",
+  "lever": "Preserve the cargo invocation name when the Unix executable is a rustup proxy",
+  "baseline": {
+    "commit": "41428349212b275b11dc4a3a01bd98a107ddf054",
+    "tree": "6593cfccbca123e1106756a4bf9c0226caa0b4e0",
+    "lockfile_sha256": "b63deb4d58b56bc841e0925a643869f094eed70cc0c4365fa13d54c9137f2f54",
+    "toolchain_sha256": "a6a0bbd29ffaa8182dc22d1d9149709f1091e47df40ed96eb8a78a711c66a4ce",
+    "linker_config_sha256": "2841e78c7068c12e637d9d3c74180b7b2ccb5a555f46324b7ec907ab39ac9dd9",
+    "profile_sha256": "658a2316b5b07aa3d58d56d4539f4967b1fab56d0f71a7104e4cf5a2398326d1"
+  },
+  "candidate": {
+    "commit": "0bebd44db753fcafd04f95eb4d2c01fb33975a42",
+    "tree": "a4d2ee611796b07b97db8dffd0c6219c978d8b0c",
+    "lockfile_sha256": "b63deb4d58b56bc841e0925a643869f094eed70cc0c4365fa13d54c9137f2f54",
+    "toolchain_sha256": "a6a0bbd29ffaa8182dc22d1d9149709f1091e47df40ed96eb8a78a711c66a4ce",
+    "linker_config_sha256": "2841e78c7068c12e637d9d3c74180b7b2ccb5a555f46324b7ec907ab39ac9dd9",
+    "profile_sha256": "658a2316b5b07aa3d58d56d4539f4967b1fab56d0f71a7104e4cf5a2398326d1"
+  },
+  "workload": {
+    "kind": "cold",
+    "cargo_args": ["check", "-p", "loop-supervisor"]
+  },
+  "acceptance": {
+    "minimum_improvement_bps": 250,
+    "regression_veto_bps": 500
+  },
+  "target_strategy": "separate_private",
+  "expected_duration_seconds": 600,
+  "evidence_format": "govfolio-build-experiment-evidence-v1",
+  "policy_sha256": "94f14d8659c997a22f0dbbc9b45e5fb938ff7dc650c8cc00730d67d48b445a6e"
+}

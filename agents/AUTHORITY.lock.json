@@ -1,6 +1,6 @@
 {
-  "version": 9,
-  "superseded_note": "goal 114: pin canonical build performance policy",
+  "version": 11,
+  "superseded_note": "goal 114: advance build admission to shadow for schema-v2 audit pilot",
   "pinned": {
     "CLAUDE.md": "fce42193d6be6bc11ac690dde2a899cf4791957c52fb8f2a1952f1569bdd8070",
     "agents/EFFORT.md": "3a934c731fce7cff3ccb9ea3ebc7aad22683eeab608b3a291974db9ca715c613",
@@ -30,6 +30,6 @@
     "agents/roles/test-designer.md": "f2bb55fbc83faca3488dcfeae39465b2e1bc145a507070d77e17a2053e3857ed",
     "agents/roles/web-builder.md": "5cea2629e8ee82b9e4ceb89c636a9da619f28528fb33675524be54312e6dc7a8",
     "agents/workflows/orchestration.md": "986539debce7c568f99d40665da112e4b847a26db68ecd7fb59e5299446631b7",
-    "docs/decisions/build-performance-policy.md": "94f14d8659c997a22f0dbbc9b45e5fb938ff7dc650c8cc00730d67d48b445a6e"
+    "docs/decisions/build-performance-policy.md": "0a0c2c1a187b54cbf17700bd980f5ecaf018b33384c8240cecbde3ca13f94f46"
   }
 }
