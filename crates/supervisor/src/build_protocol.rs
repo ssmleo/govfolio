@@ -88,6 +88,7 @@ pub enum ServerFrame {
         code: String,
         message: String,
         active_policy_sha256: Option<String>,
+        bounded_policy: Option<String>,
     },
 }
 
@@ -175,6 +176,9 @@ pub fn validate_envelope(
                 return Err(ProtocolError::InvalidRequest(
                     "missing Cargo, path, policy, or lane identity".to_owned(),
                 ));
+            }
+            if build.lane_id.is_none() && !build.owner_identity.starts_with("interactive:") {
+                return Err(ProtocolError::InvalidOwner);
             }
             Ok(())
         }

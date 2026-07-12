@@ -201,26 +201,26 @@ cargo clippy -p loop-supervisor --all-targets -- -D warnings
 
 ## Release 3 — Cross-provider enforcement and historical worktrees
 
-- [ ] Prepend a supervisor-owned Cargo shim to autonomous provider `PATH`; inject the
+- [x] Prepend a supervisor-owned Cargo shim to autonomous provider `PATH`; inject the
   active policy hash and control endpoint.
-- [ ] Require interactive clients to use the same supervisor command. Missing server,
+- [x] Require interactive clients to use the same supervisor command. Missing server,
   policy hash, or valid identity fails before Cargo starts.
-- [ ] On policy mismatch, return `policy_refresh_required`, display the active hash and
+- [x] On policy mismatch, return `policy_refresh_required`, display the active hash and
   bounded canonical policy, create no request, and change no worktree bytes.
-- [ ] Allow retry in the same session with the new policy hash. Running admitted commands
+- [x] Allow retry in the same session with the new policy hash. Running admitted commands
   finish under the acquired hash; old queued/new requests must refresh.
-- [ ] Implement `historical_contract` mode only when every governed policy file is clean
+- [x] Implement `historical_contract` mode only when every governed policy file is clean
   and equals its trusted merge-base blob or active blob, and application changes exclude
   authority, policy, queue, deployment, production, and integration-control paths.
-- [ ] Restrict historical lanes to their already-owned work item, with no new claim,
+- [x] Restrict historical lanes to their already-owned work item, with no new claim,
   production action, external spend, or authority mutation.
-- [ ] Preserve dirty stale worktrees as `recovery_required`; never reset them. Existing
+- [x] Preserve dirty stale worktrees as `recovery_required`; never reset them. Existing
   `recover-lane` resumes after reviewed changes are committed on the same branch.
-- [ ] Add historical receipt fields: merge-base SHA, active policy hash, source SHA, and
+- [x] Add historical receipt fields: merge-base SHA, active policy hash, source SHA, and
   changed-path manifest.
-- [ ] Reject historical receipts that touch governed paths; always integrate and validate
+- [x] Reject historical receipts that touch governed paths; always integrate and validate
   application code from fresh current main.
-- [ ] Pause admissions for unknown govfolio Cargo/Rust processes. If one contaminates a
+- [x] Pause admissions for unknown govfolio Cargo/Rust processes. If one contaminates a
   supervised measurement, cancel only the supervised command and mark `INCONCLUSIVE`.
 
 Acceptance scenarios:

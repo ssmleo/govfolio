@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{self, BufRead as _, BufReader, Write as _};
 use std::path::{Path, PathBuf};
@@ -18,7 +19,7 @@ use ulid::Ulid;
 
 use crate::artifacts::{ArtifactPolicy, ArtifactStore, AttemptArtifactPolicy, atomic_write_new};
 use crate::build_classifier::ResourceClass;
-use crate::build_policy::{BuildPolicySnapshot, load_build_policy};
+use crate::build_policy::{BuildPolicySnapshot, load_build_policy, load_build_policy_at_revision};
 use crate::build_protocol::{
     BuildControlRequest, BuildRequestMessage, ClientEnvelope, PROTOCOL_VERSION, ServerFrame,
     load_or_create_control_token,
@@ -27,12 +28,14 @@ use crate::build_scheduler::BuildAdmissionConfig;
 use crate::build_service::{
     BuildAdmissionServer, BuildServerOptions, execute_control_request, stream_control_request,
 };
+use crate::build_shim::{install_cargo_shim, prepend_path, resolve_real_cargo};
 use crate::canary::{
     COMPATIBILITY_KIND, CanaryOutcome, CanaryRequest, CompatibilityCanary, ProcessCanaryInvoker,
     SkillCanarySpec,
 };
 use crate::config::LoopConfig;
 use crate::failover::{FailoverAction, FailoverBudget};
+use crate::historical_contract::assess_historical_contract;
 use crate::host::{
     NativeCodexResolver, NativeResolverInputs, NativeSmokeRequest, SystemHostCommandRunner,
     SystemNativeExecutableProbe, persist_native_identity, run_native_smoke,
@@ -74,7 +77,15 @@ type DomainLeaseRow = (
 
 /// Entry point used by the pre-built `govfolio-loop` binary.
 pub fn cli_main() -> anyhow::Result<u8> {
-    let args: Vec<String> = std::env::args().skip(1).collect();
+    let mut args: Vec<String> = std::env::args().skip(1).collect();
+    if std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(OsStr::to_owned))
+        .is_some_and(|stem| stem.eq_ignore_ascii_case("cargo"))
+    {
+        args.insert(0, "--".to_owned());
+        args.insert(0, "cargo".to_owned());
+    }
     let command = args.first().cloned().unwrap_or_else(|| "help".to_owned());
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
@@ -184,6 +195,8 @@ fn build_server(
         cargo_prefix_args: Vec::new(),
         policy,
         bounded_policy,
+        policy_reload: true,
+        process_observer: None,
         control_token,
         config: build_config,
         resource_override: None,
@@ -234,9 +247,16 @@ async fn cargo_client(args: &[String]) -> anyhow::Result<u8> {
     if is_unmanaged_cargo(&parsed.cargo_args) {
         return run_unmanaged_cargo(&parsed.cargo_args).await;
     }
+    let Some(policy_sha256) = required_policy_sha(parsed.policy_sha256) else {
+        return Ok(75);
+    };
     let paths = crate::config::RuntimePaths::discover()?;
+    let endpoint = crate::build_protocol::ControlEndpoint::for_state_root(&paths.root)?;
+    if !control_endpoint_matches(endpoint.display()) {
+        return Ok(75);
+    }
     let token = load_or_create_control_token(&paths.root)?;
-    let (policy, supervisor_fence, _bounded) = match query_build_policy(&paths).await {
+    let (_policy, supervisor_fence, _bounded) = match query_build_policy(&paths).await {
         Ok(policy) => policy,
         Err(error) => {
             eprintln!("govfolio-loop: build admission server unavailable: {error:#}");
@@ -245,12 +265,7 @@ async fn cargo_client(args: &[String]) -> anyhow::Result<u8> {
     };
     let worktree = std::env::current_dir()?;
     let target_dir = managed_target_dir(&worktree);
-    let lane_id = std::env::var("GOVFOLIO_LOOP_LANE_ID").ok();
-    let lane_fence = std::env::var("GOVFOLIO_LANE_FENCE")
-        .ok()
-        .map(|value| value.parse::<i64>())
-        .transpose()
-        .context("parse GOVFOLIO_LANE_FENCE")?;
+    let (lane_id, lane_fence, owner_identity) = build_session_identity()?;
     let envelope = ClientEnvelope {
         protocol_version: PROTOCOL_VERSION,
         control_token: token,
@@ -258,11 +273,8 @@ async fn cargo_client(args: &[String]) -> anyhow::Result<u8> {
             supervisor_fence,
             lane_id,
             lane_fence,
-            owner_identity: std::env::var("GOVFOLIO_BUILD_OWNER")
-                .unwrap_or_else(|_| format!("interactive:{}", std::process::id())),
-            policy_sha256: parsed
-                .policy_sha256
-                .unwrap_or_else(|| policy.policy_sha256.clone()),
+            owner_identity,
+            policy_sha256,
             explicit_class: parsed.explicit_class,
             category: parsed.category,
             worktree,
@@ -305,10 +317,18 @@ async fn cargo_client(args: &[String]) -> anyhow::Result<u8> {
             ServerFrame::Terminal { exit_code: code, .. } => {
                 exit_code = code.and_then(|code| u8::try_from(code).ok()).unwrap_or(75);
             }
-            ServerFrame::Error { code, message, active_policy_sha256 } => {
+            ServerFrame::Error {
+                code,
+                message,
+                active_policy_sha256,
+                bounded_policy,
+            } => {
                 eprintln!(
                     "build admission denied code={code} active_policy={active_policy_sha256:?}: {message}"
                 );
+                if let Some(policy) = bounded_policy {
+                    eprintln!("{policy}");
+                }
                 exit_code = 75;
             }
             ServerFrame::Policy { .. } => {}
@@ -318,6 +338,46 @@ async fn cargo_client(args: &[String]) -> anyhow::Result<u8> {
     .await
     .context("stream supervised Cargo command")?;
     Ok(exit_code)
+}
+
+fn required_policy_sha(explicit: Option<String>) -> Option<String> {
+    let policy = explicit.or_else(|| std::env::var("GOVFOLIO_BUILD_POLICY_SHA").ok());
+    let Some(policy) = policy else {
+        eprintln!(
+            "govfolio-loop: managed Cargo requires an explicit build policy hash via --policy-sha or GOVFOLIO_BUILD_POLICY_SHA"
+        );
+        return None;
+    };
+    if policy.len() != 64 || !policy.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        eprintln!("govfolio-loop: explicit build policy hash must be 64 hexadecimal characters");
+        return None;
+    }
+    Some(policy)
+}
+
+fn control_endpoint_matches(active: &str) -> bool {
+    if let Ok(expected) = std::env::var("GOVFOLIO_BUILD_CONTROL_ENDPOINT")
+        && expected != active
+    {
+        eprintln!(
+            "govfolio-loop: build control endpoint identity does not match the active state root"
+        );
+        false
+    } else {
+        true
+    }
+}
+
+fn build_session_identity() -> anyhow::Result<(Option<String>, Option<i64>, String)> {
+    let lane_id = std::env::var("GOVFOLIO_LOOP_LANE_ID").ok();
+    let lane_fence = std::env::var("GOVFOLIO_LANE_FENCE")
+        .ok()
+        .map(|value| value.parse::<i64>())
+        .transpose()
+        .context("parse GOVFOLIO_LANE_FENCE")?;
+    let owner = std::env::var("GOVFOLIO_BUILD_OWNER")
+        .unwrap_or_else(|_| format!("interactive:{}", std::process::id()));
+    Ok((lane_id, lane_fence, owner))
 }
 
 fn is_unmanaged_cargo(args: &[String]) -> bool {
@@ -330,14 +390,14 @@ fn is_unmanaged_cargo(args: &[String]) -> bool {
 }
 
 async fn run_unmanaged_cargo(args: &[String]) -> anyhow::Result<u8> {
-    let status = tokio::process::Command::new(
-        std::env::var_os("GOVFOLIO_CARGO_BIN")
-            .map_or_else(|| PathBuf::from("cargo"), PathBuf::from),
-    )
-    .args(args)
-    .status()
-    .await
-    .context("run unmanaged Cargo passthrough")?;
+    let inherited_path = std::env::var_os("PATH").unwrap_or_default();
+    let paths = crate::config::RuntimePaths::discover()?;
+    let cargo = resolve_real_cargo(&inherited_path, &paths.root.join("build-shims"))?;
+    let status = tokio::process::Command::new(cargo)
+        .args(args)
+        .status()
+        .await
+        .context("run unmanaged Cargo passthrough")?;
     Ok(status
         .code()
         .and_then(|code| u8::try_from(code).ok())
@@ -436,6 +496,10 @@ fn managed_target_dir(worktree: &Path) -> PathBuf {
         .join(format!("govfolio-managed-{}", &hash[..12]))
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "one fenced lifecycle starts and stops lanes, integration, and build admission together"
+)]
 async fn run(once: bool) -> anyhow::Result<()> {
     let configs = configured_lanes()?;
     let primary = configs
@@ -463,6 +527,23 @@ async fn run(once: bool) -> anyhow::Result<()> {
     store
         .renew_supervisor(&supervisor, std::process::id(), now, OWNER_TTL)
         .await?;
+    let admission = build_server(&build_host_config, Arc::clone(&store), supervisor.clone())?;
+    let (build_shutdown, build_shutdown_rx) = tokio::sync::watch::channel(false);
+    let (build_ready, build_ready_rx) = oneshot::channel();
+    let build_task = tokio::spawn(async move {
+        admission
+            .serve_with_ready(build_shutdown_rx, build_ready)
+            .await
+    });
+    if build_ready_rx.await.is_err() {
+        let server_error = build_task
+            .await
+            .context("join build admission server")?
+            .err()
+            .unwrap_or_else(|| anyhow!("build admission server exited before becoming ready"));
+        let _release = store.release_supervisor(&supervisor, Utc::now()).await;
+        return Err(server_error);
+    }
     let run_id = Ulid::new().to_string();
     let mut tasks = tokio::task::JoinSet::new();
     let launch = LaneLaunchContext {
@@ -477,25 +558,24 @@ async fn run(once: bool) -> anyhow::Result<()> {
         if let Err(error) = launch_lane(&mut tasks, lane, &launch).await {
             tasks.abort_all();
             while tasks.join_next().await.is_some() {}
+            let _receiver_dropped = build_shutdown.send(true);
+            let _server_result = build_task.await;
             let _release = store.release_supervisor(&supervisor, Utc::now()).await;
             return Err(error);
         }
     }
 
     let integration_store = Arc::clone(&store);
-    tasks.spawn(
-        async move { integrate_forever(&integration_config, &integration_store, once).await },
-    );
-    if !once {
-        let build_server =
-            build_server(&build_host_config, Arc::clone(&store), supervisor.clone())?;
-        let (keepalive, shutdown) = tokio::sync::watch::channel(false);
-        tasks.spawn(async move {
-            let _keepalive = keepalive;
-            build_server.serve(shutdown).await
-        });
-    }
-
+    let integration_supervisor = supervisor.clone();
+    tasks.spawn(async move {
+        integrate_forever(
+            &integration_config,
+            &integration_store,
+            &integration_supervisor,
+            once,
+        )
+        .await
+    });
     let mut first_error = None;
     while let Some(joined) = tasks.join_next().await {
         match joined {
@@ -509,6 +589,17 @@ async fn run(once: bool) -> anyhow::Result<()> {
                 tasks.abort_all();
             }
         }
+    }
+    let _receiver_dropped = build_shutdown.send(true);
+    match build_task.await.context("join build admission server")? {
+        Ok(()) => {}
+        Err(error) if first_error.is_some() => {
+            eprintln!(
+                "govfolio-loop: build admission shutdown also failed: {}",
+                bounded_error(&error)
+            );
+        }
+        Err(error) => first_error = Some(error),
     }
     store
         .release_supervisor(&supervisor, Utc::now())
@@ -768,6 +859,10 @@ async fn owned_loop(
                 .await?;
             displayed_provider = active_key;
         }
+        let historical_mode = store
+            .historical_lane_contract(&lane.lane_id)
+            .await?
+            .is_some();
         let outcome = tick(config, store, supervisor, lane, active, artifacts).await?;
         let outcome = maybe_failover(
             config, store, supervisor, lane, active, alternate, artifacts, outcome,
@@ -776,6 +871,7 @@ async fn owned_loop(
         append_event(artifacts, run_id, &outcome)?;
         render_outcome(&outcome);
         if once
+            || historical_mode
             || matches!(
                 &outcome,
                 TickOutcome::RecoveryRequired { .. }
@@ -1019,6 +1115,9 @@ async fn tick(
     if let Some(outcome) = gate_provider(store, provider, &provider_key, now).await? {
         return Ok(outcome);
     }
+    if let Some(contract) = store.historical_lane_contract(&lane.lane_id).await? {
+        return historical_tick(&context, &provider_key, contract, now).await;
+    }
 
     let preflight = preflight_suite(config, provider).run(now).await;
     if let Some(outcome) = suppress_preflight(store, lane, &provider_key, &preflight, now).await? {
@@ -1031,6 +1130,78 @@ async fn tick(
     };
     let execution = execute_attempt(&context, &attempt).await?;
     finalize_attempt(&context, &provider_key, *attempt, execution).await
+}
+
+async fn historical_tick(
+    context: &TickContext<'_>,
+    provider_key: &str,
+    contract: crate::store::HistoricalLaneContract,
+    now: chrono::DateTime<Utc>,
+) -> anyhow::Result<TickOutcome> {
+    if contract.worktree != context.config.worktree
+        || contract.expected_branch != context.config.expected_branch
+    {
+        bail!("historical lane context changed and remains recovery_required");
+    }
+    refresh_trusted_main(&context.config.worktree)?;
+    let policy =
+        load_build_policy_at_revision(&context.config.worktree, "origin/main", Utc::now())?;
+    let current = assess_historical_contract(&context.config.worktree, &policy.policy_sha256)?;
+    if current != contract.evidence {
+        bail!("historical lane evidence changed and remains recovery_required");
+    }
+    let original = context
+        .store
+        .latest_attempt_spec_for_work_key(&contract.work_key)
+        .await?;
+    if original.lane_id != context.lane.lane_id || original.work_key != contract.work_key {
+        bail!("historical work ownership no longer matches the lane");
+    }
+    let task = original
+        .prompt
+        .split_once("# Coordinator task")
+        .map_or(original.prompt.as_str(), |(_, task)| task.trim());
+    let prompt = historical_recovery_prompt(task, &contract, context.lane.fence);
+    let attempt = AttemptSpec {
+        id: Ulid::new().to_string(),
+        lane_id: context.lane.lane_id.clone(),
+        lane_fence: context.lane.fence,
+        work_key: contract.work_key,
+        worktree: context.config.worktree.clone(),
+        expected_branch: context.config.expected_branch.clone(),
+        prompt,
+        required_root_receipt: None,
+        required_root_reads: Vec::new(),
+        prompt_kind: PromptKind::Recovery,
+        provider: context.provider.clone(),
+        resume_session_id: None,
+        preflight_signature: format!(
+            "historical_contract:{}:{}",
+            contract.evidence.active_policy_sha256, contract.evidence.source_sha
+        ),
+        git_head_before: contract.evidence.source_sha,
+        journal_sha_before: file_sha(&context.config.worktree.join("agents").join("JOURNAL.md"))?,
+    };
+    context
+        .store
+        .reserve_historical_attempt(context.lane, &attempt, now)
+        .await?;
+    let execution = execute_attempt(context, &attempt).await?;
+    finalize_attempt(context, provider_key, attempt, execution).await
+}
+
+fn historical_recovery_prompt(
+    task: &str,
+    contract: &crate::store::HistoricalLaneContract,
+    lane_fence: i64,
+) -> String {
+    format!(
+        "# Historical-contract continuation\n\nContinue only the already-owned work item below under lane fence {lane_fence}. The preserved worktree is intentionally stale. Do not modify authority, policy, goal-queue, deployment, production, integration-control, or Bronze paths. Do not make a new jurisdiction claim, request external spend, reset, clean, rebase, delete, or abandon any worktree. The admitted source SHA is {}. Preserve every admitted application path below. After committing the bounded application work, recompute the final source SHA and exact application-only changed-path manifest against merge-base SHA {}; use those final values with active build-policy hash {} in the historical integration receipt. Current-main integration will preserve current governed files.\n\nAdmitted application paths:\n{}\n\n# Already-owned task\n\n{task}",
+        contract.evidence.source_sha,
+        contract.evidence.merge_base_sha,
+        contract.evidence.active_policy_sha256,
+        contract.evidence.changed_paths.join("\n"),
+    )
 }
 
 struct TickContext<'a> {
@@ -1278,7 +1449,16 @@ async fn execute_attempt(
         .start_attempt(context.lane, &attempt.id, Utc::now())
         .await?;
     let adapter = adapter_for(context.provider.provider);
-    let inherited_environment = provider_runtime_environment(context.config);
+    let historical_contract = context
+        .store
+        .historical_lane_contract(&context.lane.lane_id)
+        .await?;
+    let inherited_environment = provider_runtime_environment(
+        context.config,
+        attempt,
+        &context.lane.owner_id,
+        historical_contract.is_some(),
+    )?;
     let command = adapter.build_fresh(attempt, &inherited_environment)?;
     let output = ProcessOutputPaths::from(&attempt_artifacts);
     let (cancel, cancellation) = cancellation_pair();
@@ -1319,6 +1499,9 @@ async fn execute_attempt(
     let mut result = execution.result;
     apply_root_receipt_postcondition(attempt, &output.events, &mut result)?;
     apply_postconditions(context.config, attempt, &mut result)?;
+    if let Some(contract) = historical_contract.as_ref() {
+        apply_historical_postconditions(context.config, contract, &mut result);
+    }
     context
         .artifacts
         .write_json(&attempt_artifacts.result_path(), &result)?;
@@ -1326,14 +1509,23 @@ async fn execute_attempt(
     Ok(AttemptExecution { result, exemplar })
 }
 
-fn provider_runtime_environment(config: &LoopConfig) -> Vec<(String, String)> {
+fn provider_runtime_environment(
+    config: &LoopConfig,
+    attempt: &AttemptSpec,
+    lane_owner: &str,
+    historical_mode: bool,
+) -> anyhow::Result<Vec<(String, String)>> {
     let mut environment = std::env::vars().collect::<Vec<_>>();
     let loop_binary = config.authority_bin.with_file_name(if cfg!(windows) {
         "govfolio-loop.exe"
     } else {
         "govfolio-loop"
     });
-    for (key, value) in [
+    let inherited_path = std::env::var_os("PATH").unwrap_or_default();
+    let shim = install_cargo_shim(&config.paths.root, &loop_binary)?;
+    let policy = load_build_policy(&config.repo, Utc::now())?;
+    let endpoint = crate::build_protocol::ControlEndpoint::for_state_root(&config.paths.root)?;
+    let mut governed_environment = vec![
         (
             "GOVFOLIO_AUTHORITY_BIN",
             config.authority_bin.to_string_lossy().into_owned(),
@@ -1350,12 +1542,53 @@ fn provider_runtime_environment(config: &LoopConfig) -> Vec<(String, String)> {
             "GOVFOLIO_LEASE_BIN",
             config.lease_bin.to_string_lossy().into_owned(),
         ),
+        ("GOVFOLIO_BUILD_POLICY_SHA", policy.policy_sha256),
+        (
+            "GOVFOLIO_BUILD_CONTROL_ENDPOINT",
+            endpoint.display().to_owned(),
+        ),
+        ("GOVFOLIO_BUILD_OWNER", lane_owner.to_owned()),
+        ("GOVFOLIO_LOOP_LANE_ID", attempt.lane_id.clone()),
+        ("GOVFOLIO_LANE_FENCE", attempt.lane_fence.to_string()),
+        (
+            "CARGO_TARGET_DIR",
+            managed_target_dir(&attempt.worktree)
+                .to_string_lossy()
+                .into_owned(),
+        ),
+        ("PATH", prepend_path(&shim.path_entry, &inherited_path)?),
         ("GOVFOLIO_EPOCH", config.epoch.clone()),
-    ] {
+    ];
+    if historical_mode {
+        environment.retain(|(key, _)| {
+            !matches!(
+                key.to_ascii_uppercase().as_str(),
+                "DATABASE_URL"
+                    | "GOVFOLIO_AUTHORITY_BIN"
+                    | "GOVFOLIO_BRONZE_ROOT"
+                    | "GOVFOLIO_EPOCH"
+                    | "GOVFOLIO_EPOCH_GATE_BIN"
+                    | "GOVFOLIO_LEASE_BIN"
+            )
+        });
+        governed_environment.retain(|(key, _)| {
+            !matches!(
+                *key,
+                "DATABASE_URL"
+                    | "GOVFOLIO_AUTHORITY_BIN"
+                    | "GOVFOLIO_BRONZE_ROOT"
+                    | "GOVFOLIO_EPOCH"
+                    | "GOVFOLIO_EPOCH_GATE_BIN"
+                    | "GOVFOLIO_LEASE_BIN"
+            )
+        });
+        governed_environment.push(("GOVFOLIO_HISTORICAL_CONTRACT", "1".to_owned()));
+    }
+    for (key, value) in governed_environment {
         environment.retain(|(candidate, _)| !candidate.eq_ignore_ascii_case(key));
         environment.push((key.to_owned(), value));
     }
-    environment
+    Ok(environment)
 }
 
 fn apply_root_receipt_postcondition(
@@ -2015,6 +2248,30 @@ fn apply_postconditions(
     Ok(())
 }
 
+fn apply_historical_postconditions(
+    config: &LoopConfig,
+    admitted: &crate::store::HistoricalLaneContract,
+    result: &mut NormalizedResult,
+) {
+    let validation = (|| {
+        refresh_trusted_main(&config.worktree)?;
+        let policy = load_build_policy_at_revision(&config.worktree, "origin/main", Utc::now())?;
+        let completed = assess_historical_contract(&config.worktree, &policy.policy_sha256)?;
+        crate::historical_contract::validate_historical_continuation(&admitted.evidence, &completed)
+    })();
+    if let Err(error) = validation {
+        result.class = ResultClass::PostconditionFailed;
+        result.stable_error_hash = Some(hex::encode(Sha256::digest(
+            b"historical contract postcondition failed",
+        )));
+        format!(
+            "historical continuation violated its immutable application boundary: {}",
+            bounded_error(&error)
+        )
+        .clone_into(&mut result.summary);
+    }
+}
+
 fn git_text(worktree: &Path, args: &[&str]) -> anyhow::Result<String> {
     let output = Command::new("git")
         .args(args)
@@ -2240,10 +2497,11 @@ async fn run_compatibility_canary(
         git_head_before: main_sha.to_owned(),
         journal_sha_before: file_sha(&worktree.join("agents").join("JOURNAL.md"))?,
     };
+    let inherited_env = provider_runtime_environment(&identity_config, &attempt, "canary", false)?;
     let request = CanaryRequest {
         attempt,
         provider_key: provider_key(&identity),
-        inherited_env: std::env::vars().collect(),
+        inherited_env,
         valid_for: Duration::days(7),
         skill,
     };
@@ -2570,6 +2828,10 @@ async fn backup() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[expect(
+    clippy::too_many_lines,
+    reason = "recovery verifies persisted identity, Git, trust, historical evidence, and fencing before activation"
+)]
 async fn recover_lane(lane_id: &str) -> anyhow::Result<()> {
     let mut config = LoopConfig::from_env()?;
     config.paths.ensure()?;
@@ -2607,34 +2869,95 @@ async fn recover_lane(lane_id: &str) -> anyhow::Result<()> {
     }
     config.worktree = worktree;
     config.expected_branch = branch;
-    let authority = AuthorityProbe {
-        binary: config.authority_bin.clone(),
-        repo: config.worktree.clone(),
-    }
-    .check(Utc::now())
-    .await;
-    if !authority.is_pass() {
-        bail!("lane {lane_id:?} authority recovery is incomplete: {authority:?}");
-    }
-    let skill_contract = SkillContractProbe {
-        node: PathBuf::from("node"),
-        worktree: config.worktree.clone(),
-    }
-    .check(Utc::now())
-    .await;
-    if !skill_contract.is_pass() {
-        bail!("lane {lane_id:?} skill recovery is incomplete: {skill_contract:?}");
-    }
+    refresh_trusted_main(&config.worktree)?;
+    let active_main = git_text(&config.worktree, &["rev-parse", "origin/main"])?;
+    let merge_base = git_text(&config.worktree, &["merge-base", "HEAD", "origin/main"])?;
+    let historical = if merge_base == active_main {
+        let authority = AuthorityProbe {
+            binary: config.authority_bin.clone(),
+            repo: config.worktree.clone(),
+        }
+        .check(Utc::now())
+        .await;
+        if !authority.is_pass() {
+            bail!("lane {lane_id:?} authority recovery is incomplete: {authority:?}");
+        }
+        let skill_contract = SkillContractProbe {
+            node: PathBuf::from("node"),
+            worktree: config.worktree.clone(),
+        }
+        .check(Utc::now())
+        .await;
+        if !skill_contract.is_pass() {
+            bail!("lane {lane_id:?} skill recovery is incomplete: {skill_contract:?}");
+        }
+        None
+    } else {
+        let policy = load_build_policy_at_revision(&config.worktree, "origin/main", Utc::now())?;
+        let evidence = assess_historical_contract(&config.worktree, &policy.policy_sha256)?;
+        let work_key = store
+            .latest_lane_work_key(lane_id)
+            .await?
+            .ok_or_else(|| anyhow!("lane {lane_id:?} has no already-owned work item"))?;
+        Some((work_key, evidence))
+    };
     let owner = format!("recovery-{}-{}", std::process::id(), Ulid::new());
     let supervisor = store
         .acquire_supervisor(&owner, Utc::now(), OWNER_TTL)
         .await?;
     store
+        .retire_historical_lane_contract(&supervisor, lane_id, Utc::now())
+        .await?;
+    if let Some((work_key, evidence)) = &historical {
+        store
+            .record_historical_lane_contract(
+                &supervisor,
+                lane_id,
+                &config.expected_branch,
+                &config.worktree,
+                work_key,
+                evidence,
+                Utc::now(),
+            )
+            .await?;
+    }
+    store
         .resolve_lane_recovery(&supervisor, lane_id, Utc::now())
         .await?;
     store.release_supervisor(&supervisor, Utc::now()).await?;
-    println!("lane={lane_id} recovery=cleared next_start_requires_new_fence");
+    if let Some((work_key, evidence)) = historical {
+        println!(
+            "lane={lane_id} recovery=historical_contract work_key={work_key} source={} merge_base={} policy={} changed_paths={} next_start_requires_new_fence",
+            evidence.source_sha,
+            evidence.merge_base_sha,
+            evidence.active_policy_sha256,
+            evidence.changed_paths.len(),
+        );
+    } else {
+        println!("lane={lane_id} recovery=cleared next_start_requires_new_fence");
+    }
     Ok(())
+}
+
+fn refresh_trusted_main(worktree: &Path) -> anyhow::Result<()> {
+    let output = Command::new("git")
+        .args([
+            "fetch",
+            "--no-tags",
+            "origin",
+            "+refs/heads/main:refs/remotes/origin/main",
+        ])
+        .current_dir(worktree)
+        .output()
+        .context("refresh trusted origin/main")?;
+    if output.status.success() {
+        Ok(())
+    } else {
+        bail!(
+            "refresh trusted origin/main failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        )
+    }
 }
 
 async fn submit_receipt(path: &str) -> anyhow::Result<()> {
@@ -2680,7 +3003,7 @@ async fn receipt_status(receipt_id: &str) -> anyhow::Result<()> {
 async fn integrate_command(once: bool) -> anyhow::Result<()> {
     let config = LoopConfig::from_env()?;
     config.paths.ensure()?;
-    let store = ControlStore::open_writer(&config.paths.control_db).await?;
+    let store = Arc::new(ControlStore::open_writer(&config.paths.control_db).await?);
     let owner_id = format!("integrator-{}-{}", std::process::id(), Ulid::new());
     let supervisor = store
         .acquire_supervisor(&owner_id, Utc::now(), OWNER_TTL)
@@ -2688,14 +3011,34 @@ async fn integrate_command(once: bool) -> anyhow::Result<()> {
     store
         .renew_supervisor(&supervisor, std::process::id(), Utc::now(), OWNER_TTL)
         .await?;
-    let result = integrate_forever(&config, &store, once).await;
+    let admission = build_server(&config, Arc::clone(&store), supervisor.clone())?;
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    let (ready_tx, ready_rx) = oneshot::channel();
+    let admission_task =
+        tokio::spawn(async move { admission.serve_with_ready(shutdown_rx, ready_tx).await });
+    if ready_rx.await.is_err() {
+        let error = admission_task
+            .await
+            .context("join standalone integration admission server")?
+            .err()
+            .unwrap_or_else(|| anyhow!("integration admission server exited before readiness"));
+        let _release = store.release_supervisor(&supervisor, Utc::now()).await;
+        return Err(error);
+    }
+    let result = integrate_forever(&config, &store, &supervisor, once).await;
+    let _receiver_dropped = shutdown_tx.send(true);
+    let admission_result = admission_task
+        .await
+        .context("join standalone integration admission server")?;
     store.release_supervisor(&supervisor, Utc::now()).await?;
-    result
+    result?;
+    admission_result
 }
 
 async fn integrate_forever(
     config: &LoopConfig,
     store: &ControlStore,
+    supervisor: &SupervisorFence,
     once: bool,
 ) -> anyhow::Result<()> {
     let pool = PgPoolOptions::new()
@@ -2704,7 +3047,8 @@ async fn integrate_forever(
         .await
         .context("connect product database for integrator")?;
     loop {
-        let processed = integrate_next(config, store, &pool).await?;
+        reconcile_applied_historical_contracts(store, supervisor, &pool).await?;
+        let processed = integrate_next(config, store, supervisor, &pool).await?;
         if once {
             return Ok(());
         }
@@ -2726,6 +3070,7 @@ async fn integrate_forever(
 async fn integrate_next(
     config: &LoopConfig,
     store: &ControlStore,
+    supervisor: &SupervisorFence,
     pool: &sqlx::PgPool,
 ) -> anyhow::Result<bool> {
     use govfolio_core::integration::IntegrationState;
@@ -2743,8 +3088,9 @@ async fn integrate_next(
         base_sha: receipt.base_sha.clone(),
         journal_summary: receipt.journal_summary.clone(),
         repair_ordinal,
+        historical_contract: receipt.historical_contract.clone(),
     };
-    let backend = command_backend(config);
+    let backend = command_backend(config)?;
     let mut engine = IntegrationEngine::new(backend);
     match projection.state {
         IntegrationState::Submitted | IntegrationState::Preparing => {
@@ -2762,7 +3108,7 @@ async fn integrate_next(
             .await
         }
         IntegrationState::MergedUnapplied => {
-            apply_merged_receipt(pool, store, &receipt, &projection).await?;
+            apply_merged_receipt(pool, store, supervisor, &receipt, &projection).await?;
             Ok(true)
         }
         IntegrationState::ReworkRequired
@@ -2819,9 +3165,9 @@ async fn prepare_receipt(
                 &projection,
                 IntegrationState::AwaitingCi,
                 TransitionEvidence {
+                    candidate_sha: Some(candidate_sha),
                     integration_branch: Some(branch),
                     pr_number: Some(i64::try_from(pull_request)?),
-                    details: serde_json::json!({"candidate_sha": candidate_sha}),
                     ..TransitionEvidence::default()
                 },
             )
@@ -2861,7 +3207,11 @@ async fn finalize_receipt(
     let pull_request = projection
         .pr_number
         .ok_or_else(|| anyhow!("awaiting_ci receipt has no pull request"))?;
-    match engine.finalize(candidate, u64::try_from(pull_request)?)? {
+    let candidate_sha = projection
+        .candidate_sha
+        .as_deref()
+        .ok_or_else(|| anyhow!("awaiting_ci receipt has no candidate SHA"))?;
+    match engine.finalize(candidate, u64::try_from(pull_request)?, candidate_sha)? {
         FinalizeOutcome::AwaitingCi => {}
         FinalizeOutcome::ReworkRequired { reason } => {
             projection =
@@ -2897,6 +3247,7 @@ async fn finalize_receipt(
 async fn apply_merged_receipt(
     pool: &sqlx::PgPool,
     store: &ControlStore,
+    supervisor: &SupervisorFence,
     receipt: &govfolio_core::integration::IntegrationReceipt,
     projection: &govfolio_core::integration::StateProjection,
 ) -> anyhow::Result<()> {
@@ -2907,11 +3258,34 @@ async fn apply_merged_receipt(
     let mut evidence =
         govfolio_core::integration::ApplyEvidence::successful(&receipt.source_sha, &merge_sha);
     evidence.real_source_verified = receipt.real_source_proof.is_some();
+    if let Some(historical) = &receipt.historical_contract {
+        store
+            .validate_historical_contract_for_integration(
+                &receipt.lane_id,
+                &receipt.work_key,
+                historical,
+            )
+            .await?;
+        evidence.source_is_ancestor = false;
+        evidence.historical_contract_verified = true;
+    }
     let applied =
         govfolio_core::integration::apply_receipt(pool, &receipt.id, projection.version, &evidence)
             .await?;
     let applied_projection = govfolio_core::integration::receipt_status(pool, &receipt.id).await?;
     mirror_projection(store, &applied_projection).await?;
+    if let Some(historical) = &receipt.historical_contract {
+        store
+            .consume_historical_contract_after_integration(
+                supervisor,
+                &receipt.id,
+                &receipt.lane_id,
+                &receipt.work_key,
+                historical,
+                Utc::now(),
+            )
+            .await?;
+    }
     println!(
         "applied receipt={} phase={} released={}",
         applied.receipt_id, applied.coverage_phase, applied.lease_released
@@ -2919,13 +3293,55 @@ async fn apply_merged_receipt(
     Ok(())
 }
 
-fn command_backend(config: &LoopConfig) -> CommandIntegrationBackend {
+async fn reconcile_applied_historical_contracts(
+    store: &ControlStore,
+    supervisor: &SupervisorFence,
+    pool: &sqlx::PgPool,
+) -> anyhow::Result<()> {
+    for applied in govfolio_core::integration::applied_historical_contracts(pool).await? {
+        if store
+            .historical_receipt_consumed(&applied.receipt_id)
+            .await?
+        {
+            continue;
+        }
+        store
+            .validate_historical_contract_for_integration(
+                &applied.lane_id,
+                &applied.work_key,
+                &applied.evidence,
+            )
+            .await?;
+        store
+            .consume_historical_contract_after_integration(
+                supervisor,
+                &applied.receipt_id,
+                &applied.lane_id,
+                &applied.work_key,
+                &applied.evidence,
+                Utc::now(),
+            )
+            .await?;
+    }
+    Ok(())
+}
+
+fn command_backend(config: &LoopConfig) -> anyhow::Result<CommandIntegrationBackend> {
     let gh = std::env::var_os("GOVFOLIO_GH_BIN").map_or_else(|| PathBuf::from("gh"), PathBuf::from);
-    CommandIntegrationBackend::new(
+    let loop_binary = config.authority_bin.with_file_name(if cfg!(windows) {
+        "govfolio-loop.exe"
+    } else {
+        "govfolio-loop"
+    });
+    let policy = load_build_policy(&config.repo, Utc::now())?;
+    Ok(CommandIntegrationBackend::new(
         config.repo.clone(),
         config.paths.root.join("candidates"),
         gh,
-    )
+        loop_binary,
+        config.paths.root.clone(),
+        policy.policy_sha256,
+    ))
 }
 
 async fn transition(
@@ -2976,7 +3392,7 @@ async fn mirror_projection(
             state: projection.state.to_string(),
             branch: projection.integration_branch.clone(),
             pull_request: projection.pr_number,
-            candidate_sha: projection.candidate_base_sha.clone(),
+            candidate_sha: projection.candidate_sha.clone(),
             merge_sha: projection.merge_sha.clone(),
             last_error: projection.last_error.clone(),
             updated_at: Utc::now(),
@@ -3249,8 +3665,45 @@ mod tests {
 
     #[test]
     fn provider_environment_injects_prebuilt_runtime_paths() {
-        let config = preflight_config("orchestrator");
-        let environment = provider_runtime_environment(&config);
+        let temp = tempfile::tempdir().expect("tempdir");
+        let mut config = preflight_config("orchestrator");
+        config.repo = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .and_then(Path::parent)
+            .expect("workspace root")
+            .to_path_buf();
+        config.worktree.clone_from(&config.repo);
+        config.paths = crate::config::RuntimePaths::under(temp.path().join("state"));
+        config.authority_bin = temp.path().join("validate-authority");
+        let loop_binary = config.authority_bin.with_file_name(if cfg!(windows) {
+            "govfolio-loop.exe"
+        } else {
+            "govfolio-loop"
+        });
+        std::fs::copy(
+            std::env::current_exe().expect("test executable"),
+            &loop_binary,
+        )
+        .expect("fixture loop binary");
+        let attempt = AttemptSpec {
+            id: "attempt".to_owned(),
+            lane_id: "orchestrator-0".to_owned(),
+            lane_fence: 9,
+            work_key: "work".to_owned(),
+            worktree: config.worktree.clone(),
+            expected_branch: "fixture".to_owned(),
+            prompt: "prompt".to_owned(),
+            required_root_receipt: None,
+            required_root_reads: Vec::new(),
+            prompt_kind: PromptKind::Normal,
+            provider: preflight_provider(),
+            resume_session_id: None,
+            preflight_signature: "signature".to_owned(),
+            git_head_before: "head".to_owned(),
+            journal_sha_before: "journal".to_owned(),
+        };
+        let environment = provider_runtime_environment(&config, &attempt, "lane-owner", false)
+            .expect("provider environment");
         let expected = [
             ("GOVFOLIO_AUTHORITY_BIN", config.authority_bin.clone()),
             (
@@ -3273,6 +3726,27 @@ mod tests {
             environment
                 .iter()
                 .any(|(key, value)| key == "GOVFOLIO_EPOCH" && value == "E3")
+        );
+        for (key, value) in [
+            ("GOVFOLIO_LOOP_LANE_ID", "orchestrator-0"),
+            ("GOVFOLIO_LANE_FENCE", "9"),
+            ("GOVFOLIO_BUILD_OWNER", "lane-owner"),
+        ] {
+            assert!(
+                environment
+                    .iter()
+                    .any(|(actual_key, actual_value)| actual_key == key && actual_value == value)
+            );
+        }
+        let path = environment
+            .iter()
+            .find(|(key, _)| key == "PATH")
+            .map(|(_, value)| value)
+            .expect("PATH");
+        assert!(
+            std::env::split_paths(path)
+                .next()
+                .is_some_and(|entry| entry.starts_with(config.paths.root.join("build-shims")))
         );
     }
 

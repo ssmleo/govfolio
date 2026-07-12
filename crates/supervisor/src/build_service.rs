@@ -8,7 +8,7 @@ use chrono::{Duration as ChronoDuration, Utc};
 use serde::Serialize;
 use sha2::{Digest as _, Sha256};
 use tokio::io::{AsyncRead, AsyncReadExt as _, BufReader};
-use tokio::sync::{Mutex, Notify, mpsc, oneshot, watch};
+use tokio::sync::{Mutex, Notify, RwLock, mpsc, oneshot, watch};
 use tokio::task::JoinSet;
 use tokio::time::{Instant, MissedTickBehavior, interval};
 use ulid::Ulid;
@@ -16,6 +16,7 @@ use ulid::Ulid;
 use crate::build_classifier::{
     CargoDisposition, ClassificationContext, apply_job_budget, classify_cargo,
 };
+use crate::build_interference::{foreign_govfolio_processes, observe_processes};
 use crate::build_policy::BuildPolicySnapshot;
 use crate::build_protocol::{
     BuildControlRequest, BuildRequestMessage, ClientEnvelope, ControlEndpoint, ProtocolError,
@@ -46,6 +47,8 @@ pub struct BuildServerOptions {
     pub cargo_prefix_args: Vec<String>,
     pub policy: BuildPolicySnapshot,
     pub bounded_policy: String,
+    pub policy_reload: bool,
+    pub process_observer: Option<ProcessObserver>,
     pub control_token: String,
     pub config: BuildAdmissionConfig,
     pub resource_override: Option<ResourceSnapshot>,
@@ -53,10 +56,19 @@ pub struct BuildServerOptions {
     pub supervisor: SupervisorFence,
 }
 
+pub type ProcessObserver =
+    Arc<dyn Fn() -> anyhow::Result<Vec<crate::build_interference::ObservedProcess>> + Send + Sync>;
+
 #[derive(Default)]
 struct RuntimeState {
     queued: Vec<QueuedBuild>,
     running: Vec<RunningBuild>,
+}
+
+#[derive(Clone)]
+struct ActivePolicy {
+    snapshot: BuildPolicySnapshot,
+    bounded_policy: String,
 }
 
 struct AttemptRun {
@@ -64,6 +76,7 @@ struct AttemptRun {
     client_connected: bool,
     deadline_cancelled: bool,
     recovery_reason: Option<String>,
+    interference_reason: Option<String>,
     output: RawProcessOutputPaths,
 }
 
@@ -73,8 +86,10 @@ struct BuildServiceInner {
     bronze_roots: Vec<PathBuf>,
     cargo_program: PathBuf,
     cargo_prefix_args: Vec<String>,
-    policy: BuildPolicySnapshot,
-    bounded_policy: String,
+    active_policy: RwLock<ActivePolicy>,
+    policy_refresh: Mutex<()>,
+    policy_reload: bool,
+    process_observer: Option<ProcessObserver>,
     control_token: String,
     scheduler: BuildScheduler,
     resource_override: Option<ResourceSnapshot>,
@@ -99,11 +114,16 @@ impl BuildAdmissionServer {
                 bronze_roots: options.bronze_roots,
                 cargo_program: options.cargo_program,
                 cargo_prefix_args: options.cargo_prefix_args,
-                bounded_policy: bounded_text(&options.bounded_policy),
+                active_policy: RwLock::new(ActivePolicy {
+                    snapshot: options.policy,
+                    bounded_policy: bounded_text(&options.bounded_policy),
+                }),
+                policy_refresh: Mutex::new(()),
+                policy_reload: options.policy_reload,
+                process_observer: options.process_observer,
                 control_token: options.control_token,
                 scheduler: BuildScheduler::new(options.config),
                 resource_override: options.resource_override,
-                policy: options.policy,
                 store: options.store,
                 supervisor: options.supervisor,
                 runtime: Mutex::new(RuntimeState::default()),
@@ -112,10 +132,27 @@ impl BuildAdmissionServer {
         }
     }
 
-    pub async fn serve(self, mut shutdown: watch::Receiver<bool>) -> anyhow::Result<()> {
+    pub async fn serve(self, shutdown: watch::Receiver<bool>) -> anyhow::Result<()> {
+        self.serve_inner(shutdown, None).await
+    }
+
+    pub(crate) async fn serve_with_ready(
+        self,
+        shutdown: watch::Receiver<bool>,
+        ready: tokio::sync::oneshot::Sender<()>,
+    ) -> anyhow::Result<()> {
+        self.serve_inner(shutdown, Some(ready)).await
+    }
+
+    async fn serve_inner(
+        self,
+        mut shutdown: watch::Receiver<bool>,
+        ready: Option<tokio::sync::oneshot::Sender<()>>,
+    ) -> anyhow::Result<()> {
+        let policy = self.inner.active_policy.read().await.clone();
         self.inner
             .store
-            .record_build_policy_snapshot(&self.inner.policy)
+            .record_build_policy_snapshot(&policy.snapshot)
             .await
             .context("record active build policy snapshot")?;
         self.inner
@@ -126,6 +163,9 @@ impl BuildAdmissionServer {
         let endpoint = ControlEndpoint::for_state_root(&self.inner.state_root)?;
         let mut listener =
             LocalControlListener::bind(&endpoint).context("bind local build control endpoint")?;
+        if let Some(ready) = ready {
+            let _receiver_dropped = ready.send(());
+        }
         let mut heartbeat = interval(SUPERVISOR_HEARTBEAT);
         heartbeat.set_missed_tick_behavior(MissedTickBehavior::Delay);
         let mut handlers = JoinSet::new();
@@ -188,23 +228,30 @@ impl BuildAdmissionServer {
         let Some(envelope) = read_json_line::<_, ClientEnvelope>(&mut read).await? else {
             return Ok(());
         };
+        let active = self.refresh_policy().await?;
         if let Err(error) = validate_envelope(
             &envelope,
             &self.inner.control_token,
             self.inner.supervisor.fence,
-            &self.inner.policy.policy_sha256,
+            &active.snapshot.policy_sha256,
         ) {
-            write_json_line(&mut write, &protocol_error_frame(&error)).await?;
+            write_json_line(
+                &mut write,
+                &protocol_error_frame(&error, &active.bounded_policy),
+            )
+            .await?;
             return Ok(());
         }
         match envelope.request {
-            BuildControlRequest::Build(build) => self.run_build(build, &mut read, &mut write).await,
+            BuildControlRequest::Build(build) => {
+                self.run_build(build, active, &mut read, &mut write).await
+            }
             BuildControlRequest::Policy => {
                 write_json_line(
                     &mut write,
                     &ServerFrame::Policy {
-                        snapshot: self.inner.policy.clone(),
-                        bounded_policy: self.inner.bounded_policy.clone(),
+                        snapshot: active.snapshot,
+                        bounded_policy: active.bounded_policy,
                         supervisor_fence: self.inner.supervisor.fence,
                     },
                 )
@@ -236,6 +283,7 @@ impl BuildAdmissionServer {
                                 code: "recovery_required".to_owned(),
                                 message: error.to_string(),
                                 active_policy_sha256: None,
+                                bounded_policy: None,
                             },
                         )
                         .await?;
@@ -250,13 +298,41 @@ impl BuildAdmissionServer {
                         code: "status_use_cli".to_owned(),
                         message: "use govfolio-loop status for the bounded durable snapshot"
                             .to_owned(),
-                        active_policy_sha256: Some(self.inner.policy.policy_sha256.clone()),
+                        active_policy_sha256: Some(active.snapshot.policy_sha256),
+                        bounded_policy: None,
                     },
                 )
                 .await?;
                 Ok(())
             }
         }
+    }
+
+    async fn refresh_policy(&self) -> anyhow::Result<ActivePolicy> {
+        let _refresh = self.inner.policy_refresh.lock().await;
+        if !self.inner.policy_reload {
+            return Ok(self.inner.active_policy.read().await.clone());
+        }
+        let snapshot = crate::build_policy::load_build_policy(&self.inner.repository, Utc::now())?;
+        {
+            let active = self.inner.active_policy.read().await;
+            if active.snapshot.policy_sha256 == snapshot.policy_sha256 {
+                return Ok(active.clone());
+            }
+        }
+        let bounded_policy = bounded_text(&std::fs::read_to_string(
+            self.inner.repository.join(crate::build_policy::POLICY_PATH),
+        )?);
+        self.inner
+            .store
+            .record_build_policy_snapshot(&snapshot)
+            .await?;
+        let refreshed = ActivePolicy {
+            snapshot,
+            bounded_policy,
+        };
+        *self.inner.active_policy.write().await = refreshed.clone();
+        Ok(refreshed)
     }
 
     #[expect(
@@ -266,6 +342,7 @@ impl BuildAdmissionServer {
     async fn run_build<R, W>(
         &self,
         build: BuildRequestMessage,
+        acquired_policy: ActivePolicy,
         read: &mut R,
         write: &mut W,
     ) -> anyhow::Result<()>
@@ -280,6 +357,7 @@ impl BuildAdmissionServer {
                     code: "recovery_required".to_owned(),
                     message: "ambiguous prior build identity blocks admission".to_owned(),
                     active_policy_sha256: None,
+                    bounded_policy: None,
                 },
             )
             .await?;
@@ -302,6 +380,7 @@ impl BuildAdmissionServer {
                         message: "non-compiling Cargo command does not require admission"
                             .to_owned(),
                         active_policy_sha256: None,
+                        bounded_policy: None,
                     },
                 )
                 .await?;
@@ -343,6 +422,7 @@ impl BuildAdmissionServer {
             .store
             .enqueue_build(&self.inner.supervisor, &spec, now)
             .await?;
+        let measurement = is_measurement_category(record.category.as_deref());
         {
             let mut runtime = self.inner.runtime.lock().await;
             runtime.queued.push(QueuedBuild {
@@ -362,7 +442,7 @@ impl BuildAdmissionServer {
                 request_id: request_id.clone(),
                 resource_class: class,
                 effective_jobs: jobs,
-                policy_sha256: self.inner.policy.policy_sha256.clone(),
+                policy_sha256: acquired_policy.snapshot.policy_sha256,
             },
         )
         .await
@@ -416,6 +496,7 @@ impl BuildAdmissionServer {
                     output.clone(),
                     retry_count,
                     command_started,
+                    measurement,
                     read,
                     write,
                 )
@@ -444,6 +525,7 @@ impl BuildAdmissionServer {
             if run.client_connected
                 && !run.deadline_cancelled
                 && run.recovery_reason.is_none()
+                && run.interference_reason.is_none()
                 && should_retry_build_failure(
                     run.execution.exit_code,
                     &run.execution.stderr_tail,
@@ -460,7 +542,14 @@ impl BuildAdmissionServer {
         let client_connected = final_run.client_connected;
         let deadline_cancelled = final_run.deadline_cancelled;
         let recovery_reason = final_run.recovery_reason;
-        let (terminal, state, reported_exit) = if deadline_cancelled {
+        let interference_reason = final_run.interference_reason;
+        let (terminal, state, reported_exit) = if let Some(reason) = interference_reason {
+            (
+                BuildTerminal::Inconclusive { reason },
+                BuildRequestState::Inconclusive,
+                None,
+            )
+        } else if deadline_cancelled {
             (BuildTerminal::TimedOut, BuildRequestState::TimedOut, None)
         } else if execution.cancelled || !client_connected {
             (BuildTerminal::Cancelled, BuildRequestState::Cancelled, None)
@@ -630,7 +719,8 @@ impl BuildAdmissionServer {
 
     #[expect(
         clippy::too_many_arguments,
-        reason = "attempt execution needs its fence, command, evidence, timing, and duplex client"
+        clippy::too_many_lines,
+        reason = "attempt execution coordinates fencing, streaming, cancellation, interference, and deadlines"
     )]
     async fn execute_attempt<R, W>(
         &self,
@@ -639,6 +729,7 @@ impl BuildAdmissionServer {
         output: RawProcessOutputPaths,
         retry_count: u8,
         command_started: Instant,
+        measurement: bool,
         read: &mut R,
         write: &mut W,
     ) -> anyhow::Result<AttemptRun>
@@ -676,11 +767,14 @@ impl BuildAdmissionServer {
         let mut disconnect_buffer = [0_u8; 1];
         let mut progress_tick = interval(self.inner.scheduler.config().heartbeat);
         progress_tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
+        let mut interference_tick = interval(Duration::from_secs(1));
+        interference_tick.set_missed_tick_behavior(MissedTickBehavior::Delay);
         let started = Instant::now();
         let mut last_progress = started;
         let mut last_activity = observed_process_activity(identity.pid).ok().flatten();
         let mut deadline_cancelled = false;
         let mut recovery_reason = None;
+        let mut interference_reason = None;
         loop {
             tokio::select! {
                 event = events_rx.recv() => {
@@ -731,6 +825,29 @@ impl BuildAdmissionServer {
                         cancel.cancel();
                     }
                 }
+                _ = interference_tick.tick(), if measurement && interference_reason.is_none() => {
+                    match self.foreign_processes(&command.cwd, vec![identity.pid]).await {
+                        Ok(foreign) if !foreign.is_empty() => {
+                            let pids = foreign
+                                .iter()
+                                .map(|process| process.pid.to_string())
+                                .collect::<Vec<_>>()
+                                .join(",");
+                            interference_reason = Some(format!(
+                                "foreign_govfolio_rust_processes:{pids}"
+                            ));
+                            cancel.cancel();
+                        }
+                        Err(error) => {
+                            interference_reason = Some(format!(
+                                "process_observation_failed:{}",
+                                bounded_error(&error)
+                            ));
+                            cancel.cancel();
+                        }
+                        Ok(_) => {}
+                    }
+                }
             }
         }
         let execution = process_task
@@ -741,10 +858,15 @@ impl BuildAdmissionServer {
             client_connected,
             deadline_cancelled,
             recovery_reason,
+            interference_reason,
             output,
         })
     }
 
+    #[expect(
+        clippy::too_many_lines,
+        reason = "admission atomically coordinates resources, interference, fairness, deadlines, and disconnects"
+    )]
     async fn wait_for_admission<R, W>(
         &self,
         record: &crate::build_store::BuildRequestRecord,
@@ -780,17 +902,59 @@ impl BuildAdmissionServer {
                 .await?;
                 return Ok(false);
             }
+            let active_policy = self.refresh_policy().await?;
+            if active_policy.snapshot.policy_sha256 != record.policy_sha256 {
+                self.cancel_queued(&record.request_id, "policy_refresh_required")
+                    .await?;
+                write_json_line(
+                    write,
+                    &ServerFrame::Error {
+                        code: "policy_refresh_required".to_owned(),
+                        message: "queued build policy is no longer active".to_owned(),
+                        active_policy_sha256: Some(active_policy.snapshot.policy_sha256),
+                        bounded_policy: Some(active_policy.bounded_policy),
+                    },
+                )
+                .await?;
+                return Ok(false);
+            }
             let resources = self.inner.resource_override.map_or_else(
                 || sample_resource_snapshot(existing_volume_path(&record.target_dir)),
                 Ok,
             );
+            let supervised_roots = self
+                .inner
+                .store
+                .list_build_requests()
+                .await?
+                .into_iter()
+                .filter(|request| request.state == BuildRequestState::Running)
+                .filter_map(|request| request.process_identity.map(|identity| identity.pid))
+                .collect();
+            let interference = match self
+                .foreign_processes(&record.worktree, supervised_roots)
+                .await
+            {
+                Ok(foreign) => !foreign.is_empty(),
+                Err(error) => {
+                    eprintln!(
+                        "govfolio-loop: admissions paused because process observation failed: {}",
+                        bounded_error(&error)
+                    );
+                    true
+                }
+            };
             let (admitted, position) = {
                 let mut runtime = self.inner.runtime.lock().await;
-                let admitted = resources.as_ref().ok().map_or_else(Vec::new, |resources| {
-                    self.inner
-                        .scheduler
-                        .admit(&runtime.queued, &runtime.running, *resources)
-                });
+                let admitted = if interference {
+                    Vec::new()
+                } else {
+                    resources.as_ref().ok().map_or_else(Vec::new, |resources| {
+                        self.inner
+                            .scheduler
+                            .admit(&runtime.queued, &runtime.running, *resources)
+                    })
+                };
                 if admitted.iter().any(|id| id == &record.request_id) {
                     runtime
                         .queued
@@ -861,6 +1025,28 @@ impl BuildAdmissionServer {
         runtime.running.retain(|item| item.request_id != request_id);
         drop(runtime);
         self.inner.changed.notify_waiters();
+    }
+
+    async fn foreign_processes(
+        &self,
+        worktree: &std::path::Path,
+        supervised_roots: Vec<u32>,
+    ) -> anyhow::Result<Vec<crate::build_interference::ObservedProcess>> {
+        let repository = self.inner.repository.clone();
+        let worktree = worktree.to_path_buf();
+        let observer = self.inner.process_observer.clone();
+        tokio::task::spawn_blocking(move || {
+            let processes = observer.map_or_else(observe_processes, |observer| observer())?;
+            Ok(foreign_govfolio_processes(
+                &processes,
+                &repository,
+                &worktree,
+                std::process::id(),
+                &supervised_roots,
+            ))
+        })
+        .await
+        .context("join process interference observation")?
     }
 }
 
@@ -969,26 +1155,45 @@ fn persist_evidence(
     })
 }
 
-fn protocol_error_frame(error: &ProtocolError) -> ServerFrame {
-    let (code, active) = match error {
-        ProtocolError::PolicyRefreshRequired { active } => {
-            ("policy_refresh_required", Some(active.clone()))
-        }
-        ProtocolError::InvalidToken => ("authentication_failed", None),
-        ProtocolError::InvalidVersion(_) => ("protocol_version", None),
-        ProtocolError::StaleFence { .. } => ("stale_fence", None),
+fn protocol_error_frame(error: &ProtocolError, bounded_policy: &str) -> ServerFrame {
+    let (code, active, policy) = match error {
+        ProtocolError::PolicyRefreshRequired { active } => (
+            "policy_refresh_required",
+            Some(active.clone()),
+            Some(bounded_policy.to_owned()),
+        ),
+        ProtocolError::InvalidToken => ("authentication_failed", None, None),
+        ProtocolError::InvalidVersion(_) => ("protocol_version", None, None),
+        ProtocolError::StaleFence { .. } => ("stale_fence", None, None),
         ProtocolError::InvalidOwner | ProtocolError::InvalidRequest(_) => {
-            ("invalid_identity", None)
+            ("invalid_identity", None, None)
         }
         ProtocolError::Io(_) | ProtocolError::Json(_) | ProtocolError::FrameTooLarge => {
-            ("invalid_frame", None)
+            ("invalid_frame", None, None)
         }
     };
     ServerFrame::Error {
         code: code.to_owned(),
         message: error.to_string(),
         active_policy_sha256: active,
+        bounded_policy: policy,
     }
+}
+
+fn is_measurement_category(category: Option<&str>) -> bool {
+    category.is_some_and(|category| {
+        let category = category.to_ascii_lowercase();
+        [
+            "experiment",
+            "measurement",
+            "benchmark",
+            "cold",
+            "warm",
+            "edit",
+        ]
+        .iter()
+        .any(|marker| category.contains(marker))
+    })
 }
 
 fn bounded_text(policy: &str) -> String {
@@ -1015,4 +1220,30 @@ fn existing_volume_path(path: &std::path::Path) -> &std::path::Path {
 
 fn bounded_error(error: &dyn std::fmt::Display) -> String {
     error.to_string().chars().take(512).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn policy_refresh_error_carries_the_active_hash_and_bounded_policy() {
+        let frame = protocol_error_frame(
+            &ProtocolError::PolicyRefreshRequired {
+                active: "a".repeat(64),
+            },
+            "canonical policy",
+        );
+        assert!(matches!(
+            frame,
+            ServerFrame::Error {
+                ref code,
+                active_policy_sha256: Some(ref active),
+                bounded_policy: Some(ref policy),
+                ..
+            } if code == "policy_refresh_required"
+                && active == &"a".repeat(64)
+                && policy == "canonical policy"
+        ));
+    }
 }

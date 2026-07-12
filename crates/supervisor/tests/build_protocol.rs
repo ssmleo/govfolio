@@ -67,6 +67,12 @@ fn build_protocol_authenticates_token_version_identity_policy_and_fence() {
         build.policy_sha256 = "b".repeat(64);
     }
     assert!(validate_envelope(&wrong, &token, 7, &"a".repeat(64)).is_err());
+
+    let mut invalid_interactive = envelope(&token);
+    if let BuildControlRequest::Build(build) = &mut invalid_interactive.request {
+        build.owner_identity = "unscoped-owner".to_owned();
+    }
+    assert!(validate_envelope(&invalid_interactive, &token, 7, &"a".repeat(64),).is_err());
 }
 
 #[test]
