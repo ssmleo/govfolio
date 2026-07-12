@@ -112,5 +112,22 @@ impl Drop for LocalControlListener {
 
 #[cfg(unix)]
 pub async fn connect_local_control(endpoint: &ControlEndpoint) -> io::Result<LocalClientStream> {
-    tokio::net::UnixStream::connect(endpoint.display()).await
+    use tokio::time::{Duration, Instant, sleep};
+
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        match tokio::net::UnixStream::connect(endpoint.display()).await {
+            Ok(client) => return Ok(client),
+            Err(error)
+                if Instant::now() < deadline
+                    && matches!(
+                        error.kind(),
+                        io::ErrorKind::NotFound | io::ErrorKind::ConnectionRefused
+                    ) =>
+            {
+                sleep(Duration::from_millis(10)).await;
+            }
+            Err(error) => return Err(error),
+        }
+    }
 }

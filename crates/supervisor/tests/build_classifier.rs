@@ -8,11 +8,19 @@ use loop_supervisor::build_classifier::{
 
 fn context() -> ClassificationContext {
     ClassificationContext {
-        worktree: PathBuf::from("C:/repo/worktrees/lane-a"),
-        target_dir: PathBuf::from("C:/repo/worktrees/lane-a/target"),
-        shared_target: PathBuf::from("C:/repo/target"),
-        bronze_roots: vec![PathBuf::from("C:/govfolio/bronze")],
+        worktree: native_path("repo/worktrees/lane-a"),
+        target_dir: native_path("repo/worktrees/lane-a/target"),
+        shared_target: native_path("repo/target"),
+        bronze_roots: vec![native_path("govfolio/bronze")],
         category: None,
+    }
+}
+
+fn native_path(suffix: &str) -> PathBuf {
+    if cfg!(windows) {
+        PathBuf::from(format!("C:/{suffix}"))
+    } else {
+        PathBuf::from(format!("/{suffix}"))
     }
 }
 
@@ -63,7 +71,9 @@ fn build_classifier_rejects_destructive_or_governed_storage_commands() {
                 "-p".into(),
                 "core".into(),
                 "--target-dir".into(),
-                "C:/govfolio/bronze/build".into(),
+                native_path("govfolio/bronze/build")
+                    .to_string_lossy()
+                    .into_owned(),
             ],
             &context(),
             None,
@@ -80,7 +90,10 @@ fn build_classifier_rejects_destructive_or_governed_storage_commands() {
                 "check".into(),
                 "-p".into(),
                 "core".into(),
-                "--target-dir=C:/repo/target".into(),
+                format!(
+                    "--target-dir={}",
+                    native_path("repo/target").to_string_lossy()
+                ),
             ],
             &context(),
             None,
@@ -94,7 +107,10 @@ fn build_classifier_rejects_destructive_or_governed_storage_commands() {
                 "-p".into(),
                 "core".into(),
                 "--config".into(),
-                "build.target-dir='C:/repo/target'".into(),
+                format!(
+                    "build.target-dir='{}'",
+                    native_path("repo/target").to_string_lossy()
+                ),
             ],
             &context(),
             None,
@@ -108,7 +124,9 @@ fn build_classifier_rejects_destructive_or_governed_storage_commands() {
                 "-p".into(),
                 "core".into(),
                 "--target-dir".into(),
-                "C:/repo/worktrees/lane-a/target".into(),
+                native_path("repo/worktrees/lane-a/target")
+                    .to_string_lossy()
+                    .into_owned(),
             ],
             &context(),
             None,
