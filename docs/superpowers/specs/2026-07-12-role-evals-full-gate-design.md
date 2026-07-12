@@ -92,4 +92,3 @@ not delete an existing nested target directory or touch the main target. Rollbac
 normal revert of the PR; there is no persisted state to migrate. A Windows lock failure
 in the explicit command is a NO-GO requiring runner redesign, never permission to restore
 ordinary-test recursion or drop a check.
-
