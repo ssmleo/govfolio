@@ -1,8 +1,7 @@
 //! `cargo run -p pipeline --bin epoch-gate -- E2` — the epoch gate for
 //! orchestrator use (goal 016): verifies the frozen E1 reference bundle,
-//! prints per-role calibration scores vs thresholds, and renders the entry
-//! verdict. It reads frozen artifacts and recorded evidence only; current-code
-//! verification runs in the separate commit-bound release gate.
+//! runs the real Rust-builder repository acceptance block, prints per-role
+//! scores vs thresholds, and renders the entry verdict.
 //! Exit 0 = gate open; nonzero = blocked (fail closed). A BLOCKED verdict
 //! over missing scout/surveyor/sampler references is honest output, not a
 //! harness failure.
@@ -18,7 +17,7 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     };
     let root = pipeline::conformance::workspace_root();
-    let report = match evals::gate(&root, &epoch) {
+    let report = match evals::full_gate(&root, &epoch) {
         Ok(report) => report,
         Err(e) => {
             eprintln!("epoch-gate: {e:#}");

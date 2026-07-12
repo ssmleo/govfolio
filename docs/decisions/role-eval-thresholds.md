@@ -4,22 +4,25 @@ Status: ACTIVE, founder-gated — changes to thresholds, to the scored-role set,
 the NOT_APPLICABLE gating rule below are governance changes and require founder
 approval, exactly like edits to `agents/roles/*.md` (automation-policy discipline).
 
-Amended 2026-07-11 with founder approval: the rust-builder scorer evaluates frozen
-reference artifacts and recorded calibration evidence without executing current-code
-release commands recursively.
+Amended 2026-07-12 with founder approval, superseding the 2026-07-11 execution-boundary
+amendment: ordinary role-eval tests remain process-free, while the explicit `epoch-gate`
+entry point owns and executes the real Rust-builder repository acceptance block. This
+changes ownership only; thresholds, the scored-role set, frozen-reference integrity,
+blocker semantics, and E2 behavior are unchanged.
 
 ## What the harness is
 
 `crates/pipeline/src/evals/` scores each coverage-factory role's E1 artifact against
 the frozen us_house reference bundle (`docs/regimes/us-house/reference/E1.lock.json`,
 sha256 pins over 17 ground-truth files). Every scorer is deterministic and MECHANICAL
-— filesystem reads, hash comparison, JSON-Schema validation, and checks of recorded
-calibration evidence.
+— filesystem reads, hash comparison, JSON-Schema validation, or real command evidence
+produced by the explicit full gate.
 **No LLM-judge anywhere** (world-verifies-model; model-verifies-model never gates).
 
-- Acceptance: `cargo test -p pipeline role_evals`
+- Process-free scoring/gate-logic acceptance: `cargo test -p pipeline --test role_evals`
 - Orchestrator verdict: `cargo run -p pipeline --bin epoch-gate -- E2`
-  (exit 0 = open, nonzero = blocked; per-role scores printed)
+  (runs the real Rust-builder command block; exit 0 = open, nonzero = blocked;
+  per-role scores printed)
 
 Freeze discipline: the lock is tamper-evident, supersede-never-mutate. Amending any
 pinned artifact requires superseding the lock (version bump + note), founder-gated.
@@ -41,7 +44,7 @@ justified for checks with known environmental flakiness; none exist today.
 | sampler | 1.00 | sampler-attributed capture manifest validates (`validate_manifest`) |
 | spec-writer | 1.00 | regime-doc structural completeness: front-matter parses with all 18 RegimeSurvey keys, record types in vocabulary, band table with decimal-string bounds, all reference sections present, §3.3/§3.4/§3.6 mapping tables parse with required tokens, every fixture input hashes to a §7 pin, §8 evidence log populated (rows/URLs/sha pins) |
 | test-designer | 1.00 | `validate_manifest` clean; every expected.silver.json is a non-empty `{payload, confidence}` wrapper array with counts matching the manifest; every expected.gold.json candidate is schema-valid vs the committed GoldCandidate snapshot, deserializes + passes domain validation, and satisfies the (us_house, transaction) details contract; manifest sha pins appear in regime doc §7 |
-| rust-builder | 1.00 | frozen E1 lock verifies; goal-001 T8c records rust-builder conformance/fmt/Clippy/workspace-test calibration; the goal-021 journal entry records conformance for every case in the current frozen manifest plus role-eval/workspace/CI success |
+| rust-builder | 1.00 | the explicit full gate invokes `conformance -- us_house` and requires `5/5 cases green`, `cargo fmt --check`, `cargo clippy --all-targets -- -D warnings`, and `cargo test --workspace`; all four checks must pass |
 | auditor | 1.00 | audit journal line (`AUDIT … T8d`) exists with an explicit verdict; goal-001 T8d findings block exists, records PASS, records independent re-derivation + fixture-commit-order integrity, and surfaces non-blocking findings |
 
 ## NOT_APPLICABLE and what it means for epoch gating
@@ -82,12 +85,13 @@ every scored role meets threshold and none are NOT_APPLICABLE. The NOT_APPLICABL
 mechanism above remains in force for any FUTURE role/epoch that lacks a reference
 artifact — it just has no current occurrence.
 
-The rust-builder score is historical calibration evidence, not a persisted green
-certificate for current code. It never launches Cargo. Current-code conformance,
-`cargo fmt --check`, Clippy with warnings denied, workspace tests, ignored SQLx tests,
-and contract verification remain mandatory release checks bound to the exact commit.
-Missing calibration evidence fails the role score; missing or failed release evidence
-fails the release gate. Neither result substitutes for the other.
+Ordinary role-eval tests supply synthetic Rust-builder evidence only to verify scoring,
+threshold, blocker, and E2 reducer logic; they cannot launch Cargo. The explicit
+`epoch-gate` path obtains the real four-check evidence and remains fail closed on spawn
+failure, nonzero exit, or a missing conformance marker. Commit-bound CI runs the same
+fmt, Clippy, workspace-test, and conformance checks once as individually visible gates;
+it does not invoke `epoch-gate` and duplicate the workspace suite. Ignored SQLx and
+contract checks remain separate mandatory release evidence.
 
 ## Roles outside the harness
 

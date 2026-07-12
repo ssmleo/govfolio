@@ -94,6 +94,9 @@ jobs:
           exit "$exit_code"
 
       - name: rust / workspace tests
+        # Includes process-free role scoring and gate-reducer tests. Do not invoke the
+        # explicit epoch-gate here: it owns the same full Rust-builder block for
+        # intentional operational certification and would duplicate this workspace run.
         env:
           CARGO_TERM_COLOR: never
         run: |
