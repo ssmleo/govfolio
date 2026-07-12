@@ -9,6 +9,13 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+# Cancel superseded runs. The autonomous loop pushes constantly; without this every
+# push ran the full matrix to completion. Keyed per ref so branches only cancel their
+# own in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   rust:
     runs-on: ubuntu-latest
@@ -200,7 +207,14 @@ jobs:
             echo "| \`rust-db-dependencies\` | \`${CACHE_OUTCOME}\` | \`${cache_hit}\` | restore only |"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      # #[ignore] SQLx suites retain database-per-test isolation.
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@v2
+        with:
+          tool: nextest
+
+      # #[ignore] SQLx suites retain database-per-test isolation. Primed template1
+      # makes each #[sqlx::test] DB born-migrated (db::migrate → no-op); nextest runs
+      # all test binaries in one global parallel pool (~8x cargo test on this suite).
       - name: db / ignored SQLx suites
         env:
           CARGO_TERM_COLOR: never
@@ -209,7 +223,8 @@ jobs:
           started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
           cargo_log="$(mktemp)"
           set +e
-          cargo test --workspace -- --ignored 2>&1 | tee "$cargo_log"
+          cargo run -p core --bin prepare-test-template
+          cargo nextest run --workspace --run-ignored ignored-only --profile ci 2>&1 | tee "$cargo_log"
           exit_code=${PIPESTATUS[0]}
           set -e
           elapsed="$(( $(date +%s) - started_epoch ))"

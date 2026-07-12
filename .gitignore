@@ -6,6 +6,9 @@ agents/loop.log
 # Rust
 /target
 **/*.rs.bk
+# Per-agent private build target dirs (multi-agent isolation; perf goal).
+.cargo-target-*/
+/.targets/
 
 # Environment
 .env

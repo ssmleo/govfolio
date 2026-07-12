@@ -1,0 +1,16 @@
+# Workspace-wide build tuning. Rationale + measurements live in the
+# perf/build-test-optimization goal and docs/runbooks/dev-host-windows.md.
+#
+# sccache is deliberately NOT wired here or in the local loop: it keys the Rust
+# cache on the absolute --out-dir, so it never shares across lane worktrees (each
+# lane builds at a different path). It only hits on identical paths, so it is
+# enabled in CI only (fixed runner paths), via RUSTC_WRAPPER + CARGO_INCREMENTAL=0
+# in .github/workflows/ci.yml. Locally, incremental stays ON (the default) for
+# fast warm rebuilds.
+
+[profile.dev]
+# Line tables only: keep panic-backtrace line numbers, drop full debuginfo. A
+# universal codegen/link cut on every crate and every lane, regardless of path.
+debug = 1
+
+# profile.test inherits profile.dev, so the same setting applies to `cargo test`.
