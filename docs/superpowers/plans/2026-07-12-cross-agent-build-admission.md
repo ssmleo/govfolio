@@ -269,9 +269,12 @@ Rollout:
    tests green, and one accepted exploratory experiment without rerun.
 4. Promotion changes only canonical policy status/change log and its authority hash.
 
-Current rollout state: `shadow`. The final schema-v2 exploratory evidence pilot and the
-24-hour-or-20-command mixed-provider observation gate remain open, so this release makes
-no `enforced` claim.
+Current rollout state: `shadow`. Schema-v2 pilots v3-v5 are retained `INCONCLUSIVE` after
+first exposing a Windows wrapper-ancestry ownership bug and then detecting real foreign
+Cargo activity during measurement. The fix is proven by one clean completed v5 sample;
+the immutable v6 checkpoint is prepared but remains unstarted until the host is quiet.
+The accepted exploratory pair and 24-hour-or-20-command mixed-provider observation gate
+remain open, so this release makes no `enforced` claim.
 
 ## Final verification
 
