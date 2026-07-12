@@ -89,9 +89,9 @@ GO requires:
 ## Task 6 — Integrate
 
 - [x] Append measured results and the ownership correction to `agents/JOURNAL.md`.
-- [ ] Verify the exact diff, commit all intended files, and merge the verified branch to
+- [x] Verify the exact diff, commit all intended files, and merge the verified branch to
   `main`.
-- [ ] Re-run focused tests plus the ordinary workspace suite on the merged commit using
+- [x] Re-run focused tests plus the ordinary workspace suite on the merged commit using
   a private scratch target.
 
 ## Implementation results
@@ -132,3 +132,8 @@ Decision: the direct behavior/performance fix is GO for integration under the fo
 instruction to tackle the main issue and merge. The cold no-run ceiling remains a
 recorded 3.500-second deviation, not a hidden pass; no core-model or crate-splitting
 follow-up is included in this PR.
+
+Post-merge verification: local `main` merge commit `0003f2f34b36629fa2912a78229b6db610ab1f46`
+passed `cargo test --workspace` in 562.612 seconds from a fresh private scratch target.
+The role-eval binary's 13 tests completed in 0.06 seconds, and the merged target contained
+zero `role-evals-nested` directories.
