@@ -172,3 +172,31 @@ fn build_classifier_caps_all_cargo_job_flag_forms() {
         vec!["check", "--jobs", "4"]
     );
 }
+
+#[test]
+fn build_classifier_inserts_job_budget_before_tool_arguments() {
+    let args = vec![
+        "clippy".into(),
+        "-p".into(),
+        "loop-supervisor".into(),
+        "--all-targets".into(),
+        "--".into(),
+        "-D".into(),
+        "warnings".into(),
+    ];
+
+    assert_eq!(
+        apply_job_budget(&args, 14).unwrap(),
+        vec![
+            "clippy",
+            "-p",
+            "loop-supervisor",
+            "--all-targets",
+            "--jobs",
+            "14",
+            "--",
+            "-D",
+            "warnings",
+        ]
+    );
+}

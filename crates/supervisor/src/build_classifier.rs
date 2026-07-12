@@ -113,7 +113,11 @@ pub fn apply_job_budget(
     let mut output = Vec::with_capacity(args.len() + 2);
     let mut requested = None;
     let mut index = 0;
-    while index < args.len() {
+    let tool_separator = args
+        .iter()
+        .position(|arg| arg == "--")
+        .unwrap_or(args.len());
+    while index < tool_separator {
         let arg = &args[index];
         let inline = arg
             .strip_prefix("--jobs=")
@@ -135,6 +139,7 @@ pub fn apply_job_budget(
     let effective = requested.map_or(budget, |jobs| jobs.min(budget));
     output.push("--jobs".to_owned());
     output.push(effective.to_string());
+    output.extend_from_slice(&args[tool_separator..]);
     Ok(output)
 }
 
