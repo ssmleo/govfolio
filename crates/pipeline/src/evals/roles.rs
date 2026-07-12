@@ -14,7 +14,7 @@ use serde_json::Value;
 use govfolio_core::domain::enums::RecordType;
 use govfolio_core::domain::gold::GoldCandidate;
 
-use super::{Check, Outcome, verify_lock};
+use super::{Check, Outcome};
 use crate::conformance::check_details;
 use crate::factory;
 
@@ -654,107 +654,6 @@ fn pins_match_regime_doc_check(root: &Path, cases: &serde_json::Map<String, Valu
 }
 
 // ---------------------------------------------------------------------------
-// rust-builder: frozen E1 corpus + recorded calibration evidence
-// ---------------------------------------------------------------------------
-
-pub(super) fn rust_builder(root: &Path) -> Outcome {
-    let goal = fs::read_to_string(
-        root.join("agents")
-            .join("goals")
-            .join("001-walking-skeleton.md"),
-    )
-    .unwrap_or_default();
-    let journal = fs::read_to_string(root.join("agents").join("JOURNAL.md")).unwrap_or_default();
-    let lock_failures = verify_lock(root);
-    let checks = vec![
-        Check::new(
-            "reference_bundle_frozen",
-            lock_failures.is_empty(),
-            if lock_failures.is_empty() {
-                "frozen E1 reference lock and every pin verify".to_owned()
-            } else {
-                lock_failures.join("; ")
-            },
-        ),
-        builder_calibration_check(&goal),
-        current_corpus_verification_check(root, &journal),
-    ];
-    Outcome::Scored { checks }
-}
-
-fn builder_calibration_check(goal: &str) -> Check {
-    let block = t8c_block(goal);
-    let required = [
-        "(rust-builder)",
-        "Evidence:",
-        "conformance",
-        "fmt/clippy",
-        "-D warnings",
-        "test --workspace",
-        "green",
-    ];
-    let missing: Vec<&str> = required
-        .into_iter()
-        .filter(|token| block.as_deref().is_none_or(|text| !text.contains(token)))
-        .collect();
-    Check::new(
-        "builder_calibration_recorded",
-        missing.is_empty(),
-        if missing.is_empty() {
-            "goal 001 T8c records rust-builder conformance, fmt, Clippy, and workspace-test evidence"
-                .to_owned()
-        } else {
-            format!(
-                "goal 001 T8c missing recorded evidence: {}",
-                missing.join(", ")
-            )
-        },
-    )
-}
-
-fn current_corpus_verification_check(root: &Path, journal: &str) -> Check {
-    let manifest = fixtures_root(root).join("MANIFEST.json");
-    let case_count = fs::read_to_string(&manifest)
-        .map_err(|e| format!("reading {}: {e}", manifest.display()))
-        .and_then(|text| {
-            serde_json::from_str::<Value>(&text)
-                .map_err(|e| format!("parsing {}: {e}", manifest.display()))
-        })
-        .and_then(|doc| {
-            doc.get("cases")
-                .and_then(Value::as_object)
-                .map(serde_json::Map::len)
-                .filter(|count| *count > 0)
-                .ok_or_else(|| format!("{} has no cases", manifest.display()))
-        });
-    let (passed, detail) = match case_count {
-        Ok(count) => {
-            let marker = format!("conformance {count}/{count}");
-            let evidence = journal.lines().find(|line| {
-                line.contains("GOAL 021")
-                    && line.contains(&marker)
-                    && line.contains("role_evals")
-                    && line.contains("workspace")
-                    && line.contains("CI green")
-            });
-            (
-                evidence.is_some(),
-                evidence.map_or_else(
-                    || {
-                        format!(
-                            "goal-021 journal evidence does not record {marker}, role_evals, workspace tests, and CI green"
-                        )
-                    },
-                    |line| format!("recorded verification: {}", tail_line(line)),
-                ),
-            )
-        }
-        Err(problem) => (false, problem),
-    };
-    Check::new("current_frozen_corpus_verified", passed, detail)
-}
-
-// ---------------------------------------------------------------------------
 // auditor: audit journal line + goal-file findings sections
 // ---------------------------------------------------------------------------
 
@@ -813,10 +712,6 @@ pub(super) fn auditor(root: &Path) -> Outcome {
 /// next top-level checklist item.
 fn t8d_block(goal: &str) -> Option<String> {
     task_block(goal, "T8d")
-}
-
-fn t8c_block(goal: &str) -> Option<String> {
-    task_block(goal, "T8c")
 }
 
 fn task_block(goal: &str, task: &str) -> Option<String> {
@@ -974,21 +869,5 @@ mod tests {
         assert!(block.contains("PASS"));
         assert!(block.contains("Non-blocking notes"));
         assert!(!block.contains("T9"));
-    }
-
-    #[test]
-    fn builder_calibration_fails_closed_when_workspace_evidence_is_missing() {
-        let goal = "- [x] T8c adapter (rust-builder)\n  - Evidence: conformance green; fmt/clippy -D warnings green.\n- [x] T8d audit\n";
-        let check = builder_calibration_check(goal);
-        assert!(
-            !check.passed,
-            "missing workspace-test evidence must fail closed"
-        );
-    }
-
-    #[test]
-    fn task_block_requires_a_completed_task() {
-        let goal = "- [ ] T8c adapter (rust-builder)\n  - Evidence: conformance; fmt/clippy -D warnings/test --workspace green.\n";
-        assert!(t8c_block(goal).is_none());
     }
 }

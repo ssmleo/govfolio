@@ -45,11 +45,15 @@ those must be confirmed against the built code, not trusted. Three checks:
 
 1. **The gate, live.** `cargo run -p pipeline --bin epoch-gate -- E2`
    Prints the per-role verdict. This is ground truth for *which* roles are blocking —
-   calibrate exactly those. Pure filesystem/hash reads; no local Postgres needed.
+   calibrate exactly those. This is the intentional heavyweight repository acceptance
+   entry point: it runs us_house conformance, fmt, strict Clippy, and the workspace suite
+   before reducing the role scores. No local Postgres is needed.
 2. **The scorer harness.** `cargo test -p pipeline role_evals`
    Confirms `validate_sources` / `validate_survey` / `validate_manifest` run here (they are
    eval functions in `crates/pipeline/src/evals/`, invoked via this test — NOT standalone
-   `validate-*` bins). The calibration prompt's acceptance is these two commands, nothing else.
+   `validate-*` bins). It verifies scoring/gate logic without spawning Cargo; it does not
+   replace the explicit gate. The calibration prompt's acceptance is these two commands,
+   nothing else.
 3. **Path spelling (silent-failure trap).** The repo uses BOTH `docs/regimes/us-house/`
    (hyphen: the old flat survey `us-house.md` and `reference/`) AND `docs/regimes/us_house/`
    (underscore: the wanted `sources.yaml`, `AUTHORITY.md` per `role-eval-thresholds.md` and
