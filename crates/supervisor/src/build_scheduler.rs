@@ -182,7 +182,7 @@ pub fn sample_resource_snapshot(target: &Path) -> io::Result<ResourceSnapshot> {
     // SAFETY: zeroed statvfs is immediately initialized by statvfs on success.
     let mut volume = unsafe { std::mem::zeroed::<libc::statvfs>() };
     // SAFETY: `target` is NUL terminated and `volume` is a valid output pointer.
-    if unsafe { libc::statvfs(target.as_ptr(), &mut volume) } != 0 {
+    if unsafe { libc::statvfs(target.as_ptr(), &raw mut volume) } != 0 {
         return Err(io::Error::last_os_error());
     }
     let memory = u64::try_from(pages)
