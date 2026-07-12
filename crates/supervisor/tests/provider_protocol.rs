@@ -72,6 +72,8 @@ fn attempt(provider: Provider, model: Option<&str>) -> AttemptSpec {
         worktree: PathBuf::from("C:/worktrees/orchestrator-0"),
         expected_branch: "goal/108".to_owned(),
         prompt: "Perform exactly one bounded phase.".to_owned(),
+        required_root_receipt: None,
+        required_root_reads: Vec::new(),
         prompt_kind: PromptKind::Normal,
         provider: ProviderIdentity {
             provider,
@@ -96,6 +98,14 @@ fn inherited_environment() -> Vec<(String, String)> {
         ("USERPROFILE", "C:/Users/loop"),
         ("DATABASE_URL", "postgres://local"),
         ("GOVFOLIO_BRONZE_ROOT", "C:/bronze"),
+        (
+            "GOVFOLIO_AUTHORITY_BIN",
+            "C:/runtime/validate-authority.exe",
+        ),
+        ("GOVFOLIO_LOOP_BIN", "C:/runtime/govfolio-loop.exe"),
+        ("GOVFOLIO_EPOCH_GATE_BIN", "C:/runtime/epoch-gate.exe"),
+        ("GOVFOLIO_LEASE_BIN", "C:/runtime/jurisdiction-lease.exe"),
+        ("GOVFOLIO_EPOCH", "E3"),
         ("CARGO_TARGET_DIR", "C:/targets/lane-0"),
         ("ANTHROPIC_API_KEY", "anthropic-secret"),
         ("CLAUDE_CODE_OAUTH_TOKEN", "claude-secret"),
@@ -268,6 +278,24 @@ fn provider_environment_is_allowlisted_and_provider_scoped() {
             .any(|(key, value)| { key == "GOVFOLIO_LANE_ID" && value == "orchestrator-0" })
     );
     for command in [&claude, &codex] {
+        for (key, value) in [
+            (
+                "GOVFOLIO_AUTHORITY_BIN",
+                "C:/runtime/validate-authority.exe",
+            ),
+            ("GOVFOLIO_LOOP_BIN", "C:/runtime/govfolio-loop.exe"),
+            ("GOVFOLIO_EPOCH_GATE_BIN", "C:/runtime/epoch-gate.exe"),
+            ("GOVFOLIO_LEASE_BIN", "C:/runtime/jurisdiction-lease.exe"),
+            ("GOVFOLIO_EPOCH", "E3"),
+        ] {
+            assert!(
+                command
+                    .env
+                    .iter()
+                    .any(|(actual_key, actual_value)| actual_key == key && actual_value == value),
+                "missing governed runtime environment {key}"
+            );
+        }
         for (key, value) in [
             ("GIT_CONFIG_NOSYSTEM", "1"),
             ("GIT_CONFIG_COUNT", "1"),

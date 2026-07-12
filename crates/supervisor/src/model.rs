@@ -152,6 +152,10 @@ pub struct AttemptSpec {
     pub worktree: PathBuf,
     pub expected_branch: String,
     pub prompt: String,
+    #[serde(default)]
+    pub required_root_receipt: Option<String>,
+    #[serde(default)]
+    pub required_root_reads: Vec<String>,
     pub prompt_kind: PromptKind,
     pub provider: ProviderIdentity,
     pub resume_session_id: Option<String>,

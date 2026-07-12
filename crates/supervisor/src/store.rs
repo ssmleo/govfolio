@@ -1983,6 +1983,8 @@ mod tests {
             worktree: root.to_path_buf(),
             expected_branch: "goal/test".to_owned(),
             prompt: "fixture".to_owned(),
+            required_root_receipt: None,
+            required_root_reads: Vec::new(),
             prompt_kind: PromptKind::Normal,
             provider: ProviderIdentity {
                 provider: Provider::Claude,
