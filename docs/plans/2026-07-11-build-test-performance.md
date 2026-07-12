@@ -14,7 +14,16 @@
 
 ## Role-gate semantics
 
-Refactor the E1 role scorer into a pure deterministic evaluation of frozen reference artifacts and recorded calibration evidence. Remove nested Cargo subprocesses, the recursion sentinel, and the nested target directory. The epoch gate must still block on lock drift, missing artifacts, `NOT_APPLICABLE`, or a score below 1.00. Current-code fmt, Clippy, workspace tests, conformance, ignored SQLx tests, and contract verification remain explicit release checks.
+**Superseded 2026-07-12 execution boundary:** ordinary E1 role scoring remains a pure
+deterministic evaluation, but recorded goal/JOURNAL prose is not accepted as current
+Rust-builder evidence. The explicit `epoch-gate` entry point now owns the real
+conformance, fmt, strict-Clippy, and workspace-test block. See
+`docs/superpowers/specs/2026-07-12-role-evals-full-gate-design.md`.
+
+Remove nested Cargo subprocesses from ordinary tests, the recursion sentinel, and the
+nested target directory. The gate must still block on lock drift, missing artifacts,
+`NOT_APPLICABLE`, a Rust-builder command failure, or any score below 1.00. CI retains the
+same checks once as commit-bound release gates and does not invoke the explicit gate.
 
 Owned files:
 

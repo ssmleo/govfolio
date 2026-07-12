@@ -16,8 +16,10 @@ Release-1 lifecycle.
    only the exact lease generation and stop:
    `jurisdiction-lease abandon --id <x> --generation <g>`. Never mark the row blocked
    directly.
-2. GATE: read the current epoch and run `cargo run -p pipeline --bin epoch-gate -- E<n>`.
-   Nonzero means stop before claiming.
+2. GATE: read the current epoch and intentionally run the heavyweight repository
+   acceptance owner: `cargo run -p pipeline --bin epoch-gate -- E<n>`. It includes
+   conformance, fmt, strict Clippy, and the ordinary workspace suite exactly once for
+   this certification. Nonzero means stop before claiming.
 3. CLAIM: run
    `cargo run -p worker --bin jurisdiction-lease -- claim --next --epoch <n>`.
    Capture both `id` and `generation` from stdout. Exit 1 means stop. The returned

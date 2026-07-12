@@ -11,10 +11,37 @@
 
 use std::path::PathBuf;
 
-use pipeline::evals::{self, Outcome, Role};
+use pipeline::evals::{self, Check, Outcome, Role};
 
 fn root() -> PathBuf {
     pipeline::conformance::workspace_root()
+}
+
+fn passing_rust_builder_outcome() -> Outcome {
+    Outcome::Scored {
+        checks: vec![
+            Check {
+                name: "conformance_us_house_5_of_5",
+                passed: true,
+                detail: "synthetic passing evidence for process-free gate logic".to_owned(),
+            },
+            Check {
+                name: "cargo_fmt_check",
+                passed: true,
+                detail: "synthetic passing evidence for process-free gate logic".to_owned(),
+            },
+            Check {
+                name: "cargo_clippy_deny_warnings",
+                passed: true,
+                detail: "synthetic passing evidence for process-free gate logic".to_owned(),
+            },
+            Check {
+                name: "cargo_test_workspace",
+                passed: true,
+                detail: "synthetic passing evidence for process-free gate logic".to_owned(),
+            },
+        ],
+    }
 }
 
 #[test]
@@ -40,7 +67,7 @@ fn role_evals_scorers_do_not_spawn_cargo() {
 }
 
 fn assert_meets_threshold(role: Role) {
-    let report = evals::score_role(&root(), role);
+    let report = evals::score_artifact_role(&root(), role).unwrap();
     match &report.outcome {
         Outcome::Scored { checks } => {
             let failed: Vec<String> = checks
@@ -147,11 +174,6 @@ fn role_evals_test_designer_meets_threshold() {
 }
 
 #[test]
-fn role_evals_rust_builder_meets_threshold() {
-    assert_meets_threshold(Role::RustBuilder);
-}
-
-#[test]
 fn role_evals_auditor_meets_threshold() {
     assert_meets_threshold(Role::Auditor);
 }
@@ -209,7 +231,7 @@ fn role_evals_thresholds_documented() {
 
 #[test]
 fn role_evals_gate_rejects_unwired_epochs() {
-    let err = evals::gate(&root(), "E3").unwrap_err();
+    let err = evals::evaluate_gate(&root(), "E3", passing_rust_builder_outcome()).unwrap_err();
     assert!(
         err.to_string().contains("E2"),
         "only the E2 gate is wired; got: {err}"
@@ -219,7 +241,8 @@ fn role_evals_gate_rejects_unwired_epochs() {
 #[test]
 fn role_evals_gate_blocks_missing_reference_artifacts() {
     let empty_root = tempfile::tempdir().unwrap();
-    let report = evals::gate(empty_root.path(), "E2").unwrap();
+    let report =
+        evals::evaluate_gate(empty_root.path(), "E2", passing_rust_builder_outcome()).unwrap();
 
     assert!(!report.open(), "an empty reference root must fail closed");
     assert!(
@@ -244,14 +267,14 @@ fn role_evals_gate_blocks_missing_reference_artifacts() {
     );
 }
 
-/// The full epoch gate: every role >= threshold, zero `NOT_APPLICABLE`, E2 OPEN.
+/// Process-free gate logic: every role >= threshold, zero `NOT_APPLICABLE`, E2 OPEN.
 /// Stage 0 calibration (docs/decisions/role-eval-thresholds.md) produced real
 /// scout/surveyor/sampler E1 reference artifacts, so all 7 roles now score
-/// instead of blocking on missing references. Current-code release checks are
-/// deliberately separate from this pure calibration scorer.
+/// instead of blocking on missing references. The explicit epoch-gate binary
+/// owns real Rust-builder command execution.
 #[test]
-fn role_evals_epoch_gate_e2_open() {
-    let report = evals::gate(&root(), "E2").unwrap();
+fn role_evals_gate_logic_e2_open_with_passing_rust_builder_evidence() {
+    let report = evals::evaluate_gate(&root(), "E2", passing_rust_builder_outcome()).unwrap();
     assert_eq!(
         report.lock_failures,
         Vec::<String>::new(),
