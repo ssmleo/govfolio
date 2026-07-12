@@ -1,6 +1,6 @@
 {
-  "version": 6,
-  "superseded_note": "goal 016: build-test-performance — role-scorer calibration split from exact-tree release verification",
+  "version": 7,
+  "superseded_note": "goal 113: register supervisor pre-receipt denylist hardening (supersedes v6 for the 000-INDEX row)",
   "pinned": {
     "CLAUDE.md": "fce42193d6be6bc11ac690dde2a899cf4791957c52fb8f2a1952f1569bdd8070",
     "agents/EFFORT.md": "3a934c731fce7cff3ccb9ea3ebc7aad22683eeab608b3a291974db9ca715c613",
@@ -16,7 +16,7 @@
     "agents/archetypes/researcher.md": "566843cf0c2b5e359e3ce18b03afa0a390ca8c0184c5c67b56296315adfbcbdb",
     "agents/archetypes/synthesizer.md": "2dd0e9da4947fc6091823e07701c247a5a38e7d90f08c734b4a3b7604858c278",
     "agents/archetypes/verifier.md": "7436d980a8d0f5870ce53729bc4ea5d1a341f8a6af8feb25388c56a175db48cf",
-    "agents/goals/000-INDEX.md": "ab368c66a60a98e1997f76e8c0074756270324b0ee8cea02d019b24e60805c1e",
+    "agents/goals/000-INDEX.md": "09f26be9f72d04db8c7201b43ced8af75849f2c7b5b9a0ec534e9fff7a26a81e",
     "agents/roles/_PROPOSAL_TEMPLATE.md": "fdc1775971321a0d314f12a4c612896381f7e4479e3317c3a347eae08a03f0fc",
     "agents/roles/auditor.md": "46920e567ab1c11905e0d382e16f0b4bef3da099542b1d925f8739a79b8f9319",
     "agents/roles/orchestrator.md": "b120220e50cb9b98953ff82478d10e948f612428e44de2bf158d2c42f9f43206",
