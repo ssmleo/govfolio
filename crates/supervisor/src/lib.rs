@@ -12,6 +12,13 @@
 #![cfg_attr(test, allow(clippy::expect_used))]
 
 pub mod artifacts;
+pub mod build_classifier;
+pub mod build_policy;
+pub mod build_protocol;
+pub mod build_scheduler;
+pub mod build_service;
+pub mod build_store;
+pub mod build_transport;
 pub mod canary;
 pub mod config;
 pub mod failover;
