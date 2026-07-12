@@ -29,9 +29,10 @@ These controls prevent duplicate logical work and conflicting integration.
 They do not currently provide host-wide admission for expensive Cargo work.
 Cargo's build lock is scoped to one target directory, while lanes normally use
 private targets. Two lanes can therefore compile concurrently without sharing a
-Cargo lock, saturating CPU, memory, and disk or colliding on Windows executables.
+Cargo lock and saturate CPU, memory, and disk. A mistakenly shared target also
+reintroduces Windows executable/linker collisions.
 
-`jurisdiction-lease` is not a build-resource lease. `cargo-agent.ps1` configures
+`jurisdiction-lease` is not a build-resource lease. `scripts/dev/cargo-agent.ps1` configures
 the compiler cache and environment but does not schedule host capacity.
 
 ## Architecture
@@ -62,8 +63,11 @@ not edited, avoiding drift and preserving their existing user changes.
 
 The existing supervisor is the only authority allowed to schedule host build
 capacity. A future executable extension adds resource admission to its durable
-store; agents must not invent filesystem mutexes, database side channels, or a
-parallel coordinator.
+store and exposes it through an authenticated host-local JSON Lines protocol
+(Windows named pipe; Unix domain socket). The running supervisor remains the
+only control-store writer and launches admitted Cargo processes in its owned
+process groups. Agents must not invent filesystem mutexes, database side
+channels, or a parallel coordinator.
 
 The resource classes are:
 
@@ -75,7 +79,15 @@ The resource classes are:
 `cargo-exclusive` conflicts with both resource classes. Two
 `cargo-focused` holders may coexist. Capacity is host configuration owned by
 the supervisor; the defaults above target the current 16-logical-CPU Windows
-host and remain conservative.
+host and remain conservative. Admission also sets an effective job budget:
+six jobs per focused holder and fourteen for an exclusive holder, leaving host
+capacity for the supervisor and operating system. Memory and disk headroom are
+checked before a queued request starts.
+
+Requests are FIFO within class. Once an exclusive request is queued, later
+focused requests cannot pass it: current focused holders finish, then the
+oldest exclusive request runs. Queue waiting is supervisor state, not an agent
+retry loop.
 
 Each admission record contains:
 
@@ -92,6 +104,19 @@ The supervisor rejects acquisition when capacity or conflict rules would be
 violated. A stale holder is recovered through the existing fenced recovery
 path; agents never delete another holder's record.
 
+The active supervisor loads the authority-pinned canonical policy, stores its
+content hash and source commit, and records that hash on every admission. A
+policy mismatch blocks only new admission. It never resets, deletes, cleans,
+rebases, or abandons the requesting worktree. An in-flight admitted command may
+finish under its acquired hash; queued and later commands must acknowledge the
+active hash.
+
+Clean stale worktrees may resume in place in `historical_contract` mode when
+their governed files equal either their trusted merge-base versions or the
+active versions and their changes exclude authority, policy, goal-queue,
+deployment, production, and integration-control paths. Dirty worktrees remain
+preserved and recovery-fenced until their changes are reviewed and committed.
+
 Until executable resource admission lands, the policy labels exclusivity as an
 unenforced precondition: an agent must inspect supervisor status and live
 Cargo/Rust processes, then halt rather than claim an exclusive measurement if
@@ -103,8 +128,9 @@ Every performance experiment follows this sequence:
 
 1. Declare the workload, acceptance threshold, regression veto, target path,
    expected duration, and evidence format.
-2. Obtain the applicable supervisor resource admission, or perform the honest
-   preflight fallback while executable admission is unavailable.
+2. Obtain the applicable supervisor resource admission through the local
+   control protocol, or perform the honest preflight fallback while executable
+   admission is unavailable.
 3. Capture one exploratory before/after pair with audit-ready output.
 4. Stop as `NO-GO` when the exploratory result has no useful signal.
 5. Only a promising result expands to three samples and additional edit
@@ -141,7 +167,7 @@ Timeout or exhausted retry produces `INCONCLUSIVE`, not another hidden loop.
 
 Audit-ready evidence is captured from the first recorded command and includes:
 
-- source commit and dirty-state check;
+- baseline and candidate commit and tree hashes plus dirty-state checks;
 - exact Cargo command;
 - stable toolchain and target triple;
 - lockfile hash and profile configuration;
@@ -162,8 +188,8 @@ levers remain documented so agents do not repeat them without new evidence.
 An “easy” measurement task must not hide dozens of commands. One agent task may
 contain at most:
 
-- one cold command;
-- three warm or edit samples; and
+- one cold baseline/candidate pair; or
+- three paired baseline/candidate warm or edit samples; and
 - their required reset commands.
 
 Larger matrices are split into separately reviewed tasks. Review happens after
@@ -173,7 +199,9 @@ are caught before expensive repetition.
 ## Authority and precedence
 
 - `CLAUDE.md` remains unchanged because it is authority-pinned.
-- `agents/goals/000-INDEX.md` remains unchanged because it is authority-pinned.
+- Goal 114 registration and canonical-policy pinning intentionally supersede
+  the original no-authority-change assumption: `agents/goals/000-INDEX.md` and
+  `agents/AUTHORITY.lock.json` change only through the authority amendment path.
 - A task-specific approved plan may impose stricter requirements.
 - Performance policy cannot authorize destructive cleanup, shared-target
   mutation, Bronze movement, production access, or unplanned external spend.
@@ -189,9 +217,11 @@ The cross-agent policy structure lands first:
 - `.claude/rules/build-performance.md` pointer.
 
 The supervisor resource-admission mechanism is a separate implementation plan
-and PR because it changes durable runtime state and provider enforcement. Until
-that PR lands, the canonical policy explicitly marks process inspection as an
-advisory, race-prone fallback.
+and PR because it changes durable runtime state and provider enforcement. It
+adds fenced request state, FIFO scheduling, job/headroom budgets, host-local
+IPC, supervised Cargo execution, policy refresh, and recovery. Until that PR
+lands, the canonical policy explicitly marks process inspection as an advisory,
+race-prone fallback.
 
 No benchmark harness is added in the policy PR. A harness follows only after
 the evidence schema has been exercised once without requiring a rerun.
@@ -206,7 +236,8 @@ The policy-structure PR is complete when:
   build-resource admission;
 - it never claims the process-inspection fallback is enforceable;
 - no policy text is duplicated across shims;
-- no authority-pinned file changes;
+- authority-pinned changes are limited to goal-114 registration and canonical-policy
+  pinning through the amendment path; `CLAUDE.md` remains unchanged;
 - no existing `.claude/agents/*.md` user change is touched; and
 - Markdown and repository authority validation pass.
 
@@ -219,9 +250,11 @@ admission tests pass on Windows-compatible paths.
 1. Land the canonical policy and discovery shims.
 2. Use the advisory preflight and time budgets immediately.
 3. Implement supervisor-owned resource admission in a separate PR.
-4. Change the policy status from advisory to enforced only after executable
-   cross-provider tests pass.
-5. Add a benchmark harness in a later PR if the evidence schema remains stable.
+4. Run the executable mechanism in shadow mode for at least 24 hours or 20 managed
+   commands, including Codex, Claude, interactive, and stale-worktree cases.
+5. Change the policy status from shadow to enforced only after executable
+   cross-provider and Windows recovery tests pass.
+6. Add a benchmark harness in a later PR if the evidence schema remains stable.
 
 Policy amendments update the canonical document's change log. Discovery shims
 change only when discovery mechanics change.
