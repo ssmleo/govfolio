@@ -25,6 +25,12 @@ running the deterministic contract validator. Any mismatch returns
 `BLOCKED(skill-contract)` and permits no task work. Repeat the full resolver, envelope,
 role, and receipt process for every nested dispatch.
 
+## Build performance
+
+Before compile, link, test-build, cache, benchmark, or CI build-time work, read and follow
+the authority-pinned canonical policy at
+`docs/decisions/build-performance-policy.md`.
+
 ## Project map (hybrid stack)
 - Rust data plane: `crates/core` (domain, serde+schemars, sqlx migrations) · `crates/pipeline`
   (adapter trait, conformance, stages) · `crates/adapters/<x>` (one crate each + fixtures)

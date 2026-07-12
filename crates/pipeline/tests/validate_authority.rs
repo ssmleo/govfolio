@@ -32,6 +32,11 @@ const INDEX: &str = "# Goal queue (ordered)\n\n\
 
 fn seed_tree(root: &Path) {
     write(root, "CLAUDE.md", "# root claude\n");
+    write(
+        root,
+        "docs/decisions/build-performance-policy.md",
+        "---\npolicy_id: govfolio-build-performance\nschema_version: 1\nstatus: advisory\n---\n",
+    );
     write(root, "agents/GOVERNANCE.md", "# governance\n");
     write(root, "agents/PROMPT.md", "# prompt\n");
     write(root, "agents/LOOP.md", "# loop\n");
@@ -144,6 +149,7 @@ fn validate_authority_clean_tree_exits_0() {
     let pinned = lock["pinned"].as_object().unwrap();
     for key in [
         "CLAUDE.md",
+        "docs/decisions/build-performance-policy.md",
         "agents/GOVERNANCE.md",
         "agents/goals/000-INDEX.md",
         "agents/roles/rust-builder.md",
@@ -397,6 +403,7 @@ fn validate_authority_check_path_denies_protected_surfaces_exit_2() {
         "agents/roles/brand-new-role.md",
         "agents/archetypes/doer.md",
         "agents/AUTHORITY.lock.json",
+        "docs/decisions/build-performance-policy.md",
         "AGENTS/GOVERNANCE.MD",
         "AGENTS/ROLES/RUST-BUILDER.MD",
         ".CLAUDE/SETTINGS.JSON",

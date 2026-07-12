@@ -4,6 +4,7 @@ import {
   chmodSync,
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -1402,6 +1403,30 @@ test("tracked AGENTS requires CLAUDE and the dispatch contract", () => {
   assert.match(contents, /resolve-codex-dispatch\.mjs/);
   assert.match(contents, /only permitted pre-receipt actions/i);
   assert.match(contents, /every nested dispatch/i);
+});
+
+test("Codex and Claude discover one canonical build performance policy", () => {
+  const canonicalPath = "docs/decisions/build-performance-policy.md";
+  const canonical = repositoryFile(canonicalPath);
+  const codex = repositoryFile("AGENTS.md");
+  const claude = repositoryFile(".claude/rules/build-performance.md");
+
+  assert.match(
+    canonical,
+    /^---\r?\npolicy_id: govfolio-build-performance\r?\nschema_version: 1\r?\nstatus: advisory\r?\n---/,
+  );
+  const canonicalStat = lstatSync(join(repositoryRoot, ...canonicalPath.split("/")));
+  assert.equal(canonicalStat.isFile(), true);
+  assert.equal(canonicalStat.isSymbolicLink(), false);
+  for (const [provider, shim] of [["Codex", codex], ["Claude", claude]]) {
+    assert.match(shim, /docs\/decisions\/build-performance-policy\.md/);
+    assert.doesNotMatch(shim, /focused capacity|exclusive jobs|no-progress deadline/i,
+      `${provider} shim duplicates canonical policy text`);
+  }
+  execFileSync("git", ["ls-files", "--error-unmatch", canonicalPath], {
+    cwd: repositoryRoot,
+    stdio: "ignore",
+  });
 });
 
 test("every pre-receipt boundary permits the mandatory CLAUDE read", () => {
