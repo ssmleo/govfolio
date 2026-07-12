@@ -1,0 +1,10 @@
+{
+  "schema_version": 2,
+  "experiment_id": "release3-build-cost-pilot-v4",
+  "manifest_sha256": "b3a1a2ab54b6f5e5d28d96402369efa19b8049e34927cba726632a8f81c7243f",
+  "exploratory_evidence_sha256": "b0535d930cb98efff9316791f212f00fbc55dce1162b14fbbc942951baa7515e",
+  "decision": "reject",
+  "reason": "A foreign Cargo build from another repository began during the first sample and its rustup child tree remained active through the second; the supervisor correctly cancelled only its own samples and retained INCONCLUSIVE evidence",
+  "auditor": "codex-root",
+  "reviewed_at": "2026-07-12T20:46:00Z"
+}

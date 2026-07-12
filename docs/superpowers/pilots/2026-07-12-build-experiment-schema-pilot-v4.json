@@ -1,0 +1,38 @@
+{
+  "schema_version": 2,
+  "experiment_id": "release3-build-cost-pilot-v4",
+  "lever": "Measure the cold loop-supervisor build-cost impact of the complete cross-provider enforcement Release 3",
+  "baseline": {
+    "commit": "41428349212b275b11dc4a3a01bd98a107ddf054",
+    "tree": "6593cfccbca123e1106756a4bf9c0226caa0b4e0",
+    "lockfile_sha256": "b63deb4d58b56bc841e0925a643869f094eed70cc0c4365fa13d54c9137f2f54",
+    "toolchain_sha256": "a6a0bbd29ffaa8182dc22d1d9149709f1091e47df40ed96eb8a78a711c66a4ce",
+    "linker_config_sha256": "2841e78c7068c12e637d9d3c74180b7b2ccb5a555f46324b7ec907ab39ac9dd9",
+    "profile_sha256": "658a2316b5b07aa3d58d56d4539f4967b1fab56d0f71a7104e4cf5a2398326d1"
+  },
+  "candidate": {
+    "commit": "0bebd44db753fcafd04f95eb4d2c01fb33975a42",
+    "tree": "a4d2ee611796b07b97db8dffd0c6219c978d8b0c",
+    "lockfile_sha256": "b63deb4d58b56bc841e0925a643869f094eed70cc0c4365fa13d54c9137f2f54",
+    "toolchain_sha256": "a6a0bbd29ffaa8182dc22d1d9149709f1091e47df40ed96eb8a78a711c66a4ce",
+    "linker_config_sha256": "2841e78c7068c12e637d9d3c74180b7b2ccb5a555f46324b7ec907ab39ac9dd9",
+    "profile_sha256": "658a2316b5b07aa3d58d56d4539f4967b1fab56d0f71a7104e4cf5a2398326d1"
+  },
+  "workload": {
+    "kind": "cold",
+    "cargo_args": ["check", "-p", "loop-supervisor", "--locked"]
+  },
+  "acceptance": {
+    "minimum_improvement_bps": 250,
+    "regression_veto_bps": 500
+  },
+  "target_strategy": "separate_private",
+  "expected_duration_seconds": 600,
+  "evidence_format": "govfolio-build-experiment-evidence-v2",
+  "policy_sha256": "0a0c2c1a187b54cbf17700bd980f5ecaf018b33384c8240cecbde3ca13f94f46",
+  "rerun_checkpoint": {
+    "prior_experiment_id": "release3-build-cost-pilot-v3",
+    "prior_result_sha256": "4a64653dc8c47ed4c96401e5e938749be50622c90b0dec28f21fe4f98e73c8b7",
+    "new_evidence_reason": "Windows process ownership now binds short-lived wrapper descendants to the supervisor-owned private target after the retained v3 false-positive"
+  }
+}

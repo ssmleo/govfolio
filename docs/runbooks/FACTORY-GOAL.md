@@ -45,7 +45,9 @@ to the scorer (silent non-convergence, no error). Each artifact: staged, adversa
 
 STAGE 0 DONE when `cargo test -p pipeline role_evals` PASSES (scout/surveyor/sampler at
 threshold — this genuinely requires the three artifacts to exist and score, regardless of
-whether the epoch gate blocks). Confirm `cargo run -p pipeline --bin epoch-gate -- E2` exits 0.
+whether the epoch gate blocks). This test is process-free scoring/gate-logic acceptance.
+Then intentionally run the heavyweight repository acceptance owner and confirm
+`cargo run -p pipeline --bin epoch-gate -- E2` exits 0.
 ONLY THEN proceed to Stage 1.
 
 ============================================================

@@ -27,6 +27,7 @@ pub fn foreign_govfolio_processes(
     worktree: &Path,
     supervisor_pid: u32,
     supervised_roots: &[u32],
+    supervised_target_dirs: &[std::path::PathBuf],
 ) -> Vec<ObservedProcess> {
     let parents = processes
         .iter()
@@ -54,12 +55,25 @@ pub fn foreign_govfolio_processes(
     }
     let repository = normalized(repository.to_string_lossy().as_ref());
     let worktree = normalized(worktree.to_string_lossy().as_ref());
+    let supervised_targets = supervised_target_dirs
+        .iter()
+        .map(|target| normalized(target.to_string_lossy().as_ref()))
+        .collect::<Vec<_>>();
     let mut foreign = processes
         .iter()
         .filter(|process| !excluded.contains(&process.pid))
         .filter(|process| is_rust_build_process(&process.name))
         .filter(|process| {
             let command = normalized(&process.command_line);
+            if !is_cargo_process(&process.name)
+                && rustc_out_dir(&process.command_line).is_some_and(|out_dir| {
+                    supervised_targets
+                        .iter()
+                        .any(|target| path_is_within(&out_dir, target))
+                })
+            {
+                return false;
+            }
             command.contains(&repository)
                 || command.contains(&worktree)
                 || is_cargo_process(&process.name)
@@ -94,6 +108,31 @@ fn is_rust_build_process(name: &str) -> bool {
 fn is_cargo_process(name: &str) -> bool {
     let name = name.to_ascii_lowercase();
     name.strip_suffix(".exe").unwrap_or(&name) == "cargo"
+}
+
+fn rustc_out_dir(command_line: &str) -> Option<String> {
+    let marker = "--out-dir";
+    let start = command_line.match_indices(marker).find_map(|(index, _)| {
+        let before = &command_line[..index];
+        let after = &command_line[index + marker.len()..];
+        (before.is_empty() || before.chars().next_back().is_some_and(char::is_whitespace))
+            .then_some(after)
+            .filter(|after| {
+                after.starts_with('=') || after.chars().next().is_some_and(char::is_whitespace)
+            })
+    })?;
+    let value = start.strip_prefix('=').unwrap_or(start).trim_start();
+    let raw = if let Some(quoted) = value.strip_prefix('"') {
+        quoted.split_once('"')?.0
+    } else {
+        value.split_whitespace().next()?
+    };
+    (!raw.is_empty()).then(|| normalized(raw))
+}
+
+fn path_is_within(candidate: &str, root: &str) -> bool {
+    let root = root.trim_end_matches('/');
+    candidate == root || candidate.starts_with(&format!("{root}/"))
 }
 
 fn normalized(value: &str) -> String {

@@ -14,6 +14,7 @@
 //! FINDING via its check detail — it never edits the artifact (freeze =
 //! supersede, never mutate).
 
+mod acceptance;
 mod reference;
 mod roles;
 
@@ -37,7 +38,7 @@ pub enum Role {
     SpecWriter,
     /// Phase 3 — fixtures + manifest + `expected.*.json` contracts.
     TestDesigner,
-    /// Phase 4 — frozen conformance corpus + recorded calibration evidence.
+    /// Phase 4 — the explicit full repository acceptance command block.
     RustBuilder,
     /// Cross-phase — audit journal line + goal-file findings sections.
     Auditor,
@@ -156,30 +157,24 @@ impl RoleReport {
     }
 }
 
-/// Scores one role against the frozen E1 reference under `root`.
-#[must_use]
-pub fn score_role(root: &Path, role: Role) -> RoleReport {
+/// Scores one process-free role against the frozen E1 reference under `root`.
+///
+/// # Errors
+/// `Role::RustBuilder` requires real command evidence and is only scored by
+/// [`full_gate`].
+pub fn score_artifact_role(root: &Path, role: Role) -> anyhow::Result<RoleReport> {
     let outcome = match role {
         Role::Scout => roles::scout(root),
         Role::Surveyor => roles::surveyor(root),
         Role::Sampler => roles::sampler(root),
         Role::SpecWriter => roles::spec_writer(root),
         Role::TestDesigner => roles::test_designer(root),
-        Role::RustBuilder => roles::rust_builder(root),
+        Role::RustBuilder => anyhow::bail!(
+            "rust-builder requires explicit repository acceptance; use evals::full_gate"
+        ),
         Role::Auditor => roles::auditor(root),
     };
-    RoleReport { role, outcome }
-}
-
-/// Scores every role in [`Role::ALL`] using only frozen artifacts and
-/// recorded calibration evidence. Current-code verification is a separate,
-/// commit-bound release gate.
-#[must_use]
-pub fn score_all(root: &Path) -> Vec<RoleReport> {
-    Role::ALL
-        .into_iter()
-        .map(|role| score_role(root, role))
-        .collect()
+    Ok(RoleReport { role, outcome })
 }
 
 /// Epoch-gate report: reference-bundle integrity + per-role scores +
@@ -204,26 +199,39 @@ impl GateReport {
     }
 }
 
-/// Runs the epoch gate: verifies the frozen reference bundle, scores every
-/// role, and blocks (fail closed) on lock drift, any applicable role below
-/// threshold, or any `NOT_APPLICABLE` role (missing reference artifacts —
-/// the epoch needs those phases live).
+/// Evaluates the epoch gate from process-free artifact scores and explicit
+/// Rust-builder command evidence. This function never starts a subprocess.
 ///
 /// # Errors
 /// An epoch other than `E2` — only the E1-reference-calibrated E2 gate is
 /// wired; later gates need their own reference bundles.
-pub fn gate(root: &Path, epoch: &str) -> anyhow::Result<GateReport> {
-    anyhow::ensure!(
-        epoch == "E2",
-        "only the E2 gate is wired (calibrated against the frozen E1 us_house reference); \
-         got {epoch:?} — later epoch gates need their own reference bundles (fail closed)"
-    );
+pub fn evaluate_gate(
+    root: &Path,
+    epoch: &str,
+    rust_builder: Outcome,
+) -> anyhow::Result<GateReport> {
+    ensure_supported_epoch(epoch)?;
     let lock_failures = verify_lock(root);
     let mut blockers: Vec<String> = lock_failures
         .iter()
         .map(|f| format!("reference bundle not intact: {f}"))
         .collect();
-    let roles = score_all(root);
+    let mut rust_builder = Some(rust_builder);
+    let roles = Role::ALL
+        .into_iter()
+        .map(|role| {
+            if role == Role::RustBuilder {
+                Ok(RoleReport {
+                    role,
+                    outcome: rust_builder.take().ok_or_else(|| {
+                        anyhow::anyhow!("Role::ALL contains RustBuilder more than once")
+                    })?,
+                })
+            } else {
+                score_artifact_role(root, role)
+            }
+        })
+        .collect::<anyhow::Result<Vec<_>>>()?;
     for report in &roles {
         match &report.outcome {
             Outcome::Scored { checks } => {
@@ -257,4 +265,72 @@ pub fn gate(root: &Path, epoch: &str) -> anyhow::Result<GateReport> {
         roles,
         blockers,
     })
+}
+
+fn ensure_supported_epoch(epoch: &str) -> anyhow::Result<()> {
+    anyhow::ensure!(
+        epoch == "E2",
+        "only the E2 gate is wired (calibrated against the frozen E1 us_house reference); \
+         got {epoch:?} — later epoch gates need their own reference bundles (fail closed)"
+    );
+    Ok(())
+}
+
+/// Runs the fail-closed epoch gate with the real Rust-builder repository
+/// acceptance block.
+///
+/// # Errors
+/// An epoch other than `E2` is rejected before any command is requested.
+pub fn full_gate(root: &Path, epoch: &str) -> anyhow::Result<GateReport> {
+    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
+    let mut runner = acceptance::ProcessCommandRunner;
+    full_gate_with_runner(root, epoch, &cargo, &mut runner)
+}
+
+fn full_gate_with_runner<R: acceptance::CommandRunner>(
+    root: &Path,
+    epoch: &str,
+    cargo: &str,
+    runner: &mut R,
+) -> anyhow::Result<GateReport> {
+    ensure_supported_epoch(epoch)?;
+    let rust_builder = acceptance::rust_builder_outcome_with_runner(root, cargo, runner);
+    evaluate_gate(root, epoch, rust_builder)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    fn passing_rust_builder_outcome() -> Outcome {
+        Outcome::Scored {
+            checks: vec![
+                Check::new(
+                    "conformance_us_house_5_of_5",
+                    true,
+                    "planned command passed",
+                ),
+                Check::new("cargo_fmt_check", true, "planned command passed"),
+                Check::new("cargo_clippy_deny_warnings", true, "planned command passed"),
+                Check::new("cargo_test_workspace", true, "planned command passed"),
+            ],
+        }
+    }
+
+    #[test]
+    fn ordinary_gate_evaluation_does_not_request_repository_acceptance() {
+        let root = crate::conformance::workspace_root();
+        let report = evaluate_gate(&root, "E2", passing_rust_builder_outcome()).unwrap();
+
+        assert!(report.open(), "current E2 evidence should remain green");
+        assert_eq!(
+            report
+                .roles
+                .iter()
+                .map(|report| report.role)
+                .collect::<Vec<_>>(),
+            Role::ALL
+        );
+    }
 }

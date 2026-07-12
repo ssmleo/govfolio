@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::ffi::OsStr;
 use std::fs::File;
 use std::io::{self, BufRead as _, BufReader, Write as _};
@@ -19,6 +20,12 @@ use ulid::Ulid;
 
 use crate::artifacts::{ArtifactPolicy, ArtifactStore, AttemptArtifactPolicy, atomic_write_new};
 use crate::build_classifier::ResourceClass;
+use crate::build_experiment::{
+    ExperimentEvaluation, ExperimentManifest, ExperimentOutcome, ExperimentReview,
+    SampleDisposition, SampleMeasurement, SamplePhase, SampleVariant, TreePin, WorkloadKind,
+    create_private_dir_all, deterministic_pair_order, evaluate_measurements, open_private_new,
+    parse_manifest, parse_review, sha256, write_immutable_bytes, write_immutable_json,
+};
 use crate::build_policy::{BuildPolicySnapshot, load_build_policy, load_build_policy_at_revision};
 use crate::build_protocol::{
     BuildControlRequest, BuildRequestMessage, ClientEnvelope, PROTOCOL_VERSION, ServerFrame,
@@ -53,7 +60,9 @@ use crate::preflight::{
     PreflightSuite, Probe, ProbeOutcome, ProviderCliProbe, RuntimeSeparationProbe,
     SkillContractProbe,
 };
-use crate::process::{ProcessOutputPaths, ProcessRunner, cancellation_pair};
+use crate::process::{
+    ProcessOutputPaths, ProcessRunner, cancellation_pair, should_retry_build_failure,
+};
 use crate::provider::{ClaudeAdapter, CodexAdapter, ProviderAdapter};
 use crate::store::{
     ControlStore, FailureObservation, FingerprintGate, LaneFence, LaneRuntimeContext, ProviderGate,
@@ -101,6 +110,16 @@ pub fn cli_main() -> anyhow::Result<u8> {
             "recover-build" => recover_build_client(required_arg(&args, 1, "build request id")?)
                 .await
                 .map(|()| 0),
+            "experiment-start" => {
+                experiment_start(required_arg(&args, 1, "experiment manifest path")?)
+                    .await
+                    .map(|()| 0)
+            }
+            "experiment-review" => {
+                experiment_review(required_arg(&args, 1, "experiment review path")?)
+                    .await
+                    .map(|()| 0)
+            }
             "status" => status().await.map(|()| 0),
             "doctor" => doctor().await.map(|()| 0),
             "backup" => backup().await.map(|()| 0),
@@ -134,7 +153,7 @@ pub fn cli_main() -> anyhow::Result<u8> {
 
 fn print_help() {
     println!(
-        "govfolio-loop run|once|serve-builds|build-policy|cargo [--class focused|exclusive] [--category name] [--policy-sha sha256] -- <cargo args>|status|recover-build <request-id>|doctor|backup|submit-receipt <json>|receipt-status <id>|integrate|recover-lane <lane-id>|probe-native-codex|canary <codex|claude> [skill]"
+        "govfolio-loop run|once|serve-builds|build-policy|cargo [--class focused|exclusive] [--category name] [--policy-sha sha256] -- <cargo args>|status|recover-build <request-id>|experiment-start <manifest.json>|experiment-review <review.json>|doctor|backup|submit-receipt <json>|receipt-status <id>|integrate|recover-lane <lane-id>|probe-native-codex|canary <codex|claude> [skill]"
     );
 }
 
@@ -402,6 +421,1442 @@ async fn run_unmanaged_cargo(args: &[String]) -> anyhow::Result<u8> {
         .code()
         .and_then(|code| u8::try_from(code).ok())
         .unwrap_or(1))
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ExperimentEnvironmentEvidence {
+    policy_sha256: String,
+    baseline: VariantEnvironmentEvidence,
+    candidate: VariantEnvironmentEvidence,
+    environment_overrides: Vec<(String, Option<String>)>,
+    environment_overrides_sha256: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct VariantEnvironmentEvidence {
+    source: TreePin,
+    cargo_version: String,
+    rustc_version: String,
+    linker_version: String,
+    target_triple: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ExperimentSampleEvidence {
+    measurement: SampleMeasurement,
+    request_id: Option<String>,
+    policy_sha256: String,
+    source_commit: String,
+    source_tree: String,
+    source_attestation_before_sha256: String,
+    source_attestation_after_sha256: Option<String>,
+    worktree: PathBuf,
+    target_dir: PathBuf,
+    target_fresh: bool,
+    edit_input_sha256: Option<String>,
+    redacted_command: Vec<String>,
+    command_artifact_sha256: String,
+    command_sha256: String,
+    queued_at: chrono::DateTime<Utc>,
+    started_at: chrono::DateTime<Utc>,
+    ended_at: chrono::DateTime<Utc>,
+    queue_wait_ms: Option<u64>,
+    cargo_ms: Option<u64>,
+    exit_code: Option<i32>,
+    request_state: String,
+    stderr_tail: String,
+    rebuilt_packages: Vec<String>,
+    interference_observations: Vec<String>,
+    stdout_sha256: String,
+    stderr_sha256: String,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ExperimentPhaseEvidence {
+    schema_version: u32,
+    experiment_id: String,
+    manifest_sha256: String,
+    phase: SamplePhase,
+    environment: ExperimentEnvironmentEvidence,
+    samples: Vec<ExperimentSampleEvidence>,
+    evaluation: ExperimentEvaluation,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct ExperimentFinalEvidence {
+    schema_version: u32,
+    experiment_id: String,
+    manifest_sha256: String,
+    review_sha256: Option<String>,
+    phase_evidence_sha256: Option<String>,
+    outcome: ExperimentOutcome,
+    baseline_median_ms: Option<u64>,
+    candidate_median_ms: Option<u64>,
+    improvement_bps: Option<i64>,
+    reason: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct RetainedArtifactEvidence {
+    path: PathBuf,
+    sha256: String,
+    size_bytes: u64,
+}
+
+async fn experiment_start(manifest_path: &str) -> anyhow::Result<()> {
+    let manifest_bytes = std::fs::read(manifest_path).context("read experiment manifest")?;
+    let parsed = parse_manifest(&manifest_bytes)?;
+    let paths = crate::config::RuntimePaths::discover()?;
+    paths.ensure()?;
+    let (active_policy, supervisor_fence, _) = query_build_policy(&paths)
+        .await
+        .context("experiment requires a running build admission server")?;
+    if active_policy.policy_sha256 != parsed.manifest.policy_sha256 {
+        bail!(
+            "experiment policy hash is stale; active policy is {}",
+            active_policy.policy_sha256
+        );
+    }
+    let repository = experiment_repository_root()?;
+    validate_experiment_tree_pins(&repository, &parsed.manifest)?;
+    let root = paths
+        .root
+        .join("experiments")
+        .join(&parsed.manifest.experiment_id);
+    validate_private_experiment_runtime(&paths.root)?;
+    claim_experiment_fingerprint(&paths.root, &parsed.manifest, &parsed.sha256)?;
+    let manifest_artifact = write_immutable_bytes(&root.join("manifest.json"), &manifest_bytes)?;
+    if manifest_artifact.sha256 != parsed.sha256 {
+        bail!("persisted experiment manifest hash changed");
+    }
+    let result_path = root.join("result.json");
+    if result_path.exists() {
+        let result_bytes = std::fs::read(&result_path)?;
+        let result: ExperimentFinalEvidence = serde_json::from_slice(&result_bytes)?;
+        println!(
+            "experiment={} outcome={:?} result_sha256={}",
+            result.experiment_id,
+            result.outcome,
+            sha256(&result_bytes)
+        );
+        return Ok(());
+    }
+    let exploratory_path = root.join("exploratory-evidence.json");
+    if exploratory_path.exists() {
+        bail!("exploratory evidence already exists; submit experiment-review");
+    }
+    match run_exploratory_phase(
+        &paths,
+        supervisor_fence,
+        &parsed.manifest,
+        &parsed.sha256,
+        &repository,
+        &root,
+    )
+    .await
+    {
+        Ok(evidence) => {
+            if let Err(error) = validate_phase_evidence(&parsed.manifest, &root, &evidence) {
+                write_experiment_inconclusive(
+                    &root,
+                    &parsed.manifest,
+                    &parsed.sha256,
+                    None,
+                    None,
+                    format!("exploratory evidence validation failed: {error:#}"),
+                )?;
+                return Ok(());
+            }
+            let evaluation = evidence.evaluation.clone();
+            let artifact = write_immutable_json(&exploratory_path, &evidence)?;
+            println!(
+                "experiment={} phase=exploratory evidence_sha256={} provisional_outcome={:?} awaiting_review=true",
+                parsed.manifest.experiment_id, artifact.sha256, evaluation.outcome
+            );
+        }
+        Err(error) => {
+            let reconciliation =
+                reconcile_experiment_requests(&paths, &parsed.manifest.experiment_id)
+                    .await
+                    .err()
+                    .map(|failure| format!("; reconciliation: {failure:#}"))
+                    .unwrap_or_default();
+            write_experiment_inconclusive(
+                &root,
+                &parsed.manifest,
+                &parsed.sha256,
+                None,
+                None,
+                format!("exploratory experiment failed closed: {error:#}{reconciliation}"),
+            )?;
+        }
+    }
+    Ok(())
+}
+
+async fn reconcile_experiment_requests(
+    paths: &crate::config::RuntimePaths,
+    experiment_id: &str,
+) -> anyhow::Result<()> {
+    let owner = format!("interactive:experiment:{experiment_id}");
+    let deadline = std::time::Instant::now() + StdDuration::from_secs(30);
+    let store = ControlStore::open_monitor(&paths.control_db).await?;
+    loop {
+        let active = store
+            .list_build_requests()
+            .await?
+            .into_iter()
+            .any(|request| {
+                request.owner_identity == owner
+                    && matches!(
+                        request.state,
+                        crate::build_store::BuildRequestState::Queued
+                            | crate::build_store::BuildRequestState::Running
+                    )
+            });
+        if !active {
+            return Ok(());
+        }
+        if std::time::Instant::now() >= deadline {
+            bail!("supervisor-owned request did not reconcile within 30 seconds");
+        }
+        sleep(StdDuration::from_millis(100)).await;
+    }
+}
+
+fn write_experiment_inconclusive(
+    root: &Path,
+    manifest: &ExperimentManifest,
+    manifest_sha256: &str,
+    review_sha256: Option<String>,
+    phase_evidence_sha256: Option<String>,
+    reason: String,
+) -> anyhow::Result<()> {
+    let partial = serde_json::json!({
+        "schema_version": 2,
+        "experiment_id": manifest.experiment_id,
+        "manifest_sha256": manifest_sha256,
+        "reason": reason,
+        "retained_artifacts": retained_sample_paths(root)?,
+    });
+    let partial_artifact = write_immutable_json(&root.join("failure-evidence.json"), &partial)?;
+    let result = ExperimentFinalEvidence {
+        schema_version: 2,
+        experiment_id: manifest.experiment_id.clone(),
+        manifest_sha256: manifest_sha256.to_owned(),
+        review_sha256,
+        phase_evidence_sha256: phase_evidence_sha256.or(Some(partial_artifact.sha256)),
+        outcome: ExperimentOutcome::Inconclusive,
+        baseline_median_ms: None,
+        candidate_median_ms: None,
+        improvement_bps: None,
+        reason,
+    };
+    let artifact = write_immutable_json(&root.join("result.json"), &result)?;
+    println!(
+        "experiment={} outcome=INCONCLUSIVE result_sha256={}",
+        manifest.experiment_id, artifact.sha256
+    );
+    Ok(())
+}
+
+fn retained_sample_paths(root: &Path) -> anyhow::Result<Vec<RetainedArtifactEvidence>> {
+    let samples = root.join("samples");
+    if !samples.exists() {
+        return Ok(Vec::new());
+    }
+    let mut retained = Vec::new();
+    collect_retained_files(root, &samples, &mut retained)?;
+    retained.sort_by(|left, right| left.path.cmp(&right.path));
+    Ok(retained)
+}
+
+fn collect_retained_files(
+    root: &Path,
+    directory: &Path,
+    retained: &mut Vec<RetainedArtifactEvidence>,
+) -> anyhow::Result<()> {
+    for entry in std::fs::read_dir(directory)? {
+        let entry = entry?;
+        if entry.file_type()?.is_dir() {
+            collect_retained_files(root, &entry.path(), retained)?;
+        } else if entry.file_type()?.is_file() {
+            let bytes = std::fs::read(entry.path())?;
+            retained.push(RetainedArtifactEvidence {
+                path: entry.path().strip_prefix(root)?.to_path_buf(),
+                sha256: sha256(&bytes),
+                size_bytes: u64::try_from(bytes.len()).context("retained artifact too large")?,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn validate_private_experiment_runtime(root: &Path) -> anyhow::Result<()> {
+    let metadata =
+        std::fs::symlink_metadata(root).context("inspect existing experiment state root")?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        bail!("experiment state root must be a real directory");
+    }
+    #[cfg(windows)]
+    {
+        let profile = PathBuf::from(
+            std::env::var_os("USERPROFILE").context("USERPROFILE is required for experiments")?,
+        );
+        let canonical_root = root
+            .canonicalize()
+            .context("canonicalize existing experiment state root")?;
+        let canonical_profile = profile
+            .canonicalize()
+            .context("canonicalize current user profile")?;
+        let root_key = canonical_root
+            .to_string_lossy()
+            .replace('/', "\\")
+            .to_ascii_lowercase();
+        let profile_key = canonical_profile
+            .to_string_lossy()
+            .replace('/', "\\")
+            .trim_end_matches('\\')
+            .to_ascii_lowercase();
+        if !root_key.starts_with(&format!("{profile_key}\\")) {
+            bail!("Windows experiment evidence must remain under the current user profile");
+        }
+    }
+    Ok(())
+}
+
+fn claim_experiment_fingerprint(
+    state_root: &Path,
+    manifest: &ExperimentManifest,
+    manifest_sha256: &str,
+) -> anyhow::Result<()> {
+    let mut semantic = serde_json::to_value(manifest)?;
+    let object = semantic
+        .as_object_mut()
+        .context("experiment manifest did not serialize as an object")?;
+    object.remove("experiment_id");
+    object.remove("lever");
+    object.remove("expected_duration_seconds");
+    object.remove("rerun_checkpoint");
+    let fingerprint = sha256(&serde_json::to_vec(&semantic)?);
+    let claims_root = state_root
+        .join("experiments/fingerprints")
+        .join(&fingerprint)
+        .join("claims");
+    create_private_dir_all(&claims_root)?;
+    let mut claims = std::fs::read_dir(&claims_root)?
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
+        .map(|entry| entry.path())
+        .collect::<Vec<_>>();
+    claims.sort();
+    let previous = if let Some(latest_path) = claims.last() {
+        let latest_bytes = std::fs::read(latest_path)?;
+        let binding: serde_json::Value = serde_json::from_slice(&latest_bytes)?;
+        if binding.get("manifest_sha256").and_then(Value::as_str) == Some(manifest_sha256) {
+            return Ok(());
+        }
+        let checkpoint = manifest
+            .rerun_checkpoint
+            .as_ref()
+            .context("semantic experiment already ran; an immutable rerun checkpoint with new evidence is required")?;
+        if binding.get("experiment_id").and_then(Value::as_str)
+            != Some(&checkpoint.prior_experiment_id)
+        {
+            bail!("rerun checkpoint does not name the fingerprint's prior experiment");
+        }
+        let prior_result = state_root
+            .join("experiments")
+            .join(&checkpoint.prior_experiment_id)
+            .join("result.json");
+        let prior_bytes =
+            std::fs::read(&prior_result).context("rerun checkpoint prior result is missing")?;
+        if sha256(&prior_bytes) != checkpoint.prior_result_sha256 {
+            bail!("rerun checkpoint does not bind the immutable prior result");
+        }
+        Some(serde_json::json!({
+            "claim_sha256": sha256(&latest_bytes),
+            "result_sha256": checkpoint.prior_result_sha256,
+        }))
+    } else {
+        None
+    };
+    let sequence = claims.len();
+    write_immutable_json(
+        &claims_root.join(format!("{sequence:08}-{}.json", manifest.experiment_id)),
+        &serde_json::json!({
+            "schema_version": 2,
+            "fingerprint_sha256": fingerprint,
+            "experiment_id": manifest.experiment_id,
+            "manifest_sha256": manifest_sha256,
+            "previous": previous,
+        }),
+    )?;
+    Ok(())
+}
+
+fn verify_experiment_checkout(worktree: &Path, pin: &TreePin) -> anyhow::Result<String> {
+    let head = experiment_git_text(worktree, &["rev-parse", "HEAD"])?;
+    let tree = experiment_git_text(worktree, &["rev-parse", "HEAD^{tree}"])?;
+    let status = experiment_git_text(
+        worktree,
+        &["status", "--porcelain", "--untracked-files=all"],
+    )?;
+    if head != pin.commit || tree != pin.tree || !status.is_empty() {
+        bail!("experiment checkout is no longer the exact clean pinned tree");
+    }
+    Ok(sha256(format!("{head}\n{tree}\n{status}\n").as_bytes()))
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "one validator keeps sample identity, source, timing, and artifact integrity atomic"
+)]
+fn validate_phase_evidence(
+    manifest: &ExperimentManifest,
+    root: &Path,
+    evidence: &ExperimentPhaseEvidence,
+) -> anyhow::Result<()> {
+    if evidence.schema_version != 2
+        || evidence.experiment_id != manifest.experiment_id
+        || evidence.environment.policy_sha256 != manifest.policy_sha256
+        || evidence.environment.baseline.source != manifest.baseline
+        || evidence.environment.candidate.source != manifest.candidate
+        || sha256(&serde_json::to_vec(
+            &evidence.environment.environment_overrides,
+        )?) != evidence.environment.environment_overrides_sha256
+    {
+        bail!("phase evidence metadata does not bind the experiment");
+    }
+    let mut expected = Vec::new();
+    if evidence.phase == SamplePhase::Exploratory && manifest.workload.kind != WorkloadKind::Cold {
+        expected.extend([
+            (SampleVariant::Baseline, SamplePhase::Preparation, 0),
+            (SampleVariant::Candidate, SamplePhase::Preparation, 0),
+        ]);
+    }
+    let pairs = if evidence.phase == SamplePhase::Confidence {
+        3
+    } else {
+        1
+    };
+    for ordinal in 0..pairs {
+        expected.extend(
+            deterministic_pair_order(&manifest.experiment_id, ordinal)
+                .into_iter()
+                .map(|variant| (variant, evidence.phase, ordinal)),
+        );
+    }
+    if evidence.samples.len() != expected.len() {
+        bail!("phase evidence has the wrong fixed sample count");
+    }
+    for (sample, expected_identity) in evidence.samples.iter().zip(expected) {
+        let identity = (
+            sample.measurement.variant,
+            sample.measurement.phase,
+            sample.measurement.ordinal,
+        );
+        if identity != expected_identity || sample.policy_sha256 != manifest.policy_sha256 {
+            bail!("phase evidence sample order or policy is invalid");
+        }
+        let pin = match sample.measurement.variant {
+            SampleVariant::Baseline => &manifest.baseline,
+            SampleVariant::Candidate => &manifest.candidate,
+        };
+        if sample.source_commit != pin.commit || sample.source_tree != pin.tree {
+            bail!("phase evidence sample source pin is invalid");
+        }
+        let expected_worktree = root.join(match sample.measurement.variant {
+            SampleVariant::Baseline => "checkouts/baseline/source",
+            SampleVariant::Candidate => "checkouts/candidate/source",
+        });
+        let expected_target = root.join(match sample.measurement.variant {
+            SampleVariant::Baseline => "targets/baseline",
+            SampleVariant::Candidate => "targets/candidate",
+        });
+        if sample.worktree.canonicalize()? != expected_worktree.canonicalize()?
+            || sample.target_dir != expected_target
+        {
+            bail!("phase evidence sample escaped its private checkout or target");
+        }
+        let attestation = verify_experiment_checkout(&sample.worktree, pin)?;
+        if sample.source_attestation_before_sha256 != attestation
+            || sample.source_attestation_after_sha256.as_deref() != Some(&attestation)
+        {
+            bail!("phase evidence source attestation is invalid");
+        }
+        if sample.started_at < sample.queued_at || sample.ended_at < sample.started_at {
+            bail!("phase evidence timestamps are not monotonic");
+        }
+        if sample.measurement.disposition == SampleDisposition::Completed
+            && (sample.request_id.is_none()
+                || sample.exit_code != Some(0)
+                || sample.cargo_ms.is_none()
+                || sample.measurement.wall_ms.is_none()
+                || sample.request_state != "completed")
+        {
+            bail!("completed sample lacks required admission or Cargo evidence");
+        }
+        if manifest.workload.kind == WorkloadKind::Cold && !sample.target_fresh {
+            bail!("cold sample target was not fresh");
+        }
+        let variant = match sample.measurement.variant {
+            SampleVariant::Baseline => "baseline",
+            SampleVariant::Candidate => "candidate",
+        };
+        let phase = match sample.measurement.phase {
+            SamplePhase::Preparation => "preparation",
+            SamplePhase::Exploratory => "exploratory",
+            SamplePhase::Confidence => "confidence",
+        };
+        let sample_root = root.join("samples").join(format!(
+            "{phase}-{:02}-{variant}",
+            sample.measurement.ordinal
+        ));
+        let command = std::fs::read(sample_root.join("command.json"))?;
+        let stdout = std::fs::read(sample_root.join("stdout.log"))?;
+        let stderr = std::fs::read(sample_root.join("stderr.log"))?;
+        if sha256(&command) != sample.command_artifact_sha256
+            || sample.command_sha256 != sample.command_artifact_sha256
+            || sha256(&stdout) != sample.stdout_sha256
+            || sha256(&stderr) != sample.stderr_sha256
+        {
+            bail!("phase evidence artifact hash mismatch");
+        }
+        let command_value: serde_json::Value = serde_json::from_slice(&command)?;
+        if command_value
+            != serde_json::json!({"program": "cargo", "args": manifest.workload.cargo_args})
+        {
+            bail!("phase evidence command does not match the immutable workload");
+        }
+    }
+    Ok(())
+}
+
+async fn run_exploratory_phase(
+    paths: &crate::config::RuntimePaths,
+    supervisor_fence: i64,
+    manifest: &ExperimentManifest,
+    manifest_sha256: &str,
+    repository: &Path,
+    root: &Path,
+) -> anyhow::Result<ExperimentPhaseEvidence> {
+    let baseline_worktree = ensure_experiment_checkout(
+        repository,
+        &root.join("checkouts/baseline/source"),
+        &manifest.baseline.commit,
+    )?;
+    let candidate_worktree = ensure_experiment_checkout(
+        repository,
+        &root.join("checkouts/candidate/source"),
+        &manifest.candidate.commit,
+    )?;
+    let baseline_target = root.join("targets/baseline");
+    let candidate_target = root.join("targets/candidate");
+    if baseline_target.exists() || candidate_target.exists() {
+        bail!("exploratory targets are not absent; interrupted experiment is INCONCLUSIVE");
+    }
+    let environment =
+        collect_experiment_environment(manifest, &baseline_worktree, &candidate_worktree)?;
+    let token = load_or_create_control_token(&paths.root)?;
+    let experiment_deadline = std::time::Instant::now() + StdDuration::from_hours(1);
+    let mut samples = Vec::with_capacity(4);
+    if manifest.workload.kind != WorkloadKind::Cold {
+        for variant in [SampleVariant::Baseline, SampleVariant::Candidate] {
+            let (pin, worktree, target) = match variant {
+                SampleVariant::Baseline => {
+                    (&manifest.baseline, &baseline_worktree, &baseline_target)
+                }
+                SampleVariant::Candidate => {
+                    (&manifest.candidate, &candidate_worktree, &candidate_target)
+                }
+            };
+            let remaining =
+                experiment_deadline.saturating_duration_since(std::time::Instant::now());
+            samples.push(
+                tokio::time::timeout(
+                    remaining,
+                    run_experiment_sample(
+                        paths,
+                        &token,
+                        supervisor_fence,
+                        manifest,
+                        root,
+                        pin,
+                        worktree,
+                        target,
+                        variant,
+                        SamplePhase::Preparation,
+                        0,
+                    ),
+                )
+                .await
+                .context("whole experiment deadline expired during warm preparation")??,
+            );
+        }
+    }
+    let order = deterministic_pair_order(&manifest.experiment_id, 0);
+    for variant in order {
+        let (pin, worktree, target) = match variant {
+            SampleVariant::Baseline => (&manifest.baseline, &baseline_worktree, &baseline_target),
+            SampleVariant::Candidate => {
+                (&manifest.candidate, &candidate_worktree, &candidate_target)
+            }
+        };
+        let remaining = experiment_deadline.saturating_duration_since(std::time::Instant::now());
+        samples.push(
+            tokio::time::timeout(
+                remaining,
+                run_experiment_sample(
+                    paths,
+                    &token,
+                    supervisor_fence,
+                    manifest,
+                    root,
+                    pin,
+                    worktree,
+                    target,
+                    variant,
+                    SamplePhase::Exploratory,
+                    0,
+                ),
+            )
+            .await
+            .context("whole experiment deadline expired")??,
+        );
+    }
+    let measurements = samples
+        .iter()
+        .map(|sample| sample.measurement.clone())
+        .collect::<Vec<_>>();
+    let evaluation = evaluate_measurements(manifest, &measurements)?;
+    Ok(ExperimentPhaseEvidence {
+        schema_version: 2,
+        experiment_id: manifest.experiment_id.clone(),
+        manifest_sha256: manifest_sha256.to_owned(),
+        phase: SamplePhase::Exploratory,
+        environment,
+        samples,
+        evaluation,
+    })
+}
+
+#[expect(
+    clippy::too_many_lines,
+    reason = "the review command enforces the fixed checkpoint before optional confidence sampling"
+)]
+async fn experiment_review(review_path: &str) -> anyhow::Result<()> {
+    let review_bytes = std::fs::read(review_path).context("read experiment review")?;
+    let review = parse_review(&review_bytes)?;
+    let paths = crate::config::RuntimePaths::discover()?;
+    paths.ensure()?;
+    validate_private_experiment_runtime(&paths.root)?;
+    let root = paths.root.join("experiments").join(review.experiment_id());
+    let manifest_bytes = std::fs::read(root.join("manifest.json"))
+        .context("experiment manifest snapshot is missing")?;
+    let parsed = parse_manifest(&manifest_bytes)?;
+    if parsed.sha256 != review.manifest_sha256()
+        || parsed.manifest.experiment_id != review.experiment_id()
+    {
+        bail!("review does not bind the immutable experiment manifest");
+    }
+    let result_path = root.join("result.json");
+    if result_path.exists() {
+        let result_bytes = std::fs::read(&result_path)?;
+        let result: ExperimentFinalEvidence = serde_json::from_slice(&result_bytes)?;
+        println!(
+            "experiment={} outcome={:?} result_sha256={}",
+            result.experiment_id,
+            result.outcome,
+            sha256(&result_bytes)
+        );
+        return Ok(());
+    }
+    let exploratory_bytes = std::fs::read(root.join("exploratory-evidence.json"))
+        .context("exploratory evidence is missing")?;
+    let exploratory_sha256 = sha256(&exploratory_bytes);
+    if exploratory_sha256 != review.exploratory_evidence_sha256() {
+        bail!("review does not bind the immutable exploratory evidence");
+    }
+    let exploratory: ExperimentPhaseEvidence = serde_json::from_slice(&exploratory_bytes)?;
+    if exploratory.schema_version != 2
+        || exploratory.experiment_id != parsed.manifest.experiment_id
+        || exploratory.phase != SamplePhase::Exploratory
+        || exploratory.manifest_sha256 != parsed.sha256
+    {
+        bail!("exploratory evidence does not bind the manifest");
+    }
+    validate_phase_evidence(&parsed.manifest, &root, &exploratory)?;
+    let reviewed_at =
+        chrono::DateTime::parse_from_rfc3339(review.reviewed_at())?.with_timezone(&Utc);
+    if exploratory
+        .samples
+        .iter()
+        .map(|sample| sample.ended_at)
+        .max()
+        .is_some_and(|last_sample| reviewed_at < last_sample)
+    {
+        bail!("experiment review predates the retained exploratory evidence");
+    }
+    let exploratory_measurements = exploratory
+        .samples
+        .iter()
+        .map(|sample| sample.measurement.clone())
+        .collect::<Vec<_>>();
+    let recomputed_exploratory =
+        evaluate_measurements(&parsed.manifest, &exploratory_measurements)?;
+    if recomputed_exploratory != exploratory.evaluation {
+        bail!("stored exploratory evaluation does not match raw samples");
+    }
+    let review_artifact = write_immutable_bytes(&root.join("review.json"), &review_bytes)?;
+    let (evaluation, phase_sha256) = match &review {
+        ExperimentReview::Reject { reason, .. } => (
+            ExperimentEvaluation {
+                outcome: if recomputed_exploratory.outcome == ExperimentOutcome::Inconclusive {
+                    ExperimentOutcome::Inconclusive
+                } else {
+                    ExperimentOutcome::NoGo
+                },
+                baseline_median_ms: exploratory.evaluation.baseline_median_ms,
+                candidate_median_ms: exploratory.evaluation.candidate_median_ms,
+                improvement_bps: exploratory.evaluation.improvement_bps,
+                reason: format!("auditor rejected exploratory evidence: {reason}"),
+            },
+            exploratory_sha256.clone(),
+        ),
+        ExperimentReview::RequestMatrixRerun { reason, .. } => {
+            write_immutable_bytes(&root.join("matrix-rerun-checkpoint.json"), &review_bytes)?;
+            (
+                ExperimentEvaluation {
+                    outcome: ExperimentOutcome::NoGo,
+                    baseline_median_ms: exploratory.evaluation.baseline_median_ms,
+                    candidate_median_ms: exploratory.evaluation.candidate_median_ms,
+                    improvement_bps: exploratory.evaluation.improvement_bps,
+                    reason: format!(
+                        "matrix rerun requires a new experiment after immutable checkpoint: {reason}"
+                    ),
+                },
+                exploratory_sha256.clone(),
+            )
+        }
+        ExperimentReview::Accept { .. }
+            if parsed.manifest.workload.kind == WorkloadKind::Cold
+                || recomputed_exploratory.outcome != ExperimentOutcome::Go =>
+        {
+            (recomputed_exploratory.clone(), exploratory_sha256.clone())
+        }
+        ExperimentReview::Accept { .. } => {
+            if let Some(experiment_deadline) = experiment_deadline_from(&exploratory) {
+                let (active_policy, supervisor_fence, _) = match query_build_policy(&paths).await {
+                    Ok(policy) => policy,
+                    Err(error) => {
+                        write_experiment_inconclusive(
+                            &root,
+                            &parsed.manifest,
+                            &parsed.sha256,
+                            Some(review_artifact.sha256),
+                            Some(exploratory_sha256),
+                            format!("confidence admission unavailable: {error:#}"),
+                        )?;
+                        return Ok(());
+                    }
+                };
+                if active_policy.policy_sha256 != parsed.manifest.policy_sha256 {
+                    write_experiment_inconclusive(
+                        &root,
+                        &parsed.manifest,
+                        &parsed.sha256,
+                        Some(review_artifact.sha256),
+                        Some(exploratory_sha256),
+                        "experiment policy changed before confidence sampling".to_owned(),
+                    )?;
+                    return Ok(());
+                }
+                let confidence = match run_confidence_phase(
+                    &paths,
+                    supervisor_fence,
+                    &parsed.manifest,
+                    &parsed.sha256,
+                    &root,
+                    exploratory.environment.clone(),
+                    experiment_deadline,
+                )
+                .await
+                {
+                    Ok(confidence) => confidence,
+                    Err(error) => {
+                        let reconciliation =
+                            reconcile_experiment_requests(&paths, &parsed.manifest.experiment_id)
+                                .await
+                                .err()
+                                .map(|failure| format!("; reconciliation: {failure:#}"))
+                                .unwrap_or_default();
+                        write_experiment_inconclusive(
+                            &root,
+                            &parsed.manifest,
+                            &parsed.sha256,
+                            Some(review_artifact.sha256),
+                            Some(exploratory_sha256),
+                            format!(
+                                "confidence experiment failed closed: {error:#}{reconciliation}"
+                            ),
+                        )?;
+                        return Ok(());
+                    }
+                };
+                validate_phase_evidence(&parsed.manifest, &root, &confidence)?;
+                let artifact =
+                    write_immutable_json(&root.join("confidence-evidence.json"), &confidence)?;
+                (confidence.evaluation, artifact.sha256)
+            } else {
+                (
+                    ExperimentEvaluation {
+                        outcome: ExperimentOutcome::Inconclusive,
+                        baseline_median_ms: recomputed_exploratory.baseline_median_ms,
+                        candidate_median_ms: recomputed_exploratory.candidate_median_ms,
+                        improvement_bps: recomputed_exploratory.improvement_bps,
+                        reason: "whole experiment deadline expired before confidence sampling"
+                            .to_owned(),
+                    },
+                    exploratory_sha256.clone(),
+                )
+            }
+        }
+    };
+    let result = ExperimentFinalEvidence {
+        schema_version: 2,
+        experiment_id: parsed.manifest.experiment_id,
+        manifest_sha256: parsed.sha256,
+        review_sha256: Some(review_artifact.sha256),
+        phase_evidence_sha256: Some(phase_sha256),
+        outcome: evaluation.outcome,
+        baseline_median_ms: evaluation.baseline_median_ms,
+        candidate_median_ms: evaluation.candidate_median_ms,
+        improvement_bps: evaluation.improvement_bps,
+        reason: evaluation.reason,
+    };
+    let artifact = write_immutable_json(&result_path, &result)?;
+    println!(
+        "experiment={} outcome={:?} result_sha256={}",
+        result.experiment_id, result.outcome, artifact.sha256
+    );
+    Ok(())
+}
+
+async fn run_confidence_phase(
+    paths: &crate::config::RuntimePaths,
+    supervisor_fence: i64,
+    manifest: &ExperimentManifest,
+    manifest_sha256: &str,
+    root: &Path,
+    environment: ExperimentEnvironmentEvidence,
+    experiment_deadline: std::time::Instant,
+) -> anyhow::Result<ExperimentPhaseEvidence> {
+    let baseline_worktree = root.join("checkouts/baseline/source");
+    let candidate_worktree = root.join("checkouts/candidate/source");
+    let baseline_target = root.join("targets/baseline");
+    let candidate_target = root.join("targets/candidate");
+    if !baseline_target.is_dir() || !candidate_target.is_dir() {
+        bail!("warm/edit confidence targets are missing; evidence is INCONCLUSIVE");
+    }
+    let token = load_or_create_control_token(&paths.root)?;
+    let mut samples = Vec::with_capacity(6);
+    for ordinal in 0..3 {
+        for variant in deterministic_pair_order(&manifest.experiment_id, ordinal) {
+            let (pin, worktree, target) = match variant {
+                SampleVariant::Baseline => {
+                    (&manifest.baseline, &baseline_worktree, &baseline_target)
+                }
+                SampleVariant::Candidate => {
+                    (&manifest.candidate, &candidate_worktree, &candidate_target)
+                }
+            };
+            let remaining =
+                experiment_deadline.saturating_duration_since(std::time::Instant::now());
+            samples.push(
+                tokio::time::timeout(
+                    remaining,
+                    run_experiment_sample(
+                        paths,
+                        &token,
+                        supervisor_fence,
+                        manifest,
+                        root,
+                        pin,
+                        worktree,
+                        target,
+                        variant,
+                        SamplePhase::Confidence,
+                        ordinal,
+                    ),
+                )
+                .await
+                .context("whole experiment deadline expired")??,
+            );
+        }
+    }
+    let measurements = samples
+        .iter()
+        .map(|sample| sample.measurement.clone())
+        .collect::<Vec<_>>();
+    let evaluation = evaluate_measurements(manifest, &measurements)?;
+    Ok(ExperimentPhaseEvidence {
+        schema_version: 2,
+        experiment_id: manifest.experiment_id.clone(),
+        manifest_sha256: manifest_sha256.to_owned(),
+        phase: SamplePhase::Confidence,
+        environment,
+        samples,
+        evaluation,
+    })
+}
+
+fn experiment_deadline_from(exploratory: &ExperimentPhaseEvidence) -> Option<std::time::Instant> {
+    let started_at = exploratory
+        .samples
+        .iter()
+        .map(|sample| sample.queued_at)
+        .min()?;
+    let deadline = started_at + Duration::hours(1);
+    let remaining = (deadline - Utc::now()).to_std().ok()?;
+    if remaining.is_zero() {
+        None
+    } else {
+        Some(std::time::Instant::now() + remaining)
+    }
+}
+
+#[expect(
+    clippy::too_many_arguments,
+    clippy::too_many_lines,
+    reason = "a sample binds the complete immutable experiment and admission identity"
+)]
+async fn run_experiment_sample(
+    paths: &crate::config::RuntimePaths,
+    token: &str,
+    supervisor_fence: i64,
+    manifest: &ExperimentManifest,
+    root: &Path,
+    pin: &TreePin,
+    worktree: &Path,
+    target: &Path,
+    variant: SampleVariant,
+    phase: SamplePhase,
+    ordinal: u32,
+) -> anyhow::Result<ExperimentSampleEvidence> {
+    let target_fresh = !target.exists();
+    if manifest.workload.kind == WorkloadKind::Cold && !target_fresh {
+        bail!("cold sample target already exists; evidence is INCONCLUSIVE");
+    }
+    let variant_name = match variant {
+        SampleVariant::Baseline => "baseline",
+        SampleVariant::Candidate => "candidate",
+    };
+    let phase_name = match phase {
+        SamplePhase::Preparation => "preparation",
+        SamplePhase::Exploratory => "exploratory",
+        SamplePhase::Confidence => "confidence",
+    };
+    let sample_root = root
+        .join("samples")
+        .join(format!("{phase_name}-{ordinal:02}-{variant_name}"));
+    create_private_dir_all(&sample_root)?;
+    let edit_input_sha256 =
+        if manifest.workload.kind == WorkloadKind::Edit && phase != SamplePhase::Preparation {
+            Some(refresh_experiment_edit_input(
+                worktree,
+                manifest
+                    .workload
+                    .edit_path
+                    .as_deref()
+                    .context("edit workload lost its validated edit_path")?,
+            )?)
+        } else {
+            None
+        };
+    let source_attestation_before_sha256 = verify_experiment_checkout(worktree, pin)?;
+    let command_artifact = write_immutable_json(
+        &sample_root.join("command.json"),
+        &serde_json::json!({"program": "cargo", "args": manifest.workload.cargo_args}),
+    )?;
+    let stdout_path = sample_root.join("stdout.log");
+    let stderr_path = sample_root.join("stderr.log");
+    let mut stdout = open_private_new(&stdout_path).context("create experiment stdout artifact")?;
+    let mut stderr = open_private_new(&stderr_path).context("create experiment stderr artifact")?;
+    let queued_at = Utc::now();
+    let queued = std::time::Instant::now();
+    let envelope = ClientEnvelope {
+        protocol_version: PROTOCOL_VERSION,
+        control_token: token.to_owned(),
+        request: BuildControlRequest::Build(BuildRequestMessage {
+            supervisor_fence,
+            lane_id: None,
+            lane_fence: None,
+            owner_identity: format!("interactive:experiment:{}", manifest.experiment_id),
+            policy_sha256: manifest.policy_sha256.clone(),
+            explicit_class: Some(ResourceClass::Exclusive),
+            category: Some(
+                match manifest.workload.kind {
+                    WorkloadKind::Cold => "experiment-cold",
+                    WorkloadKind::Warm | WorkloadKind::Edit => "experiment-warm",
+                }
+                .to_owned(),
+            ),
+            worktree: worktree.to_path_buf(),
+            target_dir: target.to_path_buf(),
+            cargo_args: manifest.workload.cargo_args.clone(),
+        }),
+    };
+    let mut request_id = None;
+    let mut admitted_at = None;
+    let mut admitted = None;
+    let mut terminal = None;
+    let mut protocol_error = None;
+    let stream_error = stream_control_request(&paths.root, &envelope, |frame| {
+        match frame {
+            ServerFrame::QueueHeartbeat { request_id: id, .. } => request_id = Some(id),
+            ServerFrame::Admission { request_id: id, .. } => {
+                request_id = Some(id);
+                admitted_at.get_or_insert_with(Utc::now);
+                admitted.get_or_insert_with(std::time::Instant::now);
+            }
+            ServerFrame::Stdout {
+                request_id: id,
+                bytes,
+            } => {
+                request_id = Some(id);
+                stdout.write_all(&bytes)?;
+            }
+            ServerFrame::Stderr {
+                request_id: id,
+                bytes,
+            } => {
+                request_id = Some(id);
+                stderr.write_all(&bytes)?;
+            }
+            ServerFrame::Terminal {
+                request_id: id,
+                state,
+                exit_code,
+            } => {
+                request_id = Some(id);
+                terminal = Some((state, exit_code));
+            }
+            ServerFrame::Error { code, message, .. } => {
+                writeln!(stderr, "build admission error {code}: {message}")?;
+                protocol_error = Some(format!("{code}: {message}"));
+            }
+            ServerFrame::Policy { .. } => {}
+        }
+        Ok(())
+    })
+    .await
+    .err()
+    .map(|error| format!("stream experiment sample: {error:#}"));
+    if let Some(message) = &stream_error {
+        writeln!(stderr, "{message}")?;
+        protocol_error = Some(message.clone());
+    }
+    stdout.flush()?;
+    stderr.flush()?;
+    drop(stdout);
+    drop(stderr);
+    let ended_at = Utc::now();
+    let started_at = admitted_at.unwrap_or(queued_at);
+    let wall_ms =
+        u64::try_from(admitted.unwrap_or(queued).elapsed().as_millis()).unwrap_or(u64::MAX);
+    let queue_wait_ms = admitted
+        .and_then(|started| started.checked_duration_since(queued))
+        .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX));
+    let stdout_bytes = std::fs::read(&stdout_path)?;
+    let stderr_bytes = std::fs::read(&stderr_path)?;
+    let (request_state, exit_code, mut disposition) = if let Some((state, exit_code)) = terminal {
+        let disposition = match state {
+            crate::build_store::BuildRequestState::Completed if exit_code == Some(0) => {
+                SampleDisposition::Completed
+            }
+            crate::build_store::BuildRequestState::Failed => SampleDisposition::Failed,
+            crate::build_store::BuildRequestState::TimedOut => SampleDisposition::TimedOut,
+            crate::build_store::BuildRequestState::Cancelled => SampleDisposition::Cancelled,
+            crate::build_store::BuildRequestState::Inconclusive
+            | crate::build_store::BuildRequestState::RecoveryRequired
+            | crate::build_store::BuildRequestState::Queued
+            | crate::build_store::BuildRequestState::Running
+            | crate::build_store::BuildRequestState::Completed => SampleDisposition::Inconclusive,
+        };
+        (
+            format!("{state:?}").to_ascii_lowercase(),
+            exit_code,
+            disposition,
+        )
+    } else {
+        (
+            protocol_error
+                .clone()
+                .unwrap_or_else(|| "missing_terminal_frame".to_owned()),
+            None,
+            SampleDisposition::Inconclusive,
+        )
+    };
+    if disposition == SampleDisposition::Failed
+        && should_retry_build_failure(exit_code, &stderr_bytes, false, 0)
+    {
+        disposition = SampleDisposition::Inconclusive;
+    }
+    let source_attestation_after = verify_experiment_checkout(worktree, pin);
+    let source_attestation_after_sha256 = source_attestation_after.as_ref().ok().cloned();
+    if let Err(error) = source_attestation_after {
+        disposition = SampleDisposition::Inconclusive;
+        protocol_error = Some(format!("post-sample source integrity failed: {error:#}"));
+    }
+    let cargo_ms = parse_cargo_duration_ms(&stderr_bytes);
+    let stderr_tail = bounded_tail(&stderr_bytes, 16 * 1024);
+    let interference_observations = if disposition == SampleDisposition::Inconclusive {
+        vec![protocol_error.unwrap_or_else(|| stderr_tail.clone())]
+    } else {
+        Vec::new()
+    };
+    Ok(ExperimentSampleEvidence {
+        measurement: SampleMeasurement {
+            variant,
+            phase,
+            ordinal,
+            wall_ms: Some(wall_ms),
+            disposition,
+        },
+        request_id,
+        policy_sha256: manifest.policy_sha256.clone(),
+        source_commit: pin.commit.clone(),
+        source_tree: pin.tree.clone(),
+        source_attestation_before_sha256,
+        source_attestation_after_sha256,
+        worktree: worktree.to_path_buf(),
+        target_dir: target.to_path_buf(),
+        target_fresh,
+        edit_input_sha256,
+        redacted_command: redact_cargo_args(&manifest.workload.cargo_args),
+        command_artifact_sha256: command_artifact.sha256.clone(),
+        command_sha256: command_artifact.sha256,
+        queued_at,
+        started_at,
+        ended_at,
+        queue_wait_ms,
+        cargo_ms,
+        exit_code,
+        request_state,
+        stderr_tail,
+        rebuilt_packages: rebuilt_packages(&stderr_bytes),
+        interference_observations,
+        stdout_sha256: sha256(&stdout_bytes),
+        stderr_sha256: sha256(&stderr_bytes),
+    })
+}
+
+fn experiment_repository_root() -> anyhow::Result<PathBuf> {
+    let current = std::env::current_dir()?;
+    let output = Command::new("git")
+        .args([
+            "-C",
+            current.to_string_lossy().as_ref(),
+            "rev-parse",
+            "--show-toplevel",
+        ])
+        .output()
+        .context("locate experiment repository")?;
+    if !output.status.success() {
+        bail!("experiment must start inside a Git worktree");
+    }
+    PathBuf::from(String::from_utf8(output.stdout)?.trim())
+        .canonicalize()
+        .context("canonicalize experiment repository")
+}
+
+fn validate_experiment_tree_pins(
+    repository: &Path,
+    manifest: &ExperimentManifest,
+) -> anyhow::Result<()> {
+    let ancestry = Command::new("git")
+        .arg("-C")
+        .arg(repository)
+        .args([
+            "merge-base",
+            "--is-ancestor",
+            &manifest.baseline.commit,
+            &manifest.candidate.commit,
+        ])
+        .status()
+        .context("validate experiment commit ancestry")?;
+    if !ancestry.success() {
+        bail!("candidate must descend from the exact baseline commit");
+    }
+    for pin in [&manifest.baseline, &manifest.candidate] {
+        let tree = experiment_git_text(
+            repository,
+            &["rev-parse", &format!("{}^{{tree}}", pin.commit)],
+        )?;
+        if tree != pin.tree {
+            bail!("experiment tree hash does not match commit {}", pin.commit);
+        }
+        for (path, expected) in [
+            ("Cargo.lock", &pin.lockfile_sha256),
+            ("rust-toolchain.toml", &pin.toolchain_sha256),
+            (".cargo/config.toml", &pin.linker_config_sha256),
+            ("Cargo.toml", &pin.profile_sha256),
+        ] {
+            let bytes =
+                experiment_git_bytes(repository, &["show", &format!("{}:{path}", pin.commit)])?;
+            if sha256(&bytes) != *expected {
+                bail!(
+                    "experiment {path} hash does not match commit {}",
+                    pin.commit
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+fn ensure_experiment_checkout(
+    repository: &Path,
+    checkout: &Path,
+    commit: &str,
+) -> anyhow::Result<PathBuf> {
+    if checkout.exists() {
+        let head = experiment_git_text(checkout, &["rev-parse", "HEAD"])?;
+        let status = experiment_git_text(checkout, &["status", "--porcelain"])?;
+        if head != commit || !status.is_empty() {
+            bail!("existing experiment checkout is not the exact clean immutable commit");
+        }
+        return checkout
+            .canonicalize()
+            .context("canonicalize experiment checkout");
+    }
+    if let Some(parent) = checkout.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+    let output = Command::new("git")
+        .args(["-c", "core.longpaths=true"])
+        .arg("-C")
+        .arg(repository)
+        .args(["worktree", "add", "--detach"])
+        .arg(checkout)
+        .arg(commit)
+        .output()
+        .context("create preserved experiment checkout")?;
+    if !output.status.success() {
+        bail!(
+            "create experiment checkout failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    checkout
+        .canonicalize()
+        .context("canonicalize experiment checkout")
+}
+
+fn collect_experiment_environment(
+    manifest: &ExperimentManifest,
+    baseline_worktree: &Path,
+    candidate_worktree: &Path,
+) -> anyhow::Result<ExperimentEnvironmentEvidence> {
+    if std::env::var_os("CARGO_BUILD_TARGET").is_some_and(|value| !value.is_empty()) {
+        bail!("experiments require the host target; CARGO_BUILD_TARGET is set");
+    }
+    let baseline = collect_variant_environment(&manifest.baseline, baseline_worktree)?;
+    let candidate = collect_variant_environment(&manifest.candidate, candidate_worktree)?;
+    let names = [
+        "RUSTFLAGS",
+        "CARGO_ENCODED_RUSTFLAGS",
+        "RUSTC_WRAPPER",
+        "RUSTC_WORKSPACE_WRAPPER",
+        "CARGO_PROFILE",
+        "CARGO_BUILD_TARGET",
+        "RUSTUP_TOOLCHAIN",
+        "CARGO_HOME",
+        "RUSTUP_HOME",
+        "CC",
+        "CXX",
+        "AR",
+        "LINKER",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .chain(std::env::vars_os().filter_map(|(name, _)| {
+        let name = name.to_string_lossy().into_owned();
+        let uppercase = name.to_ascii_uppercase();
+        (uppercase.starts_with("CARGO_PROFILE_")
+            || uppercase.starts_with("CARGO_TARGET_")
+            || matches!(uppercase.as_str(), "CARGO_INCREMENTAL" | "SCCACHE_DIR"))
+        .then_some(name)
+    }))
+    .collect::<BTreeSet<_>>();
+    let overrides = names
+        .into_iter()
+        .map(|name| {
+            let value = std::env::var_os(&name).map(|value| value.to_string_lossy().into_owned());
+            (name, value)
+        })
+        .collect::<Vec<_>>();
+    Ok(ExperimentEnvironmentEvidence {
+        policy_sha256: manifest.policy_sha256.clone(),
+        baseline,
+        candidate,
+        environment_overrides: overrides.clone(),
+        environment_overrides_sha256: sha256(&serde_json::to_vec(&overrides)?),
+    })
+}
+
+fn collect_variant_environment(
+    pin: &TreePin,
+    worktree: &Path,
+) -> anyhow::Result<VariantEnvironmentEvidence> {
+    let cargo_version = command_identity_at("cargo", &["--version"], worktree)?;
+    let rustc_version = command_identity_at("rustc", &["-vV"], worktree)?;
+    let target_triple = rustc_version
+        .lines()
+        .find_map(|line| line.strip_prefix("host: "))
+        .context("rustc -vV did not report a host target")?
+        .to_owned();
+    let linker_version = if target_triple.contains("windows-msvc") {
+        command_identity_at("link.exe", &["/?"], worktree)?
+    } else if target_triple.contains("windows-gnu") {
+        command_identity_at("gcc", &["--version"], worktree)?
+    } else {
+        command_identity_at("cc", &["--version"], worktree)?
+    };
+    Ok(VariantEnvironmentEvidence {
+        source: pin.clone(),
+        cargo_version,
+        rustc_version,
+        linker_version,
+        target_triple,
+    })
+}
+
+fn command_identity_at(program: &str, args: &[&str], worktree: &Path) -> anyhow::Result<String> {
+    let output = Command::new(program)
+        .args(args)
+        .current_dir(worktree)
+        .output()
+        .with_context(|| format!("run {program} identity command"))?;
+    if !output.status.success() {
+        bail!("{program} identity command failed");
+    }
+    let bytes = if output.stdout.is_empty() {
+        output.stderr
+    } else {
+        output.stdout
+    };
+    let value = String::from_utf8(bytes)?;
+    if value.trim().is_empty() {
+        bail!("{program} identity command returned no version");
+    }
+    Ok(value.trim().to_owned())
+}
+
+fn experiment_git_text(repository: &Path, args: &[&str]) -> anyhow::Result<String> {
+    Ok(String::from_utf8(experiment_git_bytes(repository, args)?)?
+        .trim()
+        .to_owned())
+}
+
+fn experiment_git_bytes(repository: &Path, args: &[&str]) -> anyhow::Result<Vec<u8>> {
+    let output = Command::new("git")
+        .args(["-c", "core.longpaths=true"])
+        .arg("-C")
+        .arg(repository)
+        .args(args)
+        .output()
+        .context("read experiment Git object")?;
+    if !output.status.success() {
+        bail!(
+            "experiment Git command failed: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    Ok(output.stdout)
+}
+
+fn parse_cargo_duration_ms(stderr: &[u8]) -> Option<u64> {
+    let text = String::from_utf8_lossy(stderr);
+    let pattern = regex::Regex::new(r"Finished[^\n]* in (?:(\d+)m )?([0-9.]+)s").ok()?;
+    pattern.captures_iter(&text).last().and_then(|captures| {
+        let minutes = captures
+            .get(1)
+            .map_or(Ok(0.0), |value| value.as_str().parse::<f64>())
+            .ok()?;
+        let seconds = captures.get(2)?.as_str().parse::<f64>().ok()?;
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        Some(((minutes * 60.0 + seconds) * 1_000.0).round() as u64)
+    })
+}
+
+fn rebuilt_packages(stderr: &[u8]) -> Vec<String> {
+    let Ok(ansi) = regex::Regex::new(r"\x1b\[[0-9;]*m") else {
+        return Vec::new();
+    };
+    let decoded = String::from_utf8_lossy(stderr);
+    let text = ansi.replace_all(&decoded, "");
+    let mut packages = BTreeSet::new();
+    for line in text.lines() {
+        let mut fields = line.split_whitespace();
+        if fields
+            .next()
+            .is_some_and(|verb| matches!(verb, "Compiling" | "Checking"))
+            && let Some(package) = fields.next()
+        {
+            packages.insert(package.to_owned());
+        }
+    }
+    packages.into_iter().collect()
+}
+
+fn bounded_tail(bytes: &[u8], maximum: usize) -> String {
+    let start = bytes.len().saturating_sub(maximum);
+    String::from_utf8_lossy(&bytes[start..]).into_owned()
+}
+
+fn refresh_experiment_edit_input(worktree: &Path, relative: &Path) -> anyhow::Result<String> {
+    let path = worktree.join(relative);
+    let metadata = std::fs::symlink_metadata(&path)
+        .with_context(|| format!("inspect edit input {}", path.display()))?;
+    if !metadata.file_type().is_file() || metadata.file_type().is_symlink() {
+        bail!("edit input must be a regular non-symlinked file");
+    }
+    let canonical_worktree = worktree.canonicalize()?;
+    let canonical_path = path.canonicalize()?;
+    if !canonical_path.starts_with(&canonical_worktree) {
+        bail!("edit input escapes its experiment worktree");
+    }
+    let bytes = std::fs::read(&canonical_path)?;
+    let before = sha256(&bytes);
+    let mut file = std::fs::OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .open(&canonical_path)?;
+    file.write_all(&bytes)?;
+    file.flush()?;
+    file.sync_all()?;
+    if sha256(&std::fs::read(&canonical_path)?) != before {
+        bail!("edit input bytes changed while preparing representative rebuild");
+    }
+    Ok(before)
+}
+
+fn redact_cargo_args(args: &[String]) -> Vec<String> {
+    args.iter()
+        .map(|arg| {
+            let normalized = arg.to_ascii_lowercase();
+            if ["token", "password", "secret", "api_key", "apikey"]
+                .iter()
+                .any(|marker| normalized.contains(marker))
+            {
+                "<redacted>".to_owned()
+            } else {
+                arg.clone()
+            }
+        })
+        .collect()
 }
 
 async fn recover_build_client(request_id: &str) -> anyhow::Result<()> {
@@ -3846,6 +5301,70 @@ mod tests {
         assert_eq!(
             failure_fingerprint(&attempt, &result(Some(Utc::now()))),
             failure_fingerprint(&attempt, &result(None))
+        );
+    }
+
+    #[test]
+    fn experiment_edit_refresh_changes_no_source_bytes() {
+        let temp = tempfile::tempdir().expect("temp worktree");
+        let source = temp.path().join("src/lib.rs");
+        std::fs::create_dir_all(source.parent().expect("source parent"))
+            .expect("create source parent");
+        std::fs::write(&source, b"pub fn unchanged() {}\n").expect("write source");
+        let before = std::fs::read(&source).expect("read source");
+
+        let hash = refresh_experiment_edit_input(temp.path(), Path::new("src/lib.rs"))
+            .expect("refresh exact bytes");
+
+        assert_eq!(hash, sha256(&before));
+        assert_eq!(
+            std::fs::read(source).expect("read refreshed source"),
+            before
+        );
+    }
+
+    #[test]
+    fn experiment_fingerprint_blocks_id_only_reruns() {
+        let bytes = std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join(
+            "../../docs/superpowers/pilots/2026-07-12-build-experiment-schema-pilot-v3.json",
+        ))
+        .expect("pilot manifest");
+        let parsed = parse_manifest(&bytes).expect("valid pilot");
+        let state = tempfile::tempdir().expect("state");
+        claim_experiment_fingerprint(state.path(), &parsed.manifest, &parsed.sha256)
+            .expect("first semantic experiment claims fingerprint");
+
+        let mut repeated = parsed.manifest;
+        repeated.experiment_id = "release3-build-cost-pilot-copy".to_owned();
+        let repeated_bytes = serde_json::to_vec(&repeated).expect("repeated manifest bytes");
+        assert!(
+            claim_experiment_fingerprint(state.path(), &repeated, &sha256(&repeated_bytes))
+                .is_err()
+        );
+
+        let prior_result = write_immutable_json(
+            &state
+                .path()
+                .join("experiments/release3-build-cost-pilot-v3/result.json"),
+            &serde_json::json!({"outcome": "NO-GO"}),
+        )
+        .expect("prior result");
+        repeated.rerun_checkpoint = Some(crate::build_experiment::ExperimentRerunCheckpoint {
+            prior_experiment_id: "release3-build-cost-pilot-v3".to_owned(),
+            prior_result_sha256: prior_result.sha256,
+            new_evidence_reason: "new compiler version".to_owned(),
+        });
+        let repeated_bytes = serde_json::to_vec(&repeated).expect("checkpointed manifest bytes");
+        claim_experiment_fingerprint(state.path(), &repeated, &sha256(&repeated_bytes))
+            .expect("checkpointed rerun appends a claim");
+
+        let mut stale_chain = repeated;
+        stale_chain.experiment_id = "release3-build-cost-pilot-third".to_owned();
+        let stale_bytes = serde_json::to_vec(&stale_chain).expect("stale chain bytes");
+        assert!(
+            claim_experiment_fingerprint(state.path(), &stale_chain, &sha256(&stale_bytes))
+                .is_err(),
+            "the original checkpoint cannot be reused after a newer claim"
         );
     }
 }

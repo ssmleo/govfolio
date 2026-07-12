@@ -27,7 +27,7 @@ goal 024.
 Before scaling past one worker, also re-confirm live state (it moves fast in this repo):
 ```
 cargo run -p worker --bin check-br-identity-collisions          # must read PASS before any new br write pass
-cargo run -p pipeline --bin epoch-gate -- E2                    # confirm E2 gate status
+cargo run -p pipeline --bin epoch-gate -- E2                    # full repo acceptance + E2 verdict
 git log --oneline -15                                           # tail of agents/JOURNAL.md + 000-INDEX for anything closed since this runbook was written
 ```
 

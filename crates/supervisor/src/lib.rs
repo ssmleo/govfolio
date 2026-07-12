@@ -13,6 +13,7 @@
 
 pub mod artifacts;
 pub mod build_classifier;
+pub mod build_experiment;
 pub mod build_interference;
 pub mod build_policy;
 pub mod build_protocol;

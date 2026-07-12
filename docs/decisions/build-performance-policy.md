@@ -1,7 +1,7 @@
 ---
 policy_id: govfolio-build-performance
 schema_version: 1
-status: advisory
+status: shadow
 ---
 
 # Build performance policy
@@ -13,16 +13,12 @@ production access, or external spend.
 
 ## Status and enforcement
 
-The current status is **advisory**. Until executable supervisor admission lands, an agent
-must inspect supervisor status and live Cargo/Rust processes before an exclusive command.
-A busy or ambiguous host makes recorded measurement `INCONCLUSIVE`; the agent halts that
-experiment rather than claiming exclusivity. Process inspection is advisory and
-race-prone, not a lock.
-
-After executable admission lands, every governed autonomous or interactive session uses
-the supervisor client. Missing supervisor, invalid identity/fence, or stale policy hash
-fails before Cargo starts. The status advances through `shadow` and becomes `enforced`
-only after the rollout gates below pass.
+The current status is **shadow**. Executable supervisor admission is live for governed
+autonomous and interactive sessions, and violations are recorded while rollout evidence
+is accumulated. Missing supervisor, invalid identity/fence, or stale policy hash fails
+before managed Cargo starts. This status is not an enforcement-complete claim: it becomes
+`enforced` only after the duration, command-mix, safety, queue, Windows, and audit gates
+below pass.
 
 ## Command classes
 
@@ -147,3 +143,6 @@ The auditor checkpoint occurs after exploratory evidence and before confidence s
 ## Change log
 
 - 2026-07-12 — schema 1 created as advisory policy under goal 114.
+- 2026-07-12 — advanced to shadow after cross-provider admission merged so governed
+  commands can exercise executable routing and the schema-v2 audit pilot. Promotion still
+  requires the retained experiment, mixed-provider observation, and safety gates above.

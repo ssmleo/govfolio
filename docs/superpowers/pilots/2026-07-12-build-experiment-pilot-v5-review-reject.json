@@ -1,0 +1,10 @@
+{
+  "schema_version": 2,
+  "experiment_id": "release3-build-cost-pilot-v5",
+  "manifest_sha256": "0fc616f933e7825d448abc14a4438337cf32e689b00e3b1e5a64b529e13500c5",
+  "exploratory_evidence_sha256": "d0b43c1a1594ab3569c5a426dbf82794b18d4c686a14b48d00141c86fa32fbe7",
+  "decision": "reject",
+  "reason": "The baseline completed cleanly and proved the Windows ownership fix, but a new foreign Cargo run from another repository began during the candidate; the supervisor correctly invalidated only that measured command",
+  "auditor": "codex-root",
+  "reviewed_at": "2026-07-12T20:49:00Z"
+}

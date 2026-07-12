@@ -240,22 +240,22 @@ govfolio-loop experiment-start <manifest.json>
 govfolio-loop experiment-review <review.json>
 ```
 
-- [ ] Define schema version, experiment ID/lever, baseline and candidate commit/tree
+- [x] Define schema version, experiment ID/lever, baseline and candidate commit/tree
   hashes, workload, acceptance threshold, regression veto, target strategy, duration,
   evidence format, policy hash, and toolchain/linker/profile/lockfile hashes.
-- [ ] Exercise the schema once manually before implementing the harness; amend it once if
+- [x] Exercise the schema once manually before implementing the harness; amend it once if
   evidence is insufficient, then freeze that version.
-- [ ] Use separate private baseline/candidate targets; cold targets must be absent and
+- [x] Use separate private baseline/candidate targets; cold targets must be absent and
   Bronze paths are forbidden.
-- [ ] Exploratory phase runs one deterministic AB or BA baseline/candidate pair.
-- [ ] No useful signal is `NO-GO`; invalid environment, interference, timeout, or exhausted
+- [x] Exploratory phase runs one deterministic AB or BA baseline/candidate pair.
+- [x] No useful signal is `NO-GO`; invalid environment, interference, timeout, or exhausted
   retry is `INCONCLUSIVE`.
-- [ ] Confidence phase runs three alternating baseline and candidate samples and compares
+- [x] Confidence phase runs three alternating baseline and candidate samples and compares
   medians. Additional workloads are separate tasks.
-- [ ] Require an auditor checkpoint after exploratory evidence. It may accept or reject the
+- [x] Require an auditor checkpoint after exploratory evidence. It may accept or reject the
   fixed contract but cannot expand it.
-- [ ] Require a new immutable reason/command/cost checkpoint before a complete matrix rerun.
-- [ ] Capture redacted exact command artifact/hash, tree/toolchain/profile/lock hashes,
+- [x] Require a new immutable reason/command/cost checkpoint before a complete matrix rerun.
+- [x] Capture redacted exact command artifact/hash, tree/toolchain/profile/lock hashes,
   target freshness, timing, exits/stderr, rebuilt packages, raw samples, medians,
   interference, and retained artifact hashes.
 
@@ -268,6 +268,13 @@ Rollout:
    zero unexplained Cargo children, queue p95 below 15 minutes, Windows/cross-provider
    tests green, and one accepted exploratory experiment without rerun.
 4. Promotion changes only canonical policy status/change log and its authority hash.
+
+Current rollout state: `shadow`. Schema-v2 pilots v3-v5 are retained `INCONCLUSIVE` after
+first exposing a Windows wrapper-ancestry ownership bug and then detecting real foreign
+Cargo activity during measurement. The fix is proven by one clean completed v5 sample;
+the immutable v6 checkpoint is prepared but remains unstarted until the host is quiet.
+The accepted exploratory pair and 24-hour-or-20-command mixed-provider observation gate
+remain open, so this release makes no `enforced` claim.
 
 ## Final verification
 

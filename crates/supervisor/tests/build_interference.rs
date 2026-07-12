@@ -42,6 +42,7 @@ fn interference_filter_excludes_supervisor_tree_and_unrelated_rust_work() {
             Path::new(r"C:\projects\govfolio.io\lane"),
             10,
             &[11],
+            &[],
         )
         .is_empty()
     );
@@ -71,6 +72,7 @@ fn interference_filter_reports_foreign_govfolio_rust_without_killing_it() {
         Path::new(r"C:\projects\govfolio.io\lane"),
         10,
         &[],
+        &[],
     );
     assert_eq!(
         foreign.iter().map(|row| row.pid).collect::<Vec<_>>(),
@@ -90,6 +92,7 @@ fn pathless_foreign_cargo_is_treated_as_ambiguous_host_interference() {
         Path::new(r"C:\projects\govfolio.io\lane"),
         10,
         &[],
+        &[],
     );
     assert_eq!(foreign.iter().map(|row| row.pid).collect::<Vec<_>>(), [40]);
 }
@@ -108,6 +111,65 @@ fn relative_manifest_path_does_not_exempt_foreign_cargo() {
         Path::new(r"C:\projects\govfolio.io\lane"),
         10,
         &[],
+        &[],
     );
     assert_eq!(foreign.iter().map(|row| row.pid).collect::<Vec<_>>(), [41]);
+}
+
+#[test]
+fn orphaned_rustc_in_the_supervised_private_target_is_owned() {
+    let rows = vec![
+        process(10, 0, "govfolio-loop.exe", "govfolio-loop serve-builds"),
+        process(
+            12,
+            99,
+            "rustc.exe",
+            r"rustc C:\projects\govfolio.io\lane\src\lib.rs --out-dir C:\private\request-target\debug\deps",
+        ),
+        process(
+            20,
+            0,
+            "rustc.exe",
+            r"rustc C:\projects\govfolio.io\other\src\lib.rs --out-dir C:\projects\govfolio.io\target\debug\deps",
+        ),
+    ];
+    let foreign = foreign_govfolio_processes(
+        &rows,
+        Path::new(r"C:\projects\govfolio.io"),
+        Path::new(r"C:\projects\govfolio.io\lane"),
+        10,
+        &[11],
+        &[Path::new(r"C:\private\request-target").to_path_buf()],
+    );
+    assert_eq!(foreign.iter().map(|row| row.pid).collect::<Vec<_>>(), [20]);
+}
+
+#[test]
+fn target_prefix_or_reference_does_not_create_ownership() {
+    let rows = vec![
+        process(
+            21,
+            99,
+            "rustc.exe",
+            r"rustc --out-dir C:\private\request-target-foreign\debug C:\projects\govfolio.io\lane\src\lib.rs",
+        ),
+        process(
+            22,
+            99,
+            "rustc.exe",
+            r#"rustc C:\projects\govfolio.io\lane\src\lib.rs --out-dir="C:\foreign target\debug" --extern owned=C:\private\request-target\lib.rlib"#,
+        ),
+    ];
+    let foreign = foreign_govfolio_processes(
+        &rows,
+        Path::new(r"C:\projects\govfolio.io"),
+        Path::new(r"C:\projects\govfolio.io\lane"),
+        10,
+        &[11],
+        &[Path::new(r"C:\private\request-target").to_path_buf()],
+    );
+    assert_eq!(
+        foreign.iter().map(|row| row.pid).collect::<Vec<_>>(),
+        [21, 22]
+    );
 }

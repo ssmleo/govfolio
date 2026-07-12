@@ -775,6 +775,11 @@ impl BuildAdmissionServer {
         let mut deadline_cancelled = false;
         let mut recovery_reason = None;
         let mut interference_reason = None;
+        let supervised_target = command
+            .env
+            .iter()
+            .find_map(|(name, value)| (name == "CARGO_TARGET_DIR").then(|| PathBuf::from(value)))
+            .context("managed Cargo command lost its private target identity")?;
         loop {
             tokio::select! {
                 event = events_rx.recv() => {
@@ -826,7 +831,14 @@ impl BuildAdmissionServer {
                     }
                 }
                 _ = interference_tick.tick(), if measurement && interference_reason.is_none() => {
-                    match self.foreign_processes(&command.cwd, vec![identity.pid]).await {
+                    match self
+                        .foreign_processes(
+                            &command.cwd,
+                            vec![identity.pid],
+                            vec![supervised_target.clone()],
+                        )
+                        .await
+                    {
                         Ok(foreign) if !foreign.is_empty() => {
                             let pids = foreign
                                 .iter()
@@ -932,7 +944,7 @@ impl BuildAdmissionServer {
                 .filter_map(|request| request.process_identity.map(|identity| identity.pid))
                 .collect();
             let interference = match self
-                .foreign_processes(&record.worktree, supervised_roots)
+                .foreign_processes(&record.worktree, supervised_roots, Vec::new())
                 .await
             {
                 Ok(foreign) => !foreign.is_empty(),
@@ -1031,6 +1043,7 @@ impl BuildAdmissionServer {
         &self,
         worktree: &std::path::Path,
         supervised_roots: Vec<u32>,
+        supervised_target_dirs: Vec<PathBuf>,
     ) -> anyhow::Result<Vec<crate::build_interference::ObservedProcess>> {
         let repository = self.inner.repository.clone();
         let worktree = worktree.to_path_buf();
@@ -1043,6 +1056,7 @@ impl BuildAdmissionServer {
                 &worktree,
                 std::process::id(),
                 &supervised_roots,
+                &supervised_target_dirs,
             ))
         })
         .await
