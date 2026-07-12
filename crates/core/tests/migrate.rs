@@ -10,5 +10,5 @@ async fn migrator_is_idempotent(pool: sqlx::PgPool) {
         .fetch_one(&pool)
         .await
         .unwrap();
-    assert_eq!(n, 15); // 0000_init through 0014_integration_receipt
+    assert_eq!(n, 16); // 0000_init through 0015_historical_contract_receipt
 }

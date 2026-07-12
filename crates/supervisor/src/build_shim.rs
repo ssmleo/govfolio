@@ -50,10 +50,32 @@ pub fn install_cargo_shim(state_root: &Path, loop_binary: &Path) -> anyhow::Resu
 pub fn resolve_real_cargo(path: &OsStr, forbidden_root: &Path) -> anyhow::Result<PathBuf> {
     for directory in std::env::split_paths(path) {
         let candidate = directory.join(if cfg!(windows) { "cargo.exe" } else { "cargo" });
-        if candidate.is_file() && !candidate.starts_with(forbidden_root) {
-            return candidate
-                .canonicalize()
-                .with_context(|| format!("canonicalize real Cargo {}", candidate.display()));
+        if !candidate.is_file() {
+            continue;
+        }
+        let resolved_target = candidate
+            .canonicalize()
+            .with_context(|| format!("canonicalize real Cargo {}", candidate.display()))?;
+        let invocation_parent = candidate
+            .parent()
+            .context("Cargo candidate has no parent directory")?
+            .canonicalize()
+            .with_context(|| format!("canonicalize Cargo parent for {}", candidate.display()))?;
+        let invocation = invocation_parent.join(
+            candidate
+                .file_name()
+                .context("Cargo candidate has no file name")?,
+        );
+        let canonical_forbidden = forbidden_root.canonicalize().ok();
+        let is_forbidden = candidate.starts_with(forbidden_root)
+            || invocation.starts_with(forbidden_root)
+            || canonical_forbidden.as_ref().is_some_and(|forbidden| {
+                invocation.starts_with(forbidden) || resolved_target.starts_with(forbidden)
+            });
+        if !is_forbidden {
+            // Preserve the invocation name. Unix rustup proxies dispatch from argv[0], so
+            // launching the canonical target would run `rustup`, not `cargo`.
+            return Ok(invocation);
         }
     }
     bail!("real Cargo executable was not found before installing the supervisor shim")

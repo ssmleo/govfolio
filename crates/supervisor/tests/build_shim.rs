@@ -55,3 +55,21 @@ fn copied_supervisor_binary_dispatches_as_cargo() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[cfg(unix)]
+#[test]
+fn real_cargo_resolution_preserves_a_rustup_proxy_invocation_name() {
+    use std::os::unix::fs::symlink;
+
+    let temp = tempfile::tempdir().unwrap();
+    let bin = temp.path().join("bin");
+    std::fs::create_dir(&bin).unwrap();
+    let rustup = bin.join("rustup");
+    std::fs::write(&rustup, b"rustup proxy").unwrap();
+    symlink(&rustup, bin.join("cargo")).unwrap();
+
+    let resolved = resolve_real_cargo(bin.as_os_str(), &temp.path().join("forbidden")).unwrap();
+
+    assert_eq!(resolved, bin.canonicalize().unwrap().join("cargo"));
+    assert_ne!(resolved, rustup.canonicalize().unwrap());
+}
