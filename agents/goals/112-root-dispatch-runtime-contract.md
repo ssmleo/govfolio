@@ -39,12 +39,14 @@ worktrees remain clean until governed work begins.
 
 ## Checklist
 
-- [ ] Trusted root envelope composed before provider spawn
-- [ ] Exact structured root receipt required on completion
-- [ ] Prebuilt runtime tool paths explicitly sanitized into provider environment
-- [ ] Compiler canary cache isolated per lane
-- [ ] Tests, memory write-back, protected-main CI, and bounded relaunch green
+- [x] Trusted root envelope composed before provider spawn
+- [x] Exact structured root receipt required on completion
+- [x] Prebuilt runtime tool paths explicitly sanitized into provider environment
+- [x] Compiler canary cache isolated per lane
+- [ ] Tests, memory write-back, protected-main CI, and bounded relaunch green — code/tests/CI
+      are merged; the bounded Codex-lane/Claude-factory relaunch remains outstanding.
 
-## BLOCKED (human)
+## Remaining
 
-(empty)
+No human blocker. Run the bounded live acceptance after the provider canaries are current;
+keep the goal partial until both lane receipts and clean-worktree preconditions are proven.

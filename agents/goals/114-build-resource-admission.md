@@ -1,7 +1,10 @@
 # Goal 114 — cross-agent build resource admission
 
-Status: `[ ]` registered 2026-07-12 from the founder-approved cross-agent build
-admission plan. Execute only through the gated releases below.
+Status: `[~]` implementation merged through the `shadow` rollout stage on 2026-07-12.
+PR0–PR4 plus the Windows canary/admission follow-up are on `main`. Remaining work is the
+mixed-provider and stale-worktree command sample, the 24-hour-or-20-command observation,
+one accepted exploratory experiment, rollout metrics, and promotion to `enforced` only
+after every recorded gate passes.
 
 ## Objective
 
@@ -45,4 +48,3 @@ supervisor without discarding stale worktrees or creating a second coordinator.
 - Windows two-worktree proof covers focused concurrency, exclusive fairness, policy refresh
   byte preservation, stale-fence rejection, and evidence-preserving recovery.
 - Append-only runtime/operations memory and JOURNAL write-back land with the implementation.
-
