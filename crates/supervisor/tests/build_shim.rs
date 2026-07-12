@@ -40,6 +40,7 @@ fn copied_supervisor_binary_dispatches_as_cargo() {
     let shim = install_cargo_shim(temp.path(), std::path::Path::new(source)).unwrap();
     let output = Command::new(&shim.executable)
         .arg("--version")
+        .env("CARGO_TERM_COLOR", "never")
         .output()
         .unwrap();
     assert!(
@@ -47,5 +48,10 @@ fn copied_supervisor_binary_dispatches_as_cargo() {
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(String::from_utf8_lossy(&output.stdout).starts_with("cargo "));
+    assert!(
+        String::from_utf8_lossy(&output.stdout).starts_with("cargo "),
+        "stdout={:?}; stderr={:?}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

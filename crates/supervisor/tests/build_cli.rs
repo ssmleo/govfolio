@@ -53,8 +53,14 @@ fn build_protocol_cli_allows_unmanaged_version_passthrough_without_server() {
     let output = Command::new(env!("CARGO_BIN_EXE_govfolio-loop"))
         .args(["cargo", "--", "--version"])
         .env("GOVFOLIO_LOOP_STATE_DIR", temp.path())
+        .env("CARGO_TERM_COLOR", "never")
         .output()
         .unwrap();
     assert!(output.status.success());
-    assert!(String::from_utf8_lossy(&output.stdout).starts_with("cargo "));
+    assert!(
+        String::from_utf8_lossy(&output.stdout).starts_with("cargo "),
+        "stdout={:?}; stderr={:?}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

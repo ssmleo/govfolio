@@ -78,7 +78,11 @@ type DomainLeaseRow = (
 /// Entry point used by the pre-built `govfolio-loop` binary.
 pub fn cli_main() -> anyhow::Result<u8> {
     let mut args: Vec<String> = std::env::args().skip(1).collect();
-    if invoked_as_cargo() {
+    if std::env::current_exe()
+        .ok()
+        .and_then(|path| path.file_stem().map(OsStr::to_owned))
+        .is_some_and(|stem| stem.eq_ignore_ascii_case("cargo"))
+    {
         args.insert(0, "--".to_owned());
         args.insert(0, "cargo".to_owned());
     }
@@ -126,18 +130,6 @@ pub fn cli_main() -> anyhow::Result<u8> {
             unknown => bail!("unknown command {unknown:?}; use govfolio-loop help"),
         }
     })
-}
-
-fn invoked_as_cargo() -> bool {
-    std::env::args_os()
-        .next()
-        .as_deref()
-        .and_then(|path| Path::new(path).file_stem())
-        .is_some_and(|stem| stem.eq_ignore_ascii_case("cargo"))
-        || std::env::current_exe()
-            .ok()
-            .and_then(|path| path.file_stem().map(OsStr::to_owned))
-            .is_some_and(|stem| stem.eq_ignore_ascii_case("cargo"))
 }
 
 fn print_help() {
@@ -401,45 +393,11 @@ async fn run_unmanaged_cargo(args: &[String]) -> anyhow::Result<u8> {
     let inherited_path = std::env::var_os("PATH").unwrap_or_default();
     let paths = crate::config::RuntimePaths::discover()?;
     let cargo = resolve_real_cargo(&inherited_path, &paths.root.join("build-shims"))?;
-    let cargo_args = args.to_owned();
-    let status = tokio::task::spawn_blocking(move || {
-        let mut child = Command::new(cargo)
-            .args(cargo_args)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .context("run unmanaged Cargo passthrough")?;
-        let mut child_stdout = child
-            .stdout
-            .take()
-            .context("capture unmanaged Cargo stdout")?;
-        let mut child_stderr = child
-            .stderr
-            .take()
-            .context("capture unmanaged Cargo stderr")?;
-        let stdout = std::thread::spawn(move || {
-            let mut destination = io::stdout();
-            io::copy(&mut child_stdout, &mut destination)?;
-            destination.flush()
-        });
-        let stderr = std::thread::spawn(move || {
-            let mut destination = io::stderr();
-            io::copy(&mut child_stderr, &mut destination)?;
-            destination.flush()
-        });
-        let status = child
-            .wait()
-            .context("wait for unmanaged Cargo passthrough")?;
-        stdout
-            .join()
-            .map_err(|_| anyhow!("unmanaged Cargo stdout pump panicked"))??;
-        stderr
-            .join()
-            .map_err(|_| anyhow!("unmanaged Cargo stderr pump panicked"))??;
-        Ok::<_, anyhow::Error>(status)
-    })
-    .await
-    .context("join unmanaged Cargo passthrough task")??;
+    let status = tokio::process::Command::new(cargo)
+        .args(args)
+        .status()
+        .await
+        .context("run unmanaged Cargo passthrough")?;
     Ok(status
         .code()
         .and_then(|code| u8::try_from(code).ok())
