@@ -1,6 +1,6 @@
 {
-  "version": 12,
-  "superseded_note": "reconcile merged goal 112 and 114 status without claiming live rollout completion",
+  "version": 13,
+  "superseded_note": "goal 114: correct authority amendment commit provenance for status reconciliation",
   "pinned": {
     "CLAUDE.md": "fce42193d6be6bc11ac690dde2a899cf4791957c52fb8f2a1952f1569bdd8070",
     "agents/EFFORT.md": "3a934c731fce7cff3ccb9ea3ebc7aad22683eeab608b3a291974db9ca715c613",
