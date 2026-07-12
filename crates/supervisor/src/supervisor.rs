@@ -693,6 +693,11 @@ fn collect_retained_files(
 }
 
 fn validate_private_experiment_runtime(root: &Path) -> anyhow::Result<()> {
+    let metadata =
+        std::fs::symlink_metadata(root).context("inspect existing experiment state root")?;
+    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+        bail!("experiment state root must be a real directory");
+    }
     #[cfg(windows)]
     {
         let profile = PathBuf::from(
