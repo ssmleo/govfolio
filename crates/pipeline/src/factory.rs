@@ -908,6 +908,7 @@ pub const AUTHORITY_LOCK_PATH: &str = "agents/AUTHORITY.lock.json";
 /// (legitimately mutable) — the bijection check covers them.
 const AUTHORITY_FIXED: &[&str] = &[
     "CLAUDE.md",
+    "docs/decisions/build-performance-policy.md",
     "agents/GOVERNANCE.md",
     "agents/PROMPT.md",
     "agents/LOOP.md",

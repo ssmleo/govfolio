@@ -52,7 +52,7 @@ git diff --check
 
 ## Release 1 — Canonical policy and discovery
 
-- [ ] Create `docs/decisions/build-performance-policy.md` with exact front matter:
+- [x] Create `docs/decisions/build-performance-policy.md` with exact front matter:
 
   ```yaml
   ---
@@ -62,16 +62,16 @@ git diff --check
   ---
   ```
 
-- [ ] Define managed command classification, budgets, deadlines, evidence outcomes,
+- [x] Define managed command classification, budgets, deadlines, evidence outcomes,
   retry rules, queue behavior, stale-policy refresh, historical-contract restrictions,
   and the advisory process-inspection fallback in that one file.
-- [ ] Add pointer-only discovery text to root `AGENTS.md` and
+- [x] Add pointer-only discovery text to root `AGENTS.md` and
   `.claude/rules/build-performance.md`; do not modify `.claude/agents/*.md`.
-- [ ] Extend `validate-authority`'s pinned set and tests for the canonical policy, then
+- [x] Extend `validate-authority`'s pinned set and tests for the canonical policy, then
   regenerate the authority lock through an `authority/*` branch.
-- [ ] Extend Codex contract tests to prove both providers point to the same canonical
+- [x] Extend Codex contract tests to prove both providers point to the same canonical
   regular tracked file and that no policy body is duplicated.
-- [ ] Change `scripts/dev/cargo-agent.ps1` to invoke the supervisor Cargo client while
+- [x] Change `scripts/dev/cargo-agent.ps1` to invoke the supervisor Cargo client while
   preserving Cargo's exit code; retain the documented limitation that sccache cannot
   share compilation across distinct absolute target paths.
 
