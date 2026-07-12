@@ -1,6 +1,6 @@
 //! Exact provider compatibility canaries with mechanical skill-load evidence.
 
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, BufRead as _, BufReader};
 use std::path::{Component, Path, PathBuf};
 use std::time::Duration as StdDuration;
@@ -26,6 +26,8 @@ pub const SKILL_MARKER_SCHEMA: &str = "govfolio.skill-load/v1";
 const MAX_SKILL_BYTES: u64 = 1024 * 1024;
 const MAX_MARKER_BYTES: u64 = 16 * 1024;
 const MAX_EVENT_SCAN_BYTES: u64 = 1024 * 1024;
+const MAX_CODEX_ROLLOUT_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_CODEX_SESSION_ENTRIES: usize = 10_000;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -224,8 +226,17 @@ impl CanaryInvoker for ProcessCanaryInvoker {
             .await?;
         self.artifacts
             .write_json(&attempt.result_path(), &execution.result)?;
-        let (reported_model, skill_load_event) =
+        let (mut reported_model, skill_load_event) =
             inspect_structured_events(&attempt.events_path(), provider, skill)?;
+        if reported_model.is_none()
+            && provider == Provider::Codex
+            && let Some(session_id) = execution.result.session_id.as_deref()
+            && let Some(proof) = codex_rollout_model_proof(command, session_id)?
+        {
+            self.artifacts
+                .write_json(&attempt.directory().join("model-proof.json"), &proof)?;
+            reported_model = Some(proof.model);
+        }
         Ok(CanaryInvocation {
             result: execution.result,
             reported_model,
@@ -235,6 +246,195 @@ impl CanaryInvoker for ProcessCanaryInvoker {
             skill_load_event,
         })
     }
+}
+
+#[derive(Debug, Serialize)]
+struct CodexRolloutModelProof {
+    schema: &'static str,
+    session_id: String,
+    model: String,
+    model_provider: String,
+    model_event_count: usize,
+    model_events_sha256: String,
+    rollout_file: String,
+}
+
+fn codex_rollout_model_proof(
+    command: &CommandSpec,
+    session_id: &str,
+) -> io::Result<Option<CodexRolloutModelProof>> {
+    if session_id.is_empty()
+        || session_id.len() > 128
+        || !session_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Codex returned an unsafe session identifier",
+        ));
+    }
+    let Some(codex_home) = command_environment_path(command, "CODEX_HOME").or_else(|| {
+        command_environment_path(command, "USERPROFILE")
+            .or_else(|| command_environment_path(command, "HOME"))
+            .map(|home| home.join(".codex"))
+    }) else {
+        return Ok(None);
+    };
+    let sessions = codex_home.join("sessions");
+    if !sessions.is_dir() {
+        return Ok(None);
+    }
+    let mut matches = Vec::new();
+    let mut entries = 0_usize;
+    collect_codex_rollouts(&sessions, session_id, 0, &mut entries, &mut matches)?;
+    if matches.is_empty() {
+        return Ok(None);
+    }
+    if matches.len() != 1 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Codex session identifier matched multiple rollout files",
+        ));
+    }
+    parse_codex_rollout_model(&matches[0], session_id).map(Some)
+}
+
+fn command_environment_path(command: &CommandSpec, key: &str) -> Option<PathBuf> {
+    command
+        .env
+        .iter()
+        .find(|(candidate, value)| candidate.eq_ignore_ascii_case(key) && !value.is_empty())
+        .map(|(_, value)| PathBuf::from(value))
+}
+
+fn collect_codex_rollouts(
+    directory: &Path,
+    session_id: &str,
+    depth: usize,
+    entries: &mut usize,
+    matches: &mut Vec<PathBuf>,
+) -> io::Result<()> {
+    if depth > 4 {
+        return Ok(());
+    }
+    let expected_suffix = format!("-{session_id}.jsonl");
+    for entry in fs::read_dir(directory)? {
+        *entries = entries.saturating_add(1);
+        if *entries > MAX_CODEX_SESSION_ENTRIES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Codex session tree exceeded the bounded entry scan",
+            ));
+        }
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        if file_type.is_dir() {
+            collect_codex_rollouts(&entry.path(), session_id, depth + 1, entries, matches)?;
+        } else if file_type.is_file()
+            && entry
+                .file_name()
+                .to_string_lossy()
+                .ends_with(&expected_suffix)
+        {
+            matches.push(entry.path());
+        }
+    }
+    Ok(())
+}
+
+fn parse_codex_rollout_model(
+    path: &Path,
+    expected_session_id: &str,
+) -> io::Result<CodexRolloutModelProof> {
+    let mut scanned = 0_u64;
+    let mut session_matches = false;
+    let mut model_provider = None;
+    let mut model = None;
+    let mut model_event_count = 0_usize;
+    let mut model_events_digest = Sha256::new();
+    for line in BufReader::new(File::open(path)?).split(b'\n') {
+        let line = line?;
+        scanned = scanned.saturating_add(u64::try_from(line.len()).unwrap_or(u64::MAX));
+        if scanned > MAX_CODEX_ROLLOUT_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Codex rollout exceeded the bounded model-proof scan",
+            ));
+        }
+        if line.is_empty() {
+            continue;
+        }
+        let value: Value = serde_json::from_slice(&line).map_err(io::Error::other)?;
+        match value.get("type").and_then(Value::as_str) {
+            Some("session_meta") => {
+                session_matches = value
+                    .pointer("/payload/session_id")
+                    .or_else(|| value.pointer("/payload/id"))
+                    .and_then(Value::as_str)
+                    == Some(expected_session_id);
+                model_provider = value
+                    .pointer("/payload/model_provider")
+                    .and_then(Value::as_str)
+                    .map(str::to_owned);
+            }
+            Some("turn_context") => {
+                let observed = value
+                    .pointer("/payload/model")
+                    .and_then(Value::as_str)
+                    .filter(|value| !value.is_empty())
+                    .ok_or_else(|| {
+                        io::Error::new(
+                            io::ErrorKind::InvalidData,
+                            "Codex turn context omitted its model",
+                        )
+                    })?;
+                if model.as_deref().is_some_and(|current| current != observed) {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Codex rollout changed models within one exact session",
+                    ));
+                }
+                model = Some(observed.to_owned());
+                model_event_count = model_event_count.saturating_add(1);
+                model_events_digest.update(&line);
+                model_events_digest.update([0]);
+            }
+            _ => {}
+        }
+    }
+    let model = model.ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Codex rollout did not contain a model-bearing turn context",
+        )
+    })?;
+    if !session_matches {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "Codex rollout session metadata did not match the completed thread",
+        ));
+    }
+    let model_provider = model_provider
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Codex rollout omitted its model provider",
+            )
+        })?;
+    Ok(CodexRolloutModelProof {
+        schema: "govfolio.codex-rollout-model/v1",
+        session_id: expected_session_id.to_owned(),
+        model,
+        model_provider,
+        model_event_count,
+        model_events_sha256: hex::encode(model_events_digest.finalize()),
+        rollout_file: path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+    })
 }
 
 impl ProcessCanaryInvoker {
@@ -833,6 +1033,22 @@ fn codex_skill_event(value: &Value, skill: &SkillCanarySpec) -> bool {
     if matches!(item_type, "file_read" | "read_file") {
         return value_references_skill(item, skill);
     }
+    if item_type == "mcp_tool_call" {
+        let code = item
+            .pointer("/arguments/code")
+            .and_then(Value::as_str)
+            .unwrap_or_default()
+            .replace('\\', "/")
+            .to_ascii_lowercase();
+        let path = normalized_path(&skill.repository_relative_path).to_ascii_lowercase();
+        return item.get("status").and_then(Value::as_str) == Some("completed")
+            && item.get("server").and_then(Value::as_str) == Some("node_repl")
+            && item.get("tool").and_then(Value::as_str) == Some("js")
+            && item.get("result").is_some_and(|result| !result.is_null())
+            && item.get("error").is_none_or(Value::is_null)
+            && code.contains("readfile(")
+            && code.contains(&path);
+    }
     if item_type != "command_execution"
         || item.get("status").and_then(Value::as_str) != Some("completed")
     {
@@ -859,8 +1075,21 @@ fn codex_skill_event(value: &Value, skill: &SkillCanarySpec) -> bool {
 }
 
 fn value_references_skill(value: &Value, skill: &SkillCanarySpec) -> bool {
-    let rendered = value.to_string().replace('\\', "/").to_ascii_lowercase();
-    rendered.contains(&normalized_path(&skill.repository_relative_path).to_ascii_lowercase())
+    let path = normalized_path(&skill.repository_relative_path).to_ascii_lowercase();
+    value_contains_normalized_path(value, &path)
+}
+
+fn value_contains_normalized_path(value: &Value, path: &str) -> bool {
+    match value {
+        Value::String(text) => text.replace('\\', "/").to_ascii_lowercase().contains(path),
+        Value::Array(values) => values
+            .iter()
+            .any(|value| value_contains_normalized_path(value, path)),
+        Value::Object(values) => values
+            .values()
+            .any(|value| value_contains_normalized_path(value, path)),
+        Value::Null | Value::Bool(_) | Value::Number(_) => false,
+    }
 }
 
 fn safe_relative(path: &Path) -> bool {
@@ -898,6 +1127,175 @@ mod tests {
     use super::*;
     use crate::model::{ProviderIdentity, ResultClass};
     use crate::provider::CodexAdapter;
+
+    #[test]
+    fn claude_skill_event_accepts_absolute_windows_read_path() {
+        let skill = SkillCanarySpec::new(
+            "rust-tdd",
+            PathBuf::from("agents/skills/rust-tdd/SKILL.md"),
+            "a".repeat(64),
+            "challenge",
+            PathBuf::from(".govfolio-loop/marker.json"),
+        )
+        .expect("skill spec");
+        let event = serde_json::json!({
+            "type": "assistant",
+            "message": {
+                "content": [{
+                    "type": "tool_use",
+                    "name": "Read",
+                    "input": {
+                        "file_path": "C:\\tmp\\worktree\\agents\\skills\\rust-tdd\\SKILL.md"
+                    }
+                }]
+            }
+        });
+
+        assert!(claude_skill_event(&event, &skill));
+    }
+
+    #[test]
+    fn skill_path_matcher_does_not_accept_object_keys() {
+        let skill = SkillCanarySpec::new(
+            "rust-tdd",
+            PathBuf::from("agents/skills/rust-tdd/SKILL.md"),
+            "a".repeat(64),
+            "challenge",
+            PathBuf::from(".govfolio-loop/marker.json"),
+        )
+        .expect("skill spec");
+        let key_only = serde_json::json!({
+            "agents/skills/rust-tdd/SKILL.md": "not a path value"
+        });
+
+        assert!(!value_references_skill(&key_only, &skill));
+    }
+
+    #[test]
+    fn codex_skill_event_accepts_completed_node_read_of_exact_skill() {
+        let skill = SkillCanarySpec::new(
+            "rust-tdd",
+            PathBuf::from("agents/skills/rust-tdd/SKILL.md"),
+            "a".repeat(64),
+            "challenge",
+            PathBuf::from(".govfolio-loop/marker.json"),
+        )
+        .expect("skill spec");
+        let event = serde_json::json!({
+            "type": "item.completed",
+            "item": {
+                "type": "mcp_tool_call",
+                "server": "node_repl",
+                "tool": "js",
+                "arguments": {
+                    "code": "await fs.readFile(nodeRepl.cwd + '/agents/skills/rust-tdd/SKILL.md')"
+                },
+                "result": {"content": [{"type": "text", "text": "skill bytes"}]},
+                "error": null,
+                "status": "completed"
+            }
+        });
+
+        assert!(codex_skill_event(&event, &skill));
+    }
+
+    #[test]
+    fn codex_skill_event_rejects_prose_or_uncompleted_node_claims() {
+        let skill = SkillCanarySpec::new(
+            "rust-tdd",
+            PathBuf::from("agents/skills/rust-tdd/SKILL.md"),
+            "a".repeat(64),
+            "challenge",
+            PathBuf::from(".govfolio-loop/marker.json"),
+        )
+        .expect("skill spec");
+        let prose = serde_json::json!({
+            "type": "item.completed",
+            "item": {
+                "type": "agent_message",
+                "text": "I read agents/skills/rust-tdd/SKILL.md"
+            }
+        });
+        let unfinished = serde_json::json!({
+            "type": "item.started",
+            "item": {
+                "type": "mcp_tool_call",
+                "server": "node_repl",
+                "tool": "js",
+                "arguments": {
+                    "code": "await fs.readFile('agents/skills/rust-tdd/SKILL.md')"
+                },
+                "result": null,
+                "error": null,
+                "status": "in_progress"
+            }
+        });
+
+        assert!(!codex_skill_event(&prose, &skill));
+        assert!(!codex_skill_event(&unfinished, &skill));
+    }
+
+    #[test]
+    fn codex_rollout_supplies_model_when_stdout_events_omit_it() {
+        let temp = tempdir().expect("tempdir");
+        let session_id = "019f5345-f15e-7112-925e-e0fdaa8448da";
+        let directory = temp.path().join("sessions/2026/07/11");
+        std::fs::create_dir_all(&directory).expect("session directory");
+        let rollout = directory.join(format!("rollout-2026-07-11T19-22-00-{session_id}.jsonl"));
+        std::fs::write(
+            rollout,
+            format!(
+                "{{\"type\":\"session_meta\",\"payload\":{{\"session_id\":\"{session_id}\",\"model_provider\":\"openai\"}}}}\n{{\"type\":\"turn_context\",\"payload\":{{\"model\":\"gpt-5.6-sol\"}}}}\n"
+            ),
+        )
+        .expect("rollout");
+        let command = CommandSpec {
+            program: PathBuf::from("codex"),
+            args: Vec::new(),
+            cwd: temp.path().to_path_buf(),
+            stdin: Vec::new(),
+            env: vec![("CODEX_HOME".to_owned(), temp.path().display().to_string())],
+            remove_env: Vec::new(),
+        };
+
+        let proof = codex_rollout_model_proof(&command, session_id)
+            .expect("proof scan")
+            .expect("model proof");
+
+        assert_eq!(proof.model, "gpt-5.6-sol");
+        assert_eq!(proof.model_provider, "openai");
+        assert_eq!(proof.model_event_count, 1);
+        assert!(valid_sha256(&proof.model_events_sha256));
+    }
+
+    #[test]
+    fn codex_rollout_rejects_model_switch_within_exact_session() {
+        let temp = tempdir().expect("tempdir");
+        let session_id = "019f5345-f15e-7112-925e-e0fdaa8448da";
+        let directory = temp.path().join("sessions/2026/07/11");
+        std::fs::create_dir_all(&directory).expect("session directory");
+        let rollout = directory.join(format!("rollout-2026-07-11T19-22-00-{session_id}.jsonl"));
+        std::fs::write(
+            rollout,
+            format!(
+                "{{\"type\":\"session_meta\",\"payload\":{{\"session_id\":\"{session_id}\",\"model_provider\":\"openai\"}}}}\n{{\"type\":\"turn_context\",\"payload\":{{\"model\":\"gpt-5.6-sol\"}}}}\n{{\"type\":\"turn_context\",\"payload\":{{\"model\":\"wrong-model\"}}}}\n"
+            ),
+        )
+        .expect("rollout");
+        let command = CommandSpec {
+            program: PathBuf::from("codex"),
+            args: Vec::new(),
+            cwd: temp.path().to_path_buf(),
+            stdin: Vec::new(),
+            env: vec![("CODEX_HOME".to_owned(), temp.path().display().to_string())],
+            remove_env: Vec::new(),
+        };
+
+        let error = codex_rollout_model_proof(&command, session_id)
+            .expect_err("model switch must fail closed");
+
+        assert_eq!(error.kind(), io::ErrorKind::InvalidData);
+    }
 
     #[derive(Clone)]
     struct ScriptedInvocation {
