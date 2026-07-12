@@ -1,3 +1,5 @@
+use std::fs::File;
+use std::io::{self, BufRead as _, BufReader};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -5,7 +7,8 @@ use std::time::Duration as StdDuration;
 
 use anyhow::{Context, anyhow, bail};
 use chrono::{Duration, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sqlx::Row;
 use sqlx::postgres::PgPoolOptions;
@@ -47,6 +50,9 @@ use crate::store::{
 const OWNER_TTL: Duration = Duration::seconds(90);
 const HEARTBEAT_INTERVAL: StdDuration = StdDuration::from_secs(20);
 const HALF_OPEN_TTL: Duration = Duration::minutes(30);
+const ROOT_ENVELOPE_BEGIN: &str = "--- GOVFOLIO_DISPATCH_V1 ---";
+const ROOT_ENVELOPE_END: &str = "--- END GOVFOLIO_DISPATCH_V1 ---";
+const MAX_ROOT_RECEIPT_SCAN_BYTES: u64 = 64 * 1024 * 1024;
 type DomainLeaseRow = (
     String,
     String,
@@ -623,10 +629,9 @@ async fn alternate_tick(
         work_key: original.work_key,
         worktree: config.worktree.clone(),
         expected_branch: config.expected_branch.clone(),
-        prompt: format!(
-            "Fresh cross-provider recovery under fence {}. Reconcile authoritative Git, registry, Bronze, and receipt state before continuing. Never trust provider session history.\n\n{}",
-            lane.fence, original.prompt
-        ),
+        prompt: recovery_prompt(&original.prompt, lane.fence),
+        required_root_receipt: original.required_root_receipt,
+        required_root_reads: original.required_root_reads,
         prompt_kind: PromptKind::Recovery,
         provider: provider.clone(),
         resume_session_id: None,
@@ -647,6 +652,12 @@ async fn alternate_tick(
     };
     let execution = execute_attempt(&context, &attempt).await?;
     finalize_attempt(&context, &key, attempt, execution).await
+}
+
+fn recovery_prompt(original: &str, fence: i64) -> String {
+    format!(
+        "{original}\n\n# Cross-provider recovery\n\nFresh recovery under fence {fence}. After satisfying the governed root receipt boundary above, reconcile authoritative Git, registry, Bronze, and receipt state before continuing. Never trust provider session history."
+    )
 }
 
 async fn tick(
@@ -701,6 +712,130 @@ enum AttemptReservation {
     Suppressed(TickOutcome),
 }
 
+#[derive(Debug)]
+struct GovernedRootPrompt {
+    text: String,
+    receipt: String,
+    reads: Vec<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RootDispatchEnvelope {
+    contract_sha256: String,
+    role: String,
+    skills: Vec<RootDispatchSkill>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RootDispatchSkill {
+    id: String,
+    codex_name: String,
+    canonical_path: String,
+}
+
+fn governed_root_prompt(
+    config: &LoopConfig,
+    task_prompt: &str,
+) -> anyhow::Result<GovernedRootPrompt> {
+    let resolver = config
+        .worktree
+        .join("scripts")
+        .join("agents")
+        .join("resolve-codex-dispatch.mjs");
+    let mut command = Command::new("node");
+    command
+        .arg(&resolver)
+        .arg("--repo-root")
+        .arg(&config.worktree)
+        .arg("--role")
+        .arg("orchestrator")
+        .current_dir(&config.worktree);
+    if config.role == "factory" {
+        command.arg("--trigger").arg("trigger:parallel-work");
+    }
+    let output = command
+        .output()
+        .with_context(|| format!("render governed root dispatch for lane {}", config.lane_id))?;
+    if !output.status.success() {
+        bail!(
+            "root dispatch resolver failed for lane {}: {}",
+            config.lane_id,
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+    let envelope_text = String::from_utf8(output.stdout)
+        .context("root dispatch resolver returned non-UTF-8 output")?;
+    compose_root_prompt(&envelope_text, task_prompt)
+}
+
+fn compose_root_prompt(
+    envelope_text: &str,
+    task_prompt: &str,
+) -> anyhow::Result<GovernedRootPrompt> {
+    let envelope = parse_root_dispatch_envelope(envelope_text)?;
+    if envelope.role != "orchestrator" {
+        bail!("root dispatch resolver returned a non-orchestrator role");
+    }
+    if envelope.contract_sha256.len() != 64
+        || !envelope
+            .contract_sha256
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit())
+        || envelope.skills.is_empty()
+        || envelope.skills.iter().any(|skill| {
+            skill.id.is_empty() || skill.codex_name.is_empty() || skill.canonical_path.is_empty()
+        })
+    {
+        bail!("root dispatch resolver returned an invalid contract or skill set");
+    }
+    let receipt = format!(
+        "SKILLS_LOADED role={} contract={} skills={}",
+        envelope.role,
+        envelope.contract_sha256,
+        envelope
+            .skills
+            .iter()
+            .map(|skill| skill.id.as_str())
+            .collect::<Vec<_>>()
+            .join(",")
+    );
+    let mut reads = vec![
+        "AGENTS.md".to_owned(),
+        "CLAUDE.md".to_owned(),
+        "agents/roles/orchestrator.md".to_owned(),
+        "agents/skill-routing.json".to_owned(),
+    ];
+    for skill in &envelope.skills {
+        reads.push(format!(".agents/skills/{}/SKILL.md", skill.codex_name));
+        reads.push(format!("{}/SKILL.md", skill.canonical_path));
+    }
+    let envelope_text = envelope_text.trim();
+    let text = format!(
+        "{envelope_text}\n\n# Supervisor-enforced root dispatch\n\
+Before reading the coordinator workflow, epoch/queue, journal, goal bodies, or doing any task work, verify the unmodified envelope above. Read only AGENTS.md, tracked CLAUDE.md, agents/roles/orchestrator.md, agents/skill-routing.json, and every listed bridge and canonical SKILL.md; verify their hashes, then emit this exact standalone line:\n\n{receipt}\n\nThe supervisor rejects a completed turn unless that exact receipt appears in the structured event stream. After the receipt, follow the coordinator task below. Use only the prebuilt executables named by GOVFOLIO_AUTHORITY_BIN, GOVFOLIO_LOOP_BIN, GOVFOLIO_EPOCH_GATE_BIN, and GOVFOLIO_LEASE_BIN; do not rebuild or search for them.\n\n# Coordinator task\n\n{task_prompt}"
+    );
+    Ok(GovernedRootPrompt {
+        text,
+        receipt,
+        reads,
+    })
+}
+
+fn parse_root_dispatch_envelope(text: &str) -> anyhow::Result<RootDispatchEnvelope> {
+    let trimmed = text.trim();
+    let body = trimmed
+        .strip_prefix(ROOT_ENVELOPE_BEGIN)
+        .and_then(|value| {
+            value
+                .strip_prefix("\r\n")
+                .or_else(|| value.strip_prefix('\n'))
+        })
+        .and_then(|value| value.strip_suffix(ROOT_ENVELOPE_END))
+        .map(str::trim)
+        .ok_or_else(|| anyhow!("root dispatch resolver returned malformed envelope markers"))?;
+    serde_json::from_str(body).context("parse governed root dispatch envelope")
+}
+
 struct AttemptExecution {
     result: NormalizedResult,
     exemplar: Option<String>,
@@ -712,8 +847,10 @@ async fn reserve_attempt(
     preflight_signature: String,
     now: chrono::DateTime<Utc>,
 ) -> anyhow::Result<AttemptReservation> {
-    let prompt = std::fs::read_to_string(&context.config.prompt_file)
+    let task_prompt = std::fs::read_to_string(&context.config.prompt_file)
         .with_context(|| format!("read prompt {}", context.config.prompt_file.display()))?;
+    let root_prompt = governed_root_prompt(context.config, &task_prompt)?;
+    let prompt = root_prompt.text;
     let head_before = git_text(&context.config.worktree, &["rev-parse", "HEAD"])?;
     let journal_before = file_sha(&context.config.worktree.join("agents").join("JOURNAL.md"))?;
     let work_key = work_key(&context.config.lane_id, &head_before, &prompt);
@@ -728,6 +865,8 @@ async fn reserve_attempt(
         worktree: context.config.worktree.clone(),
         expected_branch: context.config.expected_branch.clone(),
         prompt,
+        required_root_receipt: Some(root_prompt.receipt),
+        required_root_reads: root_prompt.reads,
         prompt_kind: PromptKind::Normal,
         provider: context.provider.clone(),
         resume_session_id: None,
@@ -804,7 +943,8 @@ async fn execute_attempt(
         .start_attempt(context.lane, &attempt.id, Utc::now())
         .await?;
     let adapter = adapter_for(context.provider.provider);
-    let command = adapter.build_fresh(attempt, &std::env::vars().collect::<Vec<_>>())?;
+    let inherited_environment = provider_runtime_environment(context.config);
+    let command = adapter.build_fresh(attempt, &inherited_environment)?;
     let output = ProcessOutputPaths::from(&attempt_artifacts);
     let (cancel, cancellation) = cancellation_pair();
     let (pid_sender, mut pid_receiver) = oneshot::channel();
@@ -842,12 +982,306 @@ async fn execute_attempt(
     };
     renew_owners(context, None).await?;
     let mut result = execution.result;
+    apply_root_receipt_postcondition(attempt, &output.events, &mut result)?;
     apply_postconditions(context.config, attempt, &mut result)?;
     context
         .artifacts
         .write_json(&attempt_artifacts.result_path(), &result)?;
     let exemplar = persist_failure_exemplar(context.artifacts, &output, &result)?;
     Ok(AttemptExecution { result, exemplar })
+}
+
+fn provider_runtime_environment(config: &LoopConfig) -> Vec<(String, String)> {
+    let mut environment = std::env::vars().collect::<Vec<_>>();
+    let loop_binary = config.authority_bin.with_file_name(if cfg!(windows) {
+        "govfolio-loop.exe"
+    } else {
+        "govfolio-loop"
+    });
+    for (key, value) in [
+        (
+            "GOVFOLIO_AUTHORITY_BIN",
+            config.authority_bin.to_string_lossy().into_owned(),
+        ),
+        (
+            "GOVFOLIO_LOOP_BIN",
+            loop_binary.to_string_lossy().into_owned(),
+        ),
+        (
+            "GOVFOLIO_EPOCH_GATE_BIN",
+            config.epoch_gate_bin.to_string_lossy().into_owned(),
+        ),
+        (
+            "GOVFOLIO_LEASE_BIN",
+            config.lease_bin.to_string_lossy().into_owned(),
+        ),
+        ("GOVFOLIO_EPOCH", config.epoch.clone()),
+    ] {
+        environment.retain(|(candidate, _)| !candidate.eq_ignore_ascii_case(key));
+        environment.push((key.to_owned(), value));
+    }
+    environment
+}
+
+fn apply_root_receipt_postcondition(
+    attempt: &AttemptSpec,
+    events_path: &Path,
+    result: &mut NormalizedResult,
+) -> anyhow::Result<()> {
+    let Some(expected) = attempt.required_root_receipt.as_deref() else {
+        return Ok(());
+    };
+    if result.class != ResultClass::Completed {
+        return Ok(());
+    }
+    if structured_root_receipt(
+        events_path,
+        attempt.provider.provider,
+        expected,
+        &attempt.required_root_reads,
+    )? {
+        return Ok(());
+    }
+    result.class = ResultClass::PostconditionFailed;
+    result.stable_error_hash = Some(hex::encode(Sha256::digest(
+        b"required governed root skill receipt missing, mismatched, or late",
+    )));
+    "completed provider turn violated the ordered governed root SKILLS_LOADED boundary"
+        .clone_into(&mut result.summary);
+    Ok(())
+}
+
+fn structured_root_receipt(
+    path: &Path,
+    provider: Provider,
+    expected: &str,
+    allowed_reads: &[String],
+) -> io::Result<bool> {
+    let mut scanned = 0_u64;
+    for line in BufReader::new(File::open(path)?).split(b'\n') {
+        let line = line?;
+        scanned = scanned.saturating_add(u64::try_from(line.len()).unwrap_or(u64::MAX));
+        if scanned > MAX_ROOT_RECEIPT_SCAN_BYTES {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "root receipt event stream exceeded bounded scan",
+            ));
+        }
+        if line.is_empty() {
+            continue;
+        }
+        let value: Value = serde_json::from_slice(&line).map_err(io::Error::other)?;
+        match root_receipt_event(provider, &value, expected, allowed_reads) {
+            RootReceiptEvent::Found => return Ok(true),
+            RootReceiptEvent::Allowed => {}
+            RootReceiptEvent::ForbiddenTool => return Ok(false),
+        }
+    }
+    Ok(false)
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum RootReceiptEvent {
+    Found,
+    Allowed,
+    ForbiddenTool,
+}
+
+fn root_receipt_event(
+    provider: Provider,
+    value: &Value,
+    expected: &str,
+    allowed_reads: &[String],
+) -> RootReceiptEvent {
+    match provider {
+        Provider::Codex
+            if value.get("type").and_then(Value::as_str) == Some("item.completed")
+                && value.pointer("/item/type").and_then(Value::as_str) == Some("agent_message") =>
+        {
+            if value
+                .pointer("/item/text")
+                .and_then(Value::as_str)
+                .is_some_and(|text| text.lines().any(|line| line == expected))
+            {
+                RootReceiptEvent::Found
+            } else {
+                RootReceiptEvent::Allowed
+            }
+        }
+        Provider::Codex
+            if matches!(
+                value.get("type").and_then(Value::as_str),
+                Some("item.started" | "item.completed")
+            ) =>
+        {
+            match value.pointer("/item/type").and_then(Value::as_str) {
+                Some("agent_message" | "reasoning") => RootReceiptEvent::Allowed,
+                Some("command_execution") => {
+                    classify_pre_receipt_tool(value.pointer("/item/command"), false, allowed_reads)
+                }
+                Some("mcp_tool_call") => classify_pre_receipt_tool(
+                    value.pointer("/item/arguments"),
+                    false,
+                    allowed_reads,
+                ),
+                _ => RootReceiptEvent::ForbiddenTool,
+            }
+        }
+        Provider::Claude if value.get("type").and_then(Value::as_str) == Some("assistant") => {
+            let Some(content) = value.pointer("/message/content").and_then(Value::as_array) else {
+                return RootReceiptEvent::Allowed;
+            };
+            for item in content {
+                match item.get("type").and_then(Value::as_str) {
+                    Some("text")
+                        if item
+                            .get("text")
+                            .and_then(Value::as_str)
+                            .is_some_and(|text| text.lines().any(|line| line == expected)) =>
+                    {
+                        return RootReceiptEvent::Found;
+                    }
+                    Some("tool_use") => {
+                        let classification = classify_pre_receipt_tool(
+                            item.get("input"),
+                            item.get("name").and_then(Value::as_str) == Some("Read"),
+                            allowed_reads,
+                        );
+                        if classification == RootReceiptEvent::ForbiddenTool {
+                            return classification;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            RootReceiptEvent::Allowed
+        }
+        _ => RootReceiptEvent::Allowed,
+    }
+}
+
+fn classify_pre_receipt_tool(
+    input: Option<&Value>,
+    dedicated_read_tool: bool,
+    allowed_reads: &[String],
+) -> RootReceiptEvent {
+    let mut strings = Vec::new();
+    if let Some(input) = input {
+        collect_json_strings(input, &mut strings);
+    }
+    let normalized_text = strings
+        .iter()
+        .map(|value| value.replace('\\', "/").to_ascii_lowercase())
+        .collect::<Vec<_>>()
+        .join("\n");
+    let forbidden_action = [
+        "appendfile",
+        "apply_patch",
+        "cargo ",
+        "cargo.exe",
+        "git add",
+        "git commit",
+        "govfolio-loop",
+        "jurisdiction-lease",
+        "pnpm ",
+        "remove-item",
+        "set-content",
+        "write_file",
+        "writefile",
+    ]
+    .iter()
+    .any(|forbidden| normalized_text.contains(forbidden));
+    let recognized_read = dedicated_read_tool
+        || [
+            "get-content",
+            "get-filehash",
+            "hash-object",
+            "cat-file",
+            "git cat-file",
+            "git hash-object",
+            "git ls-files",
+            "git ls-tree",
+            "git show",
+            "ls-files",
+            "ls-tree",
+            "read_file",
+            "readfile",
+            "sha256",
+            "type ",
+        ]
+        .iter()
+        .any(|operation| normalized_text.contains(operation));
+    let referenced_paths = strings
+        .iter()
+        .flat_map(|value| referenced_repo_paths(value))
+        .collect::<Vec<_>>();
+    let normalized_allowed = allowed_reads
+        .iter()
+        .map(|value| normalize_repo_path(value))
+        .collect::<Vec<_>>();
+    let exact_governed_paths = !referenced_paths.is_empty()
+        && referenced_paths
+            .iter()
+            .all(|path| normalized_allowed.contains(path));
+    if recognized_read && exact_governed_paths && !forbidden_action {
+        RootReceiptEvent::Allowed
+    } else {
+        RootReceiptEvent::ForbiddenTool
+    }
+}
+
+fn referenced_repo_paths(value: &str) -> Vec<String> {
+    let normalized = value.replace('\\', "/").to_ascii_lowercase();
+    let mut paths = Vec::new();
+    for marker in [".agents/", "agents/", "claude.md", "agents.md"] {
+        let mut offset = 0;
+        while let Some(relative) = normalized[offset..].find(marker) {
+            let start = offset + relative;
+            if marker == "agents/"
+                && start > 0
+                && normalized.as_bytes().get(start - 1) == Some(&b'.')
+            {
+                offset = start + marker.len();
+                continue;
+            }
+            let end = normalized[start..]
+                .find(|character: char| !is_repo_path_character(character))
+                .map_or(normalized.len(), |length| start + length);
+            paths.push(normalize_repo_path(&normalized[start..end]));
+            offset = end.max(start + marker.len());
+        }
+    }
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+fn normalize_repo_path(value: &str) -> String {
+    value
+        .replace('\\', "/")
+        .trim_start_matches("./")
+        .to_ascii_lowercase()
+}
+
+fn is_repo_path_character(character: char) -> bool {
+    character.is_ascii_alphanumeric() || matches!(character, '/' | '.' | '_' | '-' | '@')
+}
+
+fn collect_json_strings<'a>(value: &'a Value, output: &mut Vec<&'a str>) {
+    match value {
+        Value::String(text) => output.push(text),
+        Value::Array(values) => {
+            for value in values {
+                collect_json_strings(value, output);
+            }
+        }
+        Value::Object(values) => {
+            for value in values.values() {
+                collect_json_strings(value, output);
+            }
+        }
+        _ => {}
+    }
 }
 
 async fn renew_owners(context: &TickContext<'_>, pid: Option<u32>) -> anyhow::Result<()> {
@@ -1066,7 +1500,7 @@ fn preflight_suite(config: &LoopConfig, provider: &ProviderIdentity) -> Prefligh
         }),
         Arc::new(CompilerProbe {
             rustc: PathBuf::from("rustc"),
-            cache_dir: config.paths.root.join("canaries").join("rustc"),
+            cache_dir: compiler_cache_dir(config),
         }),
         Arc::new(RuntimeSeparationProbe {
             bronze_root: config.bronze_root.clone(),
@@ -1095,6 +1529,15 @@ fn preflight_suite(config: &LoopConfig, provider: &ProviderIdentity) -> Prefligh
         runtime_root: config.paths.root.clone(),
     }));
     PreflightSuite::new(probes)
+}
+
+fn compiler_cache_dir(config: &LoopConfig) -> PathBuf {
+    config
+        .paths
+        .root
+        .join("canaries")
+        .join("rustc")
+        .join(hex::encode(Sha256::digest(config.lane_id.as_bytes())))
 }
 
 fn provider_identity(config: &LoopConfig) -> anyhow::Result<ProviderIdentity> {
@@ -1453,6 +1896,8 @@ async fn run_compatibility_canary(
         worktree: worktree.to_path_buf(),
         expected_branch: "detached-canary".to_owned(),
         prompt: String::new(),
+        required_root_receipt: None,
+        required_root_reads: Vec::new(),
         prompt_kind: PromptKind::CompatibilityCanary,
         provider: identity.clone(),
         resume_session_id: None,
@@ -2235,6 +2680,227 @@ mod tests {
         assert!(factory.probe_names().contains(&"codex_skill_contract"));
     }
 
+    #[test]
+    fn root_dispatch_prompt_requires_exact_receipt() {
+        let contract = "a".repeat(64);
+        let envelope = format!(
+            "{ROOT_ENVELOPE_BEGIN}\n{{\"contract_sha256\":\"{contract}\",\"role\":\"orchestrator\",\"skills\":[{{\"id\":\"skill:one\",\"codex_name\":\"one\",\"canonical_path\":\"agents/skills/one\"}},{{\"id\":\"skill:two\",\"codex_name\":\"two\",\"canonical_path\":\"agents/skills/two\"}}]}}\n{ROOT_ENVELOPE_END}\n"
+        );
+
+        let governed = compose_root_prompt(&envelope, "perform the coordinator task")
+            .expect("valid root dispatch composes");
+
+        assert_eq!(
+            governed.receipt,
+            format!(
+                "SKILLS_LOADED role=orchestrator contract={contract} skills=skill:one,skill:two"
+            )
+        );
+        assert!(governed.text.starts_with(ROOT_ENVELOPE_BEGIN));
+        assert!(governed.text.contains("perform the coordinator task"));
+        assert!(governed.text.contains(&governed.receipt));
+        assert!(governed.text.contains("GOVFOLIO_AUTHORITY_BIN"));
+        assert!(
+            governed
+                .reads
+                .contains(&".agents/skills/one/SKILL.md".to_owned())
+        );
+        assert!(
+            governed
+                .reads
+                .contains(&"agents/skills/two/SKILL.md".to_owned())
+        );
+
+        let wrong_role = envelope.replace("\"orchestrator\"", "\"implementer\"");
+        assert!(compose_root_prompt(&wrong_role, "task").is_err());
+        assert!(compose_root_prompt(&envelope.replace('\n', "\r\n"), "task").is_ok());
+        assert!(compose_root_prompt("not an envelope", "task").is_err());
+    }
+
+    #[test]
+    fn root_dispatch_receipt_accepts_only_structured_exact_standalone_lines() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let receipt = format!(
+            "SKILLS_LOADED role=orchestrator contract={} skills=skill:one",
+            "b".repeat(64)
+        );
+        let allowed_reads = vec!["agents/skills/one/SKILL.md".to_owned()];
+        let codex = temp.path().join("codex.jsonl");
+        std::fs::write(
+            &codex,
+            format!(
+                "{{\"type\":\"item.started\",\"item\":{{\"type\":\"mcp_tool_call\",\"arguments\":{{\"code\":\"readFile('agents/skills/one/SKILL.md')\"}}}}}}\n{{\"type\":\"item.completed\",\"item\":{{\"type\":\"agent_message\",\"text\":\"ready\\n{receipt}\\n\"}}}}\n"
+            ),
+        )
+        .expect("codex fixture");
+        assert!(
+            structured_root_receipt(&codex, Provider::Codex, &receipt, &allowed_reads)
+                .expect("codex receipt scan")
+        );
+
+        let claude = temp.path().join("claude.jsonl");
+        std::fs::write(
+            &claude,
+            format!(
+                "{{\"type\":\"assistant\",\"message\":{{\"content\":[{{\"type\":\"text\",\"text\":\"{receipt}\"}}]}}}}\n"
+            ),
+        )
+        .expect("claude fixture");
+        assert!(
+            structured_root_receipt(&claude, Provider::Claude, &receipt, &allowed_reads)
+                .expect("claude receipt scan")
+        );
+
+        std::fs::write(
+            &codex,
+            format!(
+                "{{\"type\":\"item.completed\",\"item\":{{\"type\":\"agent_message\",\"text\":\"claimed {receipt} but did not emit it\"}}}}\n"
+            ),
+        )
+        .expect("mismatch fixture");
+        assert!(
+            !structured_root_receipt(&codex, Provider::Codex, &receipt, &allowed_reads)
+                .expect("mismatch receipt scan")
+        );
+
+        std::fs::write(
+            &codex,
+            format!(
+                "{{\"type\":\"item.completed\",\"item\":{{\"type\":\"agent_message\",\"text\":\" {receipt} \"}}}}\n"
+            ),
+        )
+        .expect("whitespace mismatch fixture");
+        assert!(
+            !structured_root_receipt(&codex, Provider::Codex, &receipt, &allowed_reads)
+                .expect("whitespace mismatch receipt scan")
+        );
+
+        std::fs::write(
+            &codex,
+            format!(
+                "{{\"type\":\"item.started\",\"item\":{{\"type\":\"mcp_tool_call\",\"arguments\":{{\"code\":\"readFile('agents/skills/one/SKILL.md'); readFile('agents/goals/000-INDEX.md')\"}}}}}}\n{{\"type\":\"item.completed\",\"item\":{{\"type\":\"agent_message\",\"text\":\"{receipt}\"}}}}\n"
+            ),
+        )
+        .expect("late receipt fixture");
+        assert!(
+            !structured_root_receipt(&codex, Provider::Codex, &receipt, &allowed_reads)
+                .expect("late receipt scan")
+        );
+
+        let decoy = serde_json::json!({
+            "note": "agents/skills/one/SKILL.md",
+            "code": "performTask()"
+        });
+        assert_eq!(
+            classify_pre_receipt_tool(Some(&decoy), false, &allowed_reads),
+            RootReceiptEvent::ForbiddenTool
+        );
+        let unlisted = serde_json::json!({
+            "code": "readFile('agents/skills/unlisted/SKILL.md')"
+        });
+        assert_eq!(
+            classify_pre_receipt_tool(Some(&unlisted), false, &allowed_reads),
+            RootReceiptEvent::ForbiddenTool
+        );
+    }
+
+    #[test]
+    fn root_dispatch_recovery_preserves_the_receipt_boundary_first() {
+        let original = format!("{ROOT_ENVELOPE_BEGIN}\nroot boundary\n{ROOT_ENVELOPE_END}");
+        let recovered = recovery_prompt(&original, 9);
+
+        assert!(recovered.starts_with(&original));
+        assert!(recovered.find(ROOT_ENVELOPE_BEGIN) < recovered.find("Cross-provider recovery"));
+        assert!(recovered.contains("After satisfying the governed root receipt boundary"));
+    }
+
+    #[test]
+    fn root_dispatch_postcondition_rejects_completed_turn_without_receipt() {
+        let temp = tempfile::tempdir().expect("tempdir");
+        let events = temp.path().join("events.jsonl");
+        std::fs::write(&events, "{\"type\":\"turn.completed\"}\n").expect("events fixture");
+        let mut attempt = AttemptSpec {
+            id: "attempt".to_owned(),
+            lane_id: "orchestrator-0".to_owned(),
+            lane_fence: 1,
+            work_key: "work".to_owned(),
+            worktree: PathBuf::from("worktree"),
+            expected_branch: "loop/orchestrator-0".to_owned(),
+            prompt: "prompt".to_owned(),
+            required_root_receipt: Some("SKILLS_LOADED exact".to_owned()),
+            required_root_reads: Vec::new(),
+            prompt_kind: PromptKind::Normal,
+            provider: preflight_provider(),
+            resume_session_id: None,
+            preflight_signature: "preflight".to_owned(),
+            git_head_before: "head".to_owned(),
+            journal_sha_before: "journal".to_owned(),
+        };
+        let mut result = NormalizedResult {
+            class: ResultClass::Completed,
+            terminal_type: Some("turn.completed".to_owned()),
+            structured_started: true,
+            session_id: Some("thread".to_owned()),
+            provider_error_code: None,
+            stable_error_hash: None,
+            retry_at: None,
+            exit_code: Some(0),
+            summary: "completed".to_owned(),
+        };
+
+        apply_root_receipt_postcondition(&attempt, &events, &mut result)
+            .expect("postcondition evaluates");
+
+        assert_eq!(result.class, ResultClass::PostconditionFailed);
+        assert!(result.stable_error_hash.is_some());
+
+        attempt.required_root_receipt = None;
+        result.class = ResultClass::Completed;
+        apply_root_receipt_postcondition(&attempt, &events, &mut result)
+            .expect("ungoverned compatibility attempt remains unchanged");
+        assert_eq!(result.class, ResultClass::Completed);
+    }
+
+    #[test]
+    fn provider_environment_injects_prebuilt_runtime_paths() {
+        let config = preflight_config("orchestrator");
+        let environment = provider_runtime_environment(&config);
+        let expected = [
+            ("GOVFOLIO_AUTHORITY_BIN", config.authority_bin.clone()),
+            (
+                "GOVFOLIO_LOOP_BIN",
+                config.authority_bin.with_file_name(if cfg!(windows) {
+                    "govfolio-loop.exe"
+                } else {
+                    "govfolio-loop"
+                }),
+            ),
+            ("GOVFOLIO_EPOCH_GATE_BIN", config.epoch_gate_bin.clone()),
+            ("GOVFOLIO_LEASE_BIN", config.lease_bin.clone()),
+        ];
+        for (key, path) in expected {
+            assert!(environment.iter().any(|(actual_key, value)| {
+                actual_key == key && value == &path.to_string_lossy()
+            }));
+        }
+        assert!(
+            environment
+                .iter()
+                .any(|(key, value)| key == "GOVFOLIO_EPOCH" && value == "E3")
+        );
+    }
+
+    #[test]
+    fn compiler_canary_cache_is_lane_scoped() {
+        let first = preflight_config("orchestrator");
+        let mut second = first.clone();
+        second.lane_id = "factory-1".to_owned();
+
+        assert_ne!(compiler_cache_dir(&first), compiler_cache_dir(&second));
+        assert!(compiler_cache_dir(&first).starts_with(first.paths.root.join("canaries")));
+        assert!(compiler_cache_dir(&second).starts_with(second.paths.root.join("canaries")));
+    }
+
     #[tokio::test]
     async fn provider_selection_uses_proven_fallback_until_half_open_probe() {
         let temp = tempfile::tempdir().expect("tempdir");
@@ -2291,6 +2957,8 @@ mod tests {
             worktree: PathBuf::from("worktree"),
             expected_branch: "loop/orchestrator-0".to_owned(),
             prompt: "prompt".to_owned(),
+            required_root_receipt: None,
+            required_root_reads: Vec::new(),
             prompt_kind: PromptKind::Normal,
             provider: ProviderIdentity {
                 provider: Provider::Codex,

@@ -1570,6 +1570,8 @@ mod tests {
                     worktree,
                     expected_branch: "compatibility/canary".to_owned(),
                     prompt: String::new(),
+                    required_root_receipt: None,
+                    required_root_reads: Vec::new(),
                     prompt_kind: PromptKind::CompatibilityCanary,
                     provider: ProviderIdentity {
                         provider: Provider::Codex,
