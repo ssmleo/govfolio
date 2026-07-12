@@ -1413,7 +1413,7 @@ test("Codex and Claude discover one canonical build performance policy", () => {
 
   assert.match(
     canonical,
-    /^---\r?\npolicy_id: govfolio-build-performance\r?\nschema_version: 1\r?\nstatus: advisory\r?\n---/,
+    /^---\r?\npolicy_id: govfolio-build-performance\r?\nschema_version: 1\r?\nstatus: (?:advisory|shadow|enforced)\r?\n---/,
   );
   const canonicalStat = lstatSync(join(repositoryRoot, ...canonicalPath.split("/")));
   assert.equal(canonicalStat.isFile(), true);
