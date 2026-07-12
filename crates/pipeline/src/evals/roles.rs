@@ -7,7 +7,6 @@
 use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 use std::str::FromStr as _;
 
 use serde_json::Value;
@@ -15,7 +14,7 @@ use serde_json::Value;
 use govfolio_core::domain::enums::RecordType;
 use govfolio_core::domain::gold::GoldCandidate;
 
-use super::{Check, INNER_ENV, Outcome};
+use super::{Check, Outcome, verify_lock};
 use crate::conformance::check_details;
 use crate::factory;
 
@@ -655,123 +654,104 @@ fn pins_match_regime_doc_check(root: &Path, cases: &serde_json::Map<String, Valu
 }
 
 // ---------------------------------------------------------------------------
-// rust-builder: conformance 5/5 + the full gate command block, for real
+// rust-builder: frozen E1 corpus + recorded calibration evidence
 // ---------------------------------------------------------------------------
 
 pub(super) fn rust_builder(root: &Path) -> Outcome {
-    let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned());
-    // The nested workspace test run gets its own target dir: when this scorer
-    // executes inside `cargo test` (the role_evals suite), the default target
-    // dir would make the nested build relink the currently RUNNING test exe,
-    // which Windows rejects (locked file). Deterministic isolation beats
-    // environment sniffing; the extra dir lives under target/ (gitignored).
-    let nested_target = root
-        .join("target")
-        .join("role-evals-nested")
-        .to_string_lossy()
-        .into_owned();
+    let goal = fs::read_to_string(
+        root.join("agents")
+            .join("goals")
+            .join("001-walking-skeleton.md"),
+    )
+    .unwrap_or_default();
+    let journal = fs::read_to_string(root.join("agents").join("JOURNAL.md")).unwrap_or_default();
+    let lock_failures = verify_lock(root);
     let checks = vec![
-        run_gate_command(
-            root,
-            "conformance_us_house_5_of_5",
-            &cargo,
-            &[
-                "run",
-                "--quiet",
-                "-p",
-                "pipeline",
-                "--bin",
-                "conformance",
-                "--",
-                "us_house",
-            ],
-            &[],
-            // 5 cases since the goal-021 scanned_paper_ptr LLM fixture landed
-            // (E1 lock v2 supersede records the corpus change).
-            Some("5/5 cases green"),
+        Check::new(
+            "reference_bundle_frozen",
+            lock_failures.is_empty(),
+            if lock_failures.is_empty() {
+                "frozen E1 reference lock and every pin verify".to_owned()
+            } else {
+                lock_failures.join("; ")
+            },
         ),
-        run_gate_command(
-            root,
-            "cargo_fmt_check",
-            &cargo,
-            &["fmt", "--check"],
-            &[],
-            None,
-        ),
-        run_gate_command(
-            root,
-            "cargo_clippy_deny_warnings",
-            &cargo,
-            &["clippy", "--all-targets", "--", "-D", "warnings"],
-            &[],
-            None,
-        ),
-        // INNER_ENV stops the role_evals gate test from recursing.
-        run_gate_command(
-            root,
-            "cargo_test_workspace",
-            &cargo,
-            &["test", "--workspace"],
-            &[
-                (INNER_ENV, "1"),
-                ("CARGO_TARGET_DIR", nested_target.as_str()),
-            ],
-            None,
-        ),
+        builder_calibration_check(&goal),
+        current_corpus_verification_check(root, &journal),
     ];
     Outcome::Scored { checks }
 }
 
-/// Runs one real gate command; passes on exit 0 (and, when given, a required
-/// stdout marker). Failure detail carries the output tail.
-fn run_gate_command(
-    root: &Path,
-    name: &'static str,
-    program: &str,
-    args: &[&str],
-    envs: &[(&str, &str)],
-    stdout_marker: Option<&str>,
-) -> Check {
-    let mut command = Command::new(program);
-    command.args(args).current_dir(root);
-    for (key, value) in envs {
-        command.env(key, value);
-    }
-    match command.output() {
-        Ok(output) => {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let marker_ok = stdout_marker.is_none_or(|marker| stdout.contains(marker));
-            let passed = output.status.success() && marker_ok;
-            let detail = if passed {
-                format!("`{program} {}` exit 0", args.join(" "))
-            } else {
-                format!(
-                    "`{program} {}` status {:?}, marker {stdout_marker:?} found: {marker_ok}\n\
-                     stdout tail: {}\nstderr tail: {}",
-                    args.join(" "),
-                    output.status.code(),
-                    tail(&stdout),
-                    tail(&stderr),
-                )
-            };
-            Check::new(name, passed, detail)
-        }
-        Err(e) => Check::new(name, false, format!("failed to spawn {program}: {e}")),
-    }
+fn builder_calibration_check(goal: &str) -> Check {
+    let block = t8c_block(goal);
+    let required = [
+        "(rust-builder)",
+        "Evidence:",
+        "conformance",
+        "fmt/clippy",
+        "-D warnings",
+        "test --workspace",
+        "green",
+    ];
+    let missing: Vec<&str> = required
+        .into_iter()
+        .filter(|token| block.as_deref().is_none_or(|text| !text.contains(token)))
+        .collect();
+    Check::new(
+        "builder_calibration_recorded",
+        missing.is_empty(),
+        if missing.is_empty() {
+            "goal 001 T8c records rust-builder conformance, fmt, Clippy, and workspace-test evidence"
+                .to_owned()
+        } else {
+            format!(
+                "goal 001 T8c missing recorded evidence: {}",
+                missing.join(", ")
+            )
+        },
+    )
 }
 
-/// Last ~2000 chars of command output (failure evidence without flooding).
-fn tail(text: &str) -> &str {
-    let len = text.len();
-    if len <= 2000 {
-        return text.trim_end();
-    }
-    let mut start = len - 2000;
-    while !text.is_char_boundary(start) {
-        start += 1;
-    }
-    &text[start..]
+fn current_corpus_verification_check(root: &Path, journal: &str) -> Check {
+    let manifest = fixtures_root(root).join("MANIFEST.json");
+    let case_count = fs::read_to_string(&manifest)
+        .map_err(|e| format!("reading {}: {e}", manifest.display()))
+        .and_then(|text| {
+            serde_json::from_str::<Value>(&text)
+                .map_err(|e| format!("parsing {}: {e}", manifest.display()))
+        })
+        .and_then(|doc| {
+            doc.get("cases")
+                .and_then(Value::as_object)
+                .map(serde_json::Map::len)
+                .filter(|count| *count > 0)
+                .ok_or_else(|| format!("{} has no cases", manifest.display()))
+        });
+    let (passed, detail) = match case_count {
+        Ok(count) => {
+            let marker = format!("conformance {count}/{count}");
+            let evidence = journal.lines().find(|line| {
+                line.contains("GOAL 021")
+                    && line.contains(&marker)
+                    && line.contains("role_evals")
+                    && line.contains("workspace")
+                    && line.contains("CI green")
+            });
+            (
+                evidence.is_some(),
+                evidence.map_or_else(
+                    || {
+                        format!(
+                            "goal-021 journal evidence does not record {marker}, role_evals, workspace tests, and CI green"
+                        )
+                    },
+                    |line| format!("recorded verification: {}", tail_line(line)),
+                ),
+            )
+        }
+        Err(problem) => (false, problem),
+    };
+    Check::new("current_frozen_corpus_verified", passed, detail)
 }
 
 // ---------------------------------------------------------------------------
@@ -832,15 +812,24 @@ pub(super) fn auditor(root: &Path) -> Outcome {
 /// The `- [x] T8d ...` block: from its line to the next `## ` heading or
 /// next top-level checklist item.
 fn t8d_block(goal: &str) -> Option<String> {
+    task_block(goal, "T8d")
+}
+
+fn t8c_block(goal: &str) -> Option<String> {
+    task_block(goal, "T8c")
+}
+
+fn task_block(goal: &str, task: &str) -> Option<String> {
     let lines: Vec<&str> = goal.lines().collect();
+    let prefix = format!("- [x] {task}");
     let start = lines
         .iter()
-        .position(|l| l.trim_start().starts_with("- [x] T8d"))?;
+        .position(|line| line.trim_start().starts_with(&prefix))?;
     let end = lines
         .iter()
         .enumerate()
         .skip(start + 1)
-        .find(|(_, l)| l.starts_with("## ") || l.trim_start().starts_with("- [x] T"))
+        .find(|(_, line)| line.starts_with("## ") || line.trim_start().starts_with("- [x] T"))
         .map_or(lines.len(), |(i, _)| i);
     Some(lines[start..end].join("\n"))
 }
@@ -985,5 +974,21 @@ mod tests {
         assert!(block.contains("PASS"));
         assert!(block.contains("Non-blocking notes"));
         assert!(!block.contains("T9"));
+    }
+
+    #[test]
+    fn builder_calibration_fails_closed_when_workspace_evidence_is_missing() {
+        let goal = "- [x] T8c adapter (rust-builder)\n  - Evidence: conformance green; fmt/clippy -D warnings green.\n- [x] T8d audit\n";
+        let check = builder_calibration_check(goal);
+        assert!(
+            !check.passed,
+            "missing workspace-test evidence must fail closed"
+        );
+    }
+
+    #[test]
+    fn task_block_requires_a_completed_task() {
+        let goal = "- [ ] T8c adapter (rust-builder)\n  - Evidence: conformance; fmt/clippy -D warnings/test --workspace green.\n";
+        assert!(t8c_block(goal).is_none());
     }
 }

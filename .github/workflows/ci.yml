@@ -13,14 +13,127 @@ jobs:
   rust:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --check
-      - run: cargo clippy --all-targets -- -D warnings
-      - run: cargo test --workspace
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Rust CI metadata
+        run: |
+          {
+            echo "### Rust CI metadata"
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo "| Runner | \`${RUNNER_OS} ${RUNNER_ARCH}\` |"
+            echo "| rustc | \`$(rustc --version)\` |"
+            echo "| cargo | \`$(cargo --version)\` |"
+            echo "| Target profiles | \`dev\` (Clippy/OpenAPI), \`test\` (workspace tests) |"
+            echo
+            echo "### Rust gate durations"
+            echo "| Gate | Started (UTC) | Ended (UTC) | Elapsed (s) | Result | Cargo-reported build |"
+            echo "|---|---|---|---:|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore shared Rust/DB dependency cache
+        id: rust_cache
+        uses: Swatinem/rust-cache@v2
+        continue-on-error: true
+        with:
+          shared-key: rust-db-dependencies
+          add-job-id-key: false
+          # Only this job writes the shared cache, and only from protected main.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Report Rust dependency cache
+        if: always()
+        env:
+          CACHE_HIT: ${{ steps.rust_cache.outputs.cache-hit }}
+          CACHE_OUTCOME: ${{ steps.rust_cache.outcome }}
+        run: |
+          cache_hit="${CACHE_HIT:-unreported}"
+          {
+            echo
+            echo "### Rust dependency cache"
+            echo "| Namespace | Action outcome | Cache hit | Save policy |"
+            echo "|---|---|---|---|"
+            echo "| \`rust-db-dependencies\` | \`${CACHE_OUTCOME}\` | \`${cache_hit}\` | protected main only |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: rust / format
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          cargo fmt --check
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`rust / format\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} | - |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
+
+      - name: rust / clippy
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          cargo clippy --all-targets -- -D warnings
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`rust / clippy\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} | - |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
+
+      - name: rust / workspace tests
+        env:
+          CARGO_TERM_COLOR: never
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          cargo_log="$(mktemp)"
+          set +e
+          cargo test --workspace 2>&1 | tee "$cargo_log"
+          exit_code=${PIPESTATUS[0]}
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          cargo_build="$(sed -nE 's/.*Finished .* in (.*)$/\1/p' "$cargo_log" | tail -n 1)"
+          cargo_build="${cargo_build:-not reported}"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`rust / workspace tests\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} | ${cargo_build} |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
+
+      - name: rust / us_house conformance
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          cargo run -p pipeline --bin conformance -- us_house
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`rust / us_house conformance\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} | - |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
+
       # Contract drift gate (design §6.1): openapi.json is generated-but-committed,
-      # never hand-edited; regeneration must be a no-op.
-      - run: cargo run -p api --bin openapi && git diff --exit-code packages/contracts/
+      # never hand-edited; regeneration must be a no-op. Retained during snapshot parity.
+      - name: rust / OpenAPI regeneration drift
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          cargo run -p api --bin openapi && git diff --exit-code packages/contracts/
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`rust / OpenAPI regeneration drift\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} | - |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
 
   db:
     runs-on: ubuntu-latest
@@ -41,63 +154,344 @@ jobs:
     env:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/govfolio
     steps:
-      - uses: actions/checkout@v5
-      - uses: Swatinem/rust-cache@v2
-      # #[ignore] sqlx suites arrive in Task 3+; with zero ignored tests this passes trivially.
-      - run: cargo test --workspace -- --ignored
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Database CI metadata
+        run: |
+          {
+            echo "### Database CI metadata"
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo "| Runner | \`${RUNNER_OS} ${RUNNER_ARCH}\` |"
+            echo "| rustc | \`$(rustc --version)\` |"
+            echo "| cargo | \`$(cargo --version)\` |"
+            echo "| PostgreSQL | \`postgres:16\` service |"
+            echo "| Target profile | \`test\` |"
+            echo
+            echo "### Database gate durations"
+            echo "| Gate | Started (UTC) | Ended (UTC) | Elapsed (s) | Result | Cargo-reported build |"
+            echo "|---|---|---|---:|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore shared Rust/DB dependency cache
+        id: db_cache
+        uses: Swatinem/rust-cache@v2
+        continue-on-error: true
+        with:
+          shared-key: rust-db-dependencies
+          add-job-id-key: false
+          # The Rust job is the sole writer; DB restores immutable entries only.
+          save-if: false
+
+      - name: Report database dependency cache
+        if: always()
+        env:
+          CACHE_HIT: ${{ steps.db_cache.outputs.cache-hit }}
+          CACHE_OUTCOME: ${{ steps.db_cache.outcome }}
+        run: |
+          cache_hit="${CACHE_HIT:-unreported}"
+          {
+            echo
+            echo "### Database dependency cache"
+            echo "| Namespace | Action outcome | Cache hit | Save policy |"
+            echo "|---|---|---|---|"
+            echo "| \`rust-db-dependencies\` | \`${CACHE_OUTCOME}\` | \`${cache_hit}\` | restore only |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # #[ignore] SQLx suites retain database-per-test isolation.
+      - name: db / ignored SQLx suites
+        env:
+          CARGO_TERM_COLOR: never
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          cargo_log="$(mktemp)"
+          set +e
+          cargo test --workspace -- --ignored 2>&1 | tee "$cargo_log"
+          exit_code=${PIPESTATUS[0]}
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          cargo_build="$(sed -nE 's/.*Finished .* in (.*)$/\1/p' "$cargo_log" | tail -n 1)"
+          cargo_build="${cargo_build:-not reported}"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`db / ignored SQLx suites\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} | ${cargo_build} |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
 
   web:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+      - name: Set up Node with pnpm cache
+        id: node_cache
+        uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter web lint
-      - run: pnpm --filter web typecheck
-      - run: pnpm --filter web test
+
+      - name: Web CI metadata and cache
+        env:
+          NODE_CACHE_OUTCOME: ${{ steps.node_cache.outcome }}
+        run: |
+          {
+            echo "### Web CI metadata"
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo "| Runner | \`${RUNNER_OS} ${RUNNER_ARCH}\` |"
+            echo "| Node | \`$(node --version)\` |"
+            echo "| pnpm | \`$(pnpm --version)\` |"
+            echo "| pnpm cache action | \`${NODE_CACHE_OUTCOME}\` (setup-node does not expose hit/miss) |"
+            echo
+            echo "### Web gate durations"
+            echo "| Gate | Started (UTC) | Ended (UTC) | Elapsed (s) | Result |"
+            echo "|---|---|---|---:|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: web / install
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          pnpm install --frozen-lockfile
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`web / install\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
+
+      - name: web / lint
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          pnpm --filter web lint
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`web / lint\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
+
+      - name: web / typecheck
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          pnpm --filter web typecheck
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`web / typecheck\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
+
+      - name: web / tests
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          pnpm --filter web test
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`web / tests\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
+
       # Contract drift gate, TS side (design §6.1): the committed generated
       # client must match openapi.json; regeneration must be a no-op.
-      - run: pnpm --filter @govfolio/contracts generate && git diff --exit-code packages/contracts/
+      - name: web / generated contract drift
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          pnpm --filter @govfolio/contracts generate && git diff --exit-code packages/contracts/
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`web / generated contract drift\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
 
   # Enforces docs/decisions/automation-policy.md: destructive migrations and
   # over-budget terraform destroys must fail closed, not merge.
   guardrails:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout full history
+        uses: actions/checkout@v5
         with:
           # validate-authority --ci (check c) inspects HEAD's parents and the
           # merged-side commit messages — a shallow clone would fail closed.
           fetch-depth: 0
-      - uses: Swatinem/rust-cache@v2
-      - uses: actions/setup-node@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
           node-version: 24
+
+      - name: Guardrail CI metadata
+        run: |
+          {
+            echo "### Guardrail CI metadata"
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Commit | \`${GITHUB_SHA}\` |"
+            echo "| Runner | \`${RUNNER_OS} ${RUNNER_ARCH}\` |"
+            echo "| rustc | \`$(rustc --version)\` |"
+            echo "| cargo | \`$(cargo --version)\` |"
+            echo "| Node | \`$(node --version)\` |"
+            echo "| Target profile | \`dev\` |"
+            echo
+            echo "### Guardrail gate durations"
+            echo "| Gate | Started (UTC) | Ended (UTC) | Elapsed (s) | Result |"
+            echo "|---|---|---|---:|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Restore guardrail cache
+        id: guardrails_cache
+        uses: Swatinem/rust-cache@v2
+        continue-on-error: true
+
+      - name: Report guardrail cache
+        if: always()
+        env:
+          CACHE_HIT: ${{ steps.guardrails_cache.outputs.cache-hit }}
+          CACHE_OUTCOME: ${{ steps.guardrails_cache.outcome }}
+        run: |
+          cache_hit="${CACHE_HIT:-unreported}"
+          {
+            echo
+            echo "### Guardrail cache"
+            echo "| Action outcome | Cache hit |"
+            echo "|---|---|"
+            echo "| \`${CACHE_OUTCOME}\` | \`${cache_hit}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       # Invariant 9 (goal 100, design §4.2 run point 2): goal-queue bijection,
       # AUTHORITY.lock.json pins, amendment discipline. A poisoned tree cannot merge.
-      - name: authority lock + goal-queue bijection
-        run: cargo run -q -p pipeline --bin validate-authority -- --ci
-      - name: Codex skill-dispatch contract
+      - name: guardrails / authority lock + goal-queue bijection
         run: |
-          node --test scripts/agents/codex-contract.test.mjs
-          node scripts/agents/render-codex-contract.mjs --check
-          node scripts/agents/validate-codex-contract.mjs --repo-root .
-          bash -n agents/run-loop.sh agents/run-loop-codex.sh agents/monitor.sh
-          node scripts/agents/check-codex-contract-clean-worktree.mjs
-      - name: migrations expand-only
-        run: sh scripts/check-migration-safety.sh crates/core/migrations
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          cargo run -q -p pipeline --bin validate-authority -- --ci
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`guardrails / authority lock + goal-queue bijection\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
+
+      - name: guardrails / Codex skill-dispatch contract
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          node --test scripts/agents/codex-contract.test.mjs && \
+            node scripts/agents/render-codex-contract.mjs --check && \
+            node scripts/agents/validate-codex-contract.mjs --repo-root . && \
+            bash -n agents/run-loop.sh agents/run-loop-codex.sh agents/monitor.sh && \
+            node scripts/agents/check-codex-contract-clean-worktree.mjs
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`guardrails / Codex skill-dispatch contract\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
+
+      - name: guardrails / migrations expand-only
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          sh scripts/check-migration-safety.sh crates/core/migrations
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`guardrails / migrations expand-only\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
+
       # CI has no cloud credentials by design, so the destroy-budget gate
       # (plan + scripts/check-tf-plan.sh) runs fail-closed in deploy.yml immediately
       # before ANY apply. Here: syntax + schema validation only (auth-free).
-      - uses: hashicorp/setup-terraform@v3
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_wrapper: false
-      - name: terraform fmt/validate
+
+      - name: guardrails / terraform fmt and validate
         run: |
-          terraform -chdir=infra fmt -check
-          terraform -chdir=infra init -backend=false -input=false
-          terraform -chdir=infra validate
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          set +e
+          terraform -chdir=infra fmt -check && \
+            terraform -chdir=infra init -backend=false -input=false && \
+            terraform -chdir=infra validate
+          exit_code=$?
+          set -e
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          echo "| \`guardrails / terraform fmt and validate\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} |" >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
+
+  release-gate:
+    if: always()
+    needs: [rust, db, web, guardrails]
+    runs-on: ubuntu-latest
+    steps:
+      - name: release / aggregate required jobs
+        env:
+          RUST_RESULT: ${{ needs.rust.result }}
+          DB_RESULT: ${{ needs.db.result }}
+          WEB_RESULT: ${{ needs.web.result }}
+          GUARDRAILS_RESULT: ${{ needs.guardrails.result }}
+        run: |
+          started_epoch="$(date +%s)"
+          started_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          {
+            echo "### Commit-bound release gate"
+            echo "Commit: \`${GITHUB_SHA}\`"
+            echo
+            echo "| Required job | Result |"
+            echo "|---|---|"
+            echo "| rust | ${RUST_RESULT} |"
+            echo "| db | ${DB_RESULT} |"
+            echo "| web | ${WEB_RESULT} |"
+            echo "| guardrails | ${GUARDRAILS_RESULT} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          exit_code=0
+          for result in "$RUST_RESULT" "$DB_RESULT" "$WEB_RESULT" "$GUARDRAILS_RESULT"; do
+            if [ "$result" != success ]; then
+              exit_code=1
+            fi
+          done
+
+          elapsed="$(( $(date +%s) - started_epoch ))"
+          ended_at="$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          if [ "$exit_code" -eq 0 ]; then result=success; else result=failure; fi
+          {
+            echo
+            echo "| Gate | Started (UTC) | Ended (UTC) | Elapsed (s) | Result |"
+            echo "|---|---|---|---:|---|"
+            echo "| \`release / aggregate required jobs\` | ${started_at} | ${ended_at} | ${elapsed} | ${result} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$exit_code"
