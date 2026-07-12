@@ -106,7 +106,7 @@ async fn build_store_migrates_and_enforces_fenced_request_transitions() {
     assert_eq!(record.exit_code, Some(0));
     assert_eq!(record.evidence_sha256, Some("c".repeat(64)));
     assert_eq!(record.process_identity, Some(retry_identity));
-    assert_eq!(store.control_schema_version().await.unwrap(), 2);
+    assert_eq!(store.control_schema_version().await.unwrap(), 3);
 }
 
 #[tokio::test]

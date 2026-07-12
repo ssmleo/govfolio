@@ -13,15 +13,18 @@
 
 pub mod artifacts;
 pub mod build_classifier;
+pub mod build_interference;
 pub mod build_policy;
 pub mod build_protocol;
 pub mod build_scheduler;
 pub mod build_service;
+pub mod build_shim;
 pub mod build_store;
 pub mod build_transport;
 pub mod canary;
 pub mod config;
 pub mod failover;
+pub mod historical_contract;
 pub mod host;
 pub mod integration;
 pub mod model;

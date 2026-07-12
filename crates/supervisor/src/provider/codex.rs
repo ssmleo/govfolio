@@ -34,7 +34,15 @@ impl CodexAdapter {
         if let Some(model) = &attempt.provider.model {
             args.extend(["--model".to_owned(), model.clone()]);
         }
-        let sanitized = sanitize_environment(Provider::Codex, &attempt.lane_id, inherited_env);
+        let sanitized = sanitize_environment(
+            Provider::Codex,
+            &attempt.lane_id,
+            attempt.lane_fence,
+            inherited_env,
+        );
+        let historical = sanitized.env.iter().any(|(key, value)| {
+            key.eq_ignore_ascii_case("GOVFOLIO_HISTORICAL_CONTRACT") && value == "1"
+        });
         if let Some((_, bronze_root)) = sanitized
             .env
             .iter()
@@ -50,7 +58,7 @@ impl CodexAdapter {
             "--config".to_owned(),
             "model_reasoning_effort=\"xhigh\"".to_owned(),
             "--config".to_owned(),
-            "sandbox_workspace_write.network_access=true".to_owned(),
+            format!("sandbox_workspace_write.network_access={}", !historical),
         ]);
         args.push("exec".to_owned());
         args.extend(

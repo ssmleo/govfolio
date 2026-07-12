@@ -105,6 +105,16 @@ fn inherited_environment() -> Vec<(String, String)> {
         ("GOVFOLIO_LOOP_BIN", "C:/runtime/govfolio-loop.exe"),
         ("GOVFOLIO_EPOCH_GATE_BIN", "C:/runtime/epoch-gate.exe"),
         ("GOVFOLIO_LEASE_BIN", "C:/runtime/jurisdiction-lease.exe"),
+        ("GOVFOLIO_CARGO_BIN", "C:/runtime/real-cargo.exe"),
+        ("GOVFOLIO_BUILD_OWNER", "supervisor-owner"),
+        (
+            "GOVFOLIO_BUILD_POLICY_SHA",
+            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        ),
+        (
+            "GOVFOLIO_BUILD_CONTROL_ENDPOINT",
+            r"\\.\pipe\govfolio-loop-test",
+        ),
         ("GOVFOLIO_EPOCH", "E3"),
         ("CARGO_TARGET_DIR", "C:/targets/lane-0"),
         ("ANTHROPIC_API_KEY", "anthropic-secret"),
@@ -287,6 +297,17 @@ fn provider_environment_is_allowlisted_and_provider_scoped() {
             ("GOVFOLIO_EPOCH_GATE_BIN", "C:/runtime/epoch-gate.exe"),
             ("GOVFOLIO_LEASE_BIN", "C:/runtime/jurisdiction-lease.exe"),
             ("GOVFOLIO_EPOCH", "E3"),
+            ("GOVFOLIO_LOOP_LANE_ID", "orchestrator-0"),
+            ("GOVFOLIO_LANE_FENCE", "7"),
+            ("GOVFOLIO_BUILD_OWNER", "supervisor-owner"),
+            (
+                "GOVFOLIO_BUILD_POLICY_SHA",
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            ),
+            (
+                "GOVFOLIO_BUILD_CONTROL_ENDPOINT",
+                r"\\.\pipe\govfolio-loop-test",
+            ),
         ] {
             assert!(
                 command
@@ -336,9 +357,66 @@ fn provider_environment_is_allowlisted_and_provider_scoped() {
         "CLAUDE_CODE_OAUTH_TOKEN",
         "OPENAI_API_KEY",
         "CODEX_API_KEY",
+        "GOVFOLIO_CARGO_BIN",
     ] {
         assert!(claude.remove_env.iter().any(|key| key == blocked));
         assert!(codex.remove_env.iter().any(|key| key == blocked));
+    }
+}
+
+#[test]
+fn historical_provider_environment_removes_governance_and_production_capabilities() {
+    let mut source = inherited_environment();
+    source.push(("GOVFOLIO_HISTORICAL_CONTRACT".to_owned(), "1".to_owned()));
+    let codex = CodexAdapter
+        .build_fresh(&attempt(Provider::Codex, None), &source)
+        .expect("historical command builds");
+    let claude = ClaudeAdapter::default()
+        .build_fresh(&attempt(Provider::Claude, None), &source)
+        .expect("historical Claude command builds");
+
+    assert!(
+        codex
+            .env
+            .iter()
+            .any(|(key, value)| { key == "GOVFOLIO_HISTORICAL_CONTRACT" && value == "1" })
+    );
+    assert!(
+        codex
+            .args
+            .iter()
+            .any(|arg| arg == "sandbox_workspace_write.network_access=false")
+    );
+    assert!(
+        !claude
+            .args
+            .iter()
+            .any(|arg| arg == "--dangerously-skip-permissions")
+    );
+    assert!(
+        claude
+            .args
+            .windows(2)
+            .any(|pair| pair[0] == "--permission-mode" && pair[1] == "dontAsk")
+    );
+    assert!(
+        claude
+            .args
+            .iter()
+            .any(|arg| { arg.contains("Bash(cargo *)") && !arg.contains("Bash(git push *)") })
+    );
+    for blocked in [
+        "DATABASE_URL",
+        "GOVFOLIO_AUTHORITY_BIN",
+        "GOVFOLIO_BRONZE_ROOT",
+        "GOVFOLIO_EPOCH",
+        "GOVFOLIO_EPOCH_GATE_BIN",
+        "GOVFOLIO_LEASE_BIN",
+    ] {
+        for command in [&codex, &claude] {
+            assert!(!command.env.iter().any(|(key, _)| key == blocked));
+            assert!(command.remove_env.iter().any(|key| key == blocked));
+        }
     }
 }
 

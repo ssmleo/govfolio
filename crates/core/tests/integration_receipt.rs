@@ -42,6 +42,7 @@ fn receipt(id: &str, from: CoveragePhase, to: Option<CoveragePhase>) -> Integrat
             sha256: std::iter::repeat_n('d', 64).collect(),
         }],
         real_source_proof: None,
+        historical_contract: None,
         journal_summary: "fixture applied".to_owned(),
         repair_of: None,
         repair_ordinal: None,
@@ -87,6 +88,7 @@ async fn merge_ready(pool: &PgPool, receipt_id: &str) -> i64 {
             to_state: IntegrationState::AwaitingCi,
             actor: "integrator".to_owned(),
             evidence: TransitionEvidence {
+                candidate_sha: Some(sha('c')),
                 integration_branch: Some("integration/fixture".to_owned()),
                 pr_number: Some(42),
                 ..TransitionEvidence::default()

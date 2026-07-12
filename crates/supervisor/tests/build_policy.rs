@@ -5,7 +5,8 @@ use std::process::Command;
 
 use chrono::{TimeZone as _, Utc};
 use loop_supervisor::build_policy::{
-    BuildPolicyStatus, POLICY_PATH, load_build_policy, parse_build_policy,
+    BuildPolicyStatus, POLICY_PATH, load_build_policy, load_build_policy_at_revision,
+    parse_build_policy,
 };
 use sha2::{Digest as _, Sha256};
 
@@ -62,8 +63,50 @@ fn build_policy_loader_requires_a_tracked_authority_pinned_regular_file() {
     let snapshot = load_build_policy(repo, Utc::now()).unwrap();
     assert_eq!(snapshot.policy_sha256, digest);
 
-    fs::write(repo.join(POLICY_PATH), format!("{POLICY}\nchanged\n")).unwrap();
+    let changed = format!("{POLICY}\nchanged\n");
+    fs::write(repo.join(POLICY_PATH), &changed).unwrap();
+    let changed_digest = hex::encode(Sha256::digest(changed.as_bytes()));
+    fs::write(
+        repo.join("agents/AUTHORITY.lock.json"),
+        format!(r#"{{"version":1,"pinned":{{"{POLICY_PATH}":"{changed_digest}"}}}}"#),
+    )
+    .unwrap();
     assert!(load_build_policy(repo, Utc::now()).is_err());
+}
+
+#[test]
+fn revision_policy_loader_ignores_stale_or_dirty_worktree_bytes() {
+    let temp = tempfile::tempdir().unwrap();
+    let repo = temp.path();
+    fs::create_dir_all(repo.join("docs/decisions")).unwrap();
+    fs::create_dir_all(repo.join("agents")).unwrap();
+    fs::write(repo.join(POLICY_PATH), POLICY).unwrap();
+    let digest = hex::encode(Sha256::digest(POLICY));
+    fs::write(
+        repo.join("agents/AUTHORITY.lock.json"),
+        format!(r#"{{"version":1,"pinned":{{"{POLICY_PATH}":"{digest}"}}}}"#),
+    )
+    .unwrap();
+    git(repo, &["init", "-q"]);
+    git(repo, &["config", "core.autocrlf", "false"]);
+    git(
+        repo,
+        &["config", "user.email", "build-policy@example.invalid"],
+    );
+    git(repo, &["config", "user.name", "Build Policy Test"]);
+    git(
+        repo,
+        &["add", "--", POLICY_PATH, "agents/AUTHORITY.lock.json"],
+    );
+    git(repo, &["commit", "-qm", "fixture"]);
+    let trusted_commit = git_stdout(repo, &["rev-parse", "HEAD"]);
+
+    fs::write(repo.join(POLICY_PATH), "untrusted local policy").unwrap();
+    fs::write(repo.join("agents/AUTHORITY.lock.json"), "{}").unwrap();
+
+    let snapshot = load_build_policy_at_revision(repo, &trusted_commit, Utc::now()).unwrap();
+    assert_eq!(snapshot.policy_sha256, digest);
+    assert_eq!(snapshot.source_commit, trusted_commit);
 }
 
 fn git(repo: &std::path::Path, args: &[&str]) {
@@ -73,4 +116,14 @@ fn git(repo: &std::path::Path, args: &[&str]) {
         .status()
         .unwrap();
     assert!(status.success(), "git {args:?} failed");
+}
+
+fn git_stdout(repo: &std::path::Path, args: &[&str]) -> String {
+    let output = Command::new("git")
+        .args(args)
+        .current_dir(repo)
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "git {args:?} failed");
+    String::from_utf8(output.stdout).unwrap().trim().to_owned()
 }

@@ -11,10 +11,14 @@ pub(crate) struct SanitizedEnvironment {
 pub(crate) fn sanitize_environment(
     provider: Provider,
     lane_id: &str,
+    lane_fence: i64,
     inherited: &[(String, String)],
 ) -> SanitizedEnvironment {
     let mut retained = BTreeMap::<String, (String, String)>::new();
     let mut removed = BTreeSet::<String>::new();
+    let historical_contract = inherited.iter().any(|(key, value)| {
+        key.eq_ignore_ascii_case("GOVFOLIO_HISTORICAL_CONTRACT") && value == "1"
+    });
 
     for (key, value) in inherited {
         let normalized = key.to_ascii_uppercase();
@@ -25,7 +29,35 @@ pub(crate) fn sanitize_environment(
         }
     }
 
+    if historical_contract {
+        for key in [
+            "DATABASE_URL",
+            "GOVFOLIO_AUTHORITY_BIN",
+            "GOVFOLIO_BRONZE_ROOT",
+            "GOVFOLIO_EPOCH",
+            "GOVFOLIO_EPOCH_GATE_BIN",
+            "GOVFOLIO_LEASE_BIN",
+        ] {
+            if let Some((original, _)) = retained.remove(key) {
+                removed.insert(original);
+            }
+            removed.insert(key.to_owned());
+        }
+    }
+
     replace_explicit(&mut retained, &mut removed, "GOVFOLIO_LANE_ID", lane_id);
+    replace_explicit(
+        &mut retained,
+        &mut removed,
+        "GOVFOLIO_LOOP_LANE_ID",
+        lane_id,
+    );
+    replace_explicit(
+        &mut retained,
+        &mut removed,
+        "GOVFOLIO_LANE_FENCE",
+        &lane_fence.to_string(),
+    );
     replace_explicit(&mut retained, &mut removed, "NO_COLOR", "1");
     replace_explicit(&mut retained, &mut removed, "GIT_CONFIG_NOSYSTEM", "1");
     replace_explicit(
@@ -93,9 +125,13 @@ fn is_common_key(key: &str) -> bool {
             | "DATABASE_URL"
             | "GIT_EXEC_PATH"
             | "GOVFOLIO_AUTHORITY_BIN"
+            | "GOVFOLIO_BUILD_CONTROL_ENDPOINT"
+            | "GOVFOLIO_BUILD_OWNER"
+            | "GOVFOLIO_BUILD_POLICY_SHA"
             | "GOVFOLIO_BRONZE_ROOT"
             | "GOVFOLIO_EPOCH"
             | "GOVFOLIO_EPOCH_GATE_BIN"
+            | "GOVFOLIO_HISTORICAL_CONTRACT"
             | "GOVFOLIO_LEASE_BIN"
             | "GOVFOLIO_LOOP_BIN"
             | "HOME"

@@ -62,11 +62,54 @@ pub fn load_build_policy(
         &["ls-files", "--error-unmatch", "--", POLICY_PATH],
         "policy is not tracked",
     )?;
+    let authority_path = repository.join(AUTHORITY_LOCK_PATH);
+    let authority_metadata = std::fs::symlink_metadata(&authority_path)?;
+    if !authority_metadata.file_type().is_file() || authority_metadata.file_type().is_symlink() {
+        return Err(BuildPolicyError::Trust(
+            "authority lock must be a regular non-symlinked file".to_owned(),
+        ));
+    }
+    git_success(
+        repository,
+        &[
+            "diff",
+            "--quiet",
+            "HEAD",
+            "--",
+            POLICY_PATH,
+            AUTHORITY_LOCK_PATH,
+        ],
+        "policy or authority lock differs from HEAD",
+    )?;
     let source_commit = git_stdout(repository, &["rev-parse", "HEAD"])?;
     let bytes = std::fs::read(path)?;
     let snapshot = parse_build_policy(&bytes, &source_commit, loaded_at)?;
+    let authority: AuthorityLock = serde_json::from_slice(&std::fs::read(authority_path)?)?;
+    match authority.pinned.get(POLICY_PATH) {
+        Some(pinned) if pinned == &snapshot.policy_sha256 => Ok(snapshot),
+        Some(_) => Err(BuildPolicyError::Trust(
+            "policy bytes do not match the authority pin".to_owned(),
+        )),
+        None => Err(BuildPolicyError::Trust(
+            "policy is absent from the authority pin set".to_owned(),
+        )),
+    }
+}
+
+/// Loads the immutable policy and authority pin directly from a trusted Git
+/// revision. Working-tree bytes are deliberately not consulted.
+pub fn load_build_policy_at_revision(
+    repository: &Path,
+    revision: &str,
+    loaded_at: DateTime<Utc>,
+) -> Result<BuildPolicySnapshot, BuildPolicyError> {
+    let source_commit = git_stdout(repository, &["rev-parse", "--verify", revision])?;
+    require_regular_git_blob(repository, &source_commit, POLICY_PATH)?;
+    require_regular_git_blob(repository, &source_commit, AUTHORITY_LOCK_PATH)?;
+    let policy = git_blob(repository, &source_commit, POLICY_PATH)?;
+    let snapshot = parse_build_policy(&policy, &source_commit, loaded_at)?;
     let authority: AuthorityLock =
-        serde_json::from_slice(&std::fs::read(repository.join(AUTHORITY_LOCK_PATH))?)?;
+        serde_json::from_slice(&git_blob(repository, &source_commit, AUTHORITY_LOCK_PATH)?)?;
     match authority.pinned.get(POLICY_PATH) {
         Some(pinned) if pinned == &snapshot.policy_sha256 => Ok(snapshot),
         Some(_) => Err(BuildPolicyError::Trust(
@@ -183,4 +226,36 @@ fn git_stdout(repository: &Path, args: &[&str]) -> Result<String, BuildPolicyErr
         )));
     }
     Ok(stdout)
+}
+
+fn require_regular_git_blob(
+    repository: &Path,
+    revision: &str,
+    path: &str,
+) -> Result<(), BuildPolicyError> {
+    let entry = git_stdout(repository, &["ls-tree", revision, "--", path])?;
+    let mode = entry
+        .split_ascii_whitespace()
+        .next()
+        .ok_or_else(|| BuildPolicyError::Trust(format!("{path} is absent from {revision}")))?;
+    if !matches!(mode, "100644" | "100755") {
+        return Err(BuildPolicyError::Trust(format!(
+            "{path} is not a regular file at {revision}"
+        )));
+    }
+    Ok(())
+}
+
+fn git_blob(repository: &Path, revision: &str, path: &str) -> Result<Vec<u8>, BuildPolicyError> {
+    let object = format!("{revision}:{path}");
+    let output = Command::new("git")
+        .args(["show", &object])
+        .current_dir(repository)
+        .output()?;
+    if !output.status.success() {
+        return Err(BuildPolicyError::Trust(format!(
+            "failed to read {path} at {revision}"
+        )));
+    }
+    Ok(output.stdout)
 }

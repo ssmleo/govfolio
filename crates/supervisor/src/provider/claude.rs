@@ -37,17 +37,24 @@ impl ClaudeAdapter {
             validate_session_id(session_id)?;
         }
 
-        let mut args = [
-            "-p",
-            "--output-format",
-            "stream-json",
-            "--verbose",
-            "--dangerously-skip-permissions",
-            "--effort",
-        ]
-        .into_iter()
-        .map(str::to_owned)
-        .collect::<Vec<_>>();
+        let historical = inherited_env.iter().any(|(key, value)| {
+            key.eq_ignore_ascii_case("GOVFOLIO_HISTORICAL_CONTRACT") && value == "1"
+        });
+        let mut args = ["-p", "--output-format", "stream-json", "--verbose"]
+            .into_iter()
+            .map(str::to_owned)
+            .collect::<Vec<_>>();
+        if historical {
+            args.extend([
+                "--permission-mode".to_owned(),
+                "dontAsk".to_owned(),
+                "--allowedTools".to_owned(),
+                "Read,Edit,Write,Glob,Grep,Bash(git status *),Bash(git diff *),Bash(git add *),Bash(git commit *),Bash(git rev-parse *),Bash(cargo *)".to_owned(),
+            ]);
+        } else {
+            args.push("--dangerously-skip-permissions".to_owned());
+        }
+        args.push("--effort".to_owned());
         args.push(self.effort.clone());
         if let Some(model) = &attempt.provider.model {
             args.extend(["--model".to_owned(), model.clone()]);
@@ -56,7 +63,12 @@ impl ClaudeAdapter {
             args.extend(["--resume".to_owned(), session_id.to_owned()]);
         }
 
-        let sanitized = sanitize_environment(Provider::Claude, &attempt.lane_id, inherited_env);
+        let sanitized = sanitize_environment(
+            Provider::Claude,
+            &attempt.lane_id,
+            attempt.lane_fence,
+            inherited_env,
+        );
         Ok(command_spec(
             attempt,
             args,

@@ -1,4 +1,5 @@
 use std::fmt;
+use std::path::{Component, Path};
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
@@ -223,6 +224,43 @@ pub struct RealSourceProof {
     pub rows_ingested: i64,
 }
 
+#[derive(Clone, Debug, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
+pub struct HistoricalContractEvidence {
+    pub merge_base_sha: String,
+    pub active_policy_sha256: String,
+    pub source_sha: String,
+    pub changed_paths: Vec<String>,
+}
+
+impl HistoricalContractEvidence {
+    fn validate(&self, receipt_source_sha: &str) -> Result<(), IntegrationError> {
+        require_git_sha("historical merge-base SHA", &self.merge_base_sha)?;
+        require_sha256("historical active policy hash", &self.active_policy_sha256)?;
+        require_git_sha("historical source SHA", &self.source_sha)?;
+        if self.source_sha != receipt_source_sha {
+            return Err(IntegrationError::InvalidReceipt(
+                "historical source SHA does not match the receipt source SHA".to_owned(),
+            ));
+        }
+        let mut previous = None;
+        for path in &self.changed_paths {
+            validate_historical_changed_path(path)?;
+            if previous.is_some_and(|previous| previous >= path.as_str()) {
+                return Err(IntegrationError::InvalidReceipt(
+                    "historical changed paths must be strictly sorted and unique".to_owned(),
+                ));
+            }
+            if historical_path_is_governed(path) {
+                return Err(IntegrationError::InvalidReceipt(format!(
+                    "historical changed path is governed: {path:?}"
+                )));
+            }
+            previous = Some(path.as_str());
+        }
+        Ok(())
+    }
+}
+
 impl RealSourceProof {
     fn validate(&self) -> Result<(), IntegrationError> {
         require_nonempty("real-source URL", &self.source_url)?;
@@ -256,6 +294,8 @@ pub struct IntegrationReceipt {
     pub validation_evidence: Vec<ValidationEvidence>,
     pub artifact_hashes: Vec<ArtifactHash>,
     pub real_source_proof: Option<RealSourceProof>,
+    #[serde(default)]
+    pub historical_contract: Option<HistoricalContractEvidence>,
     pub journal_summary: String,
     pub repair_of: Option<String>,
     pub repair_ordinal: Option<i16>,
@@ -321,6 +361,9 @@ impl IntegrationReceipt {
         if let Some(proof) = &self.real_source_proof {
             proof.validate()?;
         }
+        if let Some(historical) = &self.historical_contract {
+            historical.validate(&self.source_sha)?;
+        }
         if self.validation_evidence.is_empty() {
             return Err(IntegrationError::InvalidReceipt(
                 "at least one validation result is required".to_owned(),
@@ -380,6 +423,7 @@ impl IntegrationReceipt {
 #[derive(Clone, Debug, Default, Deserialize, Eq, JsonSchema, PartialEq, Serialize)]
 pub struct TransitionEvidence {
     pub candidate_base_sha: Option<String>,
+    pub candidate_sha: Option<String>,
     pub integration_branch: Option<String>,
     pub pr_number: Option<i64>,
     pub merge_sha: Option<String>,
@@ -418,6 +462,7 @@ pub struct ApplyEvidence {
     pub merge_sha: String,
     pub origin_main_sha: String,
     pub source_is_ancestor: bool,
+    pub historical_contract_verified: bool,
     pub journal_receipt_line_count: i32,
     pub required_checks: RequiredChecks,
     pub real_source_verified: bool,
@@ -436,6 +481,7 @@ impl ApplyEvidence {
             merge_sha: merge_sha.to_owned(),
             origin_main_sha: merge_sha.to_owned(),
             source_is_ancestor: true,
+            historical_contract_verified: false,
             journal_receipt_line_count: 1,
             required_checks: RequiredChecks {
                 rust: check.clone(),
@@ -457,6 +503,7 @@ impl ApplyEvidence {
         &self,
         expected_source_sha: &str,
         expected_merge_sha: &str,
+        expected_historical: bool,
     ) -> Result<(), IntegrationError> {
         if self.actor != INTEGRATOR_ACTOR {
             return Err(IntegrationError::InvalidApplyEvidence(
@@ -466,9 +513,15 @@ impl ApplyEvidence {
         require_git_sha("apply source SHA", &self.source_sha)?;
         require_git_sha("apply merge SHA", &self.merge_sha)?;
         require_git_sha("verified origin/main SHA", &self.origin_main_sha)?;
-        if self.source_sha != expected_source_sha || !self.source_is_ancestor {
+        if self.source_sha != expected_source_sha
+            || (expected_historical
+                && (self.source_is_ancestor || !self.historical_contract_verified))
+            || (!expected_historical
+                && (!self.source_is_ancestor || self.historical_contract_verified))
+        {
             return Err(IntegrationError::InvalidApplyEvidence(
-                "exact receipt source ancestry was not proven".to_owned(),
+                "exact receipt source integration proof does not match its contract mode"
+                    .to_owned(),
             ));
         }
         if self.merge_sha != expected_merge_sha || self.origin_main_sha != self.merge_sha {
@@ -511,10 +564,27 @@ pub struct StateProjection {
     pub state: IntegrationState,
     pub version: i64,
     pub candidate_base_sha: Option<String>,
+    pub candidate_sha: Option<String>,
     pub integration_branch: Option<String>,
     pub pr_number: Option<i64>,
     pub merge_sha: Option<String>,
     pub last_error: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AppliedHistoricalContract {
+    pub receipt_id: String,
+    pub lane_id: String,
+    pub work_key: String,
+    pub evidence: HistoricalContractEvidence,
+}
+
+#[derive(FromRow)]
+struct AppliedHistoricalRow {
+    receipt_id: String,
+    lane_id: String,
+    work_key: String,
+    historical_contract: serde_json::Value,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -610,6 +680,7 @@ struct ProjectionRow {
     state: String,
     version: i64,
     candidate_base_sha: Option<String>,
+    candidate_sha: Option<String>,
     integration_branch: Option<String>,
     pr_number: Option<i64>,
     merge_sha: Option<String>,
@@ -623,6 +694,7 @@ impl ProjectionRow {
             state: self.state.parse()?,
             version: self.version,
             candidate_base_sha: self.candidate_base_sha,
+            candidate_sha: self.candidate_sha,
             integration_branch: self.integration_branch,
             pr_number: self.pr_number,
             merge_sha: self.merge_sha,
@@ -642,6 +714,7 @@ struct ApplyRow {
     receipt_generation: i64,
     source_sha: String,
     real_source_proof: Option<serde_json::Value>,
+    historical_contract: Option<serde_json::Value>,
     state: String,
     state_version: i64,
     state_merge_sha: Option<String>,
@@ -670,12 +743,14 @@ struct ReceiptProjectionRow {
     validation_evidence: serde_json::Value,
     artifact_hashes: serde_json::Value,
     real_source_proof: Option<serde_json::Value>,
+    historical_contract: Option<serde_json::Value>,
     journal_summary: String,
     repair_of: Option<String>,
     repair_ordinal: Option<i16>,
     state: String,
     version: i64,
     candidate_base_sha: Option<String>,
+    candidate_sha: Option<String>,
     integration_branch: Option<String>,
     pr_number: Option<i64>,
     merge_sha: Option<String>,
@@ -706,6 +781,10 @@ impl ReceiptProjectionRow {
                 .real_source_proof
                 .map(serde_json::from_value)
                 .transpose()?,
+            historical_contract: self
+                .historical_contract
+                .map(serde_json::from_value)
+                .transpose()?,
             journal_summary: self.journal_summary,
             repair_of: self.repair_of,
             repair_ordinal: self.repair_ordinal,
@@ -720,6 +799,7 @@ impl ReceiptProjectionRow {
             state: self.state.parse()?,
             version: self.version,
             candidate_base_sha: self.candidate_base_sha,
+            candidate_sha: self.candidate_sha,
             integration_branch: self.integration_branch,
             pr_number: self.pr_number,
             merge_sha: self.merge_sha,
@@ -910,13 +990,18 @@ async fn insert_receipt_rows(
         .as_ref()
         .map(serde_json::to_value)
         .transpose()?;
+    let historical_contract = receipt
+        .historical_contract
+        .as_ref()
+        .map(serde_json::to_value)
+        .transpose()?;
     sqlx::query(
         "insert into integration_receipt \
          (id, work_key, jurisdiction_id, from_phase, to_phase, blocked_reason, source_sha, \
           base_sha, source_branch, lane_id, lease_generation, provider, model, attempt_id, \
-          validation_evidence, artifact_hashes, real_source_proof, journal_summary, \
-          repair_of, repair_ordinal, payload_sha256) \
-         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)",
+          validation_evidence, artifact_hashes, real_source_proof, historical_contract, \
+          journal_summary, repair_of, repair_ordinal, payload_sha256) \
+         values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)",
     )
     .bind(&receipt.id)
     .bind(&receipt.work_key)
@@ -935,6 +1020,7 @@ async fn insert_receipt_rows(
     .bind(validation_evidence)
     .bind(artifact_hashes)
     .bind(real_source_proof)
+    .bind(historical_contract)
     .bind(&receipt.journal_summary)
     .bind(&receipt.repair_of)
     .bind(receipt.repair_ordinal)
@@ -1030,7 +1116,7 @@ pub async fn receipt_status(
     receipt_id: &str,
 ) -> Result<StateProjection, IntegrationError> {
     sqlx::query_as::<_, ProjectionRow>(
-        "select receipt_id, state, version, candidate_base_sha, integration_branch, \
+        "select receipt_id, state, version, candidate_base_sha, candidate_sha, integration_branch, \
                 pr_number, merge_sha, last_error \
          from integration_receipt_state where receipt_id = $1",
     )
@@ -1055,8 +1141,9 @@ pub async fn next_actionable_receipt(
                 receipt.source_branch, receipt.lane_id, receipt.lease_generation, \
                 receipt.provider, receipt.model, receipt.attempt_id, \
                 receipt.validation_evidence, receipt.artifact_hashes, receipt.real_source_proof, \
+                receipt.historical_contract, \
                 receipt.journal_summary, receipt.repair_of, receipt.repair_ordinal, \
-                state.state, state.version, state.candidate_base_sha, state.integration_branch, \
+                state.state, state.version, state.candidate_base_sha, state.candidate_sha, state.integration_branch, \
                 state.pr_number, state.merge_sha, state.last_error \
          from integration_receipt receipt \
          join integration_receipt_state state on state.receipt_id = receipt.id \
@@ -1083,8 +1170,9 @@ pub async fn pending_receipts(
                 receipt.source_branch, receipt.lane_id, receipt.lease_generation, \
                 receipt.provider, receipt.model, receipt.attempt_id, \
                 receipt.validation_evidence, receipt.artifact_hashes, receipt.real_source_proof, \
+                receipt.historical_contract, \
                 receipt.journal_summary, receipt.repair_of, receipt.repair_ordinal, \
-                state.state, state.version, state.candidate_base_sha, state.integration_branch, \
+                state.state, state.version, state.candidate_base_sha, state.candidate_sha, state.integration_branch, \
                 state.pr_number, state.merge_sha, state.last_error \
          from integration_receipt receipt \
          join integration_receipt_state state on state.receipt_id = receipt.id \
@@ -1097,6 +1185,36 @@ pub async fn pending_receipts(
     .await?;
     rows.into_iter()
         .map(ReceiptProjectionRow::into_typed)
+        .collect()
+}
+
+/// Lists applied historical receipts so the host control store can complete
+/// idempotent post-apply privilege retirement after a process restart.
+///
+/// # Errors
+/// Returns a database or persisted historical-evidence decoding error.
+pub async fn applied_historical_contracts(
+    pool: &PgPool,
+) -> Result<Vec<AppliedHistoricalContract>, IntegrationError> {
+    let rows = sqlx::query_as::<_, AppliedHistoricalRow>(
+        "select receipt.id as receipt_id, receipt.lane_id, receipt.work_key, \
+                receipt.historical_contract \
+         from integration_receipt receipt \
+         join integration_receipt_state state on state.receipt_id = receipt.id \
+         where state.state = 'applied' and receipt.historical_contract is not null \
+         order by receipt.submitted_at, receipt.id",
+    )
+    .fetch_all(pool)
+    .await?;
+    rows.into_iter()
+        .map(|row| {
+            Ok(AppliedHistoricalContract {
+                receipt_id: row.receipt_id,
+                lane_id: row.lane_id,
+                work_key: row.work_key,
+                evidence: serde_json::from_value(row.historical_contract)?,
+            })
+        })
         .collect()
 }
 
@@ -1115,18 +1233,20 @@ pub async fn transition_receipt(
         "update integration_receipt_state set \
            state = $1, version = version + 1, \
            candidate_base_sha = coalesce($2, candidate_base_sha), \
-           integration_branch = coalesce($3, integration_branch), \
-           pr_number = coalesce($4, pr_number), \
-           merge_sha = coalesce($5, merge_sha), \
-           last_error = case when $1 in ('rework_required','deferred') then $6 else null end, \
+           candidate_sha = coalesce($3, candidate_sha), \
+           integration_branch = coalesce($4, integration_branch), \
+           pr_number = coalesce($5, pr_number), \
+           merge_sha = coalesce($6, merge_sha), \
+           last_error = case when $1 in ('rework_required','deferred') then $7 else null end, \
            updated_at = now() \
-         where receipt_id = $7 and state = $8 and version = $9 \
-           and ($8 <> 'preparing' or candidate_base_sha is distinct from $2) \
-         returning receipt_id, state, version, candidate_base_sha, integration_branch, \
+         where receipt_id = $8 and state = $9 and version = $10 \
+           and ($9 <> 'preparing' or candidate_base_sha is distinct from $2) \
+         returning receipt_id, state, version, candidate_base_sha, candidate_sha, integration_branch, \
                    pr_number, merge_sha, last_error",
     )
     .bind(request.to_state.as_str())
     .bind(&request.evidence.candidate_base_sha)
+    .bind(&request.evidence.candidate_sha)
     .bind(&request.evidence.integration_branch)
     .bind(request.evidence.pr_number)
     .bind(&request.evidence.merge_sha)
@@ -1141,7 +1261,7 @@ pub async fn transition_receipt(
         row.into_projection()?
     } else {
         let current = sqlx::query_as::<_, ProjectionRow>(
-            "select receipt_id, state, version, candidate_base_sha, integration_branch, \
+            "select receipt_id, state, version, candidate_base_sha, candidate_sha, integration_branch, \
                     pr_number, merge_sha, last_error \
              from integration_receipt_state where receipt_id = $1",
         )
@@ -1217,6 +1337,12 @@ fn validate_transition_request(request: &TransitionRequest) -> Result<(), Integr
             require_git_sha("candidate base SHA", candidate)?;
         }
         IntegrationState::AwaitingCi => {
+            let candidate = request.evidence.candidate_sha.as_deref().ok_or_else(|| {
+                IntegrationError::InvalidApplyEvidence(
+                    "awaiting_ci transition requires candidate SHA".to_owned(),
+                )
+            })?;
+            require_git_sha("candidate SHA", candidate)?;
             require_nonempty(
                 "integration branch",
                 request.evidence.integration_branch.as_deref().unwrap_or(""),
@@ -1259,6 +1385,10 @@ fn transition_evidence_matches(
         .candidate_base_sha
         .as_ref()
         .is_none_or(|value| projection.candidate_base_sha.as_ref() == Some(value))
+        && evidence
+            .candidate_sha
+            .as_ref()
+            .is_none_or(|value| projection.candidate_sha.as_ref() == Some(value))
         && evidence
             .integration_branch
             .as_ref()
@@ -1355,7 +1485,8 @@ async fn load_apply_row(
         "select receipt.id as receipt_id, receipt.jurisdiction_id, receipt.from_phase, \
                 receipt.to_phase, receipt.blocked_reason, receipt.lane_id, \
                 receipt.lease_generation as receipt_generation, receipt.source_sha, \
-                receipt.real_source_proof, state.state, state.version as state_version, \
+                receipt.real_source_proof, receipt.historical_contract, \
+                state.state, state.version as state_version, \
                 state.merge_sha as state_merge_sha, jurisdiction.coverage_phase, \
                 jurisdiction.claimed_by, jurisdiction.lease_generation, \
                 jurisdiction.pending_integration_id \
@@ -1382,7 +1513,11 @@ fn validate_apply_context(
     let merge_sha = row.state_merge_sha.as_deref().ok_or_else(|| {
         IntegrationError::Integrity(format!("receipt {receipt_id} has no persisted merge SHA"))
     })?;
-    evidence.validate(&row.source_sha, merge_sha)?;
+    evidence.validate(
+        &row.source_sha,
+        merge_sha,
+        row.historical_contract.is_some(),
+    )?;
     let target_phase = to_phase.unwrap_or(from_phase);
     let built_to_live = from_phase == CoveragePhase::Built && to_phase == Some(CoveragePhase::Live);
     if built_to_live && (row.real_source_proof.is_none() || !evidence.real_source_verified) {
@@ -1635,6 +1770,56 @@ fn require_sha256(label: &str, value: &str) -> Result<(), IntegrationError> {
     }
 }
 
+fn validate_historical_changed_path(path: &str) -> Result<(), IntegrationError> {
+    let candidate = Path::new(path);
+    if path.is_empty()
+        || candidate.is_absolute()
+        || candidate
+            .components()
+            .any(|component| !matches!(component, Component::Normal(_)))
+    {
+        Err(IntegrationError::InvalidReceipt(format!(
+            "historical changed path is not normalized and repository-relative: {path:?}"
+        )))
+    } else {
+        Ok(())
+    }
+}
+
+#[must_use]
+pub fn historical_path_is_governed(path: &str) -> bool {
+    let normalized = path.replace('\\', "/");
+    matches!(
+        normalized.as_str(),
+        "Cargo.toml"
+            | "AGENTS.md"
+            | "CLAUDE.md"
+            | ".claude/rules/build-performance.md"
+            | "docs/decisions/build-performance-policy.md"
+            | "agents/AUTHORITY.lock.json"
+            | "agents/goals/000-INDEX.md"
+            | "agents/goals/114-build-resource-admission.md"
+            | "crates/core/src/integration.rs"
+            | "crates/pipeline/src/bin/validate_authority.rs"
+            | "crates/pipeline/src/factory.rs"
+            | "scripts/check-migration-safety.sh"
+            | "scripts/dev/cargo-agent.ps1"
+            | "scripts/dev/cargo-agent.test.ps1"
+    ) || normalized.starts_with(".cargo/")
+        || normalized.starts_with(".claude/")
+        || normalized.starts_with("agents/")
+        || normalized.starts_with(".github/")
+        || normalized.starts_with("docs/superpowers/plans/")
+        || normalized.starts_with("infra/")
+        || normalized.starts_with("deploy/")
+        || normalized.starts_with("ops/")
+        || normalized.starts_with("production/")
+        || normalized.starts_with("crates/supervisor/")
+        || normalized.starts_with("crates/core/migrations/")
+        || normalized.starts_with("crates/pipeline/tests/validate_authority")
+        || normalized.starts_with("scripts/agents/")
+}
+
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod integration_receipt_tests {
@@ -1656,6 +1841,41 @@ mod integration_receipt_tests {
             bronze_sha256: std::iter::repeat_n('b', 64).collect(),
             ingestion_run_id: "01ARZ3NDEKTSV4RRFFQ69G5FAV".to_owned(),
             rows_ingested: 1,
+        }
+    }
+
+    #[test]
+    fn historical_contract_accepts_only_sorted_application_paths_for_the_exact_source() {
+        let mut candidate = receipt(CoveragePhase::Stub, Some(CoveragePhase::Scouted));
+        candidate.historical_contract = Some(HistoricalContractEvidence {
+            merge_base_sha: sha('b'),
+            active_policy_sha256: std::iter::repeat_n('a', 64).collect(),
+            source_sha: candidate.source_sha.clone(),
+            changed_paths: vec!["crates/core/src/application.rs".to_owned()],
+        });
+        candidate
+            .validate()
+            .expect("application-only history passes");
+
+        candidate
+            .historical_contract
+            .as_mut()
+            .expect("historical evidence")
+            .changed_paths = vec!["agents/goals/999-stale.md".to_owned()];
+        assert!(candidate.validate().is_err());
+
+        for governed in [
+            ".cargo/config.toml",
+            ".claude/agents/stale.md",
+            "crates/pipeline/src/factory.rs",
+            "scripts/dev/cargo-agent.ps1",
+        ] {
+            candidate
+                .historical_contract
+                .as_mut()
+                .expect("historical evidence")
+                .changed_paths = vec![governed.to_owned()];
+            assert!(candidate.validate().is_err(), "accepted {governed}");
         }
     }
 
@@ -1686,6 +1906,7 @@ mod integration_receipt_tests {
                 sha256: std::iter::repeat_n('d', 64).collect(),
             }],
             real_source_proof: None,
+            historical_contract: None,
             journal_summary: "fixture receipt applied".to_owned(),
             repair_of: None,
             repair_ordinal: None,
@@ -1767,9 +1988,15 @@ mod integration_receipt_tests {
     fn apply_evidence_should_require_exact_green_merge() {
         let merge = sha('e');
         let mut evidence = ApplyEvidence::successful(&sha('a'), &merge);
-        assert!(evidence.validate(&sha('a'), &merge).is_ok());
+        assert!(evidence.validate(&sha('a'), &merge, false).is_ok());
         evidence.required_checks.web.commit_sha = sha('f');
-        assert!(evidence.validate(&sha('a'), &merge).is_err());
+        assert!(evidence.validate(&sha('a'), &merge, false).is_err());
+
+        let mut historical = ApplyEvidence::successful(&sha('a'), &merge);
+        historical.source_is_ancestor = false;
+        historical.historical_contract_verified = true;
+        assert!(historical.validate(&sha('a'), &merge, true).is_ok());
+        assert!(historical.validate(&sha('a'), &merge, false).is_err());
     }
 
     #[test]

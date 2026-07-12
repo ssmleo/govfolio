@@ -14,6 +14,7 @@ use crate::policy::{PolicyDecision, RetryAction, StormThresholds};
 
 const MIGRATION_0001: &str = include_str!("../migrations/0001_control_store.sql");
 const MIGRATION_0002: &str = include_str!("../migrations/0002_build_admission.sql");
+const MIGRATION_0003: &str = include_str!("../migrations/0003_historical_contract.sql");
 const BUSY_TIMEOUT: StdDuration = StdDuration::from_secs(5);
 
 #[derive(Debug, Error)]
@@ -96,6 +97,16 @@ pub struct LaneRuntimeContext {
     pub expected_branch: String,
     pub provider_key: Option<String>,
     pub pid: Option<u32>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct HistoricalLaneContract {
+    pub activation_id: String,
+    pub lane_id: String,
+    pub expected_branch: String,
+    pub worktree: PathBuf,
+    pub work_key: String,
+    pub evidence: govfolio_core::integration::HistoricalContractEvidence,
 }
 
 #[derive(Clone, Debug)]
@@ -205,6 +216,7 @@ impl ControlStore {
             .await?;
         sqlx::raw_sql(MIGRATION_0001).execute(&pool).await?;
         sqlx::raw_sql(MIGRATION_0002).execute(&pool).await?;
+        sqlx::raw_sql(MIGRATION_0003).execute(&pool).await?;
         let store = Self {
             pool,
             database_path,
@@ -706,6 +718,229 @@ impl ControlStore {
         Ok(())
     }
 
+    pub async fn latest_lane_work_key(&self, lane_id: &str) -> Result<Option<String>, StoreError> {
+        sqlx::query_scalar(
+            "SELECT work_key FROM attempt WHERE lane_id = ?1 ORDER BY created_at_ms DESC LIMIT 1",
+        )
+        .bind(lane_id)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(StoreError::from)
+    }
+
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "historical activation binds the exact lane, worktree, branch, work item, and evidence"
+    )]
+    pub async fn record_historical_lane_contract(
+        &self,
+        supervisor: &SupervisorFence,
+        lane_id: &str,
+        expected_branch: &str,
+        worktree: &Path,
+        work_key: &str,
+        evidence: &govfolio_core::integration::HistoricalContractEvidence,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
+        self.ensure_writer()?;
+        let mut transaction = self.pool.begin().await?;
+        ensure_supervisor_fence(&mut transaction, supervisor, millis(now)).await?;
+        let lane = sqlx::query_as::<_, (String, Option<String>, Option<String>, Option<i64>)>(
+            "SELECT status, worktree, expected_branch, pid FROM lane_lease WHERE lane_id = ?1",
+        )
+        .bind(lane_id)
+        .fetch_optional(&mut *transaction)
+        .await?
+        .ok_or_else(|| StoreError::Integrity(format!("lane {lane_id:?} does not exist")))?;
+        let worktree_text = worktree.to_string_lossy().into_owned();
+        if lane.0 != "recovery_required"
+            || lane.1.as_deref() != Some(worktree_text.as_str())
+            || lane.2.as_deref() != Some(expected_branch)
+            || lane.3.is_some()
+        {
+            return Err(StoreError::Integrity(format!(
+                "lane {lane_id:?} changed while historical recovery was assessed"
+            )));
+        }
+        let changed_paths = serde_json::to_string(&evidence.changed_paths)?;
+        let activation_id = Ulid::new().to_string();
+        sqlx::query(
+            "INSERT INTO lane_historical_contract \
+             (activation_id, lane_id, expected_branch, worktree, work_key, merge_base_sha, \
+              active_policy_sha256, source_sha, changed_paths_json, activated_at_ms) \
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10)",
+        )
+        .bind(&activation_id)
+        .bind(lane_id)
+        .bind(expected_branch)
+        .bind(&worktree_text)
+        .bind(work_key)
+        .bind(&evidence.merge_base_sha)
+        .bind(&evidence.active_policy_sha256)
+        .bind(&evidence.source_sha)
+        .bind(&changed_paths)
+        .bind(millis(now))
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        let stored = self
+            .historical_lane_contract(lane_id)
+            .await?
+            .ok_or_else(|| {
+                StoreError::Integrity("historical contract was not stored".to_owned())
+            })?;
+        let expected = HistoricalLaneContract {
+            activation_id,
+            lane_id: lane_id.to_owned(),
+            expected_branch: expected_branch.to_owned(),
+            worktree: worktree.to_path_buf(),
+            work_key: work_key.to_owned(),
+            evidence: evidence.clone(),
+        };
+        if stored == expected {
+            Ok(())
+        } else {
+            Err(StoreError::Integrity(format!(
+                "lane {lane_id:?} already has different immutable historical evidence"
+            )))
+        }
+    }
+
+    pub async fn historical_lane_contract(
+        &self,
+        lane_id: &str,
+    ) -> Result<Option<HistoricalLaneContract>, StoreError> {
+        let row = sqlx::query_as::<
+            _,
+            (
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+                String,
+            ),
+        >(
+            "SELECT activation_id, expected_branch, worktree, work_key, merge_base_sha, \
+             active_policy_sha256, source_sha, changed_paths_json \
+             FROM lane_historical_contract WHERE lane_id = ?1 AND consumed_at_ms IS NULL",
+        )
+        .bind(lane_id)
+        .fetch_optional(&self.pool)
+        .await?;
+        row.map(|row| {
+            Ok(HistoricalLaneContract {
+                activation_id: row.0,
+                lane_id: lane_id.to_owned(),
+                expected_branch: row.1,
+                worktree: PathBuf::from(row.2),
+                work_key: row.3,
+                evidence: govfolio_core::integration::HistoricalContractEvidence {
+                    merge_base_sha: row.4,
+                    active_policy_sha256: row.5,
+                    source_sha: row.6,
+                    changed_paths: serde_json::from_str(&row.7)?,
+                },
+            })
+        })
+        .transpose()
+    }
+
+    pub async fn retire_historical_lane_contract(
+        &self,
+        supervisor: &SupervisorFence,
+        lane_id: &str,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
+        self.ensure_writer()?;
+        let mut transaction = self.pool.begin().await?;
+        ensure_supervisor_fence(&mut transaction, supervisor, millis(now)).await?;
+        let recoverable = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM lane_lease WHERE lane_id = ?1 \
+             AND status = 'recovery_required' AND pid IS NULL",
+        )
+        .bind(lane_id)
+        .fetch_one(&mut *transaction)
+        .await?;
+        if recoverable != 1 {
+            return Err(StoreError::RecoveryRequired(lane_id.to_owned()));
+        }
+        sqlx::query(
+            "UPDATE lane_historical_contract SET consumed_at_ms = ?1 \
+             WHERE lane_id = ?2 AND consumed_at_ms IS NULL",
+        )
+        .bind(millis(now))
+        .bind(lane_id)
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(())
+    }
+
+    pub async fn consume_historical_contract_after_integration(
+        &self,
+        supervisor: &SupervisorFence,
+        receipt_id: &str,
+        lane_id: &str,
+        work_key: &str,
+        completed: &govfolio_core::integration::HistoricalContractEvidence,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
+        let active = self
+            .validate_historical_contract_for_integration(lane_id, work_key, completed)
+            .await?;
+        let mut transaction = self.pool.begin().await?;
+        ensure_supervisor_fence(&mut transaction, supervisor, millis(now)).await?;
+        let result = sqlx::query(
+            "UPDATE lane_historical_contract SET consumed_at_ms = ?1, \
+             consumed_by_receipt_id = ?2 \
+             WHERE activation_id = ?3 AND consumed_at_ms IS NULL",
+        )
+        .bind(millis(now))
+        .bind(receipt_id)
+        .bind(&active.activation_id)
+        .execute(&mut *transaction)
+        .await?;
+        if result.rows_affected() != 1 {
+            return Err(StoreError::RecoveryRequired(lane_id.to_owned()));
+        }
+        transaction.commit().await?;
+        Ok(())
+    }
+
+    pub async fn historical_receipt_consumed(&self, receipt_id: &str) -> Result<bool, StoreError> {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM lane_historical_contract \
+             WHERE consumed_by_receipt_id = ?1",
+        )
+        .bind(receipt_id)
+        .fetch_one(&self.pool)
+        .await?;
+        Ok(count == 1)
+    }
+
+    pub async fn validate_historical_contract_for_integration(
+        &self,
+        lane_id: &str,
+        work_key: &str,
+        completed: &govfolio_core::integration::HistoricalContractEvidence,
+    ) -> Result<HistoricalLaneContract, StoreError> {
+        let active = self
+            .historical_lane_contract(lane_id)
+            .await?
+            .ok_or_else(|| StoreError::RecoveryRequired(lane_id.to_owned()))?;
+        if active.work_key != work_key {
+            return Err(StoreError::Integrity(format!(
+                "integrated historical work key does not match lane {lane_id:?}"
+            )));
+        }
+        crate::historical_contract::validate_historical_continuation(&active.evidence, completed)
+            .map_err(|error| StoreError::Integrity(error.to_string()))?;
+        Ok(active)
+    }
+
     async fn require_lane_update(
         &self,
         token: &LaneFence,
@@ -785,6 +1020,91 @@ impl ControlStore {
                 .await?
                 .ok_or_else(|| StoreError::AttemptNotFound(attempt_id.to_owned()))?;
         Ok(serde_json::from_str(&value)?)
+    }
+
+    pub async fn latest_attempt_spec_for_work_key(
+        &self,
+        work_key: &str,
+    ) -> Result<AttemptSpec, StoreError> {
+        let value = sqlx::query_scalar::<_, String>(
+            "SELECT spec_json FROM attempt WHERE work_key = ?1 \
+             ORDER BY attempt_ordinal DESC, created_at_ms DESC LIMIT 1",
+        )
+        .bind(work_key)
+        .fetch_optional(&self.pool)
+        .await?
+        .ok_or_else(|| StoreError::AttemptNotFound(work_key.to_owned()))?;
+        Ok(serde_json::from_str(&value)?)
+    }
+
+    pub async fn reserve_historical_attempt(
+        &self,
+        token: &LaneFence,
+        spec: &AttemptSpec,
+        now: DateTime<Utc>,
+    ) -> Result<(), StoreError> {
+        self.ensure_writer()?;
+        let mut transaction = self.pool.begin().await?;
+        let valid = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM lane_lease lane \
+             JOIN lane_historical_contract historical ON historical.lane_id = lane.lane_id \
+             WHERE lane.lane_id = ?1 AND lane.fence = ?2 AND lane.status = 'owned' \
+             AND lane.lease_until_ms > ?3 AND historical.work_key = ?4 \
+             AND historical.worktree = ?5 AND historical.expected_branch = ?6 \
+             AND historical.consumed_at_ms IS NULL",
+        )
+        .bind(&token.lane_id)
+        .bind(token.fence)
+        .bind(millis(now))
+        .bind(&spec.work_key)
+        .bind(spec.worktree.to_string_lossy().as_ref())
+        .bind(&spec.expected_branch)
+        .fetch_one(&mut *transaction)
+        .await?;
+        if valid != 1 || spec.lane_id != token.lane_id || spec.lane_fence != token.fence {
+            return Err(StoreError::RecoveryRequired(token.lane_id.clone()));
+        }
+        let already_reserved = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM attempt WHERE lane_id = ?1 AND lane_fence = ?2 \
+             AND work_key = ?3",
+        )
+        .bind(&token.lane_id)
+        .bind(token.fence)
+        .bind(&spec.work_key)
+        .fetch_one(&mut *transaction)
+        .await?;
+        if already_reserved != 0 {
+            return Err(StoreError::AttemptBudgetExhausted(spec.work_key.clone()));
+        }
+        let ordinal = sqlx::query_scalar::<_, i64>(
+            "SELECT COALESCE(MAX(attempt_ordinal), 0) + 1 FROM attempt WHERE work_key = ?1",
+        )
+        .bind(&spec.work_key)
+        .fetch_one(&mut *transaction)
+        .await?;
+        sqlx::query(
+            "INSERT INTO attempt \
+             (attempt_id, lane_id, lane_fence, work_key, attempt_ordinal, provider_key, \
+              config_fingerprint, preflight_signature, state, spec_json, git_head_before, \
+              journal_sha_before, created_at_ms) \
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, 'reserved', ?9, ?10, ?11, ?12)",
+        )
+        .bind(&spec.id)
+        .bind(&spec.lane_id)
+        .bind(spec.lane_fence)
+        .bind(&spec.work_key)
+        .bind(ordinal)
+        .bind(provider_key(spec))
+        .bind(&spec.provider.config_fingerprint)
+        .bind(&spec.preflight_signature)
+        .bind(serde_json::to_string(spec)?)
+        .bind(&spec.git_head_before)
+        .bind(&spec.journal_sha_before)
+        .bind(millis(now))
+        .execute(&mut *transaction)
+        .await?;
+        transaction.commit().await?;
+        Ok(())
     }
 
     pub async fn reserve_initial_attempt(
@@ -2198,14 +2518,74 @@ mod tests {
     }
 
     #[tokio::test]
+    #[expect(
+        clippy::too_many_lines,
+        reason = "one lifecycle test proves activation, continuation, fencing, and retirement"
+    )]
     async fn recovery_resolution_requires_supervisor_authority_and_next_owner_gets_new_fence() {
         let temp = TempDir::new().expect("temp directory should be created");
         let store = store(&temp).await;
         let (supervisor, lane) = owned_lane(&store).await;
         store
+            .update_lane_context(
+                &lane,
+                &LaneRuntimeContext {
+                    role: "orchestrator".to_owned(),
+                    worktree: temp.path().to_path_buf(),
+                    expected_branch: "goal/test".to_owned(),
+                    provider_key: None,
+                    pid: None,
+                },
+                at(0),
+            )
+            .await
+            .expect("lane context");
+        store
+            .reserve_initial_attempt(
+                &attempt(&lane, "historical", "owned-work", temp.path()),
+                at(0),
+            )
+            .await
+            .expect("owned work attempt");
+        store
             .mark_lane_recovery_required(&lane, "dirty", at(0))
             .await
             .expect("lane should fence for recovery");
+        let evidence = govfolio_core::integration::HistoricalContractEvidence {
+            merge_base_sha: "b".repeat(40),
+            active_policy_sha256: "a".repeat(64),
+            source_sha: "c".repeat(40),
+            changed_paths: vec!["crates/core/src/useful.rs".to_owned()],
+        };
+        assert_eq!(
+            store
+                .latest_lane_work_key(&lane.lane_id)
+                .await
+                .expect("work key")
+                .as_deref(),
+            Some("owned-work")
+        );
+        store
+            .record_historical_lane_contract(
+                &supervisor,
+                &lane.lane_id,
+                "goal/test",
+                temp.path(),
+                "owned-work",
+                &evidence,
+                at(0),
+            )
+            .await
+            .expect("historical contract");
+        assert_eq!(
+            store
+                .historical_lane_contract(&lane.lane_id)
+                .await
+                .expect("historical lookup")
+                .expect("historical record")
+                .evidence,
+            evidence
+        );
         store
             .resolve_lane_recovery(&supervisor, &lane.lane_id, at(0))
             .await
@@ -2222,6 +2602,110 @@ mod tests {
             .expect("verified lane should reacquire");
 
         assert!(next.fence > lane.fence);
+        store
+            .update_lane_context(
+                &next,
+                &LaneRuntimeContext {
+                    role: "orchestrator".to_owned(),
+                    worktree: temp.path().to_path_buf(),
+                    expected_branch: "goal/test".to_owned(),
+                    provider_key: None,
+                    pid: None,
+                },
+                at(0),
+            )
+            .await
+            .expect("reacquired lane context");
+        let mut continuation = store
+            .latest_attempt_spec_for_work_key("owned-work")
+            .await
+            .expect("owned work spec");
+        continuation.id = "historical-continuation".to_owned();
+        continuation.lane_fence = next.fence;
+        store
+            .reserve_historical_attempt(&next, &continuation, at(0))
+            .await
+            .expect("one historical continuation on the new fence");
+        assert!(matches!(
+            store
+                .reserve_historical_attempt(&next, &continuation, at(0))
+                .await,
+            Err(StoreError::AttemptBudgetExhausted(_))
+        ));
+        let activation = store
+            .historical_lane_contract(&lane.lane_id)
+            .await
+            .expect("active historical contract")
+            .expect("historical activation");
+        let mut completed_evidence = activation.evidence.clone();
+        completed_evidence.source_sha = "e".repeat(40);
+        store
+            .consume_historical_contract_after_integration(
+                &supervisor,
+                "historical-receipt-1",
+                &lane.lane_id,
+                "owned-work",
+                &completed_evidence,
+                at(0),
+            )
+            .await
+            .expect("historical activation should retire only after integration");
+        assert!(
+            store
+                .historical_receipt_consumed("historical-receipt-1")
+                .await
+                .expect("receipt consumption lookup")
+        );
+        assert!(
+            store
+                .historical_lane_contract(&lane.lane_id)
+                .await
+                .expect("historical lookup")
+                .is_none()
+        );
+        store
+            .mark_lane_recovery_required(&next, "reviewed continuation", at(0))
+            .await
+            .expect("completed lane can require a later reviewed recovery");
+        let mut rotated_evidence = evidence;
+        rotated_evidence.source_sha = "d".repeat(40);
+        store
+            .retire_historical_lane_contract(&supervisor, &lane.lane_id, at(0))
+            .await
+            .expect("prior evidence stays retired");
+        store
+            .record_historical_lane_contract(
+                &supervisor,
+                &lane.lane_id,
+                "goal/test",
+                temp.path(),
+                "owned-work",
+                &rotated_evidence,
+                at(0),
+            )
+            .await
+            .expect("new reviewed evidence rotates in");
+        store
+            .resolve_lane_recovery(&supervisor, &lane.lane_id, at(0))
+            .await
+            .expect("rotated lane recovery resolves");
+        let rotated_lane = store
+            .acquire_lane(
+                &lane.lane_id,
+                "lane-owner-rotated",
+                &supervisor,
+                at(0),
+                Duration::minutes(1),
+            )
+            .await
+            .expect("rotated lane reacquires");
+        let mut rotated_attempt = continuation;
+        rotated_attempt.id = "rotated-historical-continuation".to_owned();
+        rotated_attempt.lane_fence = rotated_lane.fence;
+        store
+            .reserve_historical_attempt(&rotated_lane, &rotated_attempt, at(0))
+            .await
+            .expect("rotated active evidence admits on the new fence");
     }
 
     #[tokio::test]
