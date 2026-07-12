@@ -626,6 +626,8 @@ async fn prepare_linked_worktree<R: HostCommandRunner>(
             &request.git_executable,
             repo,
             &[
+                "-c",
+                "core.longpaths=true",
                 "-C",
                 &path_text(repo),
                 "worktree",
@@ -742,6 +744,8 @@ async fn cleanup_worktree<R: HostCommandRunner>(
         &request.git_executable,
         repo,
         &[
+            "-c",
+            "core.longpaths=true",
             "-C",
             &path_text(repo),
             "worktree",
@@ -1371,7 +1375,13 @@ mod tests {
             report.git_common_dir,
             common.canonicalize().expect("common")
         );
-        assert_eq!(runner.calls.lock().expect("call lock").len(), 8);
+        let calls = runner.calls.lock().expect("call lock");
+        assert_eq!(calls.len(), 8);
+        assert_eq!(
+            &calls[2].args[..2],
+            &["-c".to_owned(), "core.longpaths=true".to_owned()],
+            "disposable worktree checkout must opt into long Windows paths"
+        );
     }
 
     #[tokio::test]

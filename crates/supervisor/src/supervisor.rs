@@ -3986,7 +3986,18 @@ fn fetch_origin_main(repo: &Path) -> anyhow::Result<String> {
 
 fn add_disposable_worktree(repo: &Path, worktree: &Path, main_sha: &str) -> anyhow::Result<()> {
     let path = worktree.to_string_lossy().into_owned();
-    git_checked(repo, &["worktree", "add", "--detach", &path, main_sha])?;
+    git_checked(
+        repo,
+        &[
+            "-c",
+            "core.longpaths=true",
+            "worktree",
+            "add",
+            "--detach",
+            &path,
+            main_sha,
+        ],
+    )?;
     Ok(())
 }
 
@@ -3995,7 +4006,17 @@ fn remove_disposable_worktree(repo: &Path, parent: &Path, worktree: &Path) -> an
         bail!("refusing to remove an unvalidated canary worktree");
     }
     let path = worktree.to_string_lossy().into_owned();
-    git_checked(repo, &["worktree", "remove", "--force", &path])?;
+    git_checked(
+        repo,
+        &[
+            "-c",
+            "core.longpaths=true",
+            "worktree",
+            "remove",
+            "--force",
+            &path,
+        ],
+    )?;
     Ok(())
 }
 
