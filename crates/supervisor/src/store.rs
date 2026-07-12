@@ -13,6 +13,7 @@ use crate::model::{AttemptSpec, NormalizedResult, ResultClass, SuppressionReason
 use crate::policy::{PolicyDecision, RetryAction, StormThresholds};
 
 const MIGRATION_0001: &str = include_str!("../migrations/0001_control_store.sql");
+const MIGRATION_0002: &str = include_str!("../migrations/0002_build_admission.sql");
 const BUSY_TIMEOUT: StdDuration = StdDuration::from_secs(5);
 
 #[derive(Debug, Error)]
@@ -39,6 +40,10 @@ pub enum StoreError {
     RecoveryRequired(String),
     #[error("attempt {0} does not exist")]
     AttemptNotFound(String),
+    #[error("build request {0} does not exist")]
+    BuildRequestNotFound(String),
+    #[error("invalid build request transition: {0}")]
+    InvalidBuildTransition(String),
     #[error("release-0 attempt budget is exhausted for {0}")]
     AttemptBudgetExhausted(String),
     #[error("invalid alternate-provider recovery attempt: {0}")]
@@ -64,7 +69,7 @@ enum StoreMode {
 }
 
 pub struct ControlStore {
-    pool: SqlitePool,
+    pub(crate) pool: SqlitePool,
     database_path: PathBuf,
     mode: StoreMode,
     _writer_lock: Option<File>,
@@ -199,6 +204,7 @@ impl ControlStore {
             .connect_with(options)
             .await?;
         sqlx::raw_sql(MIGRATION_0001).execute(&pool).await?;
+        sqlx::raw_sql(MIGRATION_0002).execute(&pool).await?;
         let store = Self {
             pool,
             database_path,
@@ -373,7 +379,7 @@ impl ControlStore {
         Ok(sqlx::query_scalar(query).fetch_one(&self.pool).await?)
     }
 
-    fn ensure_writer(&self) -> Result<(), StoreError> {
+    pub(crate) fn ensure_writer(&self) -> Result<(), StoreError> {
         if self.mode == StoreMode::Writer {
             Ok(())
         } else {

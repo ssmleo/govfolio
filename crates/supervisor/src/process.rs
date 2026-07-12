@@ -1,4 +1,3 @@
-use std::future::pending;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::process::{ExitStatus, Stdio};
@@ -9,11 +8,12 @@ use thiserror::Error;
 use tokio::fs::{File, OpenOptions};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStderr, ChildStdout, Command};
-use tokio::sync::{oneshot, watch};
+use tokio::sync::{mpsc, oneshot, watch};
 use tokio::task::JoinError;
 use tokio::time::sleep;
 
 use crate::artifacts::AttemptArtifacts;
+use crate::build_store::ProcessIdentity;
 use crate::model::{CommandSpec, NormalizedResult, ResultClass};
 use crate::provider::{EventClassifier, MAX_STDERR_CLASSIFIER_BYTES};
 
@@ -44,6 +44,29 @@ impl From<&AttemptArtifacts> for ProcessOutputPaths {
     }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RawProcessOutputPaths {
+    pub stdout: PathBuf,
+    pub stderr: PathBuf,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum RawProcessEvent {
+    Stdout(Vec<u8>),
+    Stderr(Vec<u8>),
+    Progress,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RawProcessExecution {
+    pub exit_code: Option<i32>,
+    pub cancelled: bool,
+    pub stdout_bytes: u64,
+    pub stderr_bytes: u64,
+    pub stderr_tail: Vec<u8>,
+    pub process_identity: ProcessIdentity,
+}
+
 #[derive(Clone, Debug)]
 pub struct ProcessRunner {
     stderr_tail_bytes: usize,
@@ -66,6 +89,84 @@ impl ProcessRunner {
             stderr_tail_bytes: stderr_tail_bytes.min(MAX_STDERR_CLASSIFIER_BYTES),
             poll_interval: poll_interval.max(Duration::from_millis(1)),
         }
+    }
+
+    /// Runs one raw command in the same owned process-group primitive used by
+    /// provider execution, while streaming unclassified stdout and stderr.
+    pub async fn run_raw(
+        &self,
+        specification: &CommandSpec,
+        output: &RawProcessOutputPaths,
+        mut cancellation: ProcessCancellation,
+        events: mpsc::Sender<RawProcessEvent>,
+        pid_sender: oneshot::Sender<ProcessIdentity>,
+    ) -> Result<RawProcessExecution, ProcessError> {
+        let stdout_file = create_output_file(&output.stdout).await?;
+        let stderr_file = create_output_file(&output.stderr).await?;
+        let mut command = build_command(specification);
+        let prepared_group = PreparedProcessGroup::prepare(&mut command)?;
+        let mut child = command.spawn()?;
+        let group = match prepared_group.attach(&child) {
+            Ok(group) => group,
+            Err(error) => {
+                terminate_unowned_child(&mut child).await?;
+                return Err(ProcessError::Io(error));
+            }
+        };
+        let pid = child.id().ok_or_else(|| {
+            ProcessError::Io(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "spawned raw process has no identifier",
+            ))
+        })?;
+        let Some(identity) = observed_process_identity(pid)? else {
+            terminate_started_child(&mut child, &group).await?;
+            return Err(ProcessError::Io(io::Error::new(
+                io::ErrorKind::NotFound,
+                "spawned raw process identity disappeared",
+            )));
+        };
+        let _receiver_dropped = pid_sender.send(identity.clone());
+
+        let stdin = take_stdin(&mut child, &group).await?;
+        let stdout = take_stdout(&mut child, &group).await?;
+        let stderr = take_stderr(&mut child, &group).await?;
+        let stdin_task = tokio::spawn(write_stdin(stdin, specification.stdin.clone()));
+        let stdout_task = tokio::spawn(capture_raw_stream(
+            stdout,
+            stdout_file,
+            events.clone(),
+            RawStreamKind::Stdout,
+            0,
+        ));
+        let stderr_task = tokio::spawn(capture_raw_stream(
+            stderr,
+            stderr_file,
+            events.clone(),
+            RawStreamKind::Stderr,
+            self.stderr_tail_bytes,
+        ));
+
+        let (status, cancelled) = wait_for_raw_exit(
+            &mut child,
+            &group,
+            &mut cancellation,
+            self.poll_interval,
+            events,
+        )
+        .await?;
+        group.terminate_remaining()?;
+        tolerate_closed_stdin(stdin_task.await?)?;
+        let stdout_capture = stdout_task.await??;
+        let stderr_capture = stderr_task.await??;
+        Ok(RawProcessExecution {
+            exit_code: status.code(),
+            cancelled,
+            stdout_bytes: stdout_capture.total_bytes,
+            stderr_bytes: stderr_capture.total_bytes,
+            stderr_tail: stderr_capture.tail,
+            process_identity: identity,
+        })
     }
 
     /// Runs one provider command in an owned operating-system process group.
@@ -188,6 +289,207 @@ impl ProcessRunner {
     }
 }
 
+#[derive(Clone, Copy)]
+enum RawStreamKind {
+    Stdout,
+    Stderr,
+}
+
+struct RawCapture {
+    total_bytes: u64,
+    tail: Vec<u8>,
+}
+
+async fn capture_raw_stream<R>(
+    mut reader: R,
+    mut file: File,
+    events: mpsc::Sender<RawProcessEvent>,
+    kind: RawStreamKind,
+    tail_limit: usize,
+) -> io::Result<RawCapture>
+where
+    R: tokio::io::AsyncRead + Unpin,
+{
+    let mut buffer = vec![0_u8; 8 * 1024];
+    let mut total_bytes = 0_u64;
+    let mut tail = TailBuffer::new(tail_limit);
+    loop {
+        let read = reader.read(&mut buffer).await?;
+        if read == 0 {
+            break;
+        }
+        let bytes = &buffer[..read];
+        file.write_all(bytes).await?;
+        total_bytes = total_bytes.saturating_add(u64::try_from(read).unwrap_or(u64::MAX));
+        if tail_limit > 0 {
+            tail.push(bytes);
+        }
+        let event = match kind {
+            RawStreamKind::Stdout => RawProcessEvent::Stdout(bytes.to_vec()),
+            RawStreamKind::Stderr => RawProcessEvent::Stderr(bytes.to_vec()),
+        };
+        let _client_disconnected = events.send(event).await;
+        let _client_disconnected = events.send(RawProcessEvent::Progress).await;
+    }
+    file.flush().await?;
+    file.sync_all().await?;
+    Ok(RawCapture {
+        total_bytes,
+        tail: tail.into_bytes(),
+    })
+}
+
+#[cfg(unix)]
+pub fn observed_process_identity(pid: u32) -> io::Result<Option<ProcessIdentity>> {
+    let Some(stat) = read_process_stat(pid)? else {
+        return Ok(None);
+    };
+    let close = stat.rfind(')').ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "process stat has no command terminator",
+        )
+    })?;
+    let start_ticks = stat[close + 1..]
+        .split_whitespace()
+        .nth(19)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "process stat is truncated"))?
+        .parse::<i64>()
+        .map_err(io::Error::other)?;
+    Ok(Some(ProcessIdentity {
+        pid,
+        started_at_ms: start_ticks,
+    }))
+}
+
+#[cfg(unix)]
+pub fn observed_process_activity(pid: u32) -> io::Result<Option<u64>> {
+    let Some(stat) = read_process_stat(pid)? else {
+        return Ok(None);
+    };
+    let close = stat.rfind(')').ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "process stat has no command terminator",
+        )
+    })?;
+    let fields = stat[close + 1..].split_whitespace().collect::<Vec<_>>();
+    let user = fields
+        .get(11)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "process stat is truncated"))?
+        .parse::<u64>()
+        .map_err(io::Error::other)?;
+    let kernel = fields
+        .get(12)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "process stat is truncated"))?
+        .parse::<u64>()
+        .map_err(io::Error::other)?;
+    Ok(Some(user.saturating_add(kernel)))
+}
+
+#[cfg(unix)]
+fn read_process_stat(pid: u32) -> io::Result<Option<String>> {
+    match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+        Ok(stat) => Ok(Some(stat)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error),
+    }
+}
+
+#[cfg(windows)]
+pub fn observed_process_identity(pid: u32) -> io::Result<Option<ProcessIdentity>> {
+    use windows_sys::Win32::Foundation::{CloseHandle, FILETIME};
+    use windows_sys::Win32::System::Threading::{
+        GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+
+    // SAFETY: the PID is an observed child identifier and the returned handle
+    // is checked and closed on every path after successful acquisition.
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    if handle.is_null() {
+        let error = io::Error::last_os_error();
+        return if error.raw_os_error() == Some(87) {
+            Ok(None)
+        } else {
+            Err(error)
+        };
+    }
+    let mut creation = FILETIME::default();
+    let mut exit = FILETIME::default();
+    let mut kernel = FILETIME::default();
+    let mut user = FILETIME::default();
+    // SAFETY: all FILETIME pointers are valid for this synchronous call and
+    // `handle` carries PROCESS_QUERY_LIMITED_INFORMATION.
+    let succeeded = unsafe {
+        GetProcessTimes(
+            handle,
+            &raw mut creation,
+            &raw mut exit,
+            &raw mut kernel,
+            &raw mut user,
+        )
+    };
+    // SAFETY: `handle` is owned by this function and is closed exactly once.
+    unsafe { CloseHandle(handle) };
+    if succeeded == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let ticks = (u64::from(creation.dwHighDateTime) << 32) | u64::from(creation.dwLowDateTime);
+    let unix_ms = ticks / 10_000;
+    let unix_ms = unix_ms.checked_sub(11_644_473_600_000).ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "process creation time predates Unix epoch",
+        )
+    })?;
+    Ok(Some(ProcessIdentity {
+        pid,
+        started_at_ms: i64::try_from(unix_ms).map_err(io::Error::other)?,
+    }))
+}
+
+#[cfg(windows)]
+pub fn observed_process_activity(pid: u32) -> io::Result<Option<u64>> {
+    use windows_sys::Win32::Foundation::{CloseHandle, FILETIME};
+    use windows_sys::Win32::System::Threading::{
+        GetProcessTimes, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
+
+    // SAFETY: the PID comes from the owned process identity and the returned
+    // handle is checked and closed below.
+    let handle = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid) };
+    if handle.is_null() {
+        let error = io::Error::last_os_error();
+        return if error.raw_os_error() == Some(87) {
+            Ok(None)
+        } else {
+            Err(error)
+        };
+    }
+    let mut creation = FILETIME::default();
+    let mut exit = FILETIME::default();
+    let mut kernel = FILETIME::default();
+    let mut user = FILETIME::default();
+    // SAFETY: all pointers are valid and the handle grants query access.
+    let succeeded = unsafe {
+        GetProcessTimes(
+            handle,
+            &raw mut creation,
+            &raw mut exit,
+            &raw mut kernel,
+            &raw mut user,
+        )
+    };
+    // SAFETY: this function owns the handle and closes it exactly once.
+    unsafe { CloseHandle(handle) };
+    if succeeded == 0 {
+        return Err(io::Error::last_os_error());
+    }
+    let kernel_ticks = (u64::from(kernel.dwHighDateTime) << 32) | u64::from(kernel.dwLowDateTime);
+    let user_ticks = (u64::from(user.dwHighDateTime) << 32) | u64::from(user.dwLowDateTime);
+    Ok(Some(kernel_ticks.saturating_add(user_ticks)))
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ProcessExecution {
     pub result: NormalizedResult,
@@ -271,7 +573,7 @@ impl ProcessCancellation {
                 return;
             }
             if self.receiver.changed().await.is_err() {
-                pending::<()>().await;
+                return;
             }
         }
     }
@@ -284,6 +586,34 @@ pub fn cancellation_pair() -> (ProcessCancelHandle, ProcessCancellation) {
         ProcessCancelHandle { sender },
         ProcessCancellation { receiver },
     )
+}
+
+#[must_use]
+pub fn should_retry_build_failure(
+    exit_code: Option<i32>,
+    stderr: &[u8],
+    cancelled: bool,
+    retry_count: u8,
+) -> bool {
+    if cancelled || retry_count > 0 || matches!(exit_code, None | Some(0)) {
+        return false;
+    }
+    let stderr = String::from_utf8_lossy(stderr).to_ascii_lowercase();
+    if stderr.contains("error[e")
+        || stderr.contains("test result: failed")
+        || stderr.contains("clippy")
+    {
+        return false;
+    }
+    [
+        "spurious network error",
+        "failed to download",
+        "failed to fetch",
+        "sharing violation",
+        "being used by another process",
+    ]
+    .iter()
+    .any(|marker| stderr.contains(marker))
 }
 
 fn build_command(specification: &CommandSpec) -> Command {
@@ -401,6 +731,38 @@ async fn wait_for_exit(
                 return child.wait().await.map(|status| (status, true));
             }
             () = sleep(poll_interval) => {}
+        }
+    }
+}
+
+async fn wait_for_raw_exit(
+    child: &mut Child,
+    group: &ProcessGroup,
+    cancellation: &mut ProcessCancellation,
+    poll_interval: Duration,
+    events: mpsc::Sender<RawProcessEvent>,
+) -> io::Result<(ExitStatus, bool)> {
+    let mut last_activity = group.activity().ok();
+    let mut next_activity = tokio::time::Instant::now() + Duration::from_secs(1);
+    loop {
+        if let Some(status) = child.try_wait()? {
+            return Ok((status, false));
+        }
+        tokio::select! {
+            () = cancellation.cancelled() => {
+                group.terminate()?;
+                return child.wait().await.map(|status| (status, true));
+            }
+            () = sleep(poll_interval) => {
+                if tokio::time::Instant::now() >= next_activity {
+                    let activity = group.activity().ok();
+                    if activity.is_some() && activity != last_activity {
+                        last_activity = activity;
+                        let _full_or_disconnected = events.try_send(RawProcessEvent::Progress);
+                    }
+                    next_activity = tokio::time::Instant::now() + Duration::from_secs(1);
+                }
+            }
         }
     }
 }
@@ -562,6 +924,37 @@ impl ProcessGroup {
     fn terminate_remaining(&self) -> io::Result<()> {
         self.terminate()
     }
+
+    fn activity(&self) -> io::Result<u64> {
+        let mut total = 0_u64;
+        for entry in std::fs::read_dir("/proc")? {
+            let entry = entry?;
+            let Some(pid) = entry
+                .file_name()
+                .to_str()
+                .and_then(|value| value.parse::<u32>().ok())
+            else {
+                continue;
+            };
+            let Some(stat) = read_process_stat(pid)? else {
+                continue;
+            };
+            let Some(close) = stat.rfind(')') else {
+                continue;
+            };
+            let fields = stat[close + 1..].split_whitespace().collect::<Vec<_>>();
+            let pgrp = fields.get(2).and_then(|value| value.parse::<i32>().ok());
+            if pgrp != Some(self.pgid) {
+                continue;
+            }
+            let user = fields.get(11).and_then(|value| value.parse::<u64>().ok());
+            let kernel = fields.get(12).and_then(|value| value.parse::<u64>().ok());
+            if let (Some(user), Some(kernel)) = (user, kernel) {
+                total = total.saturating_add(user.saturating_add(kernel));
+            }
+        }
+        Ok(total)
+    }
 }
 
 #[cfg(unix)]
@@ -612,6 +1005,10 @@ impl ProcessGroup {
     fn terminate_remaining(&self) -> io::Result<()> {
         self.job.terminate()
     }
+
+    fn activity(&self) -> io::Result<u64> {
+        self.job.activity()
+    }
 }
 
 #[cfg(windows)]
@@ -660,6 +1057,35 @@ impl WindowsJob {
         } else {
             Ok(job)
         }
+    }
+
+    fn activity(&self) -> io::Result<u64> {
+        use std::ffi::c_void;
+
+        use windows_sys::Win32::System::JobObjects::{
+            JOBOBJECT_BASIC_ACCOUNTING_INFORMATION, JobObjectBasicAccountingInformation,
+            QueryInformationJobObject,
+        };
+
+        let mut accounting = JOBOBJECT_BASIC_ACCOUNTING_INFORMATION::default();
+        let size = u32::try_from(std::mem::size_of_val(&accounting)).map_err(io::Error::other)?;
+        // SAFETY: `accounting` matches the requested information class and the
+        // owned job handle remains live for this synchronous query.
+        let succeeded = unsafe {
+            QueryInformationJobObject(
+                self.handle as *mut c_void,
+                JobObjectBasicAccountingInformation,
+                std::ptr::from_mut(&mut accounting).cast::<c_void>(),
+                size,
+                std::ptr::null_mut(),
+            )
+        };
+        if succeeded == 0 {
+            return Err(io::Error::last_os_error());
+        }
+        let user = u64::try_from(accounting.TotalUserTime).unwrap_or(0);
+        let kernel = u64::try_from(accounting.TotalKernelTime).unwrap_or(0);
+        Ok(user.saturating_add(kernel))
     }
 
     fn assign(&self, child: &Child) -> io::Result<()> {

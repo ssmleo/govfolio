@@ -129,12 +129,12 @@ Cargo. Explicit class can upgrade inferred classification but cannot downgrade i
 
 ### Durable state
 
-- [ ] Add `0002_build_admission.sql` with `build_policy_snapshot`, `build_request`,
+- [x] Add `0002_build_admission.sql` with `build_policy_snapshot`, `build_request`,
   `build_request_event`, `build_evidence`, queue sequence, and state indexes.
-- [ ] Persist supervisor/lane fences, owner identity, policy hash, class, category,
+- [x] Persist supervisor/lane fences, owner identity, policy hash, class, category,
   worktree, target, command hash, effective jobs, timestamps, PID identity, deadline,
   outcome, and evidence hash. Exact commands live only in protected runtime evidence.
-- [ ] Implement fenced states:
+- [x] Implement fenced states:
 
   ```text
   queued -> running
@@ -144,15 +144,15 @@ Cargo. Explicit class can upgrade inferred classification but cannot downgrade i
 
 ### Protocol and scheduling
 
-- [ ] Add authenticated JSON Lines IPC over
+- [x] Add authenticated JSON Lines IPC over
   `\\.\pipe\govfolio-loop-<state-root-hash>` on Windows and
   `<state-root>/control.sock` on Unix.
-- [ ] Generate a per-user control token in the runtime directory and reject wrong protocol
+- [x] Generate a per-user control token in the runtime directory and reject wrong protocol
   version, token, owner identity, policy hash, or fence before request creation.
-- [ ] Stream queue heartbeat, stdout, stderr, admission identity, and terminal result.
-- [ ] Implement FIFO within class and an exclusive barrier: once exclusive waits, no newer
+- [x] Stream queue heartbeat, stdout, stderr, admission identity, and terminal result.
+- [x] Implement FIFO within class and an exclusive barrier: once exclusive waits, no newer
   focused request starts; current focused holders finish first.
-- [ ] Cancel queued/running requests on client disconnect; stale fences cannot start,
+- [x] Cancel queued/running requests on client disconnect; stale fences cannot start,
   heartbeat, release, or recover.
 
 Defaults for the current 16-logical-CPU host:
@@ -168,24 +168,24 @@ progress report: 10 minutes
 no-progress deadline: 15 minutes
 ```
 
-- [ ] Validate `GOVFOLIO_CARGO_*` overrides and reject configurations that leave fewer
+- [x] Validate `GOVFOLIO_CARGO_*` overrides and reject configurations that leave fewer
   than two CPUs for the host.
-- [ ] Require 4 GiB available memory per resulting focused holder, 8 GiB for exclusive,
+- [x] Require 4 GiB available memory per resulting focused holder, 8 GiB for exclusive,
   and free target-volume space greater of 20 GiB or 10%.
-- [ ] Treat compiler output or CPU/I/O deltas as measurable progress so a quiet active
+- [x] Treat compiler output or CPU/I/O deltas as measurable progress so a quiet active
   linker is not falsely timed out.
 
 ### Execution and recovery
 
-- [ ] Extend the existing process-group runner for raw Cargo stdout/stderr and real exit
+- [x] Extend the existing process-group runner for raw Cargo stdout/stderr and real exit
   codes; the supervisor, not the agent, launches admitted Cargo.
-- [ ] Retry once only for whitelisted transport/registry-fetch/Windows sharing failures.
+- [x] Retry once only for whitelisted transport/registry-fetch/Windows sharing failures.
   Compiler, test, Clippy, policy, and cancellation failures get zero retries.
-- [ ] On restart, cancel old queued requests, mark ambiguous running requests
+- [x] On restart, cancel old queued requests, mark ambiguous running requests
   `recovery_required`, and block conflicts until the recorded PID/start identity is dead.
-- [ ] `recover-build` requires the current supervisor fence and proof of dead process;
+- [x] `recover-build` requires the current supervisor fence and proof of dead process;
   recovery never changes the worktree.
-- [ ] Extend status with active policy, queue position, holder, class, target, age, and
+- [x] Extend status with active policy, queue position, holder, class, target, age, and
   deadline, without exposing commands or secrets.
 
 Acceptance:

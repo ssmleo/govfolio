@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::io::{self, BufRead as _, BufReader};
+use std::io::{self, BufRead as _, BufReader, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Arc;
@@ -17,6 +17,16 @@ use tokio::time::{MissedTickBehavior, interval, sleep};
 use ulid::Ulid;
 
 use crate::artifacts::{ArtifactPolicy, ArtifactStore, AttemptArtifactPolicy, atomic_write_new};
+use crate::build_classifier::ResourceClass;
+use crate::build_policy::{BuildPolicySnapshot, load_build_policy};
+use crate::build_protocol::{
+    BuildControlRequest, BuildRequestMessage, ClientEnvelope, PROTOCOL_VERSION, ServerFrame,
+    load_or_create_control_token,
+};
+use crate::build_scheduler::BuildAdmissionConfig;
+use crate::build_service::{
+    BuildAdmissionServer, BuildServerOptions, execute_control_request, stream_control_request,
+};
 use crate::canary::{
     COMPATIBILITY_KIND, CanaryOutcome, CanaryRequest, CompatibilityCanary, ProcessCanaryInvoker,
     SkillCanarySpec,
@@ -63,7 +73,7 @@ type DomainLeaseRow = (
 );
 
 /// Entry point used by the pre-built `govfolio-loop` binary.
-pub fn cli_main() -> anyhow::Result<()> {
+pub fn cli_main() -> anyhow::Result<u8> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let command = args.first().cloned().unwrap_or_else(|| "help".to_owned());
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -72,27 +82,39 @@ pub fn cli_main() -> anyhow::Result<()> {
         .context("build supervisor runtime")?;
     runtime.block_on(async move {
         match command.as_str() {
-            "run" => run(false).await,
-            "once" => run(true).await,
-            "status" => status().await,
-            "doctor" => doctor().await,
-            "backup" => backup().await,
-            "submit-receipt" => submit_receipt(required_arg(&args, 1, "receipt JSON path")?).await,
-            "receipt-status" => receipt_status(required_arg(&args, 1, "receipt id")?).await,
-            "integrate" => integrate_command(false).await,
-            "integrate-once" => integrate_command(true).await,
-            "recover-lane" => recover_lane(required_arg(&args, 1, "lane id")?).await,
-            "probe-native-codex" => probe_native_codex().await,
+            "run" => run(false).await.map(|()| 0),
+            "once" => run(true).await.map(|()| 0),
+            "serve-builds" => serve_builds().await.map(|()| 0),
+            "build-policy" => build_policy_command().await.map(|()| 0),
+            "cargo" => cargo_client(&args).await,
+            "recover-build" => recover_build_client(required_arg(&args, 1, "build request id")?)
+                .await
+                .map(|()| 0),
+            "status" => status().await.map(|()| 0),
+            "doctor" => doctor().await.map(|()| 0),
+            "backup" => backup().await.map(|()| 0),
+            "submit-receipt" => submit_receipt(required_arg(&args, 1, "receipt JSON path")?)
+                .await
+                .map(|()| 0),
+            "receipt-status" => receipt_status(required_arg(&args, 1, "receipt id")?)
+                .await
+                .map(|()| 0),
+            "integrate" => integrate_command(false).await.map(|()| 0),
+            "integrate-once" => integrate_command(true).await.map(|()| 0),
+            "recover-lane" => recover_lane(required_arg(&args, 1, "lane id")?)
+                .await
+                .map(|()| 0),
+            "probe-native-codex" => probe_native_codex().await.map(|()| 0),
             "canary" => {
                 let provider = required_arg(&args, 1, "provider (codex|claude)")?;
                 let skill = args
                     .get(2)
                     .map_or("agents/skills/rust-tdd/SKILL.md", String::as_str);
-                compatibility_canary(provider, skill).await
+                compatibility_canary(provider, skill).await.map(|()| 0)
             }
             "help" | "--help" | "-h" => {
                 print_help();
-                Ok(())
+                Ok(0)
             }
             unknown => bail!("unknown command {unknown:?}; use govfolio-loop help"),
         }
@@ -101,7 +123,7 @@ pub fn cli_main() -> anyhow::Result<()> {
 
 fn print_help() {
     println!(
-        "govfolio-loop run|once|status|doctor|backup|submit-receipt <json>|receipt-status <id>|integrate|recover-lane <lane-id>|probe-native-codex|canary <codex|claude> [skill]"
+        "govfolio-loop run|once|serve-builds|build-policy|cargo [--class focused|exclusive] [--category name] [--policy-sha sha256] -- <cargo args>|status|recover-build <request-id>|doctor|backup|submit-receipt <json>|receipt-status <id>|integrate|recover-lane <lane-id>|probe-native-codex|canary <codex|claude> [skill]"
     );
 }
 
@@ -109,6 +131,309 @@ fn required_arg<'a>(args: &'a [String], index: usize, label: &str) -> anyhow::Re
     args.get(index)
         .map(String::as_str)
         .ok_or_else(|| anyhow!("missing {label}"))
+}
+
+async fn serve_builds() -> anyhow::Result<()> {
+    let config = LoopConfig::from_env()?;
+    config.paths.ensure()?;
+    let store = Arc::new(ControlStore::open_writer(&config.paths.control_db).await?);
+    let owner_id = format!("build-server-{}-{}", std::process::id(), Ulid::new());
+    let supervisor = store
+        .acquire_supervisor(&owner_id, Utc::now(), OWNER_TTL)
+        .await?;
+    store
+        .renew_supervisor(&supervisor, std::process::id(), Utc::now(), OWNER_TTL)
+        .await?;
+    let server = build_server(&config, Arc::clone(&store), supervisor.clone())?;
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    tokio::spawn(async move {
+        if tokio::signal::ctrl_c().await.is_ok() {
+            let _receiver_dropped = shutdown_tx.send(true);
+        }
+    });
+    let result = server.serve(shutdown_rx).await;
+    let release = store.release_supervisor(&supervisor, Utc::now()).await;
+    result?;
+    release?;
+    Ok(())
+}
+
+fn build_server(
+    config: &LoopConfig,
+    store: Arc<ControlStore>,
+    supervisor: SupervisorFence,
+) -> anyhow::Result<BuildAdmissionServer> {
+    let policy = load_build_policy(&config.repo, Utc::now())?;
+    let bounded_policy =
+        std::fs::read_to_string(config.repo.join(crate::build_policy::POLICY_PATH))?;
+    let control_token = load_or_create_control_token(&config.paths.root)?;
+    let logical_cpus = std::thread::available_parallelism()
+        .map(std::num::NonZero::get)
+        .context("detect logical CPU count")?;
+    let build_config = BuildAdmissionConfig::from_env(logical_cpus)?;
+    let bronze_roots = std::env::var_os("GOVFOLIO_BRONZE_ROOT")
+        .map(PathBuf::from)
+        .into_iter()
+        .collect();
+    Ok(BuildAdmissionServer::new(BuildServerOptions {
+        state_root: config.paths.root.clone(),
+        repository: config.repo.clone(),
+        bronze_roots,
+        cargo_program: std::env::var_os("GOVFOLIO_CARGO_BIN")
+            .map_or_else(|| PathBuf::from("cargo"), PathBuf::from),
+        cargo_prefix_args: Vec::new(),
+        policy,
+        bounded_policy,
+        control_token,
+        config: build_config,
+        resource_override: None,
+        store,
+        supervisor,
+    }))
+}
+
+async fn query_build_policy(
+    paths: &crate::config::RuntimePaths,
+) -> anyhow::Result<(BuildPolicySnapshot, i64, String)> {
+    let token = load_or_create_control_token(&paths.root)?;
+    let frames = execute_control_request(
+        &paths.root,
+        &ClientEnvelope {
+            protocol_version: PROTOCOL_VERSION,
+            control_token: token,
+            request: BuildControlRequest::Policy,
+        },
+    )
+    .await?;
+    frames
+        .into_iter()
+        .find_map(|frame| match frame {
+            ServerFrame::Policy {
+                snapshot,
+                bounded_policy,
+                supervisor_fence,
+            } => Some((snapshot, supervisor_fence, bounded_policy)),
+            _ => None,
+        })
+        .ok_or_else(|| anyhow!("build admission server returned no active policy"))
+}
+
+async fn build_policy_command() -> anyhow::Result<()> {
+    let paths = crate::config::RuntimePaths::discover()?;
+    let (snapshot, fence, policy) = query_build_policy(&paths)
+        .await
+        .context("query active build admission server")?;
+    println!("supervisor_fence={fence}");
+    println!("{}", serde_json::to_string_pretty(&snapshot)?);
+    println!("{policy}");
+    Ok(())
+}
+
+async fn cargo_client(args: &[String]) -> anyhow::Result<u8> {
+    let parsed = parse_cargo_client_args(args)?;
+    if is_unmanaged_cargo(&parsed.cargo_args) {
+        return run_unmanaged_cargo(&parsed.cargo_args).await;
+    }
+    let paths = crate::config::RuntimePaths::discover()?;
+    let token = load_or_create_control_token(&paths.root)?;
+    let (policy, supervisor_fence, _bounded) = match query_build_policy(&paths).await {
+        Ok(policy) => policy,
+        Err(error) => {
+            eprintln!("govfolio-loop: build admission server unavailable: {error:#}");
+            return Ok(75);
+        }
+    };
+    let worktree = std::env::current_dir()?;
+    let target_dir = managed_target_dir(&worktree);
+    let lane_id = std::env::var("GOVFOLIO_LOOP_LANE_ID").ok();
+    let lane_fence = std::env::var("GOVFOLIO_LANE_FENCE")
+        .ok()
+        .map(|value| value.parse::<i64>())
+        .transpose()
+        .context("parse GOVFOLIO_LANE_FENCE")?;
+    let envelope = ClientEnvelope {
+        protocol_version: PROTOCOL_VERSION,
+        control_token: token,
+        request: BuildControlRequest::Build(BuildRequestMessage {
+            supervisor_fence,
+            lane_id,
+            lane_fence,
+            owner_identity: std::env::var("GOVFOLIO_BUILD_OWNER")
+                .unwrap_or_else(|_| format!("interactive:{}", std::process::id())),
+            policy_sha256: parsed
+                .policy_sha256
+                .unwrap_or_else(|| policy.policy_sha256.clone()),
+            explicit_class: parsed.explicit_class,
+            category: parsed.category,
+            worktree,
+            target_dir,
+            cargo_args: parsed.cargo_args,
+        }),
+    };
+    let mut exit_code = 75_u8;
+    let mut last_report = None;
+    stream_control_request(&paths.root, &envelope, |frame| {
+        match frame {
+            ServerFrame::QueueHeartbeat {
+                request_id,
+                position,
+            } => {
+                let should_report = last_report.is_none_or(|last: std::time::Instant| {
+                    last.elapsed() >= StdDuration::from_mins(10)
+                });
+                if should_report {
+                    eprintln!("build request {request_id} queued position={position}");
+                    last_report = Some(std::time::Instant::now());
+                }
+            }
+            ServerFrame::Admission {
+                request_id,
+                resource_class,
+                effective_jobs,
+                ..
+            } => eprintln!(
+                "build request {request_id} admitted class={resource_class:?} jobs={effective_jobs}"
+            ),
+            ServerFrame::Stdout { bytes, .. } => {
+                io::stdout().write_all(&bytes)?;
+                io::stdout().flush()?;
+            }
+            ServerFrame::Stderr { bytes, .. } => {
+                io::stderr().write_all(&bytes)?;
+                io::stderr().flush()?;
+            }
+            ServerFrame::Terminal { exit_code: code, .. } => {
+                exit_code = code.and_then(|code| u8::try_from(code).ok()).unwrap_or(75);
+            }
+            ServerFrame::Error { code, message, active_policy_sha256 } => {
+                eprintln!(
+                    "build admission denied code={code} active_policy={active_policy_sha256:?}: {message}"
+                );
+                exit_code = 75;
+            }
+            ServerFrame::Policy { .. } => {}
+        }
+        Ok(())
+    })
+    .await
+    .context("stream supervised Cargo command")?;
+    Ok(exit_code)
+}
+
+fn is_unmanaged_cargo(args: &[String]) -> bool {
+    args.first().is_some_and(|command| {
+        matches!(
+            command.as_str(),
+            "--version" | "version" | "metadata" | "tree" | "fmt"
+        )
+    })
+}
+
+async fn run_unmanaged_cargo(args: &[String]) -> anyhow::Result<u8> {
+    let status = tokio::process::Command::new(
+        std::env::var_os("GOVFOLIO_CARGO_BIN")
+            .map_or_else(|| PathBuf::from("cargo"), PathBuf::from),
+    )
+    .args(args)
+    .status()
+    .await
+    .context("run unmanaged Cargo passthrough")?;
+    Ok(status
+        .code()
+        .and_then(|code| u8::try_from(code).ok())
+        .unwrap_or(1))
+}
+
+async fn recover_build_client(request_id: &str) -> anyhow::Result<()> {
+    let paths = crate::config::RuntimePaths::discover()?;
+    let token = load_or_create_control_token(&paths.root)?;
+    let (_policy, supervisor_fence, _bounded) = query_build_policy(&paths).await?;
+    let frames = execute_control_request(
+        &paths.root,
+        &ClientEnvelope {
+            protocol_version: PROTOCOL_VERSION,
+            control_token: token,
+            request: BuildControlRequest::Recover {
+                request_id: request_id.to_owned(),
+                supervisor_fence,
+                owner_identity: std::env::var("GOVFOLIO_BUILD_OWNER")
+                    .unwrap_or_else(|_| format!("interactive:{}", std::process::id())),
+            },
+        },
+    )
+    .await?;
+    for frame in frames {
+        match frame {
+            ServerFrame::Terminal { state, .. } => println!("request={request_id} state={state:?}"),
+            ServerFrame::Error { message, .. } => bail!("{message}"),
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+struct ParsedCargoClient {
+    explicit_class: Option<ResourceClass>,
+    category: Option<String>,
+    policy_sha256: Option<String>,
+    cargo_args: Vec<String>,
+}
+
+fn parse_cargo_client_args(args: &[String]) -> anyhow::Result<ParsedCargoClient> {
+    let mut parsed = ParsedCargoClient {
+        explicit_class: None,
+        category: None,
+        policy_sha256: None,
+        cargo_args: Vec::new(),
+    };
+    let mut index = 1;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--" => {
+                parsed.cargo_args = args[index + 1..].to_vec();
+                break;
+            }
+            "--class" => {
+                let value = required_arg(args, index + 1, "resource class")?;
+                parsed.explicit_class = Some(match value {
+                    "focused" => ResourceClass::Focused,
+                    "exclusive" => ResourceClass::Exclusive,
+                    _ => bail!("invalid resource class {value:?}"),
+                });
+                index += 2;
+            }
+            "--category" => {
+                parsed.category = Some(required_arg(args, index + 1, "category")?.to_owned());
+                index += 2;
+            }
+            "--policy-sha" => {
+                parsed.policy_sha256 =
+                    Some(required_arg(args, index + 1, "policy sha256")?.to_owned());
+                index += 2;
+            }
+            other => bail!("unknown govfolio-loop cargo option {other:?}"),
+        }
+    }
+    if parsed.cargo_args.is_empty() {
+        bail!("govfolio-loop cargo requires -- <cargo arguments>");
+    }
+    Ok(parsed)
+}
+
+fn managed_target_dir(worktree: &Path) -> PathBuf {
+    if let Some(configured) = std::env::var_os("CARGO_TARGET_DIR") {
+        let configured = PathBuf::from(configured);
+        return if configured.is_absolute() {
+            configured
+        } else {
+            worktree.join(configured)
+        };
+    }
+    let identity = worktree.to_string_lossy().replace('\\', "/");
+    let hash = hex::encode(Sha256::digest(identity.as_bytes()));
+    worktree
+        .join("target")
+        .join(format!("govfolio-managed-{}", &hash[..12]))
 }
 
 async fn run(once: bool) -> anyhow::Result<()> {
@@ -127,6 +452,7 @@ async fn run(once: bool) -> anyhow::Result<()> {
             .context("open fenced control-store writer")?,
     );
     let integration_config = primary.primary.clone();
+    let build_host_config = primary.primary.clone();
     let prepared = prepare_lanes(configs, &store).await?;
     let owner_id = format!("{}-{}", std::process::id(), Ulid::new());
     let now = Utc::now();
@@ -160,6 +486,15 @@ async fn run(once: bool) -> anyhow::Result<()> {
     tasks.spawn(
         async move { integrate_forever(&integration_config, &integration_store, once).await },
     );
+    if !once {
+        let build_server =
+            build_server(&build_host_config, Arc::clone(&store), supervisor.clone())?;
+        let (keepalive, shutdown) = tokio::sync::watch::channel(false);
+        tasks.spawn(async move {
+            let _keepalive = keepalive;
+            build_server.serve(shutdown).await
+        });
+    }
 
     let mut first_error = None;
     while let Some(joined) = tasks.join_next().await {
@@ -2037,6 +2372,57 @@ async fn status() -> anyhow::Result<()> {
                 lane_git_status(Path::new(&worktree))
             );
         }
+    }
+    if let Some(policy) = sqlx::query(
+        "SELECT policy_sha256, schema_version, status, source_commit, loaded_at_ms \
+         FROM build_policy_snapshot ORDER BY loaded_at_ms DESC LIMIT 1",
+    )
+    .fetch_optional(store.pool())
+    .await?
+    {
+        println!(
+            "build_policy sha256={} schema={} status={} source={} loaded_ms={}",
+            policy.try_get::<String, _>(0)?,
+            policy.try_get::<i64, _>(1)?,
+            policy.try_get::<String, _>(2)?,
+            policy.try_get::<String, _>(3)?,
+            policy.try_get::<i64, _>(4)?,
+        );
+    }
+    let now = Utc::now();
+    let mut queue_position = 0_usize;
+    for build in store
+        .list_build_requests()
+        .await?
+        .into_iter()
+        .filter(|build| {
+            matches!(
+                build.state,
+                crate::build_store::BuildRequestState::Queued
+                    | crate::build_store::BuildRequestState::Running
+                    | crate::build_store::BuildRequestState::RecoveryRequired
+            )
+        })
+    {
+        let position = if build.state == crate::build_store::BuildRequestState::Queued {
+            queue_position += 1;
+            Some(queue_position)
+        } else {
+            None
+        };
+        println!(
+            "build={} state={:?} queue_position={position:?} holder={} class={:?} category={:?} target={} age_s={} deadline={} pid={:?} outcome={:?}",
+            build.request_id,
+            build.state,
+            build.owner_identity,
+            build.resource_class,
+            build.category,
+            build.target_dir.display(),
+            (now - build.queued_at).num_seconds().max(0),
+            build.deadline,
+            build.process_identity.as_ref().map(|identity| identity.pid),
+            build.outcome,
+        );
     }
     let attempts = store.attempt_count().await?;
     let suppressions: i64 =
