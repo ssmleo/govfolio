@@ -224,7 +224,7 @@ jobs:
           cargo_log="$(mktemp)"
           set +e
           cargo run -p core --bin prepare-test-template
-          cargo nextest run --workspace --run-ignored ignored-only 2>&1 | tee "$cargo_log"
+          cargo nextest run --workspace --run-ignored ignored-only --profile ci 2>&1 | tee "$cargo_log"
           exit_code=${PIPESTATUS[0]}
           set -e
           elapsed="$(( $(date +%s) - started_epoch ))"
