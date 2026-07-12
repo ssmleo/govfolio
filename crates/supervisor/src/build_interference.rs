@@ -66,9 +66,11 @@ pub fn foreign_govfolio_processes(
         .filter(|process| {
             let command = normalized(&process.command_line);
             if !is_cargo_process(&process.name)
-                && supervised_targets
-                    .iter()
-                    .any(|target| command.contains(target))
+                && rustc_out_dir(&process.command_line).is_some_and(|out_dir| {
+                    supervised_targets
+                        .iter()
+                        .any(|target| path_is_within(&out_dir, target))
+                })
             {
                 return false;
             }
@@ -106,6 +108,31 @@ fn is_rust_build_process(name: &str) -> bool {
 fn is_cargo_process(name: &str) -> bool {
     let name = name.to_ascii_lowercase();
     name.strip_suffix(".exe").unwrap_or(&name) == "cargo"
+}
+
+fn rustc_out_dir(command_line: &str) -> Option<String> {
+    let marker = "--out-dir";
+    let start = command_line.match_indices(marker).find_map(|(index, _)| {
+        let before = &command_line[..index];
+        let after = &command_line[index + marker.len()..];
+        (before.is_empty() || before.chars().next_back().is_some_and(char::is_whitespace))
+            .then_some(after)
+            .filter(|after| {
+                after.starts_with('=') || after.chars().next().is_some_and(char::is_whitespace)
+            })
+    })?;
+    let value = start.strip_prefix('=').unwrap_or(start).trim_start();
+    let raw = if let Some(quoted) = value.strip_prefix('"') {
+        quoted.split_once('"')?.0
+    } else {
+        value.split_whitespace().next()?
+    };
+    (!raw.is_empty()).then(|| normalized(raw))
+}
+
+fn path_is_within(candidate: &str, root: &str) -> bool {
+    let root = root.trim_end_matches('/');
+    candidate == root || candidate.starts_with(&format!("{root}/"))
 }
 
 fn normalized(value: &str) -> String {

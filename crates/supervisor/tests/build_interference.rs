@@ -143,3 +143,33 @@ fn orphaned_rustc_in_the_supervised_private_target_is_owned() {
     );
     assert_eq!(foreign.iter().map(|row| row.pid).collect::<Vec<_>>(), [20]);
 }
+
+#[test]
+fn target_prefix_or_reference_does_not_create_ownership() {
+    let rows = vec![
+        process(
+            21,
+            99,
+            "rustc.exe",
+            r"rustc --out-dir C:\private\request-target-foreign\debug C:\projects\govfolio.io\lane\src\lib.rs",
+        ),
+        process(
+            22,
+            99,
+            "rustc.exe",
+            r#"rustc C:\projects\govfolio.io\lane\src\lib.rs --out-dir="C:\foreign target\debug" --extern owned=C:\private\request-target\lib.rlib"#,
+        ),
+    ];
+    let foreign = foreign_govfolio_processes(
+        &rows,
+        Path::new(r"C:\projects\govfolio.io"),
+        Path::new(r"C:\projects\govfolio.io\lane"),
+        10,
+        &[11],
+        &[Path::new(r"C:\private\request-target").to_path_buf()],
+    );
+    assert_eq!(
+        foreign.iter().map(|row| row.pid).collect::<Vec<_>>(),
+        [21, 22]
+    );
+}
