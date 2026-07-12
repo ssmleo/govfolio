@@ -1,0 +1,14 @@
+[profile.default]
+retries = 0
+fail-fast = false
+
+[profile.ci]
+retries = 0
+fail-fast = false
+
+[test-groups]
+database = { max-threads = 4 }
+
+[[profile.ci.overrides]]
+filter = 'package(api) | package(core) | package(pipeline) | package(worker)'
+test-group = 'database'

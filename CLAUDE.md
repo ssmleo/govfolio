@@ -75,6 +75,12 @@ All acceptance commands in the goal file pass locally AND the full command block
 green AND work is committed on a branch with the goal checklist updated AND memory
 write-back done for scoped work (SAF or domain memory file).
 
+While iterating, builders run the narrow checks that cover their change and auditors
+independently re-derive claims with targeted reproductions. The singleton integrating
+verifier runs the complete command block once against the exact final tree; commit-bound
+CI then enforces the same required gates for protected main. Targeted, missing, or stale
+evidence never substitutes for that final fail-closed verification.
+
 ## Autonomy & guardrails (authority: `docs/decisions/automation-policy.md`)
 Full autonomy with mechanical, fail-closed guardrails — no human gates. Ambiguity is a halt,
 not a guess; a halt files a goal and the loop continues other work. Deploy/infra: first read

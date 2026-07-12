@@ -12,6 +12,7 @@ Everything below is user-scope and reversible. Machine-scope PATH/registry were 
 | 2 | Portable PG: no autostart, no client tools | **SCRIPTED** (`scripts/dev/pg-local.ps1`) + documented | [§2](#2-postgresql-1614-portable-zonky) |
 | 3 | gcc absent → cc-rs "Compiler family detection failed" | **FIXED** (WinLibs via winget, user scope) | [§3](#3-gcc--c-compiling-crates) |
 | 4 | PowerShell 5.1 syntax/encoding traps | **DOCUMENTED** only | [§4](#4-powershell-51-gotchas) |
+| 5 | Separate worktrees repeatedly compile the same dependencies | **OPTIONAL** `sccache` wrapper | [§5](#5-optional-sccache-for-private-worktree-targets) |
 
 ## 1. cargo on PATH
 
@@ -165,6 +166,91 @@ Default shell is Windows PowerShell 5.1, not pwsh 7:
 - Piping a string into a native exe's stdin prepends a UTF-8 BOM on this host (even
   with `$OutputEncoding = ASCII`) — byte-exact stdin must go through Git Bash or an
   ASCII file redirect.
+
+## 5. Optional sccache for private worktree targets
+
+When `sccache` is installed and available on `Path`, use the repository wrapper instead
+of invoking Cargo directly:
+
+```powershell
+.\scripts\dev\cargo-agent.ps1 test --workspace
+.\scripts\dev\cargo-agent.ps1 clippy --all-targets -- -D warnings
+```
+
+The wrapper stores compiler-cache entries under
+`%LOCALAPPDATA%\govfolio\sccache`, sets `CARGO_INCREMENTAL=0` so eligible dependency
+compilations can be cached, and prints cache statistics after Cargo exits. The wrapper
+returns Cargo's exit code. It intentionally does not set `CARGO_TARGET_DIR`: Cargo's
+default remains the current worktree's private `target` directory, and an explicitly
+configured private target is preserved. Never configure one mutable Cargo target for
+concurrent worktrees. Registry data and `sccache` entries are safe to share; target
+artifacts and their build locks are not.
+
+The wrapper is optional, but its behavior is fail-closed: if `sccache` is absent it
+exits with a clear error instead of silently running an uncached build. Invoke `cargo`
+directly when an uncached build is intended. Cache failure cannot make a stale artifact
+pass because rustc remains responsible for every cache key and Cargo still owns the
+worktree-private dependency graph.
+
+### Move future loop Bronze writes outside `target`
+
+`agents/run-loop.sh` now defaults `GOVFOLIO_BRONZE_ROOT` to the absolute sibling
+directory `<repository-parent>\govfolio-bronze`. An explicit absolute environment value
+still takes precedence. This changes future loop writes only; it does not migrate or
+delete Bronze already stored below a checkout's `target` directory.
+
+Before switching a host that has existing `target\bronze-*` stores, stop loop writers
+and make a copy-only migration. The following PowerShell 5.1-compatible procedure copies
+each store without `/MOVE` or `/MIR`, then compares relative path, byte length, and
+SHA-256 for every file:
+
+```powershell
+$repo = (Resolve-Path '.').Path
+$oldParent = Join-Path $repo 'target'
+$newParent = [IO.Path]::GetFullPath((Join-Path $repo '..\govfolio-bronze'))
+$stores = @(Get-ChildItem -LiteralPath $oldParent -Directory -Filter 'bronze-*')
+if ($stores.Count -eq 0) {
+    throw "No Bronze stores found below $oldParent; verify the source worktree"
+}
+
+New-Item -ItemType Directory -Force -Path $newParent | Out-Null
+foreach ($store in $stores) {
+    $destination = Join-Path $newParent $store.Name
+    & robocopy.exe $store.FullName $destination /E /COPY:DAT /DCOPY:DAT /R:1 /W:1
+    if ($LASTEXITCODE -gt 7) {
+        throw "Bronze copy failed for $($store.FullName): robocopy exit $LASTEXITCODE"
+    }
+
+    $sourcePrefix = $store.FullName.TrimEnd('\') + '\'
+    $sourceFiles = @(Get-ChildItem -LiteralPath $store.FullName -File -Recurse)
+    $verified = 0
+    foreach ($sourceFile in $sourceFiles) {
+        $relative = $sourceFile.FullName.Substring($sourcePrefix.Length)
+        $destinationFile = Join-Path $destination $relative
+        if (-not (Test-Path -LiteralPath $destinationFile -PathType Leaf)) {
+            throw "Missing copied Bronze file: $destinationFile"
+        }
+        $destinationLength = (Get-Item -LiteralPath $destinationFile).Length
+        $sourceHash = (Get-FileHash -LiteralPath $sourceFile.FullName -Algorithm SHA256).Hash
+        $destinationHash = (Get-FileHash -LiteralPath $destinationFile -Algorithm SHA256).Hash
+        if ($sourceFile.Length -ne $destinationLength -or $sourceHash -ne $destinationHash) {
+            throw "Bronze verification failed for $relative; keep both copies and investigate"
+        }
+        $verified += 1
+    }
+    if ($verified -ne $sourceFiles.Count) {
+        throw "Bronze file-count verification failed for $($store.Name)"
+    }
+    Write-Host "Verified $($store.Name): $verified source files"
+}
+```
+
+Keep the old `target\bronze-*` trees after verification and run the loop against the new
+root before considering any retention decision. Repeat the copy-and-verify pass from
+each old worktree; the shared destination may safely accumulate additional verified
+content-addressed files. Do not run `cargo clean`, delete an old target, or remove old
+Bronze as part of this migration. Raw documents are sacred; any missing store, count
+mismatch, hash mismatch, or concurrent writer is a hard stop.
 
 ## Audit trail (user-environment changes, all reversible)
 

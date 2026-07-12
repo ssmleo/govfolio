@@ -14,6 +14,24 @@ coverage-specific scaling and legibility rules.
    are green. Factory providers remain stopped before both releases.
 5. Producer count follows the metric gate in hardening design section 9. Do not start
    extra shell runners.
+6. `GOVFOLIO_BRONZE_ROOT` is one absolute, durable directory shared by every lane and
+   outside every Cargo target. The launcher defaults it to the repository sibling
+   `../govfolio-bronze`; an explicit absolute value may override that default.
+
+## Shared caches and sacred Bronze
+
+Every producer keeps its own worktree and Cargo target. Do not point concurrent agents
+at one `CARGO_TARGET_DIR`: Cargo's build lock serializes work and Windows linkers or
+antivirus scanners can collide on mutable artifacts. Agents may share the Cargo registry
+and the optional user-local `sccache` described in
+[`dev-host-windows.md`](dev-host-windows.md#5-optional-sccache-for-private-worktree-targets).
+
+Bronze is not a compiler cache. New loop runs place it in the shared directory named by
+`GOVFOLIO_BRONZE_ROOT`, outside disposable targets. Existing `target/bronze-*` stores
+must be copied, never moved, and verified by relative path, file count, byte length, and
+SHA-256 before the new root is used. Follow the Windows runbook's copy-and-verify
+procedure. Do not clean the old target or delete old Bronze during migration; any
+mismatch fails closed and preserves both copies for investigation.
 
 ## One producer iteration
 

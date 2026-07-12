@@ -21,10 +21,6 @@ pub use reference::{LOCK_PATH, ReferenceLock, load_lock, verify_lock};
 
 use std::path::Path;
 
-/// Env var set on nested `cargo test` invocations spawned by the
-/// rust-builder scorer, so the `role_evals` gate test does not recurse.
-pub const INNER_ENV: &str = "GOVFOLIO_ROLE_EVALS_INNER";
-
 /// The roles the E1 calibration harness scores (coverage-factory phases,
 /// `agents/workflows/source-exploration.md`). Roles outside this set
 /// (orchestrator, planner, sentinel, web-builder) have no us_house-scoped
@@ -41,7 +37,7 @@ pub enum Role {
     SpecWriter,
     /// Phase 3 — fixtures + manifest + `expected.*.json` contracts.
     TestDesigner,
-    /// Phase 4 — conformance 5/5 + the full gate command block.
+    /// Phase 4 — frozen conformance corpus + recorded calibration evidence.
     RustBuilder,
     /// Cross-phase — audit journal line + goal-file findings sections.
     Auditor,
@@ -175,9 +171,9 @@ pub fn score_role(root: &Path, role: Role) -> RoleReport {
     RoleReport { role, outcome }
 }
 
-/// Scores every role in [`Role::ALL`]. The rust-builder scorer invokes the
-/// real gate commands (fmt/clippy/test/conformance) as subprocesses — this
-/// is deliberately expensive; it is a gate, not a unit test.
+/// Scores every role in [`Role::ALL`] using only frozen artifacts and
+/// recorded calibration evidence. Current-code verification is a separate,
+/// commit-bound release gate.
 #[must_use]
 pub fn score_all(root: &Path) -> Vec<RoleReport> {
     Role::ALL

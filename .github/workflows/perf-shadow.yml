@@ -1,0 +1,96 @@
+name: Performance shadow
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "crates/**"
+      - ".config/nextest.toml"
+      - ".github/workflows/perf-shadow.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: perf-shadow-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: "0"
+  RUSTC_WRAPPER: sccache
+  SCCACHE_GHA_ENABLED: "true"
+
+jobs:
+  non-db-nextest:
+    name: Shadow nextest (non-DB)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-targets: false
+          shared-key: perf-shadow-registry
+          add-job-id-key: false
+      - uses: mozilla-actions/sccache-action@v0.0.10
+        with:
+          version: v0.15.0
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest@0.9.140
+      - name: Run non-database tests
+        run: cargo nextest run --workspace
+      - name: Run doctests
+        run: cargo test --workspace --doc
+      - name: Report sccache statistics
+        if: always()
+        run: sccache --show-stats
+
+  db-nextest:
+    name: Shadow nextest (DB, concurrency 4)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-targets: false
+          shared-key: perf-shadow-registry
+          add-job-id-key: false
+          save-if: false
+      - uses: mozilla-actions/sccache-action@v0.0.10
+        with:
+          version: v0.15.0
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: nextest@0.9.140
+      - name: Run ignored database tests
+        run: cargo nextest run --workspace --run-ignored=only --profile ci
+      - name: Report sccache statistics
+        if: always()
+        run: sccache --show-stats

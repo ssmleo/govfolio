@@ -49,9 +49,14 @@
    set session-wide ultracode. First-of-class runs reduced scope; script reviewed
    before write-path approval; results still pass our validators and auditor gates;
    journal the dispatch with a cost note.
-5. VERIFY: run the phase/goal validators and acceptance commands; require the auditor
-   pass where the workflow mandates it. First verify the child's exact `SKILLS_LOADED`
-   receipt against its resolver envelope. The orchestrator never self-certifies.
+5. VERIFY: the producer runs the phase/goal validators and narrow acceptance commands;
+   the independent auditor re-derives claims and may run targeted reproductions. Neither
+   role reruns the complete repository command block by default. First verify the child's
+   exact `SKILLS_LOADED` receipt against its resolver envelope. Before integration, the
+   singleton integrating verifier runs the complete definition-of-done command block once
+   against the exact final tree, and protected main requires the commit-bound CI
+   `release-gate`. Missing or stale evidence fails closed. The orchestrator never
+   self-certifies.
 6. PRODUCE RECEIPT: after validators pass, ensure SAF write-back is in the same local
    commit and verify the producer did not touch `agents/JOURNAL.md`. Create a typed
    immutable receipt with exact base/source SHAs, branch, lane/generation,
