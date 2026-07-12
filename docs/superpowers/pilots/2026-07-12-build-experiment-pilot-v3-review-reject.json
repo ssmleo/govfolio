@@ -1,0 +1,10 @@
+{
+  "schema_version": 2,
+  "experiment_id": "release3-build-cost-pilot-v3",
+  "manifest_sha256": "b172cfa03b6981e474879078754682fc2ca06c782adcf32daf770b2e7607ef58",
+  "exploratory_evidence_sha256": "131e8f8104d53d2b77a8927edd89ebbcd7c31ef3e26fed0de7a5a46c42ff53a0",
+  "decision": "reject",
+  "reason": "Windows process sampling lost short-lived wrapper ancestry and misclassified supervisor-owned rustc processes; both samples correctly stopped INCONCLUSIVE and the evidence contract is rejected for performance conclusions",
+  "auditor": "codex-root",
+  "reviewed_at": "2026-07-12T20:39:21.0699276Z"
+}

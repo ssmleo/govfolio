@@ -1107,7 +1107,11 @@ async fn experiment_review(review_path: &str) -> anyhow::Result<()> {
     let (evaluation, phase_sha256) = match &review {
         ExperimentReview::Reject { reason, .. } => (
             ExperimentEvaluation {
-                outcome: ExperimentOutcome::NoGo,
+                outcome: if recomputed_exploratory.outcome == ExperimentOutcome::Inconclusive {
+                    ExperimentOutcome::Inconclusive
+                } else {
+                    ExperimentOutcome::NoGo
+                },
                 baseline_median_ms: exploratory.evaluation.baseline_median_ms,
                 candidate_median_ms: exploratory.evaluation.candidate_median_ms,
                 improvement_bps: exploratory.evaluation.improvement_bps,

@@ -27,6 +27,7 @@ pub fn foreign_govfolio_processes(
     worktree: &Path,
     supervisor_pid: u32,
     supervised_roots: &[u32],
+    supervised_target_dirs: &[std::path::PathBuf],
 ) -> Vec<ObservedProcess> {
     let parents = processes
         .iter()
@@ -54,12 +55,23 @@ pub fn foreign_govfolio_processes(
     }
     let repository = normalized(repository.to_string_lossy().as_ref());
     let worktree = normalized(worktree.to_string_lossy().as_ref());
+    let supervised_targets = supervised_target_dirs
+        .iter()
+        .map(|target| normalized(target.to_string_lossy().as_ref()))
+        .collect::<Vec<_>>();
     let mut foreign = processes
         .iter()
         .filter(|process| !excluded.contains(&process.pid))
         .filter(|process| is_rust_build_process(&process.name))
         .filter(|process| {
             let command = normalized(&process.command_line);
+            if !is_cargo_process(&process.name)
+                && supervised_targets
+                    .iter()
+                    .any(|target| command.contains(target))
+            {
+                return false;
+            }
             command.contains(&repository)
                 || command.contains(&worktree)
                 || is_cargo_process(&process.name)
