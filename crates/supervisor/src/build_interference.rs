@@ -1,8 +1,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
+#[cfg(windows)]
 use std::process::Command;
 
-use anyhow::{Context as _, bail};
+use anyhow::Context as _;
+#[cfg(windows)]
+use anyhow::bail;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
